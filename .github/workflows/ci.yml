@@ -1,0 +1,85 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ${{ matrix.os }}
+    # Windows is new: it reports without blocking until its first green run.
+    continue-on-error: ${{ matrix.os == 'windows-latest' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        node: ["20.x", "22.x", "24.x"]
+        include:
+          - os: macos-latest
+            node: "22.x"
+          - os: windows-latest
+            node: "22.x"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+      # The eval gate: false-deny <= 2%, flag precision >= 95%, covered accuracy >= 95%.
+      # These decide whether enforcement can be trusted, so a regression fails the build.
+      - run: npm run eval
+
+      # dist/snout.mjs is committed so the plugin works the moment it is installed. That
+      # only stays honest if CI proves the committed bundle is the one src/ produces.
+      - name: committed bundle matches src
+        if: runner.os == 'Linux'
+        run: |
+          cp dist/snout.mjs /tmp/snout.committed.mjs
+          cp dist/lib.mjs /tmp/lib.committed.mjs
+          npm run build
+          diff -q /tmp/snout.committed.mjs dist/snout.mjs || {
+            echo "::error::dist/snout.mjs is stale. Run 'npm run build' and commit the result."
+            exit 1
+          }
+          diff -q /tmp/lib.committed.mjs dist/lib.mjs || {
+            echo "::error::dist/lib.mjs is stale. Run 'npm run build' and commit the result."
+            exit 1
+          }
+
+      - name: plugin manifests are valid json
+        if: runner.os == 'Linux'
+        run: |
+          for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json hooks/hooks.json; do
+            node -e "JSON.parse(require('fs').readFileSync('$f','utf8'))" || exit 1
+            echo "ok $f"
+          done
+
+  # Snout Cloud (cloud/): its own package, tested against PGlite, the same SQL as production.
+  cloud:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cloud
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+      - run: npm ci
+      - run: npm test
+
+  latency:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+      - run: npm ci
+      - run: npm run build
+      # Advisory: a shared CI runner is too noisy to gate a merge on wall-clock latency.
+      - run: npm run bench || echo "::warning::latency benchmark outside budget on this runner"

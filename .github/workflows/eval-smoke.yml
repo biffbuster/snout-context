@@ -1,0 +1,26 @@
+name: eval-smoke
+
+# The release check: 3 tasks × 2 arms on Haiku, about $0.10–0.50 a run. It fails when a task
+# passes with Snout off and fails with it on, the one regression users would never see.
+# Full A/Bs (90 runs) stay manual: `node bench/ab.mjs --n 5 --model haiku`.
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+      - run: npm ci
+      - run: npm run build
+      - run: npm install -g @anthropic-ai/claude-code
+      - name: A/B smoke (haiku, cart + orders + deps)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node bench/ab.mjs --tasks cart,orders,deps --n 1 --model haiku --budget 0.30 --gate

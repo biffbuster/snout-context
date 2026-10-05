@@ -1,0 +1,14 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "snout-context",
+  "description": "Snout: a context gate for AI coding agents.",
+  "owner": { "name": "Snout contributors" },
+  "plugins": [
+    {
+      "name": "snout",
+      "description": "A context gate for AI coding agents: classifies every file before it enters context, withholds low-value bulk like lockfiles and generated code, and reports the tokens saved.",
+      "category": "productivity",
+      "source": "./"
+    }
+  ]
+}

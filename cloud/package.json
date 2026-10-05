@@ -1,0 +1,17 @@
+{
+  "name": "snout-cloud",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Hosted team dashboard for Snout: GitHub login, per-day token totals from `snout sync`.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node src/server.mjs",
+    "dev": "DEV_LOGIN=1 node src/server.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "pg": "^8.23.0"
+  }
+}

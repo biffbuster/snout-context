@@ -1,0 +1,877 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snout Cloud</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23D63F97'/%3E%3C/svg%3E">
+<style>
+/* The same app language as `snout dashboard`: white cards on a warm off-white, one accent
+   (Snout pink) that always means "kept out of context", provider colors only for models.
+   Shape scale: cards 14px, tiles and inputs 10px, buttons 8px, badges 6px. */
+:root {
+  --bg: #f6f5f1; --card: #ffffff; --tile: #f8f7f4; --ink: #121212; --ink-2: #3d3d3a; --muted: #6b6a66; --faint: #a3a29d;
+  --line: #ebeae5; --seg: #ebeae5; --bar-in: #d6d4ce; --accent: #d63f97; --accent-ink: #b52f7e; --accent-soft: #fbe9f3;
+  --ok: #15803d; --ok-soft: #e8f6ed; --info: #1d4ed8; --info-soft: #eaf0fe; --warn: #b45309; --warn-soft: #fdf1e1; --up: #15803d; --down: #b91c1c;
+  --shadow: 0 1px 2px rgba(40, 36, 20, 0.04);
+  --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --bg: #0c0c0e; --card: #16161a; --tile: #1d1d22; --ink: #f4f4f5; --ink-2: #d4d4d8; --muted: #a1a1aa; --faint: #71717a;
+  --line: #26262c; --seg: #2a2a31; --bar-in: #4a4a52; --accent: #ec5fb0; --accent-ink: #f37fc2; --accent-soft: #3a1a2d;
+  --ok: #4ade80; --ok-soft: #13291c; --info: #7aa2ff; --info-soft: #172241; --warn: #fbbf24; --warn-soft: #2e2310; --up: #4ade80; --down: #f87171; --shadow: none; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.45 var(--sans); -webkit-font-smoothing: antialiased; }
+button, select, input { font: inherit; color: inherit; }
+.num { font-variant-numeric: tabular-nums; }
+
+.nav { background: var(--card); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+.nav-in { max-width: 1320px; margin: 0 auto; height: 60px; padding: 0 24px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 17px; letter-spacing: -0.02em; }
+.brand i { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); }
+.brand small { font-weight: 500; font-size: 13px; color: var(--muted); letter-spacing: 0; }
+.tabs { display: flex; gap: 4px; height: 60px; }
+.tab { border: 0; background: none; padding: 0 14px; color: var(--muted); font-weight: 500; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+.nav-r { display: flex; justify-content: flex-end; align-items: center; gap: 10px; min-width: 0; }
+.live { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.live i { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+.live.on i { background: var(--ok); animation: ping 2.4s ease-out infinite; }
+@keyframes ping { 0% { box-shadow: 0 0 0 0 rgba(21, 128, 61, 0.45); } 70%, 100% { box-shadow: 0 0 0 7px rgba(21, 128, 61, 0); } }
+.avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--tile); object-fit: cover; border: 1px solid var(--line); }
+.avatar.sm { width: 20px; height: 20px; }
+
+.wrap { max-width: 1320px; margin: 0 auto; padding: 24px 24px 56px; }
+.head { display: flex; align-items: flex-end; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
+.head h1 { font-size: 24px; line-height: 1.2; letter-spacing: -0.02em; margin: 0 0 4px; font-weight: 650; }
+.head .sub { color: var(--muted); font-size: 13.5px; }
+.head .sub b { color: var(--ink); font-weight: 600; }
+.head .sub span + span::before { content: "·"; margin: 0 8px; color: var(--faint); }
+.head-r { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+select, input { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font-size: 13px; max-width: 220px; }
+input { max-width: none; }
+.btn { border: 1px solid var(--line); background: var(--card); padding: 7px 13px; border-radius: 8px; font-size: 13px; font-weight: 550; cursor: pointer; white-space: nowrap; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.btn:hover { background: var(--tile); }
+.btn:active { transform: translateY(1px); }
+.btn.dark { background: var(--ink); color: var(--card); border-color: var(--ink); }
+.btn.dark:hover { opacity: 0.9; }
+.link { color: var(--info); font-size: 13px; font-weight: 550; background: none; border: 0; cursor: pointer; padding: 0; }
+.link:hover { text-decoration: underline; }
+.banner { display: flex; align-items: center; gap: 14px; background: var(--accent-soft); border-radius: 10px; padding: 11px 14px; margin-bottom: 16px; font-size: 13.5px; flex-wrap: wrap; }
+.banner .btn { margin-left: auto; }
+
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 18px 20px; min-width: 0; position: relative; }
+.card-h { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+.card-h h2 { font-size: 14.5px; font-weight: 600; margin: 0; }
+.card-h p { margin: 2px 0 0; color: var(--muted); font-size: 12.5px; }
+.card-h .r { margin-left: auto; }
+.grid { display: grid; gap: 16px; margin-bottom: 16px; }
+.g-row2 { grid-template-columns: minmax(250px, 0.8fr) minmax(0, 1.15fr) minmax(0, 1.35fr); }
+.g-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.g-wide { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
+
+.models { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); padding: 18px 0; margin-bottom: 16px; }
+.model { padding: 0 22px; border-left: 1px solid var(--line); min-width: 0; }
+.model:first-child { border-left: 0; }
+.m-id { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; min-width: 0; }
+.logo { width: 32px; height: 32px; border-radius: 8px; background: var(--tile); border: 1px solid var(--line); display: grid; place-items: center; flex: none; color: var(--ink); }
+.logo svg { width: 18px; height: 18px; display: block; }
+.logo.sm { width: 20px; height: 20px; border-radius: 6px; border: 0; background: transparent; }
+.logo.sm svg { width: 15px; height: 15px; }
+.logo b { font-size: 12px; font-weight: 700; color: var(--muted); }
+.m-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-sub { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-row { display: flex; align-items: flex-end; gap: 16px; }
+.m-val { font-size: 27px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.1; }
+.m-note { font-size: 12.5px; margin-top: 3px; color: var(--muted); white-space: nowrap; }
+.m-note b { font-weight: 600; color: var(--c, var(--ink)); }
+.meter { flex: 1; display: flex; gap: 3px; height: 28px; min-width: 90px; max-width: 150px; margin-left: auto; margin-bottom: 4px; }
+.meter i { flex: 1; min-width: 2px; border-radius: 1.5px; background: var(--seg); transition: background 0.3s ease; }
+.meter i.f { background: var(--c); }
+.models-empty { grid-column: 1 / -1; padding: 4px 22px; color: var(--muted); font-size: 13.5px; }
+
+.tiles { display: grid; gap: 10px; }
+.tile { background: var(--tile); border-radius: 10px; padding: 12px 14px; }
+.tile .k { font-size: 12.5px; color: var(--muted); }
+.tile .v { font-size: 22px; font-weight: 650; letter-spacing: -0.02em; margin-top: 2px; }
+.tile .s { font-size: 12px; color: var(--muted); margin-top: 1px; }
+.tile.hl .v { color: var(--accent-ink); }
+
+.feed { display: grid; }
+.frow { display: grid; grid-template-columns: 62px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.frow:first-child { border-top: 0; }
+.frow .when { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+.frow .what { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.frow .what span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.frow .what small { color: var(--muted); font-size: 12.5px; }
+.frow.fresh { animation: fresh 2.2s ease-out; }
+@keyframes fresh { from { background: var(--accent-soft); } to { background: transparent; } }
+.badge { display: inline-block; font-size: 11.5px; font-weight: 600; padding: 3px 8px; border-radius: 6px; white-space: nowrap; background: var(--tile); color: var(--ink-2); }
+.badge.full { background: var(--ok-soft); color: var(--ok); }
+.badge.cut { background: var(--accent-soft); color: var(--accent-ink); }
+.badge.run { background: var(--info-soft); color: var(--info); }
+
+.chart-box { position: relative; }
+svg.trend { width: 100%; height: 250px; display: block; overflow: visible; }
+svg.bars { width: 100%; height: 170px; display: block; }
+svg.bars rect.b { fill: var(--ink); opacity: 0.85; }
+svg.bars rect.b.today { fill: var(--accent); opacity: 1; }
+svg text { fill: var(--muted); font: 11px var(--sans); }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 9px; height: 9px; border-radius: 2px; background: var(--c); }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--card); font-size: 12px; padding: 7px 9px; border-radius: 8px; white-space: nowrap; transform: translate(-50%, -100%); opacity: 0; transition: opacity 0.12s; z-index: 2; }
+
+.total { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.total .v { font-size: 30px; font-weight: 650; letter-spacing: -0.02em; }
+.total .d { font-size: 12.5px; font-weight: 600; }
+.total .d.up { color: var(--down); }
+.total .d.down { color: var(--up); }
+.total .s { font-size: 12.5px; color: var(--muted); }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; padding: 0 10px 8px 0; white-space: nowrap; }
+td { padding: 9px 10px 9px 0; border-top: 1px solid var(--line); vertical-align: middle; }
+th.n, td.n { text-align: right; padding-right: 0; padding-left: 10px; }
+td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.strong { font-weight: 600; }
+tr.pick { cursor: pointer; }
+tr.pick:hover td { background: var(--tile); }
+.who { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.who .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--c); flex: none; }
+.who span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hbar { height: 6px; border-radius: 3px; background: var(--seg); overflow: hidden; min-width: 60px; }
+.hbar i { display: block; height: 100%; background: var(--c, var(--ink)); border-radius: 3px; }
+.scroll { overflow-x: auto; }
+
+.mix { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); height: 264px; }
+.mcol { display: flex; flex-direction: column; border-left: 1px dashed var(--line); min-width: 0; }
+.mcol .top { padding: 0 10px 0 12px; }
+.mcol .k { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mcol .v { font-size: 19px; font-weight: 650; letter-spacing: -0.02em; margin-top: 2px; }
+.mcol .s { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.mcol .s.cut { color: var(--accent-ink); font-weight: 600; }
+.mcol .bar { margin-top: auto; }
+.mcol .pct { font-size: 13px; font-weight: 600; padding: 0 0 6px 12px; }
+.mcol .stack { display: flex; flex-direction: column; justify-content: flex-end; min-height: 3px; }
+.mcol .stack i { display: block; }
+.mcol .in { background: var(--bar-in); }
+.mcol .out { background: var(--accent); }
+.mix-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; gap: 12px; flex-wrap: wrap; }
+
+.cmd { font: 13px var(--mono); background: var(--tile); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; overflow-x: auto; white-space: nowrap; display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+.cmd button { font: 600 12px var(--sans); border: 1px solid var(--line); background: var(--card); border-radius: 6px; padding: 4px 8px; cursor: pointer; }
+.note { font-size: 12.5px; color: var(--muted); margin: 10px 0 0; }
+.none { color: var(--muted); font-size: 13px; padding: 8px 0; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+h3 { font-size: 13.5px; font-weight: 600; margin: 0 0 6px; }
+.empty { padding: 40px 20px; text-align: center; }
+.empty h2 { font-size: 20px; margin: 0 0 6px; font-weight: 650; }
+.empty p { color: var(--muted); max-width: 520px; margin: 0 auto 16px; }
+.empty .cmd { max-width: 420px; margin: 0 auto; }
+.center { min-height: 100dvh; display: grid; place-items: center; text-align: center; padding: 24px; }
+.center h1 { font-size: 34px; letter-spacing: -0.02em; margin: 0 0 10px; }
+.center p { color: var(--muted); max-width: 460px; margin: 0 auto 22px; }
+.sk { background: linear-gradient(90deg, var(--tile), var(--line), var(--tile)); background-size: 200% 100%; animation: sk 1.4s ease-in-out infinite; border-radius: 10px; }
+@keyframes sk { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+footer { color: var(--faint); font-size: 12px; text-align: center; margin-top: 24px; }
+[hidden] { display: none !important; }
+
+@media (max-width: 1100px) {
+  .g-row2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .g-row2 > :last-child { grid-column: 1 / -1; }
+  .models { --n: 2 !important; row-gap: 22px; }
+  .model:nth-child(odd) { border-left: 0; }
+}
+@media (max-width: 800px) {
+  .nav-in { grid-template-columns: auto 1fr; height: auto; padding: 10px 16px 0; }
+  .tabs { grid-column: 1 / -1; grid-row: 2; height: 44px; overflow-x: auto; }
+  .wrap { padding: 18px 16px 48px; }
+  .g-row2, .g-2, .g-wide { grid-template-columns: minmax(0, 1fr); }
+  .head-r { margin-left: 0; width: 100%; }
+  .mix { height: 240px; }
+}
+@media (max-width: 560px) {
+  .models { --n: 1 !important; }
+  .model { border-left: 0; }
+  .hide-sm { display: none; }
+  .mix { --n: 3 !important; }
+  .mix .mcol:nth-child(n+4) { display: none; }
+  .nav-r .team-sel { max-width: 130px; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div id="root"><div class="center"><div class="sk" style="width:280px;height:120px"></div></div></div>
+<script>
+(function () {
+  "use strict";
+  var root = document.getElementById("root");
+  var q = new URLSearchParams(location.search);
+  var state = { me: null, team: q.get("team"), days: Number(q.get("days")) || 30, project: "", client: "", data: null, tab: "overview", seen: null, first: true, shown: {}, timer: 0 };
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var REFRESH_MS = 15000;
+
+  // Brand marks from Simple Icons (CC0), inlined so the page loads nothing from other sites.
+  // They identify which provider ran a model, nothing more.
+  var LOGO_PATHS = {
+    "claude":"m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z",
+    "openai":"M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z",
+    "gemini":"M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81",
+    "cursor":"M11.503.131 1.891 5.678a.84.84 0 0 0-.42.726v11.188c0 .3.162.575.42.724l9.609 5.55a1 1 0 0 0 .998 0l9.61-5.55a.84.84 0 0 0 .42-.724V6.404a.84.84 0 0 0-.42-.726L12.497.131a1.01 1.01 0 0 0-.996 0M2.657 6.338h18.55c.263 0 .43.287.297.515L12.23 22.918c-.062.107-.229.064-.229-.06V12.335a.59.59 0 0 0-.295-.51l-9.11-5.257c-.109-.063-.064-.23.061-.23",
+    "copilot":"M23.922 16.997C23.061 18.492 18.063 22.02 12 22.02 5.937 22.02.939 18.492.078 16.997A.641.641 0 0 1 0 16.741v-2.869a.883.883 0 0 1 .053-.22c.372-.935 1.347-2.292 2.605-2.656.167-.429.414-1.055.644-1.517a10.098 10.098 0 0 1-.052-1.086c0-1.331.282-2.499 1.132-3.368.397-.406.89-.717 1.474-.952C7.255 2.937 9.248 1.98 11.978 1.98c2.731 0 4.767.957 6.166 2.093.584.235 1.077.546 1.474.952.85.869 1.132 2.037 1.132 3.368 0 .368-.014.733-.052 1.086.23.462.477 1.088.644 1.517 1.258.364 2.233 1.721 2.605 2.656a.841.841 0 0 1 .053.22v2.869a.641.641 0 0 1-.078.256Zm-11.75-5.992h-.344a4.359 4.359 0 0 1-.355.508c-.77.947-1.918 1.492-3.508 1.492-1.725 0-2.989-.359-3.782-1.259a2.137 2.137 0 0 1-.085-.104L4 11.746v6.585c1.435.779 4.514 2.179 8 2.179 3.486 0 6.565-1.4 8-2.179v-6.585l-.098-.104s-.033.045-.085.104c-.793.9-2.057 1.259-3.782 1.259-1.59 0-2.738-.545-3.508-1.492a4.359 4.359 0 0 1-.355-.508Zm2.328 3.25c.549 0 1 .451 1 1v2c0 .549-.451 1-1 1-.549 0-1-.451-1-1v-2c0-.549.451-1 1-1Zm-5 0c.549 0 1 .451 1 1v2c0 .549-.451 1-1 1-.549 0-1-.451-1-1v-2c0-.549.451-1 1-1Zm3.313-6.185c.136 1.057.403 1.913.878 2.497.442.544 1.134.938 2.344.938 1.573 0 2.292-.337 2.657-.751.384-.435.558-1.15.558-2.361 0-1.14-.243-1.847-.705-2.319-.477-.488-1.319-.862-2.824-1.025-1.487-.161-2.192.138-2.533.529-.269.307-.437.808-.438 1.578v.021c0 .265.021.562.063.893Zm-1.626 0c.042-.331.063-.628.063-.894v-.02c-.001-.77-.169-1.271-.438-1.578-.341-.391-1.046-.69-2.533-.529-1.505.163-2.347.537-2.824 1.025-.462.472-.705 1.179-.705 2.319 0 1.211.175 1.926.558 2.361.365.414 1.084.751 2.657.751 1.21 0 1.902-.394 2.344-.938.475-.584.742-1.44.878-2.497Z"};
+  var LOGO_FILL = { claude: "#D97757", openai: "currentColor", cursor: "currentColor", copilot: "currentColor", gemini: "url(#snout-gemini)" };
+  var CLIENT = { claude: "Claude Code", codex: "Codex", gemini: "Gemini CLI", cursor: "Cursor", copilot: "Copilot" };
+  var CLIENT_LOGO = { claude: "claude", codex: "openai", gemini: "gemini", cursor: "cursor", copilot: "copilot" };
+
+  function h(tag, attrs) {
+    var el = typeof tag === "string" ? document.createElement(tag) : tag;
+    if (attrs) for (var k in attrs) {
+      if (attrs[k] == null) continue;
+      if (k === "text") el.textContent = attrs[k];
+      else if (k === "cls") el.className = attrs[k];
+      else if (k === "on") for (var ev in attrs.on) el.addEventListener(ev, attrs.on[ev]);
+      else el.setAttribute(k, attrs[k]);
+    }
+    for (var i = 2; i < arguments.length; i++) {
+      var c = arguments[i];
+      if (c == null || c === false) continue;
+      if (Array.isArray(c)) { h.apply(null, [el, null].concat(c)); continue; }
+      el.appendChild(typeof c === "string" || typeof c === "number" ? document.createTextNode(String(c)) : c);
+    }
+    return el;
+  }
+  var NS = "http://www.w3.org/2000/svg";
+  function s(tag, a) { var e = document.createElementNS(NS, tag); for (var k in a) e.setAttribute(k, a[k]); return e; }
+  function fmt(n) {
+    n = Math.round(n || 0);
+    if (n < 1000) return String(n);
+    if (n < 1e6) return (n / 1e3).toFixed(n < 1e4 ? 1 : 0).replace(/\.0$/, "") + "K";
+    if (n < 1e9) return (n / 1e6).toFixed(n < 1e7 ? 2 : 1).replace(/\.?0+$/, "") + "M";
+    return (n / 1e9).toFixed(2).replace(/\.?0+$/, "") + "B";
+  }
+  function usd(n) { n = n || 0; return n > 0 && n < 0.01 ? "<$0.01" : "$" + (n < 1000 ? n.toFixed(2) : Math.round(n).toLocaleString()); }
+  function ago(ts) {
+    var x = Math.max(0, (Date.now() - Date.parse(ts)) / 1000);
+    if (x < 45) return "just now";
+    if (x < 3600) return Math.round(x / 60) + " min ago";
+    if (x < 86400) return Math.round(x / 3600) + " h ago";
+    return Math.round(x / 86400) + " d ago";
+  }
+  var pct = function (a, b) { return b ? Math.round((a / b) * 100) : 0; };
+  function api(path, opts) {
+    return fetch(path, opts).then(function (r) { return r.json().then(function (j) { if (!r.ok) { var e = new Error(j.error || r.status); e.status = r.status; throw e; } return j; }); });
+  }
+  function post(path, body) { return api(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body || {}) }); }
+  function tween(key, to, el, show) {
+    var from = state.shown[key] || 0, t0 = performance.now();
+    state.shown[key] = to;
+    if (from === to || reduced) { el.textContent = show(to); return; }
+    (function step(t) { var k = Math.min(1, (t - t0) / 650), e = 1 - Math.pow(1 - k, 3); el.textContent = show(from + (to - from) * e); if (k < 1) requestAnimationFrame(step); })(t0);
+  }
+
+  // --- models, providers, labels (the same as the local dashboard) ------------------------
+
+  function providerOf(model) {
+    var m = String(model || "").toLowerCase();
+    if (/claude|opus|sonnet|haiku|fable|mythos/.test(m)) return "claude";
+    if (/gpt|codex|^o\d/.test(m)) return "openai";
+    if (/gemini/.test(m)) return "gemini";
+    return null;
+  }
+  var SHADES = [[/fable|mythos/, "#8B6CE0"], [/opus/, "#D97757"], [/sonnet/, "#E0A04C"], [/haiku/, "#C9B27A"], [/codex/, "#0E8C6D"], [/gpt|^o\d/, "#10A37F"], [/gemini.*flash/, "#6FA8FF"], [/gemini/, "#4285F4"]];
+  function modelColor(model) { var m = String(model || "").toLowerCase(); for (var i = 0; i < SHADES.length; i++) if (SHADES[i][0].test(m)) return SHADES[i][1]; return "#8a8a93"; }
+  function modelLabel(model) {
+    var m = String(model || "");
+    if (!m || m === "unknown") return "Model not recorded";
+    var c = /^claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?(?!\d)/.exec(m);
+    if (c) return "Claude " + c[1][0].toUpperCase() + c[1].slice(1) + " " + c[2] + (c[3] ? "." + c[3] : "");
+    return m.replace(/^gpt/i, "GPT").replace(/^gemini/i, "Gemini").replace(/-(\w)/g, function (_, x) { return " " + x.toUpperCase(); }).replace(/^GPT (\d)/, "GPT-$1");
+  }
+  function logo(kind, small, fallback) {
+    var box = h("span", { cls: "logo" + (small ? " sm" : ""), "aria-hidden": "true" });
+    var d = kind && LOGO_PATHS[kind];
+    if (!d) { box.appendChild(h("b", { text: (fallback || "?").slice(0, 1).toUpperCase() })); return box; }
+    var svg = s("svg", { viewBox: "0 0 24 24" });
+    if (kind === "gemini") {
+      var defs = s("defs", {}), g = s("linearGradient", { id: "snout-gemini", x1: "0", y1: "0", x2: "1", y2: "1" });
+      [["0", "#4285F4"], ["0.55", "#9B72CB"], ["1", "#D96570"]].forEach(function (st) { g.appendChild(s("stop", { offset: st[0], "stop-color": st[1] })); });
+      defs.appendChild(g); svg.appendChild(defs);
+    }
+    svg.appendChild(s("path", { d: d, fill: LOGO_FILL[kind] }));
+    box.appendChild(svg);
+    return box;
+  }
+  var modelLogo = function (model, small) { return logo(providerOf(model), small, model); };
+  var clientLogo = function (client, small) { return logo(CLIENT_LOGO[client], small, client); };
+  var LABELS = {
+    source: "Your code", lockfile: "Lockfiles", generated: "Generated", vendored: "Vendored", minified: "Minified", binary: "Binary files", snapshot: "Snapshots",
+    "command-output": "Command output", mcp: "MCP results", "mcp-output": "MCP results", "repeat-read": "Repeat reads", "repeat-output": "Repeat results", "long-doc": "Long docs", "long-log": "Long logs", "tool-output": "Tool output", "always-allow": "Always read", secret: "Secrets", "size-hint": "Large files",
+    "generated-hint": "Generated", "minified-hint": "Minified", "fixture-hint": "Test fixtures", reversal: "Re-read in full",
+  };
+  var labelOf = function (k) { return LABELS[k] || String(k).replace(/-/g, " ").replace(/^./, function (c) { return c.toUpperCase(); }); };
+  var personName = function (login) { return login.indexOf("agent:") === 0 ? login.slice(6) : "@" + login; };
+  function personMark(p, small) {
+    if (p.agent || String(p.login || p.key).indexOf("agent:") === 0) return clientLogo(p.client || "claude", small);
+    return p.avatar ? h("img", { cls: "avatar sm", src: p.avatar, alt: "" }) : logo(null, small, p.login || p.key);
+  }
+
+  function lastDays(n, byDay, empty) {
+    var out = [], now = Date.now();
+    for (var i = n - 1; i >= 0; i--) { var k = new Date(now - i * 86400000).toISOString().slice(0, 10); out.push(byDay[k] || empty(k)); }
+    return out;
+  }
+  var dayName = function (k) { return new Date(k + "T12:00:00Z").toLocaleDateString([], { month: "short", day: "numeric" }); };
+  function niceMax(x) { if (x <= 0) return 1; var p = Math.pow(10, Math.floor(Math.log10(x))); var f = x / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p; }
+  function tableOf(head, rows, empty) {
+    var t = h("table");
+    if (!rows.length) { t.appendChild(h("tr", null, h("td", { cls: "none", text: empty, style: "border:0" }))); return t; }
+    var tr = h("tr"); head.forEach(function (c) { tr.appendChild(h("th", { cls: c[1] || "", text: c[0] })); }); t.appendChild(tr);
+    rows.forEach(function (r) { t.appendChild(r); });
+    return t;
+  }
+  function card(title, sub, right) {
+    var body = h("div");
+    var el = h("div", { cls: "card" }, h("div", { cls: "card-h" }, h("div", null, h("h2", { text: title }), sub ? h("p", { text: sub }) : null), right ? h("div", { cls: "r" }, right) : null), body);
+    el.body = body;
+    return el;
+  }
+  function cmdBox(text) {
+    var b = h("button", { type: "button", text: "Copy" });
+    b.addEventListener("click", function () { navigator.clipboard && navigator.clipboard.writeText(text).then(function () { b.textContent = "Copied"; }); });
+    return h("div", { cls: "cmd" }, h("span", { text: text }), b);
+  }
+
+  // --- sign in --------------------------------------------------------------------------------
+
+  function signIn() {
+    api("/auth/config").then(function (c) {
+      var next = encodeURIComponent(q.get("next") || location.pathname + location.search);
+      root.replaceChildren(h("div", { cls: "center" }, h("div", null,
+        h("div", { cls: "brand", style: "justify-content:center;margin-bottom:22px" }, h("i"), "snout", h("small", { text: "cloud" })),
+        h("h1", { text: "Every agent's context and spend, live" }),
+        h("p", { text: "Tokens, spend and what Snout kept out of context, by model, person and project. File contents and paths never leave anyone's machine." }),
+        h("div", { cls: "row", style: "justify-content:center" },
+          c.github ? h("a", { cls: "btn dark", href: "/auth/github?next=" + next, text: "Sign in with GitHub" }) : null,
+          c.dev ? h("a", { cls: "btn", href: "/auth/dev?login=dev&next=" + next, text: "Dev sign-in" }) : null,
+          !c.github && !c.dev ? h("p", { text: "Sign-in is not configured. Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET." }) : null))));
+    });
+  }
+
+  // --- data -----------------------------------------------------------------------------------
+
+  function load(quiet) {
+    var p = new URLSearchParams({ team: state.team, days: String(state.days) });
+    if (state.project) p.set("project", state.project);
+    if (state.client) p.set("client", state.client);
+    history.replaceState(null, "", "/?team=" + state.team + (state.days !== 30 ? "&days=" + state.days : "") + (state.tab !== "overview" ? "#" + state.tab : ""));
+    return api("/api/usage?" + p).then(function (d) { state.data = d; state.okAt = Date.now(); render(); }, function (e) { if (!quiet) throw e; setLive(); });
+  }
+  /** Machines sync about once a minute while agents work; the page re-reads every 15 seconds while visible. */
+  function schedule() {
+    clearTimeout(state.timer);
+    state.timer = setTimeout(function () { if (document.visibilityState === "visible") load(true).then(schedule, schedule); else schedule(); }, REFRESH_MS);
+  }
+  document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible" && state.data) { load(true); schedule(); } });
+
+  function view(d) {
+    var sp = d.spend && d.spend.requests ? d.spend : null;
+    var costAll = 0, tokAll = 0;
+    var models = [];
+    if (sp) {
+      sp.byModel.forEach(function (m) { costAll += m.costUsd; tokAll += m.tokens; });
+      models = sp.byModel.map(function (m) {
+        var t = m.today || { requests: 0, tokens: 0, costUsd: 0 };
+        return { key: m.key, label: modelLabel(m.key), client: m.client, color: modelColor(m.key), value: t.tokens || m.tokens, today: !!t.tokens, requests: t.requests, costToday: t.costUsd,
+          cost7: m.weekCostUsd || 0, cost30: m.costUsd, tokens: m.tokens, reqAll: m.requests, share: costAll ? m.costUsd / costAll : tokAll ? m.tokens / tokAll : 0 };
+      });
+    }
+    var today = d.today || { reads: 0, inContext: 0, heldBack: 0 };
+    var rate = sp && sp.tokens ? 3 : 3;
+    var activeToday = (d.activity || []).filter(function (a) { return a.reads > 0; });
+    var people = {}, agents = {};
+    activeToday.forEach(function (a) { (a.agent ? agents : people)[a.login] = 1; });
+    return { d: d, sp: sp, models: models, today: today, saved: (today.heldBack * rate) / 1e6, rate: rate, peopleToday: Object.keys(people).length, agentsToday: Object.keys(agents).length };
+  }
+
+  function setLive() {
+    var el = state.liveEl; if (!el) return;
+    var d = state.data, fresh = state.okAt && Date.now() - state.okAt < REFRESH_MS * 3;
+    el.className = "live" + (fresh ? " on" : "");
+    state.liveText.textContent = !fresh ? "Reconnecting" : d && d.lastSyncAt ? "Last sync " + ago(d.lastSyncAt) : "Live";
+  }
+
+  // --- layout ---------------------------------------------------------------------------------
+
+  function shell(team) {
+    var me = state.me;
+    var tabs = h("nav", { cls: "tabs", role: "tablist", "aria-label": "Sections" });
+    [["overview", "Dashboard"], ["people", "People"], ["projects", "Projects"], ["spend", "Spend"], ["settings", "Settings"]].forEach(function (t) {
+      tabs.appendChild(h("button", { cls: "tab", role: "tab", "aria-selected": String(state.tab === t[0]), text: t[1], on: { click: function () { state.tab = t[0]; render(); window.scrollTo(0, 0); } } }));
+    });
+    var teamSel = h("select", { cls: "team-sel", "aria-label": "Workspace" });
+    me.teams.forEach(function (x) { teamSel.appendChild(h("option", { value: String(x.id), text: x.personal ? x.name + " (personal)" : x.name })); });
+    teamSel.value = String(state.team);
+    teamSel.addEventListener("change", function () { state.team = this.value; state.project = ""; state.client = ""; state.seen = null; state.first = true; load(); });
+    return h("header", { cls: "nav" }, h("div", { cls: "nav-in" },
+      h("div", { cls: "brand" }, h("i"), "snout", h("small", { text: "cloud" })),
+      tabs,
+      h("div", { cls: "nav-r" }, (state.liveEl = h("span", { cls: "live" }, h("i"), (state.liveText = h("span", { text: "Live" })))), teamSel,
+        me.user.avatar ? h("img", { cls: "avatar", src: me.user.avatar, alt: me.user.login, title: "@" + me.user.login }) : null)));
+  }
+
+  function select(opts, value, onChange, label) {
+    var el = h("select", { "aria-label": label });
+    opts.forEach(function (o) { el.appendChild(h("option", { value: o[0], text: o[1] })); });
+    el.value = value;
+    el.addEventListener("change", function () { onChange(this.value); });
+    return el;
+  }
+
+  function header(v, team) {
+    var d = v.d;
+    var parts = [];
+    if (!team.personal || v.peopleToday > 1) parts.push(h("span", null, h("b", { text: String(v.peopleToday) }), v.peopleToday === 1 ? " person" : " people", v.agentsToday ? ", " : "", v.agentsToday ? h("b", { text: String(v.agentsToday) }) : null, v.agentsToday ? (v.agentsToday === 1 ? " cloud agent" : " cloud agents") : null, " active today"));
+    parts.push(h("span", null, h("b", { text: fmt(v.today.inContext + v.today.heldBack) }), " tokens read today"));
+    parts.push(h("span", null, h("b", { text: "~" + fmt(v.today.heldBack) }), " kept out"));
+    if (v.sp) parts.push(h("span", null, h("b", { text: usd(v.sp.today ? v.sp.today.costUsd : 0) }), " spent"));
+    var titles = { overview: "Dashboard", people: "People", projects: "Projects", spend: "Spend", settings: "Settings" };
+    var filters = state.tab === "settings" ? null : h("div", { cls: "head-r" },
+      select([["7", "Last 7 days"], ["30", "Last 30 days"], ["90", "Last 90 days"], ["365", "Last year"]].map(function (o) { return team.plan !== "team" && Number(o[0]) > team.limits.historyDays ? [o[0], o[1] + " · Team plan"] : o; }), String(state.days), function (x) { state.days = Number(x); load(); }, "Range"),
+      select([["", "All projects"]].concat(d.projects.map(function (p) { return [p.id, p.name]; })), state.project, function (x) { state.project = x; load(); }, "Project"),
+      select([["", "All agents"]].concat(d.clients.map(function (c) { return [c, CLIENT[c] || c]; })), state.client, function (x) { state.client = x; load(); }, "Coding agent"));
+    return h("div", { cls: "head" }, h("div", null, h("h1", { text: titles[state.tab] }), h("div", { cls: "sub" }, parts)), filters);
+  }
+
+  // --- Dashboard tab ----------------------------------------------------------------------------
+
+  function modelStrip(v) {
+    var box = h("div", { cls: "card models" });
+    var list = v.models.slice(0, 4);
+    box.style.setProperty("--n", Math.max(1, list.length));
+    if (!list.length) { box.appendChild(h("div", { cls: "models-empty", text: "Models show up here once a connected machine has run Claude Code or Codex, with tokens and spend from each agent's own usage logs." })); return box; }
+    var SEGS = 24;
+    list.forEach(function (m, idx) {
+      var filled = Math.max(m.share > 0 ? 1 : 0, Math.round(m.share * SEGS));
+      var meter = h("div", { cls: "meter", style: "--c:" + m.color, title: Math.round(m.share * 100) + "% of spend, last " + v.d.days + " days" });
+      for (var i = 0; i < SEGS; i++) meter.appendChild(h("i", { cls: !state.first || reduced ? (i < filled ? "f" : "") : "" }));
+      if (state.first && !reduced) for (var j = 0; j < filled; j++) (function (el, delay) { setTimeout(function () { el.classList.add("f"); }, delay); })(meter.children[j], 120 + idx * 90 + j * 14);
+      var note = m.today
+        ? h("div", { cls: "m-note" }, h("b", { style: "--c:" + m.color, text: m.requests.toLocaleString() }), " requests today · " + usd(m.costToday))
+        : h("div", { cls: "m-note", text: "last " + v.d.days + " days · " + usd(m.cost30) });
+      box.appendChild(h("div", { cls: "model" },
+        h("div", { cls: "m-id" }, modelLogo(m.key), h("div", { style: "min-width:0" }, h("div", { cls: "m-name", text: m.label }), h("div", { cls: "m-sub", text: CLIENT[m.client] || m.client || "Model" }))),
+        h("div", { cls: "m-row" }, h("div", null, h("div", { cls: "m-val num", text: fmt(m.value) }), note), meter)));
+    });
+    return box;
+  }
+
+  function todayCard(v) {
+    var c = card(v.d.byMember.length > 1 ? "Snout today, whole team" : "Snout today", "What stayed out of your agents' context");
+    var held = h("div", { cls: "v num" }), saved = h("div", { cls: "v num" });
+    var asked = v.today.inContext + v.today.heldBack;
+    c.body.appendChild(h("div", { cls: "tiles" },
+      h("div", { cls: "tile hl" }, h("div", { cls: "k", text: "Kept out of context" }), held, h("div", { cls: "s", text: asked ? pct(v.today.heldBack, asked) + "% of what agents asked for" : "nothing synced yet today" })),
+      h("div", { cls: "tile" }, h("div", { cls: "k", text: "Saved" }), saved, h("div", { cls: "s", text: "at $" + v.rate.toFixed(2) + " per million input tokens" })),
+      h("div", { cls: "tile" }, h("div", { cls: "k", text: "Reads trimmed" }), h("div", { cls: "v num", text: v.today.gated.toLocaleString() }), h("div", { cls: "s", text: "of " + v.today.reads.toLocaleString() + " reads today" }))));
+    tween("held", v.today.heldBack, held, function (x) { return "~" + fmt(x); });
+    tween("saved", v.saved, saved, usd);
+    return c;
+  }
+
+  function activityCard(v) {
+    var c = card("Live activity", "Each machine and cloud agent, as its totals arrive", h("button", { cls: "link", type: "button", text: "View people", on: { click: function () { state.tab = "people"; render(); } } }));
+    var rows = v.d.activity || [];
+    var first = state.seen === null;
+    if (first) state.seen = {};
+    if (!rows.length) { c.body.appendChild(h("div", { cls: "none", text: "Nothing synced in the last two days. Connected machines report about once a minute while their agents work." })); return c; }
+    var feed = h("div", { cls: "feed" });
+    rows.slice(0, 7).forEach(function (a) {
+      var id = a.login + a.project + a.client, fresh = !first && state.seen[id] && state.seen[id] !== a.at;
+      state.seen[id] = a.at;
+      var live = Date.now() - Date.parse(a.at) < 5 * 60 * 1000;
+      feed.appendChild(h("div", { cls: "frow" + (fresh ? " fresh" : ""), title: (CLIENT[a.client] || a.client) + " · " + a.reads + " reads today, " + fmt(a.inContext) + " into context" },
+        h("span", { cls: "when", "data-ts": a.at, text: ago(a.at) }),
+        h("span", { cls: "what" }, personMark(a, true), h("span", null, personName(a.login), h("small", { text: " · " + a.project })), clientLogo(a.client, true)),
+        a.heldBack ? h("span", { cls: "badge cut", text: "~" + fmt(a.heldBack) + " kept out" }) : live ? h("span", { cls: "badge run", text: "Working" }) : h("span", { cls: "badge full", text: a.reads + " reads" })));
+    });
+    c.body.appendChild(feed);
+    return c;
+  }
+
+  function trendCard(v) {
+    var c = card("Context over time", "Last 7 days, tokens per day", h("div", { cls: "legend" }, h("span", { style: "--c: var(--ink)" }, h("i"), "Into context"), h("span", { style: "--c: var(--accent)" }, h("i"), "Kept out")));
+    var box = h("div", { cls: "chart-box" }), svg = s("svg", { class: "trend", role: "img", "aria-label": "Tokens into context and kept out, per day" }), tip = h("div", { cls: "tip" });
+    box.appendChild(svg); box.appendChild(tip); c.body.appendChild(box);
+    requestAnimationFrame(function () { drawTrend(svg, tip, v); });
+    return c;
+  }
+  function drawTrend(svg, tip, v) {
+    var byDay = {}; (v.d.series || []).forEach(function (r) { byDay[r.key] = r; });
+    var pts = lastDays(7, byDay, function (k) { return { key: k, inContext: 0, heldBack: 0, reads: 0 }; });
+    var W = Math.max(280, svg.clientWidth || 520), H = 250, L = 40, R = 8, T = 10, B = 26;
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    svg.replaceChildren();
+    var top = 0; pts.forEach(function (p) { top = Math.max(top, p.inContext, p.heldBack); });
+    top = niceMax(top);
+    var x = function (i) { return L + (i / (pts.length - 1)) * (W - L - R); };
+    var y = function (val) { return T + (1 - val / top) * (H - T - B); };
+    var defs = s("defs", {}), grad = s("linearGradient", { id: "g-held", x1: 0, y1: 0, x2: 0, y2: 1 });
+    grad.appendChild(s("stop", { offset: "0", "stop-color": "var(--accent)", "stop-opacity": "0.18" }));
+    grad.appendChild(s("stop", { offset: "1", "stop-color": "var(--accent)", "stop-opacity": "0" }));
+    defs.appendChild(grad); svg.appendChild(defs);
+    [0, 0.5, 1].forEach(function (f) { var t = s("text", { x: L - 8, y: y(top * f) + 4, "text-anchor": "end" }); t.textContent = f ? fmt(top * f) : "0"; svg.appendChild(t); });
+    pts.forEach(function (p, i) {
+      svg.appendChild(s("line", { x1: x(i), x2: x(i), y1: T, y2: H - B, stroke: "var(--line)", "stroke-dasharray": "3 4" }));
+      var t = s("text", { x: x(i), y: H - 6, "text-anchor": i === 0 ? "start" : i === pts.length - 1 ? "end" : "middle" }); t.textContent = dayName(p.key); svg.appendChild(t);
+    });
+    svg.appendChild(s("line", { x1: L, x2: W - R, y1: y(0), y2: y(0), stroke: "var(--line)" }));
+    function line(key) { return pts.map(function (p, i) { return (i ? "L" : "M") + x(i).toFixed(1) + "," + y(p[key]).toFixed(1); }).join(""); }
+    svg.appendChild(s("path", { d: line("heldBack") + "L" + x(pts.length - 1) + "," + y(0) + "L" + x(0) + "," + y(0) + "Z", fill: "url(#g-held)" }));
+    var ctx = s("path", { d: line("inContext"), fill: "none", stroke: "var(--ink)", "stroke-width": 1.75, "stroke-linejoin": "round" });
+    var held = s("path", { d: line("heldBack"), fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-linejoin": "round" });
+    svg.appendChild(ctx); svg.appendChild(held);
+    if (state.drawn !== true && !reduced) [ctx, held].forEach(function (p) {
+      var len = p.getTotalLength(); p.style.strokeDasharray = len; p.style.strokeDashoffset = len;
+      p.getBoundingClientRect(); p.style.transition = "stroke-dashoffset 0.9s cubic-bezier(0.2,0.7,0.2,1)"; p.style.strokeDashoffset = 0;
+    });
+    state.drawn = true;
+    var guide = s("line", { y1: T, y2: H - B, stroke: "var(--faint)", opacity: 0 }), dotA = s("circle", { r: 3.5, fill: "var(--ink)", opacity: 0 }), dotB = s("circle", { r: 3.5, fill: "var(--accent)", opacity: 0 });
+    svg.appendChild(guide); svg.appendChild(dotA); svg.appendChild(dotB);
+    svg.onmousemove = function (e) {
+      var rect = svg.getBoundingClientRect(), mx = ((e.clientX - rect.left) / rect.width) * W;
+      var i = Math.max(0, Math.min(pts.length - 1, Math.round(((mx - L) / (W - L - R)) * (pts.length - 1)))), p = pts[i];
+      [guide, dotA, dotB].forEach(function (el) { el.setAttribute("opacity", 1); });
+      guide.setAttribute("x1", x(i)); guide.setAttribute("x2", x(i));
+      dotA.setAttribute("cx", x(i)); dotA.setAttribute("cy", y(p.inContext)); dotB.setAttribute("cx", x(i)); dotB.setAttribute("cy", y(p.heldBack));
+      tip.replaceChildren(h("b", { text: dayName(p.key) }), h("br"), fmt(p.inContext) + " into context", h("br"), "~" + fmt(p.heldBack) + " kept out · " + (p.reads || 0) + " reads");
+      tip.style.left = (x(i) / W) * rect.width + "px"; tip.style.top = (y(Math.max(p.inContext, p.heldBack)) / H) * rect.height - 8 + "px"; tip.style.opacity = 1;
+    };
+    svg.onmouseleave = function () { tip.style.opacity = 0; [guide, dotA, dotB].forEach(function (el) { el.setAttribute("opacity", 0); }); };
+  }
+
+  function costCard(v) {
+    var sp = v.sp;
+    var c = card("Cost breakdown", sp ? "API-equivalent at list prices, from each machine's agent logs" : "API-equivalent, from each machine's agent logs", h("button", { cls: "link", type: "button", text: "View spend", on: { click: function () { state.tab = "spend"; render(); } } }));
+    if (!sp) { c.body.appendChild(h("div", { cls: "none", text: "No spend synced in this range yet. It appears after the first Claude Code or Codex session on a connected machine." })); return c; }
+    var byDay = {}; sp.series.forEach(function (r) { byDay[r.key] = r; });
+    var days = lastDays(14, byDay, function (k) { return { key: k, costUsd: 0 }; });
+    var thisWeek = 0, lastWeek = 0;
+    days.forEach(function (r, i) { if (i >= 7) thisWeek += r.costUsd; else lastWeek += r.costUsd; });
+    var change = lastWeek ? ((thisWeek - lastWeek) / lastWeek) * 100 : null;
+    c.body.appendChild(h("div", { cls: "total" }, h("span", { cls: "v num", text: usd(sp.costUsd) }),
+      change === null ? null : h("span", { cls: "d " + (change > 0 ? "up" : "down"), text: (change > 0 ? "+" : "−") + Math.abs(change).toFixed(1) + "%" }),
+      h("span", { cls: "s", text: change === null ? "last " + v.d.days + " days" : "last 7 days vs the 7 before · " + v.d.days + "-day total" })));
+    c.body.appendChild(tableOf([["Model"], ["Today", "n"], ["7 days", "n hide-sm"], [v.d.days + " days", "n"], ["Share", "n"]], v.models.slice(0, 6).map(function (m) {
+      return h("tr", null, h("td", null, h("span", { cls: "who", style: "--c:" + m.color }, modelLogo(m.key, true), h("i", { cls: "dot" }), h("span", { text: m.label }))),
+        h("td", { cls: "n", text: usd(m.costToday) }), h("td", { cls: "n hide-sm", text: usd(m.cost7) }), h("td", { cls: "n", text: usd(m.cost30) }), h("td", { cls: "n strong", text: (m.share * 100).toFixed(1) + "%" }));
+    }), ""));
+    return c;
+  }
+
+  function mixCard(v) {
+    var c = card("What's entering context", "Tokens agents asked for, by what Snout classified them as");
+    var labels = (v.d.byLabel || []).slice().sort(function (a, b) { return (b.inContext + b.heldBack) - (a.inContext + a.heldBack); });
+    var all = 0; labels.forEach(function (l) { all += l.inContext + l.heldBack; });
+    if (!all) { c.body.appendChild(h("div", { cls: "none", text: "Fills in as connected machines sync." })); return c; }
+    var cols = labels.slice(0, 4);
+    if (labels.length > 4) { var rest = { key: "other", inContext: 0, heldBack: 0, reads: 0 }; labels.slice(4).forEach(function (l) { rest.inContext += l.inContext; rest.heldBack += l.heldBack; rest.reads += l.reads; }); cols.push(rest); }
+    var maxShare = 0; cols.forEach(function (x) { maxShare = Math.max(maxShare, (x.inContext + x.heldBack) / all); });
+    var grid = h("div", { cls: "mix", style: "--n:" + cols.length });
+    cols.forEach(function (x) {
+      var tot = x.inContext + x.heldBack, share = tot / all, hgt = Math.max(3, (share / maxShare) * 150), outH = tot ? (x.heldBack / tot) * hgt : 0, cut = x.heldBack > 0;
+      grid.appendChild(h("div", { cls: "mcol", title: labelOf(x.key) + ": " + x.reads + " reads, " + fmt(x.inContext) + " into context, ~" + fmt(x.heldBack) + " kept out" },
+        h("div", { cls: "top" }, h("div", { cls: "k", text: x.key === "other" ? "Other" : labelOf(x.key) }), h("div", { cls: "v num", text: fmt(tot) }),
+          h("div", { cls: "s" + (cut ? " cut" : ""), text: cut ? "−" + pct(x.heldBack, tot) + "% kept out" : x.key === "source" ? "always read in full" : "read in full" })),
+        h("div", { cls: "bar" }, h("div", { cls: "pct", text: Math.round(share * 100) + "%" }),
+          h("div", { cls: "stack", style: "height:" + hgt + "px" }, h("i", { cls: "in", style: "height:" + (hgt - outH) + "px" }), h("i", { cls: "out", style: "height:" + outH + "px" })))));
+    });
+    c.body.appendChild(grid);
+    c.body.appendChild(h("div", { cls: "mix-foot" }, h("div", { cls: "legend" }, h("span", { style: "--c: var(--bar-in)" }, h("i"), "Into context"), h("span", { style: "--c: var(--accent)" }, h("i"), "Kept out by Snout")),
+      h("span", { cls: "legend", text: v.d.totals.reads.toLocaleString() + " reads in " + v.d.days + " days" })));
+    return c;
+  }
+
+  /** Ranked rows with a bar: who and which project cost the most. By spend when machines report it. */
+  function ranked(title, list, byCost, onPick) {
+    list = list.slice().sort(function (a, b) { return byCost ? b.cost - a.cost || b.tokens - a.tokens : b.tokens - a.tokens; }).slice(0, 6);
+    var max = 0; list.forEach(function (x) { max = Math.max(max, byCost ? x.cost : x.tokens); });
+    var c = card(title, (byCost ? "By spend" : "By tokens") + ", last " + state.data.days + " days");
+    c.body.appendChild(tableOf([["", ""], [""], ["", "n"], ["Kept out", "n hide-sm"]], list.map(function (x) {
+      var val = byCost ? x.cost : x.tokens;
+      return h("tr", { cls: onPick ? "pick" : "", on: onPick ? { click: function () { onPick(x); } } : null },
+        h("td", { style: "width:42%" }, h("span", { cls: "who" }, x.mark, h("span", { text: x.name }))),
+        h("td", null, h("div", { cls: "hbar" }, h("i", { style: "width:" + (max ? (val / max) * 100 : 0) + "%" }))),
+        h("td", { cls: "n strong", text: byCost ? usd(x.cost) : fmt(x.tokens) }),
+        h("td", { cls: "n hide-sm", style: x.kept ? "color:var(--accent-ink)" : "", text: x.kept ? "~" + fmt(x.kept) : "—" }));
+    }), "Nothing yet."));
+    return c;
+  }
+  function peopleList(d) {
+    return d.byMember.map(function (m) { var agent = m.key.indexOf("agent:") === 0; return { key: m.key, name: personName(m.key), mark: personMark({ key: m.key, avatar: m.avatar, agent: agent }, true), cost: m.spend ? m.spend.costUsd : 0, requests: m.spend ? m.spend.requests : 0, tokens: m.inContext + m.heldBack, inContext: m.inContext, kept: m.heldBack, reads: m.reads, agent: agent }; });
+  }
+  function projectList(d) {
+    return d.byProject.map(function (p) { return { key: p.key, name: p.name, mark: logo(null, true, p.name), cost: p.spend ? p.spend.costUsd : 0, requests: p.spend ? p.spend.requests : 0, tokens: p.inContext + p.heldBack, inContext: p.inContext, kept: p.heldBack, reads: p.reads }; });
+  }
+
+  function overview(v, team) {
+    var d = v.d, byCost = !!v.sp;
+    var out = [modelStrip(v), h("div", { cls: "grid g-row2" }, todayCard(v), activityCard(v), trendCard(v)), h("div", { cls: "grid g-2" }, costCard(v), mixCard(v))];
+    var people = peopleList(d), projects = projectList(d);
+    if (people.length > 1 || projects.length > 1) out.push(h("div", { cls: "grid g-2" },
+      ranked("Top people", people, byCost, function () { state.tab = "people"; render(); }),
+      ranked("Top projects", projects, byCost, function (p) { state.project = p.key; load(); })));
+    return out;
+  }
+
+  // --- People, Projects, Spend -------------------------------------------------------------
+
+  function peopleTab(v) {
+    var list = peopleList(v.d).sort(function (a, b) { return b.cost - a.cost || b.tokens - a.tokens; });
+    var c = card("Everyone syncing into this workspace", "People sign in with the CLI; cloud agents use a workspace key");
+    var byLogin = {}; (v.d.activity || []).forEach(function (a) { if (!byLogin[a.login] || a.at > byLogin[a.login]) byLogin[a.login] = a.at; });
+    c.body.appendChild(h("div", { cls: "scroll" }, tableOf([["Person or agent"], ["Last sync", "hide-sm"], ["Reads", "n"], ["Into context", "n hide-sm"], ["Kept out", "n"], ["Spend", "n"]], list.map(function (p) {
+      var at = byLogin[p.key];
+      return h("tr", null, h("td", null, h("span", { cls: "who" }, p.mark, h("span", { text: p.name + (p.agent ? " (cloud agent)" : "") }))),
+        h("td", { cls: "hide-sm", style: "color:var(--muted)", "data-ts": at || null, text: at ? ago(at) : "earlier" }),
+        h("td", { cls: "n", text: p.reads.toLocaleString() }), h("td", { cls: "n hide-sm", text: fmt(p.inContext) }),
+        h("td", { cls: "n", style: p.kept ? "color:var(--accent-ink);font-weight:600" : "", text: p.kept ? "~" + fmt(p.kept) : "—" }), h("td", { cls: "n strong", text: usd(p.cost) }));
+    }), "No one has synced in this range.")));
+    return [c];
+  }
+
+  function projectsTab(v) {
+    var list = projectList(v.d).sort(function (a, b) { return b.cost - a.cost || b.tokens - a.tokens; });
+    var c = card("Projects", "Choose one to filter the whole dashboard to it");
+    c.body.appendChild(h("div", { cls: "scroll" }, tableOf([["Project"], ["Reads", "n"], ["Into context", "n hide-sm"], ["Kept out", "n"], ["Share kept out", "n hide-sm"], ["Spend", "n"]], list.map(function (p) {
+      return h("tr", { cls: "pick", on: { click: function () { state.project = p.key; state.tab = "overview"; load(); } } },
+        h("td", null, h("span", { cls: "who" }, p.mark, h("span", { text: p.name }))), h("td", { cls: "n", text: p.reads.toLocaleString() }), h("td", { cls: "n hide-sm", text: fmt(p.inContext) }),
+        h("td", { cls: "n", style: p.kept ? "color:var(--accent-ink);font-weight:600" : "", text: p.kept ? "~" + fmt(p.kept) : "—" }), h("td", { cls: "n hide-sm", text: pct(p.kept, p.tokens) + "%" }), h("td", { cls: "n strong", text: usd(p.cost) }));
+    }), "No projects in this range.")));
+    var agents = card("By coding agent", "Reads and tokens per agent");
+    agents.body.appendChild(tableOf([["Agent"], ["Reads", "n"], ["Into context", "n"], ["Kept out", "n"]], (v.d.byClient || []).map(function (x) {
+      return h("tr", null, h("td", null, h("span", { cls: "who" }, clientLogo(x.key, true), h("span", { text: CLIENT[x.key] || x.key }))), h("td", { cls: "n", text: x.reads.toLocaleString() }), h("td", { cls: "n", text: fmt(x.inContext) }), h("td", { cls: "n", text: "~" + fmt(x.heldBack) }));
+    }), "No agents yet."));
+    var servers = v.d.byMcp || [];
+    var mcpHeld = 0, mcpAll = 0; servers.forEach(function (x) { mcpHeld += x.heldBack; mcpAll += x.inContext + x.heldBack; });
+    var mcp = card("MCP servers", servers.length ? servers.length + (servers.length === 1 ? " server" : " servers") + " · ~" + fmt(mcpHeld) + " tokens saved, " + pct(mcpHeld, mcpAll) + "% of what they returned" : "Results from every MCP server your team's agents use");
+    mcp.body.appendChild(h("div", { cls: "scroll" }, tableOf([["Server"], ["Calls", "n"], ["Into context", "n hide-sm"], ["Saved", "n"], ["Saved %", "n"]], servers.map(function (x) {
+      return h("tr", null, h("td", { text: x.key }), h("td", { cls: "n", text: x.reads.toLocaleString() }), h("td", { cls: "n hide-sm", text: fmt(x.inContext) }),
+        h("td", { cls: "n", style: x.heldBack ? "color:var(--accent-ink);font-weight:600" : "", text: x.heldBack ? "~" + fmt(x.heldBack) : "—" }), h("td", { cls: "n", text: pct(x.heldBack, x.inContext + x.heldBack) + "%" }));
+    }), "No MCP calls synced in this range.")));
+    return [c, h("div", { style: "height:16px" }), agents, h("div", { style: "height:16px" }), mcp];
+  }
+
+  function spendTab(v) {
+    var sp = v.sp;
+    if (!sp) { var e = card("Spend", ""); e.body.appendChild(h("div", { cls: "none", text: "No spend synced in this range yet." })); return [e]; }
+    var bars = card("Daily spend", "Last " + v.d.days + " days, API list prices");
+    var box = h("div", { cls: "chart-box" }), svg = s("svg", { class: "bars", role: "img", "aria-label": "Spend per day" }), tip = h("div", { cls: "tip" });
+    bars.body.appendChild(h("div", { cls: "total" }, h("span", { cls: "v num", text: usd(sp.costUsd) }), h("span", { cls: "s", text: sp.requests.toLocaleString() + " requests · " + fmt(sp.tokens) + " tokens · " + pct(sp.cacheRead, sp.tokens) + "% from cache" })));
+    box.appendChild(svg); box.appendChild(tip); bars.body.appendChild(box);
+    requestAnimationFrame(function () {
+      var byDay = {}; sp.series.forEach(function (r) { byDay[r.key] = r; });
+      var list = lastDays(v.d.days, byDay, function (k) { return { key: k, costUsd: 0, tokens: 0 }; });
+      var W = Math.max(280, svg.clientWidth || 600), H = 170, B = 18, top = 0;
+      svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+      list.forEach(function (r) { top = Math.max(top, r.costUsd); });
+      var bw = W / list.length;
+      list.forEach(function (r, i) {
+        var hg = top ? (r.costUsd / top) * (H - B - 6) : 0;
+        var rect = s("rect", { class: "b" + (i === list.length - 1 ? " today" : ""), x: i * bw + 1.5, y: H - B - hg, width: Math.max(1, bw - 3), height: Math.max(hg, r.costUsd ? 1.5 : 0), rx: 2 });
+        rect.addEventListener("mousemove", function () { var rb = svg.getBoundingClientRect(); tip.replaceChildren(h("b", { text: dayName(r.key) }), h("br"), usd(r.costUsd) + " · " + fmt(r.tokens) + " tokens"); tip.style.left = ((i + 0.5) * bw / W) * rb.width + "px"; tip.style.top = ((H - B - hg) / H) * rb.height - 6 + "px"; tip.style.opacity = 1; });
+        rect.addEventListener("mouseleave", function () { tip.style.opacity = 0; });
+        svg.appendChild(rect);
+      });
+      [0, list.length - 1].forEach(function (i) { var t = s("text", { x: i ? W : 0, y: H - 3, "text-anchor": i ? "end" : "start" }); t.textContent = i ? "Today" : dayName(list[0].key); svg.appendChild(t); });
+    });
+    var byProject = ranked("Spend by project", projectList(v.d), true, function (p) { state.project = p.key; state.tab = "overview"; load(); });
+    var models = card("By model", "Last " + v.d.days + " days" + (sp.unpriced.length ? " · no list price for " + sp.unpriced.join(", ") : ""));
+    models.body.appendChild(h("div", { cls: "scroll" }, tableOf([["Model"], ["Agent", "hide-sm"], ["Requests", "n"], ["Tokens", "n hide-sm"], ["Cost", "n"], ["Share", "n"]], v.models.map(function (m) {
+      return h("tr", null, h("td", null, h("span", { cls: "who", style: "--c:" + m.color }, modelLogo(m.key, true), h("i", { cls: "dot" }), h("span", { text: m.label }))), h("td", { cls: "hide-sm", text: CLIENT[m.client] || m.client || "" }),
+        h("td", { cls: "n", text: (m.reqAll || 0).toLocaleString() }), h("td", { cls: "n hide-sm", text: fmt(m.tokens) }), h("td", { cls: "n", text: usd(m.cost30) }), h("td", { cls: "n strong", text: (m.share * 100).toFixed(1) + "%" }));
+    }), "")));
+    return [h("div", { cls: "grid g-wide" }, bars, byProject), models];
+  }
+
+  // --- Settings: machines, team, cloud agents, beta codes ---------------------------------------
+
+  function settingsTab(team) {
+    var machines = card("Connected machines", "Each is a CLI login; revoke one to stop it syncing");
+    var tokens = h("div", { cls: "none", text: "Loading…" });
+    machines.body.append(tokens, h("div", { style: "height:12px" }), cmdBox(state.me.cliCommand));
+    api("/api/tokens").then(function (r) {
+      tokens.replaceWith(tableOf([["Login"], ["Workspace", "hide-sm"], ["Last sync"], [""]], r.tokens.map(function (k) {
+        var b = h("button", { cls: "btn", type: "button", text: "Revoke" });
+        b.addEventListener("click", function () { post("/api/tokens/" + k.id + "/revoke").then(function () { b.closest("tr").remove(); }); });
+        return h("tr", null, h("td", { text: k.label }), h("td", { cls: "hide-sm", text: k.team }), h("td", { style: "color:var(--muted)", text: k.lastUsedAt ? ago(k.lastUsedAt) : "never" }), h("td", { cls: "n" }, b));
+      }), "No machines yet. Run the command below in a project with Snout installed."));
+    });
+    var teamCard = card(team.personal ? "Teams" : "Team", team.personal ? "Pool everyone's totals in one workspace" : "People, roles and plan");
+    var invite = teamCard.body;
+    if (team.personal && state.me.beta && !state.me.user.approved) {
+      var code = h("input", { placeholder: "Access code", "aria-label": "Access code", maxlength: "16", style: "min-width:160px;font-family:var(--mono)" });
+      var join = h("button", { cls: "btn dark", type: "button", text: "Unlock teams" });
+      var why = h("p", { cls: "note", role: "alert" });
+      join.addEventListener("click", function () { post("/api/beta/redeem", { code: code.value }).then(function () { location.reload(); }, function (e) { why.textContent = e.message; }); });
+      invite.append(h("p", { cls: "note", style: "margin:0 0 12px", text: "Your personal workspace is free for everyone. Teams are invite-only during the beta: enter your access code to start one, or open a teammate's invite link to join theirs." }), h("div", { cls: "row" }, code, join), why);
+    } else if (team.personal) {
+      var name = h("input", { placeholder: "Team name", "aria-label": "Team name", maxlength: "60" });
+      var go = h("button", { cls: "btn dark", type: "button", text: "Create team" });
+      go.addEventListener("click", function () { if (name.value.trim()) post("/api/teams", { name: name.value }).then(function (r) { location.href = "/?team=" + r.id; }); });
+      invite.append(h("p", { cls: "note", style: "margin:0 0 12px", text: "A team pools everyone's totals. Members connect with the same command and pick the team when approving. Free for up to 10 people." }), h("div", { cls: "row" }, name, go));
+    } else {
+      teamPanel(team, invite);
+    }
+    var agents = card("Cloud agents", "CI, Claude Code on the web and Codex cloud sync with a workspace key");
+    agentPanel(team, agents.body, team.personal || team.role === "owner");
+    var out = [h("div", { cls: "grid g-2" }, machines, teamCard), agents];
+    if (state.me.user.admin) { out.push(h("div", { style: "height:16px" })); out.push(betaAdmin()); }
+    out.push(h("div", { style: "height:16px" }));
+    out.push(h("div", { cls: "row" }, h("button", { cls: "btn", type: "button", text: "Sign out", on: { click: function () { post("/auth/logout").then(function () { location.href = "/"; }); } } })));
+    return out;
+  }
+
+  function teamPanel(team, el) {
+    var isOwner = team.role === "owner";
+    var go = function (path, body) { return post(path, body).then(function (r) { if (r.url) location.href = r.url; else location.reload(); }, function (e) { alert(e.message); }); };
+    el.appendChild(h("div", { cls: "none", text: "Loading…" }));
+    api("/api/teams/" + team.id + "/members").then(function (m) {
+      var used = m.members.length, paid = m.plan === "team";
+      var planLine = !paid ? "Free plan · " + used + " of " + team.limits.members + " people" : m.seats ? used + " of " + m.seats + " seats used" + (m.billingStatus && m.billingStatus !== "active" ? " · " + m.billingStatus.replace("_", " ") : "") : "Team plan · early access";
+      var rows = tableOf([["Person"], ["Role"], ["Last sync", "hide-sm"], [""]], m.members.map(function (p) {
+        var actions = h("td", { cls: "n", style: "white-space:nowrap" });
+        if (isOwner && p.id !== m.me) {
+          actions.appendChild(h("button", { cls: "btn", type: "button", text: p.role === "owner" ? "Make member" : "Make owner", on: { click: function () { go("/api/teams/" + team.id + "/members/" + p.id + "/role", { role: p.role === "owner" ? "member" : "owner" }); } } }));
+          actions.appendChild(document.createTextNode(" "));
+          actions.appendChild(h("button", { cls: "btn", type: "button", text: "Remove", on: { click: function () { if (confirm("Remove @" + p.login + "? Their machines stop syncing into this team.")) go("/api/teams/" + team.id + "/members/" + p.id + "/remove"); } } }));
+        }
+        return h("tr", null, h("td", null, h("span", { cls: "who" }, p.avatar ? h("img", { cls: "avatar sm", src: p.avatar, alt: "" }) : null, h("span", { text: "@" + p.login + (p.id === m.me ? " (you)" : "") }))),
+          h("td", { text: p.role }), h("td", { cls: "hide-sm", style: "color:var(--muted)", text: p.lastSync ? ago(p.lastSync) : "never" }), actions);
+      }), "");
+      var buttons = h("div", { cls: "row", style: "margin-top:12px" }), link = h("div");
+      if (isOwner && (paid ? !m.seats || used < m.seats : used < team.limits.members)) {
+        buttons.appendChild(h("button", { cls: "btn dark", type: "button", text: "Create invite link", on: { click: function () {
+          post("/api/teams/" + team.id + "/invites").then(function (r) { link.replaceChildren(h("div", { style: "height:10px" }), cmdBox(r.url), h("p", { cls: "note", text: "Anyone signed in with this link joins " + team.name + ". It expires in " + r.expiresInDays + " days." })); }, function (e) { link.textContent = e.message; });
+        } } }));
+      }
+      if (isOwner && m.billingEnabled) {
+        if (m.billed) buttons.appendChild(h("button", { cls: "btn", type: "button", text: paid && m.seats && used >= m.seats ? "Add seats" : "Manage billing", on: { click: function () { go("/api/billing/portal", { team_id: Number(team.id) }); } } }));
+        else if (used >= team.limits.members) {
+          buttons.appendChild(h("button", { cls: "btn dark", type: "button", text: "Upgrade: $8/seat/mo yearly", on: { click: function () { go("/api/billing/checkout", { team_id: Number(team.id), interval: "year" }); } } }));
+          buttons.appendChild(h("button", { cls: "btn", type: "button", text: "$10/seat monthly", on: { click: function () { go("/api/billing/checkout", { team_id: Number(team.id), interval: "month" }); } } }));
+        }
+      } else if (isOwner && !paid && used >= team.limits.members) {
+        buttons.appendChild(h("a", { cls: "btn dark", href: state.me.upgradeUrl || "/?upgrade=1", text: "Upgrade for a larger team" }));
+      }
+      if (!isOwner || m.members.filter(function (p) { return p.role === "owner"; }).length > 1) {
+        buttons.appendChild(h("button", { cls: "btn", type: "button", text: "Leave team", on: { click: function () { if (confirm("Leave " + team.name + "?")) post("/api/teams/" + team.id + "/leave").then(function () { location.href = "/"; }, function (e) { alert(e.message); }); } } }));
+      }
+      var note = new URLSearchParams(location.search).get("billing") === "success" ? h("p", { cls: "banner", text: "Thanks! Your team is on the Team plan. It can take a few seconds to show here." }) : null;
+      el.replaceChildren(note || document.createTextNode(""), h("p", { cls: "note", style: "margin:0 0 12px", text: planLine + ". Members see the team's totals, never each other's files." }), rows, buttons, link);
+    }, function (e) { el.textContent = e.message; });
+  }
+
+  function agentPanel(team, el, isOwner, justMade) {
+    api("/api/teams/" + team.id + "/keys").then(function (k) {
+      var usage = k.perDay ? k.runsToday + " of " + k.perDay + " runs today on the free plan" : k.runsThisMonth.toLocaleString() + " runs this month · " + k.included.toLocaleString() + " included, then $5 per 10,000";
+      var list = tableOf([["Key"], ["Runs this month", "n"], ["Last sync", "hide-sm"], [""]], k.keys.map(function (key) {
+        return h("tr", null, h("td", null, h("span", { cls: "who" }, logo(null, true, key.label), h("span", { text: key.label }))), h("td", { cls: "n", text: key.runsThisMonth.toLocaleString() }),
+          h("td", { cls: "hide-sm", style: "color:var(--muted)", text: key.lastUsedAt ? ago(key.lastUsedAt) : "never" }),
+          h("td", { cls: "n" }, isOwner ? h("button", { cls: "btn", type: "button", text: "Revoke", on: { click: function () { if (confirm("Revoke " + key.label + "? Agents using it stop syncing.")) post("/api/teams/" + team.id + "/keys/" + key.id + "/revoke").then(function () { agentPanel(team, el, isOwner); }); } } }) : null));
+      }), "No keys yet.");
+      var made = justMade || h("div"), form = null;
+      if (isOwner) {
+        var label = h("input", { placeholder: "Name, e.g. github-actions", "aria-label": "Key name", maxlength: "40", style: "min-width:220px" });
+        var go = h("button", { cls: "btn dark", type: "button", text: "Create agent key" });
+        go.addEventListener("click", function () {
+          post("/api/teams/" + team.id + "/keys", { label: label.value }).then(function (r) {
+            made.replaceChildren(h("p", { cls: "note", text: "Copy it now; it won't be shown again. Add it to the agent's environment (a GitHub Actions secret, or the environment settings of Claude Code on the web or Codex cloud):" }), cmdBox("SNOUT_TOKEN=" + r.key));
+            agentPanel(team, el, isOwner, made);
+          }, function (e) { made.textContent = e.message; });
+        });
+        form = h("div", { cls: "row", style: "margin-top:12px" }, label, go);
+      }
+      el.replaceChildren(h("p", { cls: "note", style: "margin:0 0 10px", text: usage }), list, form, made);
+    }, function (e) { el.textContent = e.message; });
+  }
+
+  function betaAdmin() {
+    var c = card("Beta access codes", "Admins only. Each code works once and is shown once.");
+    var note = h("input", { placeholder: "Who it's for (e.g. Acme, Sara)", "aria-label": "Note", maxlength: "120", style: "min-width:240px" });
+    var count = h("input", { type: "number", min: "1", max: "50", value: "1", "aria-label": "How many", style: "width:70px" });
+    var made = h("div"), list = h("div");
+    var go = h("button", { cls: "btn dark", type: "button", text: "Create codes" });
+    function refresh() {
+      api("/api/admin/beta-codes").then(function (r) {
+        list.replaceChildren(tableOf([["Code"], ["For"], ["Status"]], r.codes.map(function (x) {
+          var status = x.redeemedAt ? "used by @" + x.redeemedBy : new Date(x.expiresAt) < new Date() ? "expired" : "unused";
+          return h("tr", null, h("td", { text: "…" + x.hint, style: "font-family:var(--mono)" }), h("td", { text: x.note || "—" }), h("td", { text: status }));
+        }), "No codes yet."));
+      });
+    }
+    go.addEventListener("click", function () {
+      go.disabled = true;
+      post("/api/admin/beta-codes", { count: Number(count.value), note: note.value }).then(function (r) {
+        made.replaceChildren(h("p", { cls: "note", text: "Copy these now; they won't be shown again. Each works once, for " + r.expiresInDays + " days." }));
+        r.codes.forEach(function (x) { made.appendChild(cmdBox(x)); made.appendChild(h("div", { style: "height:6px" })); });
+        go.disabled = false; refresh();
+      }, function (e) { made.textContent = e.message; go.disabled = false; });
+    });
+    refresh();
+    c.body.append(h("div", { cls: "row" }, note, count, go), h("div", { style: "height:12px" }), made, list);
+    return c;
+  }
+
+  // --- render ---------------------------------------------------------------------------------
+
+  function render() {
+    var d = state.data, me = state.me;
+    var team = me.teams.filter(function (t) { return String(t.id) === String(state.team); })[0];
+    var v = view(d);
+    document.title = v.today.heldBack ? "~" + fmt(v.today.heldBack) + " kept out today · Snout Cloud" : "Snout Cloud";
+    var main = h("main", { cls: "wrap" }, header(v, team));
+    var upgrade = me.upgradeUrl || "/?upgrade=1";
+    if (d.capped) main.appendChild(h("div", { cls: "banner" }, "The free plan shows the last " + d.capped.historyDays + " days. The Team plan keeps a year.", h("a", { cls: "btn dark", href: upgrade, text: "Upgrade to Team" })));
+    var empty = !d.totals.reads && !(d.spend && d.spend.requests);
+    var body;
+    if (state.tab === "settings") body = settingsTab(team);
+    else if (empty) {
+      var e = h("div", { cls: "card empty" }, h("h2", { text: "Connect your first project" }),
+        h("p", { text: "Run this in a project where Snout is installed. Its totals show up here within a minute, and keep updating while your agents work." }),
+        cmdBox(me.cliCommand), h("p", { cls: "note", text: "Only per-day totals are sent: reads and tokens by coding agent, model and file type. Preview exactly what with snout sync --dry-run." }));
+      body = [e];
+    } else if (state.tab === "people") body = peopleTab(v);
+    else if (state.tab === "projects") body = projectsTab(v);
+    else if (state.tab === "spend") body = spendTab(v);
+    else body = overview(v, team);
+    body.forEach(function (n) { main.appendChild(n); });
+    main.appendChild(h("footer", { text: "Snout Cloud stores per-day totals only. File contents and paths stay on each machine." }));
+    var y = window.scrollY;
+    root.replaceChildren(shell(team), main);
+    window.scrollTo(0, y);
+    setLive();
+    state.first = false;
+  }
+
+  setInterval(function () { document.querySelectorAll("[data-ts]").forEach(function (el) { el.textContent = ago(el.getAttribute("data-ts")); }); setLive(); }, 10000);
+  var rt = 0;
+  window.addEventListener("resize", function () { clearTimeout(rt); rt = setTimeout(function () { if (state.data && (state.tab === "overview" || state.tab === "spend")) render(); }, 150); });
+
+  var startTab = (location.hash || "").slice(1);
+  if (["people", "projects", "spend", "settings"].indexOf(startTab) >= 0) state.tab = startTab;
+  api("/api/me").then(function (me) {
+    state.me = me;
+    if (!me.teams.some(function (t) { return String(t.id) === String(state.team); })) state.team = String(me.teams[0].id);
+    if (q.get("next") && q.get("next").indexOf("/invite/") === 0) { location.href = q.get("next"); return; }
+    return load().then(schedule, function (e) { console.error(e); root.replaceChildren(h("div", { cls: "center" }, h("div", null, h("h1", { text: "The dashboard couldn't load" }), h("p", { text: e.message }), h("button", { cls: "btn dark", type: "button", text: "Try again", on: { click: function () { location.reload(); } } })))); });
+  }, function (e) { if (e.status === 401) signIn(); else root.textContent = "Snout Cloud is unavailable: " + e.message; });
+})();
+</script>
+</body>
+</html>

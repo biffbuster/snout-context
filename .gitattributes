@@ -1,0 +1,5 @@
+# Hook scripts must keep LF endings or they break when a Windows clone runs them.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+dist/snout.mjs text eol=lf

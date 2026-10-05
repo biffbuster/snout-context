@@ -1,0 +1,64 @@
+{
+  "name": "usesnout",
+  "version": "0.2.2",
+  "description": "Context gating and token optimization for AI coding agents: trims bulky files, logs, docs, command and MCP output before they enter context, and reports what it saved.",
+  "license": "MIT",
+  "type": "module",
+  "private": false,
+  "bin": {
+    "snout": "dist/snout.mjs"
+  },
+  "homepage": "https://github.com/biffbuster/snout-context",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/biffbuster/snout-context.git"
+  },
+  "keywords": [
+    "ai",
+    "coding-agent",
+    "claude-code",
+    "cursor",
+    "gemini-cli",
+    "codex",
+    "context",
+    "tokens",
+    "llm",
+    "mcp",
+    "token-optimization",
+    "context-engineering"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "bench": "node test/bench.mjs",
+    "eval": "node eval/run.mjs",
+    "eval:json": "node eval/run.mjs --json",
+    "verify": "npm run typecheck && npm run build && npm test && npm run eval && npm run bench",
+    "doctor": "node dist/snout.mjs doctor"
+  },
+  "devDependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
+    "@types/node": "^22.10.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.7.0"
+  },
+  "files": [
+    "dist",
+    "hooks",
+    "commands",
+    "skills",
+    ".claude-plugin",
+    "README.md",
+    "LICENSE"
+  ],
+  "bugs": {
+    "url": "https://github.com/biffbuster/snout-context/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

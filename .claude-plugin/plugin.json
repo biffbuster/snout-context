@@ -1,0 +1,10 @@
+{
+  "name": "snout",
+  "version": "0.2.2",
+  "description": "A context gate for AI coding agents: classifies every file before it enters context, withholds low-value bulk like lockfiles and generated code, and reports the tokens saved.",
+  "author": { "name": "Snout contributors" },
+  "homepage": "https://github.com/biffbuster/snout-context",
+  "repository": "https://github.com/biffbuster/snout-context",
+  "license": "MIT",
+  "keywords": ["context", "tokens", "classifier", "typesafe", "snout", "permissions"]
+}

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connect Snout</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23E653BA'/%3E%3C/svg%3E">
+<style>
+:root { --bg: #f5f0f3; --card: rgb(255, 251, 253); --ink: rgb(26, 20, 24); --graphite: rgb(80, 74, 78); --stone: rgb(116, 108, 113); --rule: rgba(26, 20, 24, 0.1); --marker: rgb(230, 83, 186); --marker-soft: rgba(230, 83, 186, 0.12);
+  --display: "Bricolage Grotesque", ui-rounded, system-ui, sans-serif; --body: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif; --mono: "Fragment Mono", ui-monospace, Menlo, monospace; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root { --bg: #141013; --card: #1d171b; --ink: #f4ecf1; --graphite: #cfc5cb; --stone: #9a8f96; --rule: rgba(244, 236, 241, 0.1); --marker: #f27acd; --marker-soft: rgba(242, 122, 205, 0.14); color-scheme: dark; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+.card { background: var(--card); border: 1px solid var(--rule); border-radius: 14px; padding: 28px; width: min(440px, 100%); box-shadow: 0 18px 40px -28px rgba(26, 20, 24, 0.35); }
+.brand { display: flex; align-items: center; gap: 9px; font: 800 20px/1 var(--display); margin-bottom: 20px; }
+.brand i { width: 12px; height: 12px; border-radius: 50%; background: var(--marker); }
+h1 { font: 700 22px/1.2 var(--display); margin: 0 0 8px; }
+p { color: var(--graphite); margin: 0 0 16px; }
+.code { font: 600 28px var(--mono); letter-spacing: 0.08em; text-align: center; padding: 14px; border-radius: 10px; background: var(--marker-soft); color: var(--marker); margin-bottom: 16px; }
+label { font-size: 13px; color: var(--graphite); display: block; margin-bottom: 6px; }
+select, button, a.btn { font: 600 14px var(--body); width: 100%; padding: 11px 14px; border-radius: 8px; border: 1px solid var(--rule); background: var(--card); color: var(--ink); }
+button.primary, a.btn { background: var(--ink); color: var(--card); border-color: var(--ink); cursor: pointer; margin-top: 14px; display: block; text-align: center; text-decoration: none; }
+button:disabled { opacity: 0.5; }
+.note { font-size: 12.5px; color: var(--stone); margin-top: 14px; }
+.err { color: var(--marker); font-size: 13.5px; margin-top: 12px; }
+</style>
+</head>
+<body>
+<main class="card" id="card">
+  <div class="brand"><i></i>snout</div>
+  <h1>Connect the Snout CLI</h1>
+  <p>Loading…</p>
+</main>
+<script>
+(function () {
+  "use strict";
+  var card = document.getElementById("card");
+  var code = (new URLSearchParams(location.search).get("code") || "").toUpperCase().replace(/[^A-Z-]/g, "").slice(0, 9);
+  function h(tag, attrs) {
+    var el = document.createElement(tag);
+    for (var k in attrs || {}) { if (k === "text") el.textContent = attrs[k]; else if (k === "cls") el.className = attrs[k]; else el.setAttribute(k, attrs[k]); }
+    for (var i = 2; i < arguments.length; i++) if (arguments[i]) el.appendChild(typeof arguments[i] === "string" ? document.createTextNode(arguments[i]) : arguments[i]);
+    return el;
+  }
+  function show() {
+    card.replaceChildren(h("div", { cls: "brand" }, h("i"), "snout"));
+    for (var i = 0; i < arguments.length; i++) if (arguments[i]) card.appendChild(arguments[i]);
+  }
+  fetch("/api/me").then(function (r) {
+    if (r.status === 401) {
+      return fetch("/auth/config").then(function (c) { return c.json(); }).then(function (c) {
+        var next = encodeURIComponent(location.pathname + location.search);
+        show(h("h1", { text: "Sign in to connect" }), h("p", { text: "Your terminal is waiting for approval of code " + code + "." }),
+          c.github ? h("a", { cls: "btn", href: "/auth/github?next=" + next, text: "Sign in with GitHub" }) : null,
+          c.dev ? h("a", { cls: "btn", href: "/auth/dev?login=dev&next=" + next, text: "Dev sign-in" }) : null);
+      });
+    }
+    return r.json().then(function (d) {
+      var sel = h("select", { id: "team" });
+      d.teams.forEach(function (t) { sel.appendChild(h("option", { value: t.id, text: t.personal ? t.name + " (personal)" : t.name })); });
+      var btn = h("button", { cls: "primary", type: "button", text: "Approve" });
+      var err = h("div", { cls: "err", role: "alert" });
+      btn.addEventListener("click", function () {
+        btn.disabled = true;
+        fetch("/api/device/approve", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ user_code: code, team_id: Number(sel.value) }) })
+          .then(function (r) { return r.json().then(function (j) { return [r.ok, j]; }); })
+          .then(function (x) {
+            if (x[0]) show(h("h1", { text: "Connected" }), h("p", { text: "Go back to your terminal. Snout sends daily totals when a session ends." }));
+            else { err.textContent = x[1].error || "Approval failed."; btn.disabled = false; }
+          });
+      });
+      show(h("h1", { text: "Connect the Snout CLI" }),
+        h("p", { text: "Signed in as @" + d.user.login + ". Check that this code matches your terminal:" }),
+        h("div", { cls: "code", text: code || "no code" }),
+        h("label", { for: "team", text: "Send totals to" }), sel, btn, err,
+        h("p", { cls: "note", text: "Snout sends per-day totals only: reads and tokens by coding agent and file label. It never sends file contents or paths." }));
+    });
+  });
+})();
+</script>
+</body>
+</html>

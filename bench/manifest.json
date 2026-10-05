@@ -1,0 +1,1335 @@
+{
+  "generatedBy": "bench/pin.mjs",
+  "generatedAt": "2026-09-22T19:56:49.957Z",
+  "count": 100,
+  "resolved": 100,
+  "repos": [
+    {
+      "owner": "facebook",
+      "repo": "react",
+      "language": "javascript",
+      "tags": [
+        "mega",
+        "established",
+        "library",
+        "monorepo"
+      ],
+      "why": "canonical UI lib, heavy build/generated tooling",
+      "commit": "d083ec1da1e5252abd3ddfdde6dfbc09701a2c51",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "microsoft",
+      "repo": "vscode",
+      "language": "typescript",
+      "tags": [
+        "mega",
+        "established",
+        "app",
+        "monorepo"
+      ],
+      "why": "huge editor monorepo, deep vendored/generated trees",
+      "commit": "664e49d14342e3c60763d152d78a680e681aba7b",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "vuejs",
+      "repo": "core",
+      "language": "typescript",
+      "tags": [
+        "high",
+        "established",
+        "framework"
+      ],
+      "why": "modern framework, TS + build tooling",
+      "commit": "4ab865a848a1da3d10fb674f857e5fff13094644",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "sveltejs",
+      "repo": "svelte",
+      "language": "typescript",
+      "tags": [
+        "high",
+        "established",
+        "framework"
+      ],
+      "why": "compiler-style framework",
+      "commit": "803f59b171e1f962c0b0acb20dba2074bc9d2e84",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "expressjs",
+      "repo": "express",
+      "language": "javascript",
+      "tags": [
+        "high",
+        "established-old",
+        "library"
+      ],
+      "why": "minimal, ancient (2009) Node lib",
+      "commit": "9a34acf03cb818ff3f8bc40e44176e277a25cbb9",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "nestjs",
+      "repo": "nest",
+      "language": "typescript",
+      "tags": [
+        "high",
+        "established",
+        "framework",
+        "monorepo"
+      ],
+      "why": "decorator-heavy TS framework",
+      "commit": "40d07dc62ccb41686859b804f8523ae0e2dd1984",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "denoland",
+      "repo": "deno",
+      "language": "typescript",
+      "tags": [
+        "high",
+        "established",
+        "runtime"
+      ],
+      "why": "TS/Rust mixed runtime",
+      "commit": "461f32ec6174d88b7e43654a054d46d67ae2fdab",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "vitejs",
+      "repo": "vite",
+      "language": "javascript",
+      "tags": [
+        "high",
+        "established",
+        "build-tool",
+        "monorepo"
+      ],
+      "why": "build tooling, heavy generated output",
+      "commit": "1544bb1b7ac92f775e9d0dea97954c99cc6cbd43",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "remix-run",
+      "repo": "remix",
+      "language": "typescript",
+      "tags": [
+        "mid",
+        "established",
+        "framework",
+        "monorepo"
+      ],
+      "why": "mid-popularity web framework",
+      "commit": "9f274682b19c9c52007a013ded5356b98c35829c",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "sindresorhus",
+      "repo": "execa",
+      "language": "javascript",
+      "tags": [
+        "low-mid",
+        "established",
+        "small-lib"
+      ],
+      "why": "small, single-maintainer utility lib",
+      "commit": "8017b279e19347efaf2587711c2d57dbd4330740",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "lodash",
+      "repo": "lodash",
+      "language": "javascript",
+      "tags": [
+        "mega",
+        "established-old",
+        "utility-lib"
+      ],
+      "why": "ancient (2012), tiny surface, huge usage",
+      "commit": "2b5e6f7399a7b48005140b5d5c6bc6c0e62919a8",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "axios",
+      "repo": "axios",
+      "language": "javascript",
+      "tags": [
+        "high",
+        "established",
+        "library"
+      ],
+      "why": "widely used HTTP client",
+      "commit": "5fc40e1c7478d342ec64c4e865ed4cd1a334207c",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "oven-sh",
+      "repo": "bun",
+      "language": "zig",
+      "tags": [
+        "high",
+        "new-ish",
+        "runtime"
+      ],
+      "why": "fast-growing runtime, mixed Zig/TS/C++",
+      "commit": "87466cf1ff6d5d4d56780730e2644d7330d65552",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "trpc",
+      "repo": "trpc",
+      "language": "typescript",
+      "tags": [
+        "mid",
+        "established",
+        "library",
+        "monorepo"
+      ],
+      "why": "typed RPC lib, monorepo tooling",
+      "commit": "8b649ad874a8fe97c73962d4617912231b975736",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "django",
+      "repo": "django",
+      "language": "python",
+      "tags": [
+        "mega",
+        "established-old",
+        "framework"
+      ],
+      "why": "ancient (2005) full-stack framework",
+      "commit": "dd6f6b1531984823e3dc56740dfa93f3ceb09357",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "pallets",
+      "repo": "flask",
+      "language": "python",
+      "tags": [
+        "high",
+        "established",
+        "framework"
+      ],
+      "why": "minimal Python web framework",
+      "commit": "d73fa1cdcbd8b1465c151db8924ba58b1dd14e35",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "psf",
+      "repo": "requests",
+      "language": "python",
+      "tags": [
+        "mega",
+        "established",
+        "library"
+      ],
+      "why": "canonical HTTP lib",
+      "commit": "611c6162cbc4ac2020a2f91c7cfa4f3abf9bbb60",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "pandas-dev",
+      "repo": "pandas",
+      "language": "python",
+      "tags": [
+        "mega",
+        "established",
+        "data"
+      ],
+      "why": "data lib with C extensions",
+      "commit": "d7a7ccf9e43049a2b1139362e8612ebd7691723c",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "numpy",
+      "repo": "numpy",
+      "language": "python",
+      "tags": [
+        "mega",
+        "established-old",
+        "scientific"
+      ],
+      "why": "ancient (2006) numerical lib, C core",
+      "commit": "9ef82eaf1484c18bd65732fc1b09be44efb229f9",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "scikit-learn",
+      "repo": "scikit-learn",
+      "language": "python",
+      "tags": [
+        "high",
+        "established",
+        "ml"
+      ],
+      "why": "classic ML lib",
+      "commit": "2df5847f9c9722fbd333dfc1147f99b9d8de4c74",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "huggingface",
+      "repo": "transformers",
+      "language": "python",
+      "tags": [
+        "mega",
+        "established",
+        "ml",
+        "monorepo"
+      ],
+      "why": "huge ML monorepo, model-config generated files",
+      "commit": "2c4914fb939fe9de0d8e7a798af4684d552f18b4",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "pytest-dev",
+      "repo": "pytest",
+      "language": "python",
+      "tags": [
+        "high",
+        "established",
+        "testing"
+      ],
+      "why": "testing framework, heavy fixture/snapshot use",
+      "commit": "6a9ba0f02f827a54cff6ab4da0dddecd65444ff6",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "python-poetry",
+      "repo": "poetry",
+      "language": "python",
+      "tags": [
+        "mid",
+        "established",
+        "tooling"
+      ],
+      "why": "packaging tool, lockfile-heavy",
+      "commit": "94b6e35b9091991887aa54feeb3771a86d3bd692",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "encode",
+      "repo": "httpx",
+      "language": "python",
+      "tags": [
+        "mid",
+        "established",
+        "library"
+      ],
+      "why": "modern async HTTP client",
+      "commit": "b5addb64f0161ff6bfe94c124ef76f6a1fba5254",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "pallets",
+      "repo": "click",
+      "language": "python",
+      "tags": [
+        "mid",
+        "established",
+        "cli-lib"
+      ],
+      "why": "small, stable CLI lib",
+      "commit": "3cbaa76b6014be7427d1ab06b4af40f01e7c278e",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "tiangolo",
+      "repo": "fastapi",
+      "language": "python",
+      "tags": [
+        "high",
+        "established",
+        "framework"
+      ],
+      "why": "modern async framework, single lead maintainer",
+      "commit": "50113da16fec53b66b80d75e80a89296de4fa5a5",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "golang",
+      "repo": "go",
+      "language": "go",
+      "tags": [
+        "mega",
+        "established-old",
+        "compiler",
+        "monorepo"
+      ],
+      "why": "the Go toolchain itself",
+      "commit": "2927be5904997f6ee7eb89b72ca9abebd5ca73bb",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "gin-gonic",
+      "repo": "gin",
+      "language": "go",
+      "tags": [
+        "high",
+        "established",
+        "framework"
+      ],
+      "why": "minimal Go web framework",
+      "commit": "3b08cd7235bd5ad2f055aa9e38135f111f6c5926",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "spf13",
+      "repo": "cobra",
+      "language": "go",
+      "tags": [
+        "high",
+        "established",
+        "cli-lib"
+      ],
+      "why": "CLI scaffolding lib",
+      "commit": "adbc8813901bba65827259daa8e22ff94ec1f30e",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "hashicorp",
+      "repo": "terraform",
+      "language": "go",
+      "tags": [
+        "mega",
+        "established",
+        "infra",
+        "monorepo"
+      ],
+      "why": "IaC tool, generated provider schemas",
+      "commit": "7dd5b3394b4487afc235b86a1a588e5c8fef8e7e",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "etcd-io",
+      "repo": "etcd",
+      "language": "go",
+      "tags": [
+        "high",
+        "established",
+        "systems"
+      ],
+      "why": "distributed KV store",
+      "commit": "d8a03ef08fb958516404b6063365ecc6dbfc0905",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "gohugoio",
+      "repo": "hugo",
+      "language": "go",
+      "tags": [
+        "high",
+        "established",
+        "app"
+      ],
+      "why": "static site generator",
+      "commit": "09fa49be210071f44326252a436d9e1169820d78",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "cli",
+      "repo": "cli",
+      "language": "go",
+      "tags": [
+        "high",
+        "established",
+        "cli"
+      ],
+      "why": "GitHub's own CLI",
+      "commit": "a3d31e2764f110dd03c46136177360bc78dc3f63",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "caddyserver",
+      "repo": "caddy",
+      "language": "go",
+      "tags": [
+        "high",
+        "established",
+        "server"
+      ],
+      "why": "HTTP server",
+      "commit": "c18099a0af5e88c8d9da0b9d797f6f2c62d60a23",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "charmbracelet",
+      "repo": "bubbletea",
+      "language": "go",
+      "tags": [
+        "mid",
+        "established",
+        "tui-lib"
+      ],
+      "why": "small-team TUI framework",
+      "commit": "657aaae216e3f87df09b60959a9fe5de7b2ca419",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "junegunn",
+      "repo": "fzf",
+      "language": "go",
+      "tags": [
+        "high",
+        "established",
+        "cli"
+      ],
+      "why": "single-maintainer fuzzy finder",
+      "commit": "b1be3a8be1b833ce5b92fbbac11637643d60a046",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "rust-lang",
+      "repo": "rust",
+      "language": "rust",
+      "tags": [
+        "mega",
+        "established-old",
+        "compiler",
+        "monorepo"
+      ],
+      "why": "the Rust compiler itself, RFC-driven generated code",
+      "commit": "b794652dc70d72efc28970704c9ebe04d59fea5d",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "tokio-rs",
+      "repo": "tokio",
+      "language": "rust",
+      "tags": [
+        "high",
+        "established",
+        "async-runtime"
+      ],
+      "why": "async runtime, macro-heavy",
+      "commit": "9bc516aee195af7cf37cd79c7a35c4a889501ff9",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "serde-rs",
+      "repo": "serde",
+      "language": "rust",
+      "tags": [
+        "high",
+        "established",
+        "library"
+      ],
+      "why": "derive-macro-heavy serialization lib",
+      "commit": "6693a89cca77e0151437da1c7f890090b9ebf04c",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "BurntSushi",
+      "repo": "ripgrep",
+      "language": "rust",
+      "tags": [
+        "high",
+        "established",
+        "cli"
+      ],
+      "why": "single-maintainer search tool",
+      "commit": "3fce3b5bb0236da2df6d99672afb8a719642eca7",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "sharkdp",
+      "repo": "bat",
+      "language": "rust",
+      "tags": [
+        "mid",
+        "established",
+        "cli"
+      ],
+      "why": "small-team cat replacement",
+      "commit": "4987f76709aae3a1c4db723c53874c9ddcb0c4fd",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "denoland",
+      "repo": "rusty_v8",
+      "language": "rust",
+      "tags": [
+        "low-mid",
+        "established",
+        "binding"
+      ],
+      "why": "narrow FFI binding crate",
+      "commit": "9b40df29ce13060517bc693831d01b9fdde96de1",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "actix",
+      "repo": "actix-web",
+      "language": "rust",
+      "tags": [
+        "high",
+        "established",
+        "framework"
+      ],
+      "why": "async web framework",
+      "commit": "ad0d97b51ab8f57ae3dd97f2b4cbea0e7bd59ce1",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "clap-rs",
+      "repo": "clap",
+      "language": "rust",
+      "tags": [
+        "high",
+        "established",
+        "cli-lib"
+      ],
+      "why": "CLI arg parser",
+      "commit": "8ab46fe22b4aa5c3bd09cc0e6c3fe9a75fc178a8",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "spring-projects",
+      "repo": "spring-boot",
+      "language": "java",
+      "tags": [
+        "mega",
+        "established",
+        "framework",
+        "monorepo"
+      ],
+      "why": "enterprise Java framework",
+      "commit": "adbbf047320013ee42284d6957293aaf75a56ad7",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "apache",
+      "repo": "kafka",
+      "language": "java",
+      "tags": [
+        "mega",
+        "established",
+        "systems"
+      ],
+      "why": "distributed log, Scala+Java mix",
+      "commit": "77483477445414b00f882ca53de5acacb66857d7",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "elastic",
+      "repo": "elasticsearch",
+      "language": "java",
+      "tags": [
+        "mega",
+        "established",
+        "systems",
+        "monorepo"
+      ],
+      "why": "search engine, generated REST spec files",
+      "commit": "975f8a296d30da243b9cd3954cb2e875d4c06da2",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "square",
+      "repo": "okhttp",
+      "language": "java",
+      "tags": [
+        "high",
+        "established",
+        "library"
+      ],
+      "why": "HTTP client lib",
+      "commit": "40a3b8749deaacf60a04c890aed052cb14ad36ee",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "JetBrains",
+      "repo": "kotlin",
+      "language": "kotlin",
+      "tags": [
+        "mega",
+        "established",
+        "compiler",
+        "monorepo"
+      ],
+      "why": "the Kotlin compiler",
+      "commit": "2277d35acadb411223e9fca0dc813dfc319ad544",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "ReactiveX",
+      "repo": "RxJava",
+      "language": "java",
+      "tags": [
+        "high",
+        "established",
+        "library"
+      ],
+      "why": "reactive streams lib",
+      "commit": "ec9f38c33595dfd81168832c60cb960a69f8492a",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "google",
+      "repo": "guava",
+      "language": "java",
+      "tags": [
+        "high",
+        "established",
+        "library"
+      ],
+      "why": "core utility lib",
+      "commit": "16fda8017316d48a63d99bfc85375f3037b3a6c7",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "netty",
+      "repo": "netty",
+      "language": "java",
+      "tags": [
+        "high",
+        "established",
+        "systems"
+      ],
+      "why": "async network framework",
+      "commit": "9676719d7a2890dea8bd03172d85e7c7b63ca226",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "torvalds",
+      "repo": "linux",
+      "language": "c",
+      "tags": [
+        "mega",
+        "established-old",
+        "kernel",
+        "monorepo"
+      ],
+      "why": "the Linux kernel, largest and oldest case study",
+      "commit": "fe2ec83746e501645709761605c2464a44fd2929",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "redis",
+      "repo": "redis",
+      "language": "c",
+      "tags": [
+        "mega",
+        "established",
+        "systems"
+      ],
+      "why": "in-memory data store",
+      "commit": "c3215f019a4c11c35d438f241114e94730fe39e5",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "nginx",
+      "repo": "nginx",
+      "language": "c",
+      "tags": [
+        "mega",
+        "established-old",
+        "server"
+      ],
+      "why": "ancient (2002-era codebase) web server",
+      "commit": "ef0aa967dce9d30b824d4c839d3579d2a17e0666",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "curl",
+      "repo": "curl",
+      "language": "c",
+      "tags": [
+        "mega",
+        "established-old",
+        "library",
+        "cli"
+      ],
+      "why": "ancient (1998) lib+cli",
+      "commit": "937b25fbd66ded55746e44672b5b32227ce9b3d7",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "git",
+      "repo": "git",
+      "language": "c",
+      "tags": [
+        "mega",
+        "established-old",
+        "tool"
+      ],
+      "why": "the git tool itself",
+      "commit": "3bc0341126508f78f5869cbfc0005e987efdf0c7",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "sqlite",
+      "repo": "sqlite",
+      "language": "c",
+      "tags": [
+        "mega",
+        "established-old",
+        "db"
+      ],
+      "why": "ancient (2000), amalgamation-generated source",
+      "commit": "fd5e4186e1069ecc2ba6ef37e52db6fbbf1ad7bb",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "FFmpeg",
+      "repo": "FFmpeg",
+      "language": "c",
+      "tags": [
+        "mega",
+        "established-old",
+        "media"
+      ],
+      "why": "ancient (2000), heavy generated config headers",
+      "commit": "7499a8ba58888e718971dec771b1a43bc9e0cd93",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "protocolbuffers",
+      "repo": "protobuf",
+      "language": "cpp",
+      "tags": [
+        "high",
+        "established",
+        "library",
+        "monorepo"
+      ],
+      "why": "multi-language, canonical generated-code producer",
+      "commit": "913df99bca4ad72a52aa48bc4c6b2456dc5c072c",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "rails",
+      "repo": "rails",
+      "language": "ruby",
+      "tags": [
+        "mega",
+        "established-old",
+        "framework",
+        "monorepo"
+      ],
+      "why": "ancient (2004) full-stack framework",
+      "commit": "484729f64c9dc75117bb835a4a31f5185abf0879",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "jekyll",
+      "repo": "jekyll",
+      "language": "ruby",
+      "tags": [
+        "high",
+        "established",
+        "app"
+      ],
+      "why": "static site generator",
+      "commit": "541d8b2ee75c8907de4744d4b87a7a6f1f997cae",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "fluent",
+      "repo": "fluentd",
+      "language": "ruby",
+      "tags": [
+        "mid",
+        "established",
+        "systems"
+      ],
+      "why": "log collector",
+      "commit": "5385b6fdedc1985a5c3363f9237a5e08dc2876e2",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "sinatra",
+      "repo": "sinatra",
+      "language": "ruby",
+      "tags": [
+        "mid",
+        "established-old",
+        "micro-framework"
+      ],
+      "why": "ancient (2007) minimal framework",
+      "commit": "cb22afd7902b566b6eaba6c4ea89739494a65d12",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "rubocop",
+      "repo": "rubocop",
+      "language": "ruby",
+      "tags": [
+        "mid",
+        "established",
+        "lint-tool"
+      ],
+      "why": "linter, config-file heavy",
+      "commit": "19c4d91c645c4e73f01f2d780f467d1b10ea82a2",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "laravel",
+      "repo": "laravel",
+      "language": "php",
+      "tags": [
+        "mega",
+        "established",
+        "framework"
+      ],
+      "why": "app skeleton, not a library",
+      "commit": "aa0cf127fc365a56ee016867144ddffabc2290ae",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "symfony",
+      "repo": "symfony",
+      "language": "php",
+      "tags": [
+        "high",
+        "established",
+        "framework",
+        "monorepo"
+      ],
+      "why": "component-based framework",
+      "commit": "101a5a0e4e3653a560fdf3a8577d09da5da8f56f",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "composer",
+      "repo": "composer",
+      "language": "php",
+      "tags": [
+        "high",
+        "established",
+        "tooling"
+      ],
+      "why": "PHP's package manager, lockfile-heavy",
+      "commit": "56a26ff6ad41a8972aae691e82d5a36a31d4684b",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "WordPress",
+      "repo": "WordPress",
+      "language": "php",
+      "tags": [
+        "mega",
+        "established-old",
+        "cms"
+      ],
+      "why": "ancient (2003) CMS, huge legacy tree",
+      "commit": "fdeab470f4b4062462cf8ccdc788f258683c2d6f",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "guzzle",
+      "repo": "guzzle",
+      "language": "php",
+      "tags": [
+        "mid",
+        "established",
+        "library"
+      ],
+      "why": "HTTP client lib",
+      "commit": "93939470950a9b11e2e84204166ef5e048c55fe4",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "dotnet",
+      "repo": "runtime",
+      "language": "csharp",
+      "tags": [
+        "mega",
+        "established",
+        "monorepo",
+        "runtime"
+      ],
+      "why": ".NET runtime monorepo",
+      "commit": "e4a207e6edf48b5a8611a0531352be025f86ba38",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "dotnet",
+      "repo": "aspnetcore",
+      "language": "csharp",
+      "tags": [
+        "mega",
+        "established",
+        "framework",
+        "monorepo"
+      ],
+      "why": "ASP.NET Core framework",
+      "commit": "7cc41c501115f365c0b7f1b50ebaa134a328f0e5",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "JamesNK",
+      "repo": "Newtonsoft.Json",
+      "language": "csharp",
+      "tags": [
+        "high",
+        "established-old",
+        "library"
+      ],
+      "why": "single-maintainer ancient (2006) lib",
+      "commit": "52fa3aef1f2cadcd3a3f874251eddc98d3efbbaa",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "AutoMapper",
+      "repo": "AutoMapper",
+      "language": "csharp",
+      "tags": [
+        "mid",
+        "established",
+        "library"
+      ],
+      "why": "mapping lib",
+      "commit": "6e8697bc44f02fb54ef6a556a7d134e63485299e",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "serilog",
+      "repo": "serilog",
+      "language": "csharp",
+      "tags": [
+        "mid",
+        "established",
+        "logging-lib"
+      ],
+      "why": "logging lib",
+      "commit": "bebc7719004f76187ae72e64ce138ec2540f2070",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "apple",
+      "repo": "swift",
+      "language": "swift",
+      "tags": [
+        "mega",
+        "established",
+        "compiler",
+        "monorepo"
+      ],
+      "why": "the Swift compiler",
+      "commit": "cc0b7dc4c84a202ccf927e98fb28bd782a2d1a59",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "Alamofire",
+      "repo": "Alamofire",
+      "language": "swift",
+      "tags": [
+        "high",
+        "established",
+        "library"
+      ],
+      "why": "networking lib",
+      "commit": "bda9ed57d72988a3a2ada33d824583541f86eac6",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "ReactiveX",
+      "repo": "RxSwift",
+      "language": "swift",
+      "tags": [
+        "mid",
+        "established",
+        "library"
+      ],
+      "why": "reactive lib",
+      "commit": "3e33f90c1bcd3cdea25bdb49bd4a594a50c3ab84",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "elixir-lang",
+      "repo": "elixir",
+      "language": "elixir",
+      "tags": [
+        "high",
+        "established",
+        "language",
+        "monorepo"
+      ],
+      "why": "the Elixir language itself",
+      "commit": "2c2b95e3b403b65946a645307696be58c6a86429",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "phoenixframework",
+      "repo": "phoenix",
+      "language": "elixir",
+      "tags": [
+        "high",
+        "established",
+        "framework"
+      ],
+      "why": "web framework",
+      "commit": "da518c2f871c3b9049929160c91de87a323b61be",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "elixir-ecto",
+      "repo": "ecto",
+      "language": "elixir",
+      "tags": [
+        "mid",
+        "established",
+        "orm-lib"
+      ],
+      "why": "database wrapper",
+      "commit": "24f914a5a7b2cc7f8a67bf667de69b17a2c82d91",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "kubernetes",
+      "repo": "kubernetes",
+      "language": "go",
+      "tags": [
+        "mega",
+        "established",
+        "infra",
+        "monorepo"
+      ],
+      "why": "largest generated-code Go monorepo",
+      "commit": "cc213a13bd4e8f0f253087187ffd3e1264d33f3b",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "ansible",
+      "repo": "ansible",
+      "language": "python",
+      "tags": [
+        "mega",
+        "established",
+        "infra"
+      ],
+      "why": "config management, huge plugin tree",
+      "commit": "4a26940b6e5314f69d4e42bf2f20e59c160de68e",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "helm",
+      "repo": "helm",
+      "language": "go",
+      "tags": [
+        "high",
+        "established",
+        "infra"
+      ],
+      "why": "Kubernetes package manager",
+      "commit": "d31cd6992fc7858922de6ebe5984a06fd6aa0b80",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "prometheus",
+      "repo": "prometheus",
+      "language": "go",
+      "tags": [
+        "high",
+        "established",
+        "systems"
+      ],
+      "why": "monitoring system",
+      "commit": "605ea20826de3b4a9eb0dc1752246bc58c79d00f",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "tensorflow",
+      "repo": "tensorflow",
+      "language": "cpp",
+      "tags": [
+        "mega",
+        "established",
+        "ml",
+        "monorepo"
+      ],
+      "why": "C++/Python ML monorepo, protobuf-generated code",
+      "commit": "9edd58f895c58c3db484a9e39ab2e953baca4bca",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "pytorch",
+      "repo": "pytorch",
+      "language": "cpp",
+      "tags": [
+        "mega",
+        "established",
+        "ml",
+        "monorepo"
+      ],
+      "why": "C++/Python ML monorepo",
+      "commit": "5d8f2e9edba9b070199a62f7375330326eb8596d",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "nodejs",
+      "repo": "node",
+      "language": "cpp",
+      "tags": [
+        "mega",
+        "established-old",
+        "runtime",
+        "monorepo"
+      ],
+      "why": "ancient (2009) C++/JS runtime",
+      "commit": "3cd2d6e20974014bc1966ed2f69d906b599e1d53",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "envoyproxy",
+      "repo": "envoy",
+      "language": "cpp",
+      "tags": [
+        "high",
+        "established",
+        "systems"
+      ],
+      "why": "service proxy",
+      "commit": "68dd4162afbbc250bf8a07d84de04d1e224aa8c1",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "grafana",
+      "repo": "grafana",
+      "language": "go",
+      "tags": [
+        "high",
+        "established",
+        "app",
+        "monorepo"
+      ],
+      "why": "Go backend + TS frontend monorepo",
+      "commit": "ca11878b3425335de9e12adfddac0061bf06fc91",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "unreallabsai",
+      "repo": "unreal-agent",
+      "language": "go",
+      "tags": [
+        "low",
+        "new",
+        "agent-harness"
+      ],
+      "why": "one-day-old repo, tests our freshest possible case",
+      "commit": "b7c9bf1c5c2fa4127255c07727a7c8413e23944a",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "astral-sh",
+      "repo": "uv",
+      "language": "rust",
+      "tags": [
+        "high",
+        "new-ish",
+        "tooling"
+      ],
+      "why": "fast-growing Python tool, small team",
+      "commit": "07143223ba8778f40d2d003e3381e65f0180669f",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "astral-sh",
+      "repo": "ruff",
+      "language": "rust",
+      "tags": [
+        "high",
+        "new-ish",
+        "tooling"
+      ],
+      "why": "fast-growing Python linter, small team",
+      "commit": "84a01cb7e15fe5dee7043d1b7343e7c3d98e8889",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "biomejs",
+      "repo": "biome",
+      "language": "rust",
+      "tags": [
+        "mid",
+        "new-ish",
+        "tooling"
+      ],
+      "why": "JS/TS tooling, small team",
+      "commit": "f74eb3079070c0e4a5a9e052af6f160886b99a9f",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "evanw",
+      "repo": "esbuild",
+      "language": "go",
+      "tags": [
+        "mid",
+        "established",
+        "build-tool"
+      ],
+      "why": "single-maintainer bundler",
+      "commit": "f6058f8364fe7ab91ca57a83e02577ed74c9cae4",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "jesseduffield",
+      "repo": "lazygit",
+      "language": "go",
+      "tags": [
+        "mid",
+        "established",
+        "cli"
+      ],
+      "why": "small-team TUI git client",
+      "commit": "5fcbdadc67dc6bb8b60d2c095306d9ba21bc62c6",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "charmbracelet",
+      "repo": "gum",
+      "language": "go",
+      "tags": [
+        "low-mid",
+        "new-ish",
+        "cli"
+      ],
+      "why": "small utility tool",
+      "commit": "7179388031ae67d7f538d001be87d931f1cf5e28",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "sxyazi",
+      "repo": "yazi",
+      "language": "rust",
+      "tags": [
+        "low-mid",
+        "new",
+        "cli"
+      ],
+      "why": "new small-team file manager",
+      "commit": "0ea4c5d9ef75d7165c2e3b4eb8d713fc11f26c96",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "ariga",
+      "repo": "atlas",
+      "language": "go",
+      "tags": [
+        "low-mid",
+        "new-ish",
+        "tooling"
+      ],
+      "why": "new small-team db migration tool",
+      "commit": "ab87fbea98a6d49afe4522f0e829e65462c9da69",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    },
+    {
+      "owner": "simonw",
+      "repo": "datasette",
+      "language": "python",
+      "tags": [
+        "mid",
+        "established",
+        "tooling"
+      ],
+      "why": "single-maintainer data tool",
+      "commit": "74f178cd12cb12aba05e182155935e39d783c5ee",
+      "pinnedAt": "2026-09-22T19:56:49.957Z"
+    }
+  ]
+}

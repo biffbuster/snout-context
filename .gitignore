@@ -1,0 +1,25 @@
+node_modules/
+.snout/
+.jev/
+*.log
+.DS_Store
+
+# Regenerated from bench/manifest.json by bench/fetch.mjs. Never commit — it's metadata
+# plus a 2 KB head sample per file, not source, but still tens of MB and instantly stale
+# the moment a repo's default branch moves past the pinned commit.
+bench/corpus/
+
+# Labeling runs — small, regenerable, contains model output over corpus samples.
+bench/labels/
+
+# Token calibration runs — regenerable.
+bench/tokens/
+
+# A/B run results — regenerable.
+bench/ab-results/
+.env
+.env.*
+# local agent hook configs written by `snout init` (machine-specific paths)
+.cursor/
+.gemini/
+.codex/
