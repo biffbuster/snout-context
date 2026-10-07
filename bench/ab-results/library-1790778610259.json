@@ -1,0 +1,54 @@
+{
+  "model": "haiku",
+  "n": 3,
+  "rows": [
+    {
+      "arm": "off",
+      "pass": true,
+      "totalTokens": 100513,
+      "costUsd": 0.0435387,
+      "turns": 5,
+      "withheld": 0
+    },
+    {
+      "arm": "enforce",
+      "pass": true,
+      "totalTokens": 149163,
+      "costUsd": 0.048137200000000005,
+      "turns": 6,
+      "withheld": 0
+    },
+    {
+      "arm": "off",
+      "pass": true,
+      "totalTokens": 93825,
+      "costUsd": 0.0211063,
+      "turns": 4,
+      "withheld": 0
+    },
+    {
+      "arm": "enforce",
+      "pass": true,
+      "totalTokens": 341327,
+      "costUsd": 0.1120384,
+      "turns": 8,
+      "withheld": 0
+    },
+    {
+      "arm": "off",
+      "pass": true,
+      "totalTokens": 203748,
+      "costUsd": 0.0445314,
+      "turns": 8,
+      "withheld": 0
+    },
+    {
+      "arm": "enforce",
+      "pass": true,
+      "totalTokens": 155007,
+      "costUsd": 0.0380358,
+      "turns": 6,
+      "withheld": 0
+    }
+  ]
+}

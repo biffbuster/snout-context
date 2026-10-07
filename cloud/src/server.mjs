@@ -14,6 +14,8 @@ const port = Number(env.PORT || 8787);
 const publicUrl = env.PUBLIC_URL || (env.RAILWAY_PUBLIC_DOMAIN ? `https://${env.RAILWAY_PUBLIC_DOMAIN}` : `http://localhost:${port}`);
 if (production && publicUrl.startsWith("http://localhost")) throw new Error("Set PUBLIC_URL (or deploy on Railway, which provides RAILWAY_PUBLIC_DOMAIN)");
 const db = await openDb();
+// Sample team data for local development; refused in production above via DEV_LOGIN.
+if (env.DEV_LOGIN === "1" && env.DEMO === "1") await (await import("./demo.mjs")).seedDemo(db);
 const handle = createApp({
   db,
   config: {

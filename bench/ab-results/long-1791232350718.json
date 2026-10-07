@@ -1,0 +1,121 @@
+{
+  "model": "haiku",
+  "n": 3,
+  "measuredAt": "2026-10-05T20:36:10.378Z",
+  "rows": [
+    {
+      "task": "incident",
+      "arm": "off",
+      "own": true,
+      "suite": true,
+      "pass": true,
+      "uncached": 74,
+      "cacheWrite": 29364,
+      "cacheRead": 197311,
+      "inputTokens": 226749,
+      "outputTokens": 2329,
+      "turns": 10,
+      "costUsd": 0.09017810000000001,
+      "withheld": 0,
+      "byRule": {},
+      "mcp": {},
+      "seconds": 33
+    },
+    {
+      "task": "incident",
+      "arm": "enforce",
+      "own": true,
+      "suite": true,
+      "pass": true,
+      "uncached": 90,
+      "cacheWrite": 13381,
+      "cacheRead": 247668,
+      "inputTokens": 261139,
+      "outputTokens": 2678,
+      "turns": 13,
+      "costUsd": 0.0650088,
+      "withheld": 13239,
+      "byRule": {
+        "command-output": 13239
+      },
+      "mcp": {},
+      "seconds": 39
+    },
+    {
+      "task": "incident",
+      "arm": "off",
+      "own": true,
+      "suite": true,
+      "pass": true,
+      "uncached": 82,
+      "cacheWrite": 11951,
+      "cacheRead": 218802,
+      "inputTokens": 230835,
+      "outputTokens": 2208,
+      "turns": 11,
+      "costUsd": 0.0569042,
+      "withheld": 0,
+      "byRule": {},
+      "mcp": {},
+      "seconds": 35
+    },
+    {
+      "task": "incident",
+      "arm": "enforce",
+      "own": true,
+      "suite": true,
+      "pass": true,
+      "uncached": 74,
+      "cacheWrite": 11461,
+      "cacheRead": 195987,
+      "inputTokens": 207522,
+      "outputTokens": 2186,
+      "turns": 11,
+      "costUsd": 0.053524699999999995,
+      "withheld": 13237,
+      "byRule": {
+        "command-output": 13237
+      },
+      "mcp": {},
+      "seconds": 40
+    },
+    {
+      "task": "incident",
+      "arm": "off",
+      "own": true,
+      "suite": true,
+      "pass": true,
+      "uncached": 58,
+      "cacheWrite": 12501,
+      "cacheRead": 150889,
+      "inputTokens": 163448,
+      "outputTokens": 2234,
+      "turns": 11,
+      "costUsd": 0.0513189,
+      "withheld": 0,
+      "byRule": {},
+      "mcp": {},
+      "seconds": 33
+    },
+    {
+      "task": "incident",
+      "arm": "enforce",
+      "own": true,
+      "suite": true,
+      "pass": true,
+      "uncached": 90,
+      "cacheWrite": 12825,
+      "cacheRead": 244032,
+      "inputTokens": 256947,
+      "outputTokens": 2477,
+      "turns": 11,
+      "costUsd": 0.06252819999999999,
+      "withheld": 13238,
+      "byRule": {
+        "command-output": 13238
+      },
+      "mcp": {},
+      "seconds": 39
+    }
+  ]
+}

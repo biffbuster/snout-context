@@ -205,7 +205,6 @@ var VENDOR_DIRS = [
   "node_modules",
   ".git",
   "vendor",
-  "deps",
   ".next",
   ".nuxt",
   ".svelte-kit",
@@ -326,7 +325,8 @@ var RULES = [
   {
     label: "vendored",
     run: (s) => {
-      const vendorDir = firstSegmentMatch(s.rel, VENDOR_DIRS) ?? s.ignoredOutputDir(s.rel);
+      const top = s.rel.split("/")[0];
+      const vendorDir = firstSegmentMatch(s.rel, VENDOR_DIRS) ?? (s.rel.includes("/") && ROOT_VENDOR_DIRS.includes(top) ? top : null) ?? s.ignoredOutputDir(s.rel);
       return vendorDir ? low("vendored", `${safePath(s.rel)} sits inside ${safeText(vendorDir, 40)}/, a directory of installed or generated output rather than source you maintain.`) : null;
     }
   },
@@ -353,7 +353,11 @@ var RULES = [
   // 8. Snapshot and recorded-fixture directories: marginal, not worthless.
   {
     label: "snapshot",
-    run: (s, name) => /(^|\/)(__snapshots__|__fixtures__|cassettes|fixtures)(\/|$)/.test(s.rel) || name.endsWith(".snap") ? marginal("snapshot", `${safePath(s.rel)} is a recorded snapshot or fixture; useful only when the task is specifically about it.`) : null
+    run: (s, name) => (
+      // Recorded output only. Plain fixtures/ folders were dropped: Track A's audit found most of
+      // them hold hand-written test inputs, and the ask stopped the agent to read them.
+      /(^|\/)(__snapshots__|cassettes)(\/|$)/.test(s.rel) || name.endsWith(".snap") ? marginal("snapshot", `${safePath(s.rel)} is a recorded snapshot or fixture; useful only when the task is specifically about it.`) : null
+    )
   },
   // 8b. Binary content, detected from the bytes rather than the name.
   //
@@ -513,6 +517,12 @@ function extOf(name) {
   const m = /\.([A-Za-z0-9]+)$/.exec(name);
   return m?.[1]?.toLowerCase() ?? null;
 }
+function insideDoubleQuotes(line, marker) {
+  const i = line.indexOf(marker);
+  const count = (t) => (t.match(/"/g) ?? []).length;
+  return count(line.slice(0, i)) % 2 === 1 || count(line.slice(i + marker.length)) % 2 === 1;
+}
+var ROOT_VENDOR_DIRS = ["deps"];
 function firstSegmentMatch(rel, dirs) {
   const segments = rel.split("/");
   for (const seg of segments.slice(0, -1)) {
@@ -572,9 +582,11 @@ function generatedMarker(headBuf) {
   for (const marker of STRONG_MARKERS) {
     if (head.includes(marker)) return marker;
   }
-  const banner = head.split("\n", BANNER_LINES).join("\n");
+  const bannerLines = head.split("\n", BANNER_LINES);
+  const banner = bannerLines.join("\n");
   for (const marker of WEAK_MARKERS) {
-    if (banner.includes(marker) && GENERATOR_HINT.test(banner)) return marker;
+    const line = bannerLines.find((l) => l.includes(marker));
+    if (line && !insideDoubleQuotes(line, marker) && GENERATOR_HINT.test(banner)) return marker;
   }
   return null;
 }
@@ -1088,8 +1100,8 @@ function splitGrepOutput(text, cwd, searchPath) {
     isFileCache.set(p, ok);
     return ok;
   };
-  const resolve4 = (p) => isAbsolute3(p) ? p : join3(cwd, p);
-  const single = searchPath && isFile(resolve4(searchPath)) ? resolve4(searchPath) : null;
+  const resolve5 = (p) => isAbsolute3(p) ? p : join3(cwd, p);
+  const single = searchPath && isFile(resolve5(searchPath)) ? resolve5(searchPath) : null;
   const lines = text.split("\n");
   lines.forEach((line, i) => {
     const bytes = Buffer.byteLength(line) + 1;
@@ -1097,17 +1109,17 @@ function splitGrepOutput(text, cwd, searchPath) {
       rest += bytes;
       return;
     }
-    const owner = ownerOf(line, resolve4, isFile) ?? single;
+    const owner = ownerOf(line, resolve5, isFile) ?? single;
     if (owner) files.set(owner, (files.get(owner) ?? 0) + bytes);
     else rest += bytes;
   });
   return { files, rest };
 }
-function ownerOf(line, resolve4, isFile) {
+function ownerOf(line, resolve5, isFile) {
   for (let i = 1; i < line.length && i < 1024; i++) {
     const c = line[i];
     if (c !== ":" && c !== "-") continue;
-    const abs = resolve4(line.slice(0, i));
+    const abs = resolve5(line.slice(0, i));
     if (isFile(abs)) return abs;
   }
   return null;
@@ -1269,6 +1281,7 @@ function loadConfig(paths) {
   const envMode = process.env.SNOUT_MODE;
   if (envMode === "observe" || envMode === "advise" || envMode === "enforce") cfg.mode = envMode;
   if (process.env.SNOUT_DISABLE) cfg.mode = "observe";
+  if (process.env.SNOUT_REPO_MAP === "1" || process.env.SNOUT_REPO_MAP === "0") cfg.repoMap = process.env.SNOUT_REPO_MAP === "1";
   return cfg;
 }
 function isValidMode(v) {
@@ -2305,7 +2318,7 @@ function summarizeSpend(rows, sinceDay = "", now = /* @__PURE__ */ new Date()) {
   const unpriced = /* @__PURE__ */ new Set();
   let rateWeight = 0;
   let rateSum = 0;
-  const bump2 = (m, key, r) => {
+  const bump3 = (m, key, r) => {
     const x = m.get(key) ?? { key, requests: 0, tokens: 0, costUsd: 0, input: 0, output: 0, client: r.client, today: { requests: 0, tokens: 0, costUsd: 0 }, weekCostUsd: 0 };
     x.requests += r.requests;
     x.tokens += tokensOf(r);
@@ -2339,8 +2352,8 @@ function summarizeSpend(rows, sinceDay = "", now = /* @__PURE__ */ new Date()) {
       rateSum += p.input * w;
       rateWeight += w;
     }
-    bump2(models, modelKey(r.model), r);
-    bump2(clients, r.client, r);
+    bump3(models, modelKey(r.model), r);
+    bump3(clients, r.client, r);
     const d = days.get(r.day) ?? { day: r.day, costUsd: 0, tokens: 0 };
     d.costUsd += r.costUsd ?? 0;
     d.tokens += tokensOf(r);
@@ -2403,7 +2416,7 @@ function tipFor(missing) {
 
 // src/squeeze/squeeze.ts
 var KINDS = [
-  ["test", /(^|[\s;&|(])((npm|pnpm|yarn|bun)\s+(run\s+)?test\b|npx\s+(jest|vitest|mocha|playwright\s+test)\b|(jest|vitest|mocha|pytest|rspec|phpunit)\b|python3?\s+-m\s+pytest\b|go\s+test\b|cargo\s+test\b|node\s+--test\b|deno\s+test\b)/],
+  ["test", /(^|[\s;&|(])((npm|pnpm|yarn|bun)\s+(run\s+)?test\b|npx\s+(jest|vitest|mocha|playwright\s+test)\b|(jest|vitest|mocha|pytest|rspec|phpunit)\b|python3?\s+-m\s+(pytest|unittest)\b|python3?\s+(\S*\/)?runtests\.py\b|python3?\s+(\S*\/)?manage\.py\s+test\b|go\s+test\b|cargo\s+test\b|node\s+--test\b|deno\s+test\b)/],
   ["install", /(^|[\s;&|(])((npm|pnpm)\s+(i|install|ci|add)\b|yarn(\s+(install|add))?\s*($|[;&|])|bun\s+(i|install|add)\b|pip3?\s+install\b|poetry\s+install\b|bundle(\s+install)?\s*($|[;&|])|go\s+mod\s+(download|tidy)\b|cargo\s+fetch\b|brew\s+install\b)/],
   ["build", /(^|[\s;&|(])((npm|pnpm|yarn|bun)\s+(run\s+)?build\b|npx\s+(tsc|vite|next|webpack)\b|\btsc\b|vite\s+build\b|next\s+build\b|webpack\b|cargo\s+build\b|go\s+build\b|make\b|mvn\b|\.?\/?gradlew?\b|docker\s+build\b)/],
   // Searches that walk a tree: recursive grep, ripgrep and friends, git grep, find, ls -R.
@@ -2420,8 +2433,9 @@ var KEEP_HEAD = 5;
 var KEEP_TAIL = 15;
 var ANSI = /\u001b\[[0-9;?]*[ -/]*[@-~]|\u001b\][^\u0007]*\u0007/g;
 var TROUBLE = /\b(error|errors|err!|fail(ed|ure|ing)?|fatal|panic|exception|traceback|warn(ing)?s?|deprecated|vulnerab|critical|denied|cannot|can't|unable|not found|missing|undefined|timeout|timed out|segmentation)\b|✗|✕|×|❌|⚠|^\s*\(!\)/i;
-var PASSING = /^\s*(✓|✔|√|ok\s+\d+\b|PASS\b|\.{3,}$|test\s+\S+.*\.\.\.\s+ok$|--- PASS:|=== RUN\b|RUN\s|\[\s*PASSED\s*\]|\s*passed\s*$)/;
+var PASSING = /^\s*(✓|✔|√|ok\s+\d+\b|PASS\b|\.{3,}$|test\s+\S+.*\.\.\.\s+ok$|\w+ \([\w.]+\)( \S+)? \.\.\. (ok|skipped\b.*|expected failure)$|--- PASS:|=== RUN\b|RUN\s|\[\s*PASSED\s*\]|\s*passed\s*$)/;
 var SUMMARY = /\b(tests?:|suites?:|passed|passing|failed|failing|skipped|pending|todo|duration|time:|elapsed|total|ran \d+|\d+ (tests?|specs?|examples?)|added \d+ packages?|removed \d+|changed \d+|audited \d+|up to date|found \d+ vulnerabilit|built in|compiled|done in|successfully|finished)\b|^#\s*(tests|pass|fail|suites|duration)/i;
+var LOCATION = /^\s*File "[^"]+", line \d+|^\s*at .+[(\s]\S+:\d+(:\d+)?\)?$|^\s*-->\s+\S+:\d+|^\s*\S+\.\w{1,6}:\d+(:\d+)?:\s/;
 var NOISE = /^\s*([|/\\\-]\s*$|\d{1,3}%|⠋|⠙|⠹|⠸|⠼|⠴|⠦|⠧|⠇|⠏|Downloading\b|Fetching\b|Resolving\b|Collecting\b|Using cached\b|Requirement already satisfied\b|Compiling \S+ v?\d|Checking \S+ v?\d|npm (http|timing|sill|verb)\b|#\d+ \[)/i;
 function clean(text) {
   return text.replace(ANSI, "").split("\n").map((l) => (l.includes("\r") ? l.slice(l.lastIndexOf("\r") + 1) : l).replace(/\s+$/, ""));
@@ -2442,7 +2456,7 @@ function squeeze(kind, output, savedTo) {
       for (let j = i + 1; j < Math.min(n, i + 4); j++) if (lines[j].trim() && !PASSING.test(lines[j])) keep[j] = true;
       continue;
     }
-    if (SUMMARY.test(l)) keep[i] = true;
+    if (SUMMARY.test(l) || LOCATION.test(l) && !PASSING.test(l)) keep[i] = true;
     else if (kind === "test" && PASSING.test(l)) keep[i] = false;
     else if (NOISE.test(l)) keep[i] = false;
   }
@@ -2487,12 +2501,17 @@ function squeeze(kind, output, savedTo) {
 }
 var MATCHES_PER_FILE = 3;
 var FILES_LISTED = 40;
+var SMALL_SEARCH_LINES = 200;
+var SMALL_SEARCH_FILES = 10;
+var FILES_NAMED = 120;
 var LIST_LINES = 60;
 var MATCH_LINE = /^([^\s:][^:]{0,300}?):(\d+[:-])?(.*)$/;
 function squeezeSearch(output, savedTo) {
   const lines = clean(output).filter((l) => l.trim());
   const n = lines.length;
   const matched = lines.map((l) => MATCH_LINE.exec(l));
+  const fileCount = new Set(matched.map((m) => m?.[1]).filter(Boolean)).size;
+  if (n <= SMALL_SEARCH_LINES && (fileCount <= SMALL_SEARCH_FILES || matched.every((m) => !m))) return null;
   const matchShare = matched.filter(Boolean).length / Math.max(n, 1);
   const out = [];
   let summary;
@@ -2506,25 +2525,32 @@ function squeezeSearch(output, savedTo) {
     });
     let shown = 0;
     let hiddenFiles = 0, hiddenMatches = 0;
+    const named = [];
     for (const [file, hits] of files) {
       if (shown >= FILES_LISTED) {
         hiddenFiles++;
         hiddenMatches += hits.length;
+        if (named.length < FILES_NAMED) named.push(`${file} (${hits.length})`);
         continue;
       }
       shown++;
       out.push(...hits.slice(0, MATCHES_PER_FILE));
       if (hits.length > MATCHES_PER_FILE) out.push(`  (+${hits.length - MATCHES_PER_FILE} more in ${file})`);
     }
-    if (hiddenFiles) out.push(`  \u2026 ${hiddenFiles} more file${hiddenFiles === 1 ? "" : "s"} with ${hiddenMatches} match${hiddenMatches === 1 ? "" : "es"}`);
+    if (hiddenFiles) {
+      out.push(`  \u2026 ${hiddenFiles} more file${hiddenFiles === 1 ? "" : "s"} with ${hiddenMatches} match${hiddenMatches === 1 ? "" : "es"}, lines not shown:`);
+      out.push(`    ${named.join(", ")}${hiddenFiles > named.length ? `, and ${hiddenFiles - named.length} more` : ""}`);
+    }
     summary = `${n} matches in ${files.size} files; first ${MATCHES_PER_FILE} per file shown`;
   } else {
     out.push(...lines.slice(0, LIST_LINES));
     const rest = lines.slice(LIST_LINES);
     if (rest.length) {
+      const shared = commonDirPrefix(lines.map((l) => l.replace(/^\.\//, "")));
+      const prefix = shared.slice(0, shared.slice(0, -1).lastIndexOf("/") + 1);
       const dirs = /* @__PURE__ */ new Map();
       for (const l of rest) {
-        const parts = l.replace(/^\.\//, "").split("/");
+        const parts = l.replace(/^\.\//, "").slice(prefix.length).split("/");
         const top = parts.length > 2 ? parts.slice(0, 2).join("/") + "/" : parts.length === 2 ? parts[0] + "/" : "(top level)";
         dirs.set(top, (dirs.get(top) ?? 0) + 1);
       }
@@ -2542,6 +2568,12 @@ function squeezeSearch(output, savedTo) {
   if (afterBytes > beforeBytes * (1 - MIN_CUT)) return null;
   return { kind: "search", text, beforeLines: n, afterLines: out.length, beforeBytes, afterBytes };
 }
+function commonDirPrefix(paths) {
+  if (!paths.length) return "";
+  let p = paths[0].slice(0, paths[0].lastIndexOf("/") + 1);
+  for (const x of paths) while (p && !x.startsWith(p)) p = p.slice(0, p.slice(0, -1).lastIndexOf("/") + 1);
+  return p;
+}
 var SQUEEZE_IFS = [
   "npm *",
   "pnpm *",
@@ -2552,6 +2584,14 @@ var SQUEEZE_IFS = [
   "pytest *",
   "python -m pytest *",
   "python3 -m pytest *",
+  "python -m unittest*",
+  "python3 -m unittest*",
+  "python tests/runtests.py*",
+  "python3 tests/runtests.py*",
+  "python runtests.py*",
+  "python3 runtests.py*",
+  "python manage.py test*",
+  "python3 manage.py test*",
   "pip install *",
   "pip3 install *",
   "poetry install *",
@@ -2679,6 +2719,822 @@ function trimMcp(response, savedTo) {
   const output = Array.isArray(response) ? trimmed : { ...response, content: trimmed };
   return { output, beforeChars, afterChars };
 }
+
+// src/audit/context.ts
+import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import { existsSync as existsSync6, lstatSync, mkdirSync as mkdirSync4, readdirSync as readdirSync2, readFileSync as readFileSync6, realpathSync, renameSync as renameSync3, rmdirSync, statSync as statSync8, writeFileSync as writeFileSync3 } from "node:fs";
+import { homedir as homedir3 } from "node:os";
+import { basename as basename2, dirname as dirname4, extname, isAbsolute as isAbsolute4, join as join8, relative as relative2, resolve as resolve4, sep as sep2 } from "node:path";
+var ACTION = { "one-off": "review", duplicate: "review", "near-duplicate": "merge", contained: "merge", stale: "fix", oversized: "trim", unused: "review" };
+var OVERSIZED_TOKENS = 2e3;
+var DAY = 864e5;
+var MD = /\.(md|mdc|markdown)$/i;
+var SKIP_DIRS = /* @__PURE__ */ new Set(["node_modules", ".git", "dist", "build", "out", "vendor", "target", ".next", ".snout", "coverage", ".venv", "venv", "__pycache__"]);
+var NOT_CONTEXT_DIR = /^(tests?|__tests__|testdata|test-data|fixtures?|golden|snapshots?|__snapshots__|vendor.*|third[_-]?party|external|deps|pods|examples?|samples?|node_modules|bower_components)$/i;
+var AGENT_DIR = { ".claude": "claude", ".agents": "codex", ".codex": "codex", ".cursor": "cursor", ".gemini": "gemini", ".windsurf": "windsurf", ".clinerules": "cline", ".github": "copilot" };
+var HUMAN_DOCS = /^(readme|license|licence|changelog|changes|history|contributing|code_of_conduct|security|support|governance|maintainers|authors|notice|copying)(\.|$)/i;
+var ONE_OFF_DIR = /(^|\/)(archive[sd]?|reports?|plans?|tasks?|sessions?|handoffs?|scratch|\.sdd|\.conversations|\.specstory|history|progress|retros?|postmortems?)\//i;
+var DATED = /(^|[^0-9])20\d\d[-_]?[01]\d[-_]?[0-3]\d/;
+var LIVING_DIR = /(^|\/)(adrs?|decisions?|rfcs?|skills?|playbooks?|runbooks?|specs?|guides?)\//i;
+var REPORT_NAME = /(^|[_\-. ])(plan|plans|summary|summaries|notes?|todo|report|implementation|analysis|findings|progress|status|handoff|scratch|draft|session|investigation|fix|fixes|migration|review|refactor|proposal)([_\-. ]|$)/i;
+var AI_TRAILER = /co-authored-by:[^\n]*(claude|anthropic|copilot|cursor|gemini|codex|openai|devin|aider|windsurf|codeium|cline|jules|amp)/i;
+var AI_AUTHOR = /\[bot\]|claude|copilot|devin|codex|cursor-agent|gemini-code|jules|aider/i;
+function walk(dir, out, depth = 0) {
+  if (depth > 12) return;
+  let entries;
+  try {
+    entries = readdirSync2(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const e of entries) {
+    const p = join8(dir, e.name);
+    if (e.isDirectory()) {
+      if (!SKIP_DIRS.has(e.name)) walk(p, out, depth + 1);
+    } else if (e.isFile()) out.push(p);
+    else if (e.isSymbolicLink()) {
+      try {
+        if (statSync8(p).isFile()) out.push(p);
+      } catch {
+      }
+    }
+  }
+}
+function projectFiles(projectDir) {
+  const set = /* @__PURE__ */ new Set();
+  try {
+    const out = execFileSync("git", ["ls-files", "-co", "--exclude-standard", "-z"], { cwd: projectDir, encoding: "utf8", maxBuffer: 256 * 1024 * 1024, stdio: ["ignore", "pipe", "ignore"] });
+    for (const f of out.split("\0")) if (f && !f.split("/").some((s) => SKIP_DIRS.has(s))) set.add(join8(projectDir, f));
+  } catch {
+    const all = [];
+    walk(projectDir, all);
+    for (const f of all) set.add(f);
+  }
+  for (const d of [".claude", ".cursor", ".windsurf", ".clinerules", ".github", ".gemini", ".codex"]) {
+    const p = join8(projectDir, d);
+    if (existsSync6(p) && statSync8(p).isDirectory()) {
+      const all = [];
+      walk(p, all);
+      for (const f of all) set.add(f);
+    }
+  }
+  for (const f of [".cursorrules", ".windsurfrules", ".clinerules"]) {
+    const p = join8(projectDir, f);
+    if (existsSync6(p) && statSync8(p).isFile()) set.add(p);
+  }
+  return [...set];
+}
+var frontmatter = (text) => {
+  const m = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
+  const out = {};
+  if (!m) return out;
+  const lines = m[1].split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const kv = /^([A-Za-z_-]+):\s*(.*)$/.exec(lines[i]);
+    if (!kv) continue;
+    let v = kv[2].trim();
+    if (/^[>|][-+]?$/.test(v)) {
+      const block = [];
+      while (i + 1 < lines.length && /^\s+\S/.test(lines[i + 1])) block.push(lines[++i].trim());
+      v = block.join(" ");
+    }
+    out[kv[1].toLowerCase()] = v.replace(/^["']|["']$/g, "").trim();
+  }
+  return out;
+};
+function classifyContextPath(rel) {
+  const p = rel.split(sep2).join("/");
+  const name = basename2(p);
+  const lower = p.toLowerCase();
+  if (/(^|\/)claude(\.local)?\.md$/i.test(p)) return { kind: "always", role: "instructions", agents: ["claude"] };
+  if (/(^|\/)agents\.md$/i.test(p)) return { kind: "always", role: "instructions", agents: ["codex", "cursor", "copilot", "gemini", "any"] };
+  if (/(^|\/)gemini\.md$/i.test(p)) return { kind: "always", role: "instructions", agents: ["gemini"] };
+  if (lower === ".cursorrules") return { kind: "always", role: "rules", agents: ["cursor"] };
+  if (lower.startsWith(".cursor/rules/") && /\.(mdc|md)$/.test(lower)) return { kind: "always", role: "rules", agents: ["cursor"] };
+  if (lower === ".github/copilot-instructions.md") return { kind: "always", role: "instructions", agents: ["copilot"] };
+  if (lower.startsWith(".github/instructions/") && MD.test(lower)) return { kind: "described", role: "rules", agents: ["copilot"] };
+  if (lower === ".windsurfrules" || lower.startsWith(".windsurf/rules/") && MD.test(lower)) return { kind: "always", role: "rules", agents: ["windsurf"] };
+  if (lower === ".clinerules" || lower.startsWith(".clinerules/") && MD.test(lower)) return { kind: "always", role: "rules", agents: ["cline"] };
+  if (/^\.claude\/skills\/[^/]+\/skill\.md$/i.test(p)) return { kind: "described", role: "skill", agents: ["claude"] };
+  if (/^\.claude\/commands\/.+\.md$/i.test(p)) return { kind: "described", role: "command", agents: ["claude"] };
+  if (/^\.claude\/agents\/.+\.md$/i.test(p)) return { kind: "described", role: "agent", agents: ["claude"] };
+  if (/^\.(agents|codex)\/skills\/[^/]+\/skill\.md$/i.test(p)) return { kind: "described", role: "skill", agents: ["codex"] };
+  if (/^\.(claude|agents|codex)\/skills\//i.test(p) && MD.test(lower)) return { kind: "on-demand", role: "skill file", agents: [AGENT_DIR[p.split("/")[0].toLowerCase()] ?? "any"] };
+  if (!MD.test(name)) return null;
+  if (lower.startsWith(".github/") && !lower.startsWith(".github/instructions/")) return null;
+  const dirs = p.split("/").slice(0, -1);
+  if (dirs.some((d) => NOT_CONTEXT_DIR.test(d))) return null;
+  const agent = AGENT_DIR[dirs[0]?.toLowerCase() ?? ""];
+  return { kind: "on-demand", role: "doc", agents: [agent ?? "any"] };
+}
+function userFiles(projectDir, home) {
+  const claudeDir = process.env.CLAUDE_CONFIG_DIR || join8(home, ".claude");
+  const out = [];
+  const add = (abs, f) => {
+    if (existsSync6(abs)) out.push({ abs, scope: "user", ...f });
+  };
+  add(join8(claudeDir, "CLAUDE.md"), { kind: "always", role: "instructions", agents: ["claude"] });
+  add(join8(claudeDir, "projects", resolve4(projectDir).replace(/[^A-Za-z0-9]/g, "-"), "memory", "MEMORY.md"), { kind: "always", role: "memory", agents: ["claude"] });
+  add(join8(process.env.CODEX_HOME || join8(home, ".codex"), "AGENTS.md"), { kind: "always", role: "instructions", agents: ["codex"] });
+  add(join8(home, ".gemini", "GEMINI.md"), { kind: "always", role: "instructions", agents: ["gemini"] });
+  const list = (dir, re, role) => {
+    if (!existsSync6(dir)) return;
+    const all = [];
+    walk(dir, all, 9);
+    for (const f of all) if (re.test(relative2(dir, f).split(sep2).join("/"))) out.push({ abs: f, scope: "user", kind: "described", role, agents: ["claude"] });
+  };
+  list(join8(claudeDir, "skills"), /^[^/]+\/SKILL\.md$/i, "skill");
+  list(join8(claudeDir, "commands"), /\.md$/i, "command");
+  list(join8(claudeDir, "agents"), /\.md$/i, "agent");
+  return out;
+}
+var bump2 = (m, key, ts) => {
+  const cur = m.get(key);
+  m.set(key, cur ? [cur[0] + 1, ts > cur[1] ? ts : cur[1]] : [1, ts]);
+};
+function readClaudeTranscript(text, u, since, fallbackTs) {
+  for (const line of text.split("\n")) {
+    if (!line.includes('"tool_use"') && !line.includes("<command-name>")) continue;
+    let obj;
+    try {
+      obj = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const ts = typeof obj.timestamp === "string" ? obj.timestamp : fallbackTs;
+    const content = obj.message?.content;
+    if (typeof content === "string" || Array.isArray(content) && content.some((c) => typeof c?.text === "string")) {
+      const text2 = typeof content === "string" ? content : content.map((c) => c?.text ?? "").join("\n");
+      const re = /<command-name>\/?([^<\s]+)<\/command-name>/g;
+      let m;
+      while (m = re.exec(text2)) if (ts >= since) bump2(u.commands, m[1].toLowerCase(), ts);
+    }
+    if (!Array.isArray(content)) continue;
+    for (const c of content) {
+      if (c?.type !== "tool_use" || typeof c.name !== "string") continue;
+      const input = c.input ?? {};
+      const file = typeof input.file_path === "string" ? input.file_path : typeof input.notebook_path === "string" ? input.notebook_path : null;
+      if (/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(c.name) && file) u.writes.add(resolve4(file));
+      if (ts < since) continue;
+      if (c.name === "Read" && file) bump2(u.reads, resolve4(file), ts);
+      else if (c.name === "Skill" && typeof input.skill === "string") bump2(u.skills, input.skill.toLowerCase().split(":").pop(), ts);
+      else if ((c.name === "Agent" || c.name === "Task") && typeof input.subagent_type === "string") bump2(u.agents, input.subagent_type.toLowerCase().split(":").pop(), ts);
+      else if (c.name === "SlashCommand" && typeof input.command === "string") bump2(u.commands, input.command.replace(/^\//, "").split(/\s/)[0].toLowerCase(), ts);
+    }
+  }
+}
+function collectUsage(projectDir, days, home, ledger) {
+  const u = { reads: /* @__PURE__ */ new Map(), skills: /* @__PURE__ */ new Map(), commands: /* @__PURE__ */ new Map(), agents: /* @__PURE__ */ new Map(), writes: /* @__PURE__ */ new Set(), codex: [], sources: [] };
+  const since = new Date(Date.now() - days * DAY).toISOString();
+  const dir = resolve4(projectDir);
+  const root = join8(process.env.CLAUDE_CONFIG_DIR || join8(home, ".claude"), "projects", dir.replace(/[^A-Za-z0-9]/g, "-"));
+  if (existsSync6(root)) {
+    let n = 0;
+    for (const f of readdirSync2(root)) {
+      if (!f.endsWith(".jsonl")) continue;
+      try {
+        const path = join8(root, f);
+        readClaudeTranscript(readFileSync6(path, "utf8"), u, since, statSync8(path).mtime.toISOString());
+        n++;
+      } catch {
+      }
+    }
+    if (n) u.sources.push(`${n} Claude Code session${n === 1 ? "" : "s"}`);
+  }
+  const codexRoot2 = join8(process.env.CODEX_HOME || join8(home, ".codex"), "sessions");
+  if (existsSync6(codexRoot2)) {
+    const files = [];
+    walk(codexRoot2, files, 8);
+    let n = 0;
+    for (const f of files) {
+      if (!f.endsWith(".jsonl")) continue;
+      try {
+        const st = statSync8(f);
+        if (st.mtimeMs < Date.now() - days * DAY) continue;
+        const text = readFileSync6(f, "utf8");
+        if (!text.includes(`"cwd":"${dir}`) && !text.includes(`"cwd": "${dir}`)) continue;
+        n++;
+        const ts = st.mtime.toISOString();
+        const patch = /\*\*\* (?:Add|Update) File: ([^\\\n"]+)/g;
+        let m;
+        while (m = patch.exec(text)) u.writes.add(resolve4(dir, m[1].trim()));
+        u.codex.push([text, ts]);
+      } catch {
+      }
+    }
+    if (n) u.sources.push(`${n} Codex session${n === 1 ? "" : "s"}`);
+  }
+  if (ledger?.length) {
+    let n = 0;
+    for (const r of ledger) if (r.ts >= since && r.path) {
+      bump2(u.reads, resolve4(dir, r.path), r.ts);
+      n++;
+    }
+    if (n) u.sources.push("Snout ledger");
+  }
+  return u;
+}
+function gitAuthorship(projectDir, maxCommits = 3e3) {
+  const out = /* @__PURE__ */ new Map();
+  let log = "";
+  try {
+    log = execFileSync("git", ["log", "--no-merges", `-n${maxCommits}`, "--name-only", "--format=%x1e%an%x1f%ae%x1f%at%x1f%B%x1d"], { cwd: projectDir, encoding: "utf8", maxBuffer: 512 * 1024 * 1024, stdio: ["ignore", "pipe", "ignore"] });
+  } catch {
+    return { files: out, ever: void 0 };
+  }
+  for (const rec of log.split("")) {
+    if (!rec.trim()) continue;
+    const [head, files = ""] = rec.split("");
+    const [an = "", ae = "", at = "0", body = ""] = (head ?? "").split("");
+    const ai = AI_TRAILER.test(body) || AI_AUTHOR.test(an) || AI_AUTHOR.test(ae);
+    const t = Number(at) * 1e3;
+    for (const f of files.split("\n")) {
+      const rel = f.trim();
+      if (!rel) continue;
+      const g = out.get(rel) ?? { ai: 0, human: 0, first: t };
+      if (ai) g.ai++;
+      else g.human++;
+      g.first = Math.min(g.first, t);
+      out.set(rel, g);
+    }
+  }
+  return { files: out, ever: out.size ? new Set(out.keys()) : void 0 };
+}
+function authorOf(git, agentWrote) {
+  const ai = (git?.ai ?? 0) + (agentWrote ? 1 : 0);
+  const human = git?.human ?? 0;
+  if (!ai && !human) return "unknown";
+  if (ai && human) return "mixed";
+  return ai ? "ai" : "human";
+}
+var normalize = (text) => text.replace(/^---\r?\n[\s\S]*?\r?\n---/, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+function shingles(norm, k = 5) {
+  const w = norm.split(" ").filter(Boolean);
+  const out = /* @__PURE__ */ new Set();
+  for (let i = 0; i + k <= w.length; i++) out.add(w.slice(i, i + k).join(" "));
+  if (!out.size && w.length) out.add(w.join(" "));
+  return out;
+}
+function overlap(a, b) {
+  if (!a.size || !b.size) return { jaccard: 0, containment: 0 };
+  const [small, big] = a.size <= b.size ? [a, b] : [b, a];
+  let inter = 0;
+  for (const x of small) if (big.has(x)) inter++;
+  return { jaccard: inter / (a.size + b.size - inter), containment: inter / small.size };
+}
+var STOP = new Set("the a an and or of to in for on with is are be by it this that as at from use when if not you your do does can should must will any all each only into than then so no".split(" "));
+function topTerms(norm, n = 40) {
+  const counts = /* @__PURE__ */ new Map();
+  for (const w of norm.split(" ")) if (w.length > 3 && !STOP.has(w) && !/^\d+$/.test(w)) counts.set(w, (counts.get(w) ?? 0) + 1);
+  return new Set([...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([w]) => w));
+}
+function staleRefs(text, fileAbs, projectDir, everExisted, workspaceScripts) {
+  const missing = /* @__PURE__ */ new Set();
+  const cands = /* @__PURE__ */ new Set();
+  const tick = /`([^`\n]{2,160})`/g;
+  const link = /\]\(([^)\s#]+)(?:#[^)]*)?\)/g;
+  let m;
+  while (m = tick.exec(text)) cands.add(m[1].trim());
+  while (m = link.exec(text)) cands.add(m[1].trim());
+  for (let c of cands) {
+    if (/^[a-z]+:\/\//i.test(c) || c.startsWith("mailto:") || /[\s*?{}<>$|=]/.test(c) || c.startsWith("-") || c.startsWith("~") || c.startsWith("@")) continue;
+    c = c.replace(/:\d+(-\d+)?$/, "").replace(/^\.\//, "");
+    if (!(c.includes("/") || /\.[a-z0-9]{1,6}$/i.test(c)) || isAbsolute4(c) || /^\.+$/.test(c) || c.endsWith("/")) continue;
+    if (/^\d+(\.\d+)+$/.test(c)) continue;
+    const fromFile = resolve4(dirname4(fileAbs), c), fromRoot = resolve4(projectDir, c);
+    if (!fromFile.startsWith(projectDir) && !fromRoot.startsWith(projectDir)) continue;
+    if (existsSync6(fromFile) || existsSync6(fromRoot)) continue;
+    if (everExisted) {
+      const rels = [relative2(projectDir, fromFile), relative2(projectDir, fromRoot)].map((r) => r.split(sep2).join("/"));
+      if (rels.some((r) => everExisted.has(r))) missing.add(c);
+      continue;
+    }
+    const parentExists = (p) => {
+      const d = dirname4(p);
+      return d !== projectDir && existsSync6(d);
+    };
+    if (c.includes("/") ? parentExists(fromFile) || parentExists(fromRoot) : false) missing.add(c);
+  }
+  let scripts = null;
+  const relDir = relative2(projectDir, dirname4(fileAbs)).split(sep2);
+  const pkgDir = existsSync6(join8(dirname4(fileAbs), "package.json")) ? dirname4(fileAbs) : relDir[0] === "" || /^\.(claude|cursor|github|windsurf|clinerules|gemini|codex)$/.test(relDir[0] ?? "") ? projectDir : null;
+  if (pkgDir && existsSync6(join8(pkgDir, "package.json"))) {
+    try {
+      scripts = JSON.parse(readFileSync6(join8(pkgDir, "package.json"), "utf8")).scripts ?? {};
+    } catch {
+      scripts = null;
+    }
+  }
+  if (scripts) {
+    const run = /\b(?:npm run|pnpm run|yarn run|bun run)((?:\s+-{1,2}[A-Za-z][\w-]*(?:[= ][^\s`-][^\s`]*)?)*)\s+([A-Za-z0-9:_][A-Za-z0-9:_-]*)/g;
+    while (m = run.exec(text)) {
+      if (m[1]) continue;
+      if (!(m[2] in scripts) && !workspaceScripts?.has(m[2])) missing.add(`npm run ${m[2]}`);
+    }
+  }
+  return [...missing];
+}
+function auditContext(projectDir, opts = {}) {
+  const dir = resolve4(projectDir);
+  const home = opts.home ?? homedir3();
+  const days = opts.days ?? 30;
+  const maxTok = opts.oversizedTokens ?? OVERSIZED_TOKENS;
+  const found = [];
+  for (const abs of projectFiles(dir)) {
+    const c = classifyContextPath(relative2(dir, abs));
+    if (c) found.push({ abs, scope: "project", ...c });
+  }
+  found.push(...userFiles(dir, home));
+  const workspaceScripts = /* @__PURE__ */ new Set();
+  for (const abs of projectFiles(dir)) {
+    if (basename2(abs) !== "package.json") continue;
+    try {
+      for (const k of Object.keys(JSON.parse(readFileSync6(abs, "utf8")).scripts ?? {})) workspaceScripts.add(k);
+    } catch {
+    }
+  }
+  const ignored = (paths) => {
+    if (!paths.length) return /* @__PURE__ */ new Set();
+    try {
+      return new Set(execFileSync("git", ["check-ignore", "--no-index", "--stdin"], { cwd: dir, input: paths.join("\n"), encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] }).split("\n").filter(Boolean));
+    } catch (e) {
+      return new Set(String(e.stdout ?? "").split("\n").filter(Boolean));
+    }
+  };
+  const usage = opts.noUsage ? { reads: /* @__PURE__ */ new Map(), skills: /* @__PURE__ */ new Map(), commands: /* @__PURE__ */ new Map(), agents: /* @__PURE__ */ new Map(), writes: /* @__PURE__ */ new Set(), codex: [], sources: [] } : collectUsage(dir, days, home, opts.ledger);
+  const history = opts.noGit ? { files: /* @__PURE__ */ new Map(), ever: void 0 } : gitAuthorship(dir);
+  const git = history.files;
+  const now = Date.now();
+  const files = [];
+  const texts = /* @__PURE__ */ new Map();
+  for (const f of found) {
+    let text = "";
+    let st;
+    try {
+      st = statSync8(f.abs);
+      if (st.size > 2 * 1024 * 1024) continue;
+      text = readFileSync6(f.abs, "utf8");
+    } catch {
+      continue;
+    }
+    const rel = f.scope === "project" ? relative2(dir, f.abs).split(sep2).join("/") : "~/" + relative2(home, f.abs).split(sep2).join("/");
+    const tokens = estimateTokens(st.size, f.abs);
+    const fm = frontmatter(text);
+    let kind = f.kind;
+    if (f.role === "rules" && extname(f.abs) === ".mdc" && fm.alwaysapply !== "true") kind = "described";
+    const desc = (fm.name ?? "") + " " + (fm.description ?? text.replace(/^---[\s\S]*?---/, "").trim().split("\n")[0] ?? "");
+    const perSession = kind === "always" ? tokens : kind === "described" ? estimateTokens(Buffer.byteLength(desc), "x.md") : 0;
+    let use;
+    const id = (fm.name || (f.role === "skill" ? basename2(dirname4(f.abs)) : basename2(f.abs).replace(MD, ""))).toLowerCase();
+    if (f.role === "skill") use = usage.skills.get(id) ?? usage.skills.get(basename2(dirname4(f.abs)).toLowerCase());
+    else if (f.role === "command") use = usage.commands.get(relative2(join8(dirname4(f.abs).split(`${sep2}commands`)[0], "commands"), f.abs).replace(MD, "").split(sep2).join(":").toLowerCase()) ?? usage.commands.get(id);
+    else if (f.role === "agent") use = usage.agents.get(id);
+    const read = usage.reads.get(f.abs);
+    if (read) use = use ? [use[0] + read[0], read[1] > use[1] ? read[1] : use[1]] : read;
+    if (f.scope === "project" && usage.codex.length) {
+      for (const [t, ts] of usage.codex) if (t.includes(rel)) use = use ? [use[0] + 1, ts > use[1] ? ts : use[1]] : [1, ts];
+    }
+    const g = f.scope === "project" ? git.get(rel) : void 0;
+    const created = new Date(g?.first ?? st.mtimeMs).toISOString();
+    files.push({
+      path: rel,
+      abs: f.abs,
+      scope: f.scope,
+      kind,
+      role: f.role,
+      agents: f.agents,
+      bytes: st.size,
+      tokens,
+      perSession,
+      uses: kind === "always" || opts.noUsage ? null : use?.[0] ?? 0,
+      lastUsed: use?.[1] ?? null,
+      author: authorOf(g, usage.writes.has(f.abs)),
+      created,
+      flags: [],
+      savePerSession: 0
+    });
+    texts.set(f.abs, text);
+  }
+  const byReal = /* @__PURE__ */ new Map();
+  for (const f of files) {
+    try {
+      if (!lstatSync(f.abs).isSymbolicLink()) byReal.set(realpathSync(f.abs), f);
+    } catch {
+    }
+  }
+  for (const f of files) {
+    try {
+      if (lstatSync(f.abs).isSymbolicLink()) {
+        const t = byReal.get(realpathSync(f.abs));
+        if (t) f.linkTo = t.path;
+      }
+    } catch {
+    }
+  }
+  const flag = (f, code, reason, save = 0, action = ACTION[code]) => {
+    f.flags.push({ code, reason, action });
+    f.savePerSession = Math.max(f.savePerSession, save);
+  };
+  const old = (f) => now - Date.parse(f.created) > days * DAY;
+  for (const f of files) {
+    const name = basename2(f.path);
+    if (f.kind === "always" && f.tokens > maxTok && !f.linkTo)
+      flag(f, "oversized", `loaded into every session at ~${fmtTokens(f.tokens)} tokens; over ${fmtTokens(maxTok)}, move detail into skills or docs read on demand`, f.tokens - maxTok);
+    if (f.kind === "described" && old(f) && f.uses === 0)
+      flag(f, "unused", `not invoked in ${days} days; its description still costs ~${fmtTokens(f.perSession)} tokens every session`, f.perSession);
+    const stem = name.replace(MD, "");
+    const oneTime = DATED.test(f.path) || ONE_OFF_DIR.test(f.path) || !f.path.includes("/") && /^[A-Z0-9_-]+$/.test(stem);
+    const report = f.kind === "on-demand" && f.role === "doc" && !HUMAN_DOCS.test(name) && !LIVING_DIR.test(f.path) && oneTime && (REPORT_NAME.test(stem) || DATED.test(stem) || ONE_OFF_DIR.test(f.path));
+    if (report && f.author !== "human" && f.author !== "unknown" && old(f) && !f.uses)
+      flag(f, "one-off", `${f.author === "ai" ? "AI-written" : f.author === "mixed" ? "partly AI-written" : "a"} ${name.replace(MD, "").toLowerCase().includes("plan") ? "plan" : "report"} ${opts.noUsage ? `over ${days} days old (reads not observed)` : `not read in ${days} days`}`);
+    else if (f.kind === "on-demand" && f.role === "doc" && f.author === "ai" && !HUMAN_DOCS.test(name) && old(f) && f.uses === 0)
+      flag(f, "unused", `AI-written and not read in ${days} days`);
+    let stale = f.scope === "project" && f.kind !== "on-demand" ? staleRefs(texts.get(f.abs) ?? "", f.abs, dir, history.ever, workspaceScripts) : [];
+    if (stale.length) {
+      const ig = ignored(stale.filter((x) => !x.startsWith("npm run ")));
+      stale = stale.filter((x) => !ig.has(x));
+    }
+    if (stale.length)
+      flag(f, "stale", `mentions ${stale.length} thing${stale.length === 1 ? "" : "s"} that no longer exist${stale.length === 1 ? "s" : ""}: ${stale.slice(0, 4).join(", ")}${stale.length > 4 ? ", \u2026" : ""}`);
+  }
+  const comparable = files.filter((f) => !f.linkTo && (texts.get(f.abs) ?? "").length > 80).sort((a, b) => b.tokens - a.tokens).slice(0, 1500);
+  const shared = (a, b) => a.agents.some((x) => b.agents.includes(x));
+  const agentContext = (f) => f.kind !== "on-demand" || f.role !== "doc" || f.agents[0] !== "any" || REPORT_NAME.test(basename2(f.path).replace(MD, "")) || !f.path.includes("/");
+  const tail = (p) => p.replace(/^\.[a-z]+\//i, "");
+  const mirror = (a, b) => a.path !== b.path && tail(a.path) === tail(b.path) && !shared(a, b);
+  const norm = new Map(comparable.map((f) => [f.abs, normalize(texts.get(f.abs))]));
+  const sh = new Map(comparable.map((f) => [f.abs, shingles(norm.get(f.abs))]));
+  const hash = /* @__PURE__ */ new Map();
+  for (const f of comparable) {
+    const h = createHash("sha256").update(norm.get(f.abs)).digest("hex");
+    const first = hash.get(h);
+    if (!first) {
+      hash.set(h, f);
+      continue;
+    }
+    if (!agentContext(first) && !agentContext(f)) continue;
+    if (first.kind === "always" && f.kind === "always" && basename2(first.path).toLowerCase() === basename2(f.path).toLowerCase()) continue;
+    if (mirror(first, f)) {
+      flag(f, "duplicate", `mirror of ${first.path} for another agent; a symlink keeps them in step`);
+      continue;
+    }
+    const [keep, drop] = first.perSession > f.perSession ? [f, first] : [first, f];
+    if (shared(keep, drop) || keep.kind === "on-demand" || drop.kind === "on-demand") flag(drop, "duplicate", `same text as ${keep.path}`, drop.perSession);
+    else flag(drop, "duplicate", `same text as ${keep.path}; different agents load each, so no session pays twice, but the copies will drift: a symlink keeps them in step`);
+  }
+  for (let i = 0; i < comparable.length; i++) {
+    for (let j = i + 1; j < comparable.length; j++) {
+      const a = comparable[i], b = comparable[j];
+      if (a.flags.some((x) => x.code === "duplicate") || b.flags.some((x) => x.code === "duplicate")) continue;
+      const sa = sh.get(a.abs), sb = sh.get(b.abs);
+      if (Math.min(sa.size, sb.size) < 20 || Math.min(a.tokens, b.tokens) < 300 || !agentContext(a) && !agentContext(b) || mirror(a, b)) continue;
+      if (a.kind === "always" && b.kind === "always" && basename2(a.path).toLowerCase() === basename2(b.path).toLowerCase()) continue;
+      const o = overlap(sa, sb);
+      const [small, big] = sa.size <= sb.size ? [a, b] : [b, a];
+      const rank = (f) => f.kind === "always" ? 0 : f.kind === "described" ? 1 : 2;
+      if (rank(big) > rank(small) || small.flags.some((x) => x.code === "near-duplicate" || x.code === "contained")) continue;
+      const pays = shared(small, big) || small.kind === "on-demand" || big.kind === "on-demand";
+      if (o.jaccard >= 0.8) flag(small, "near-duplicate", `${Math.round(o.jaccard * 100)}% the same as ${big.path}${pays ? "" : " (loaded by different agents)"}`, pays ? small.perSession : 0);
+      else if (o.containment >= 0.6) flag(small, "contained", `${Math.round(o.containment * 100)}% of it repeats ${big.path}${pays ? "" : " (loaded by different agents)"}`, pays ? Math.round(small.perSession * o.containment) : 0);
+    }
+  }
+  const instr = files.filter((f) => f.kind !== "on-demand" && (f.role === "instructions" || f.role === "rules" || f.role === "memory") && (texts.get(f.abs) ?? "").length > 200);
+  const terms = new Map(instr.map((f) => [f.abs, topTerms(normalize(texts.get(f.abs)))]));
+  const conflictCandidates = [];
+  for (let i = 0; i < instr.length; i++) {
+    for (let j = i + 1; j < instr.length; j++) {
+      const a = instr[i], b = instr[j];
+      if (a.flags.some((x) => /duplicate/.test(x.code)) || b.flags.some((x) => /duplicate/.test(x.code))) continue;
+      const ta = terms.get(a.abs), tb = terms.get(b.abs);
+      let inter = 0;
+      for (const t of ta) if (tb.has(t)) inter++;
+      const o = inter / Math.max(1, Math.min(ta.size, tb.size));
+      if (o >= 0.3) conflictCandidates.push({ a: a.path, b: b.path, overlap: Math.round(o * 100) / 100 });
+    }
+  }
+  conflictCandidates.sort((x, y) => y.overlap - x.overlap);
+  files.sort((a, b) => b.savePerSession - a.savePerSession || b.flags.length - a.flags.length || b.perSession - a.perSession || b.tokens - a.tokens);
+  return { projectDir: dir, days, files, conflictCandidates: conflictCandidates.slice(0, 12), sources: usage.sources };
+}
+var when = (iso) => iso ? iso.slice(0, 10) : "never";
+var AGENT_NAMES = { claude: "Claude Code", codex: "Codex", cursor: "Cursor", copilot: "Copilot", gemini: "Gemini CLI", windsurf: "Windsurf", cline: "Cline" };
+function perAgent(always) {
+  const by = {};
+  for (const f of always) for (const ag of f.agents) if (ag !== "any") by[ag] = (by[ag] ?? 0) + f.tokens;
+  return { max: Math.max(0, ...Object.values(by)), by };
+}
+function byAgentNote(by) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const [k, v] of Object.entries(by)) groups.set(v, [...groups.get(v) ?? [], AGENT_NAMES[k] ?? k]);
+  if (Object.keys(by).length < 2) return "";
+  return ` (${[...groups.entries()].sort((x, y) => y[0] - x[0]).map(([v, names]) => `${names.join(", ")} ~${fmtTokens(v)}`).join(" \xB7 ")})`;
+}
+function totals(a) {
+  const sum = (fs, k) => fs.reduce((s, f) => s + f[k], 0);
+  const always = a.files.filter((f) => f.kind === "always"), described = a.files.filter((f) => f.kind === "described"), onDemand = a.files.filter((f) => f.kind === "on-demand");
+  const flagged = a.files.filter((f) => f.flags.length);
+  const known = a.files.filter((f) => f.author !== "unknown");
+  return {
+    always: { files: always.length, perSession: perAgent(always).max, byAgent: perAgent(always).by },
+    described: { files: described.length, perSession: sum(described, "perSession") },
+    onDemand: { files: onDemand.length, tokens: sum(onDemand, "tokens") },
+    flagged: flagged.length,
+    savePerSession: sum(flagged, "savePerSession"),
+    flaggedOnDemandTokens: sum(flagged.filter((f) => f.kind === "on-demand"), "tokens"),
+    aiShare: known.length ? known.filter((f) => f.author !== "human").length / known.length : null
+  };
+}
+function renderAudit(a, opts = {}) {
+  const t = totals(a);
+  const lines = [
+    `Agent context for ${a.projectDir} \xB7 usage from the last ${a.days} days${a.sources.length ? ` (${a.sources.join(", ")})` : " (no session history found)"}`,
+    "",
+    `  Always loaded             ${String(t.always.files).padStart(4)}   ~${fmtTokens(t.always.perSession)} tokens every session${byAgentNote(t.always.byAgent)}`,
+    `  Skills, commands, agents  ${String(t.described.files).padStart(4)}   ~${fmtTokens(t.described.perSession)} tokens of descriptions every session`,
+    `  Other docs                ${String(t.onDemand.files).padStart(4)}   ~${fmtTokens(t.onDemand.tokens)} tokens when read`
+  ];
+  if (t.aiShare !== null) lines.push(`  Written with AI           ${String(Math.round(t.aiShare * 100) + "%").padStart(4)}   of files with known authorship`);
+  const list = opts.all ? a.files : a.files.filter((f) => f.flags.length);
+  lines.push("");
+  if (!list.length) {
+    lines.push("Nothing flagged: no unused, duplicate, stale or oversized agent context.");
+  } else {
+    lines.push(`${t.flagged} flagged \xB7 ~${fmtTokens(t.savePerSession)} tokens per session to save${t.flaggedOnDemandTokens ? ` \xB7 ~${fmtTokens(t.flaggedOnDemandTokens)} more in docs agents may read` : ""}`, "");
+    lines.push(`  ${"SAVE/SESSION".padEnd(13)}${"TOKENS".padEnd(8)}${"KIND".padEnd(11)}${"LAST USED".padEnd(12)}${"AUTHOR".padEnd(8)}PATH`);
+    for (const f of list.slice(0, opts.all ? 500 : 40)) {
+      lines.push(`  ${(f.savePerSession ? "~" + fmtTokens(f.savePerSession) : "\u2014").padEnd(13)}${fmtTokens(f.tokens).padEnd(8)}${f.kind.padEnd(11)}${(f.kind === "always" ? "\u2014" : when(f.lastUsed)).padEnd(12)}${f.author.padEnd(8)}${f.path}`);
+      for (const fl of f.flags) lines.push(`  ${"".padEnd(52)}\u21B3 ${fl.code} (${fl.action}): ${fl.reason}`);
+    }
+    if (list.length > 40 && !opts.all) lines.push(`  \u2026 ${list.length - 40} more (--all, or --json)`);
+  }
+  if (a.conflictCandidates.length) {
+    lines.push("", "Instruction files that cover the same ground (check them for contradictions; `--map` gives an agent what it needs):");
+    for (const c of a.conflictCandidates.slice(0, 6)) lines.push(`  ${c.a}  \u2194  ${c.b}`);
+  }
+  if (list.length) lines.push(
+    "",
+    "Nothing is changed. Actions: merge (share or combine the repeated text) \xB7 fix (update dead references) \xB7 trim (move detail to docs read on demand) \xB7 review (read it, then keep, update or archive).",
+    "Review before archiving: one-off reports and copies often still hold rationale, pending work or examples. `--map` gives your agent a compact list to judge.",
+    "  snout audit context --archive <paths>     # move out of the repo after you confirm; --restore undoes it"
+  );
+  return lines.join("\n");
+}
+function renderMap(a) {
+  const lines = [
+    `# Agent context map: ${basename2(a.projectDir)} \xB7 ${a.days}-day usage`,
+    "# path | kind | role | tokens | per-session | uses | last used | author | flags"
+  ];
+  for (const f of a.files) {
+    lines.push([f.linkTo ? `${f.path} -> ${f.linkTo}` : f.path, f.kind, f.role, f.tokens, f.perSession, f.uses === null ? "-" : f.uses, f.kind === "always" ? "-" : when(f.lastUsed), f.author, f.flags.map((x) => `${x.code}\u2192${x.action}(${x.reason})`).join("; ") || "-"].join(" | "));
+  }
+  if (a.conflictCandidates.length) {
+    lines.push("", "# Pairs to check for contradicting instructions (topic overlap 0-1):");
+    for (const c of a.conflictCandidates) lines.push(`${c.a} <> ${c.b} | ${c.overlap}`);
+  }
+  lines.push("", "# Judge each flagged file: keep, trim, merge, fix or archive. Archive only what holds nothing still needed: rationale, pending work and examples count; never remove a file someone still relies on.");
+  return lines.join("\n");
+}
+function toJson(a) {
+  return { ...a, totals: totals(a), files: a.files.map(({ abs: _abs, ...f }) => f) };
+}
+var archiveRoot = (projectDir) => join8(resolve4(projectDir), ".snout", "archive");
+function archiveFiles(projectDir, paths, now = /* @__PURE__ */ new Date()) {
+  const dir = resolve4(projectDir);
+  const id = now.toISOString().replace(/[:.]/g, "-");
+  const base = join8(archiveRoot(dir), id);
+  const files = [];
+  const todo = [];
+  for (const p of paths) {
+    const abs = resolve4(dir, p);
+    const rel = relative2(dir, abs);
+    if (!rel || rel.startsWith("..") || isAbsolute4(rel)) throw new Error(`${p} is outside the project`);
+    if (rel.split(sep2)[0] === ".snout" || rel.split(sep2)[0] === ".git") throw new Error(`${p} can't be archived`);
+    if (!existsSync6(abs) || !statSync8(abs).isFile()) throw new Error(`${p} is not a file`);
+    const buf = readFileSync6(abs);
+    files.push({ path: rel.split(sep2).join("/"), bytes: buf.length, sha256: createHash("sha256").update(buf).digest("hex") });
+    todo.push([abs, join8(base, rel)]);
+  }
+  if (!todo.length) throw new Error("no files given");
+  mkdirSync4(base, { recursive: true });
+  const manifest = { id, created: now.toISOString(), files };
+  writeFileSync3(join8(base, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
+  for (const [from, to] of todo) {
+    mkdirSync4(dirname4(to), { recursive: true });
+    renameSync3(from, to);
+  }
+  return manifest;
+}
+function listArchives(projectDir) {
+  const root = archiveRoot(projectDir);
+  if (!existsSync6(root)) return [];
+  const out = [];
+  for (const id of readdirSync2(root).sort()) {
+    try {
+      out.push(JSON.parse(readFileSync6(join8(root, id, "manifest.json"), "utf8")));
+    } catch {
+    }
+  }
+  return out;
+}
+function restoreArchive(projectDir, id) {
+  const dir = resolve4(projectDir);
+  if (!/^[0-9TZ-]+$/.test(id)) throw new Error(`no archive ${id}`);
+  const base = join8(archiveRoot(dir), id);
+  let manifest;
+  try {
+    manifest = JSON.parse(readFileSync6(join8(base, "manifest.json"), "utf8"));
+  } catch {
+    throw new Error(`no archive ${id}`);
+  }
+  const restored = [], skipped = [];
+  for (const f of manifest.files) {
+    const from = join8(base, f.path), to = resolve4(dir, f.path);
+    if (relative2(dir, to).startsWith("..")) {
+      skipped.push(f.path);
+      continue;
+    }
+    if (!existsSync6(from)) {
+      if (!existsSync6(to)) skipped.push(f.path);
+      continue;
+    }
+    if (existsSync6(to)) {
+      skipped.push(f.path);
+      continue;
+    }
+    mkdirSync4(dirname4(to), { recursive: true });
+    renameSync3(from, to);
+    restored.push(f.path);
+  }
+  if (!skipped.length) {
+    const prune = (d) => {
+      for (const e of readdirSync2(d, { withFileTypes: true })) if (e.isDirectory()) prune(join8(d, e.name));
+      try {
+        if (d !== base) rmdirSync(d);
+      } catch {
+      }
+    };
+    prune(base);
+    try {
+      renameSync3(join8(base, "manifest.json"), join8(archiveRoot(dir), `${id}.restored.json`));
+      rmdirSync(base);
+    } catch {
+    }
+  }
+  return { restored, skipped };
+}
+
+// src/map/map.ts
+import { spawnSync } from "node:child_process";
+import { readdirSync as readdirSync3, readFileSync as readFileSync7, statSync as statSync9 } from "node:fs";
+import { basename as basename3, extname as extname2, join as join9, relative as relative3, sep as sep3 } from "node:path";
+var TEXT_EXT = /\.(m?js|cjs|jsx|ts|tsx|mts|cts|py|pyi|go|rs|java|kt|kts|cs|rb|php|swift|scala|c|cc|cpp|h|hpp|m|mm|ex|exs|erl|clj|lua|sh|bash|zsh|sql|graphql|proto|vue|svelte|astro|md|mdx|rst|txt|toml|ya?ml|json|ini|cfg|conf|env\.example|html|css|scss)$/i;
+var SKIP_DIR = /* @__PURE__ */ new Set(["node_modules", ".git", "dist", "build", "out", "target", "vendor", "third_party", "coverage", ".next", ".venv", "venv", "__pycache__", ".snout", ".claude", ".tox", ".mypy_cache", ".pytest_cache"]);
+var MAX_FILE_BYTES = 512 * 1024;
+var MAX_FILES = 2e4;
+var MAX_WORDS = 3e3;
+var WORD = /[A-Za-z_][A-Za-z0-9_]{3,63}/g;
+var PROSE = /\.(md|mdx|rst|txt|ya?ml|json|toml|ini|cfg|html)$|(^|\/)(CHANGES|CHANGELOG|HISTORY|NEWS)/i;
+var STOP2 = new Set("this that with from import export return const self None True False null true false function class def async await else elif while yield None void static public private protected final string number boolean object undefined type interface extends implements raise except finally lambda pass break continue default switch case throw catch new delete typeof instanceof struct enum impl trait match package module require include using namespace println printf print len range dict list tuple int float str bool char auto var let elif then done when unless begin end".split(" "));
+var DECLARATIONS2 = [
+  [/\.(m?js|cjs|jsx|ts|tsx|mts|cts|vue|svelte)$/, /^(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:async\s+)?(?:function\*?|class|const|let|var|interface|type|enum|abstract\s+class)\s+([A-Za-z_$][\w$]*)|^(?:module\.)?exports\.([A-Za-z_$][\w$]*)\s*=/gm],
+  [/\.pyi?$/, /^\s{0,4}(?:async\s+)?(?:def|class)\s+([A-Za-z_]\w*)/gm],
+  [/\.go$/, /^(?:func\s+(?:\([^)\n]*\)\s*)?|type\s+)([A-Za-z_]\w*)/gm],
+  [/\.rs$/, /^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?:fn|struct|enum|trait|type|const|static|mod)\s+([A-Za-z_]\w*)/gm],
+  [/\.(java|kt|kts|cs|scala|swift)$/, /^\s{0,8}(?:(?:public|private|protected|internal|static|final|abstract|open|data|sealed|override)\s+)*(?:class|interface|enum|record|object|struct|fun|func|def|void|[\w<>\[\]]+)\s+([A-Za-z_]\w*)\s*[({<:]/gm],
+  [/\.rb$/, /^\s*(?:def\s+(?:self\.)?|class\s+|module\s+)([A-Za-z_]\w*[?!]?)/gm],
+  [/\.php$/, /^\s*(?:(?:public|private|protected|static|abstract|final)\s+)*(?:function|class|interface|trait)\s+([A-Za-z_]\w*)/gm],
+  [/\.(c|cc|cpp|h|hpp)$/, /^(?:[A-Za-z_][\w\s\*]*\s)?\**([A-Za-z_]\w*)\s*\([^;]*$/gm]
+];
+var CONSTANT = /^\s*(?:export\s+)?(?:const\s+|let\s+|var\s+|final\s+|static\s+)*([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)\s*[:=]/gm;
+function listFiles(projectDir) {
+  const git = spawnSync("git", ["ls-files", "-co", "--exclude-standard"], { cwd: projectDir, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  if (git.status === 0 && git.stdout.trim()) {
+    return git.stdout.split("\n").filter((f) => f && TEXT_EXT.test(f) && !f.split("/").some((p) => SKIP_DIR.has(p))).slice(0, MAX_FILES);
+  }
+  const out = [];
+  const walk2 = (dir) => {
+    let entries;
+    try {
+      entries = readdirSync3(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      if (out.length >= MAX_FILES) return;
+      if (e.isDirectory()) {
+        if (!SKIP_DIR.has(e.name) && !e.name.startsWith(".")) walk2(join9(dir, e.name));
+      } else if (e.isFile() && TEXT_EXT.test(e.name)) out.push(relative3(projectDir, join9(dir, e.name)).split(sep3).join("/"));
+    }
+  };
+  walk2(projectDir);
+  return out;
+}
+function entryFor(rel, text, size, mtime) {
+  const defs = /* @__PURE__ */ new Set();
+  for (const [ext, re] of DECLARATIONS2) {
+    if (!ext.test(rel)) continue;
+    for (const m of text.matchAll(re)) {
+      const n = m[1] ?? m[2];
+      if (n && n.length >= 3) defs.add(n);
+    }
+  }
+  for (const m of text.matchAll(CONSTANT)) defs.add(m[1]);
+  const words = /* @__PURE__ */ new Set();
+  for (const m of text.matchAll(WORD)) {
+    if (words.size >= MAX_WORDS) break;
+    if (!STOP2.has(m[0]) && !STOP2.has(m[0].toLowerCase())) words.add(m[0]);
+  }
+  return { size, mtime, defs: [...defs], words: [...words] };
+}
+function buildMap(projectDir, prev, skip) {
+  const files = {};
+  let read = 0, reused = 0;
+  for (const rel of listFiles(projectDir)) {
+    if (skip?.(rel)) continue;
+    let st;
+    try {
+      st = statSync9(join9(projectDir, rel));
+    } catch {
+      continue;
+    }
+    if (!st.isFile() || st.size > MAX_FILE_BYTES) continue;
+    const old = prev?.files[rel];
+    if (old && old.size === st.size && old.mtime === st.mtimeMs) {
+      files[rel] = old;
+      reused++;
+      continue;
+    }
+    let text;
+    try {
+      text = readFileSync7(join9(projectDir, rel), "utf8");
+    } catch {
+      continue;
+    }
+    if (text.includes("\0")) continue;
+    files[rel] = entryFor(rel, text, st.size, st.mtimeMs);
+    read++;
+  }
+  return { map: { version: 1, builtAt: (/* @__PURE__ */ new Date()).toISOString(), files }, read, reused };
+}
+function requestNames(prompt) {
+  const names = /* @__PURE__ */ new Set();
+  for (const m of prompt.matchAll(WORD)) if (!STOP2.has(m[0].toLowerCase())) names.add(m[0]);
+  const words = prompt.toLowerCase().match(/[a-z][a-z0-9]+/g) ?? [];
+  for (let i = 0; i + 1 < words.length; i++) {
+    const [a, b] = [words[i], words[i + 1]];
+    if (a.length < 3 || b.length < 2) continue;
+    names.add(`${a}_${b}`);
+    names.add(a + b[0].toUpperCase() + b.slice(1));
+    names.add(a[0].toUpperCase() + a.slice(1) + b[0].toUpperCase() + b.slice(1));
+  }
+  return names;
+}
+function candidates(map, prompt, k = 15) {
+  const paths = Object.keys(map.files);
+  const N = paths.length;
+  if (!N) return [];
+  const asked = requestNames(prompt);
+  const askedLower = /* @__PURE__ */ new Map();
+  for (const a of asked) if (a.length >= 6) askedLower.set(a.toLowerCase(), a);
+  const definedBy = /* @__PURE__ */ new Map();
+  for (const p of paths) for (const d of map.files[p].defs) {
+    if (asked.has(d) || askedLower.has(d.toLowerCase())) (definedBy.get(d) ?? definedBy.set(d, []).get(d)).push(p);
+  }
+  const usedBy = /* @__PURE__ */ new Map();
+  for (const p of paths) for (const w of map.files[p].words) {
+    if (asked.has(w) || w.length >= 6 && askedLower.has(w.toLowerCase())) (usedBy.get(w) ?? usedBy.set(w, []).get(w)).push(p);
+  }
+  const scored = /* @__PURE__ */ new Map();
+  const add = (p, s, name, def) => {
+    const c = scored.get(p) ?? { path: p, score: 0, defines: [], uses: [] };
+    c.score += s;
+    const list = def ? c.defines : c.uses;
+    if (!list.includes(name)) list.push(name);
+    scored.set(p, c);
+  };
+  for (const [name, users] of usedBy) {
+    const defs = definedBy.get(name) ?? [];
+    if (!defs.length && /^[a-z]+$/.test(name)) continue;
+    if (/^[a-z]{1,4}$/.test(name)) continue;
+    const linked = /* @__PURE__ */ new Set([...users, ...defs]);
+    if (linked.size < 2 && !(defs.length && asked.has(name))) continue;
+    if (linked.size > Math.max(25, N * 0.05)) continue;
+    const idf = Math.log(1 + N / linked.size);
+    for (const p of defs) add(p, 2 * idf, name, true);
+    for (const p of users) if (!defs.includes(p)) add(p, PROSE.test(p) ? idf * 0.3 : idf, name, false);
+  }
+  for (const p of paths) {
+    const stem = basename3(p, extname2(p)).toLowerCase();
+    if (stem.length >= 5 && (asked.has(stem) || [...asked].some((a) => a.toLowerCase() === stem))) add(p, Math.log(1 + N), stem, true);
+  }
+  return [...scored.values()].sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, k);
+}
+function renderCandidates(cs) {
+  if (!cs.length) return "";
+  const why = (c) => [c.defines.length ? `defines ${c.defines.slice(0, 3).join(", ")}` : "", c.uses.length ? `uses ${c.uses.slice(0, 3).join(", ")}` : ""].filter(Boolean).join("; ");
+  return `snout map: files in this repo that define or use names in this request, most relevant first (candidates from a local index, not a plan): ${cs.map((c) => `${c.path} (${why(c)})`).join(" \xB7 ")}`;
+}
 export {
   DEFAULTS,
   DEFAULT_LIMIT,
@@ -2686,6 +3542,7 @@ export {
   JEV_USD_PER_MTOK,
   LABELS,
   MAX_LIMIT,
+  OVERSIZED_TOKENS,
   PINNED_MODEL,
   PRICES,
   PRICES_AS_OF,
@@ -2694,9 +3551,15 @@ export {
   agentLabel,
   appendRow,
   applyMode,
+  archiveFiles,
   attach,
+  auditContext,
+  authorOf,
   bandOf,
+  buildMap,
   byAgentOf,
+  candidates,
+  classifyContextPath,
   claudeMdLine,
   claudeRequests,
   claudeSlug,
@@ -2707,6 +3570,7 @@ export {
   dropEchoes,
   dumpTargets,
   ensureDir,
+  entryFor,
   estimateTokens,
   fingerprintOf,
   firstHit,
@@ -2717,16 +3581,21 @@ export {
   isValidMode,
   kindOf,
   labelOf,
+  listArchives,
+  listFiles,
   loadConfig,
   loadState,
   looksCrafted,
   matchesAny,
   modelKey,
+  normalize,
   outline,
+  overlap,
   parseGitignore,
   percentile,
   priceOf,
   ratioFor,
+  readClaudeTranscript,
   readDecisions,
   readRows,
   readSpend,
@@ -2734,11 +3603,16 @@ export {
   readTranscriptUsage,
   readTurns,
   redundancyOf,
+  renderAudit,
+  renderCandidates,
+  renderMap,
   renderReport,
   renderStatusline,
+  requestNames,
   resolvePaths,
   responseBytes,
   responseText,
+  restoreArchive,
   rotateIfLarge,
   safePath,
   safeText,
@@ -2747,19 +3621,23 @@ export {
   scoreLabels,
   scorePrompt,
   searchHint,
+  shingles,
   sizeOf,
   snoutignore,
   splitGrepOutput,
   squeeze,
   squeezeEntries,
+  staleRefs,
   summarize,
   summarizeLedger,
   summarizeSpend,
   tailLines,
   tier0,
   tipsOf,
+  toJson,
   toRegExp,
   toRel,
+  totals,
   totalsOf,
   trimMcp,
   withOverride,

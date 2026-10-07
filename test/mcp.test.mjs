@@ -39,7 +39,7 @@ test("mcp: initializes, lists its tools, and ignores notifications", () => {
   ]);
   assert.equal(r[1].result.serverInfo.name, "snout");
   assert.equal(r[1].result.protocolVersion, "2025-06-18");
-  assert.deepEqual(r[2].result.tools.map((t) => t.name), ["snout_read", "snout_classify"]);
+  assert.deepEqual(r[2].result.tools.map((t) => t.name), ["snout_read", "snout_classify", "snout_audit_context"]);
   assert.equal(r[3].error.code, -32601);
   assert.equal(Object.keys(r).length, 3, "no reply to a notification");
 });

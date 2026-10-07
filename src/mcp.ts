@@ -14,6 +14,7 @@ import { bandOf, searchHint, worthGating } from "./gate/decide.js";
 import { outline } from "./gate/outline.js";
 import { tier0, toRel } from "./gate/tier0.js";
 import { estimateTokens, fmtTokens } from "./ledger/tokens.js";
+import { auditContext, renderAudit, renderMap } from "./audit/context.js";
 
 const HEAD_LINES = 60;
 const HEAD_BYTES = 6 * 1024;
@@ -39,6 +40,18 @@ const TOOLS = [
     description:
       "Say what kind of file this is before reading it: source, lockfile, generated, vendored, minified, build output or secret, with a confidence score and roughly how many tokens a whole read would cost.",
     inputSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] },
+  },
+  {
+    name: "snout_audit_context",
+    description:
+      "Audit this project's agent context: instruction files (CLAUDE.md, AGENTS.md, rules files), skills, commands, subagents and AI-written docs. Reports what each costs per session, when it was last used, who wrote it, and flags unused, duplicate, stale and oversized ones. format \"map\" returns one compact line per file plus instruction pairs to check for contradictions, for you to judge what to keep. Read-only: it never moves or deletes anything; archiving is done by the user with `snout audit context --archive`.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        format: { type: "string", enum: ["report", "map"], description: "report (default): flagged files ranked by tokens saved per session. map: every file, one line each." },
+        days: { type: "number", description: "Usage window in days (default 30)." },
+      },
+    },
   },
 ];
 
@@ -97,6 +110,11 @@ export function handle(line: string, projectDir: string, cfg: Config, version: s
 }
 
 function callTool(name: string, args: Json, projectDir: string, cfg: Config): string {
+  if (name === "snout_audit_context") {
+    const days = Number.isFinite(args.days) && args.days > 0 ? Math.min(365, Math.floor(args.days)) : 30;
+    const audit = auditContext(projectDir, { days });
+    return cap(args.format === "map" ? renderMap(audit) : renderAudit(audit));
+  }
   const abs = inProject(String(args.path ?? ""), projectDir);
   const rel = toRel(abs, projectDir);
   if (!existsSync(abs) || !statSync(abs).isFile()) throw new Error(`No such file: ${rel}`);

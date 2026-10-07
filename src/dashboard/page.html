@@ -104,6 +104,16 @@ select { background: var(--card); border: 1px solid var(--line); border-radius: 
 .models-empty { grid-column: 1 / -1; padding: 4px 22px; color: var(--muted); font-size: 13.5px; }
 
 /* Today tiles */
+.band { display: grid; grid-template-columns: minmax(0, 1.25fr) repeat(3, minmax(0, 1fr)); padding: 18px 0; margin-bottom: 16px; }
+.band > div { padding: 0 22px; border-left: 1px solid var(--line); min-width: 0; }
+.band > div:first-child { border-left: 0; }
+.band .k { font-size: 12.5px; color: var(--muted); }
+.band .v { font-size: 27px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.15; margin-top: 4px; }
+.band .hero .v { color: var(--accent-ink); font-size: 32px; }
+.band .s { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+.band .spark { display: flex; align-items: flex-end; gap: 2px; height: 26px; margin-top: 10px; max-width: 260px; }
+.band .spark i { flex: 1; min-width: 2px; background: var(--accent); opacity: 0.75; border-radius: 1.5px 1.5px 0 0; }
+.band .spark i.now { opacity: 1; }
 .tiles { display: grid; gap: 10px; }
 .tile { background: var(--tile); border-radius: 10px; padding: 12px 14px; }
 .tile .k { font-size: 12.5px; color: var(--muted); }
@@ -161,9 +171,9 @@ td.path { font: 12.5px var(--mono); word-break: break-all; }
 .mix { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); height: 264px; }
 .mcol { display: flex; flex-direction: column; border-left: 1px dashed var(--line); padding: 0 0 0 0; min-width: 0; }
 .mcol .top { padding: 0 10px 0 12px; }
-.mcol .k { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mcol .k { font-size: 13px; font-weight: 600; line-height: 1.25; min-height: 2.5em; }
 .mcol .v { font-size: 19px; font-weight: 650; letter-spacing: -0.02em; margin-top: 2px; }
-.mcol .s { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.mcol .s { font-size: 12px; color: var(--muted); line-height: 1.3; }
 .mcol .s.cut { color: var(--accent-ink); font-weight: 600; }
 .mcol .bar { margin-top: auto; display: flex; flex-direction: column; justify-content: flex-end; }
 .mcol .pct { font-size: 13px; font-weight: 600; padding: 0 0 6px 12px; }
@@ -206,6 +216,8 @@ footer { color: var(--faint); font-size: 12px; text-align: center; margin-top: 2
   .g-row2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .g-row2 > :last-child { grid-column: 1 / -1; }
   .models { --n: 2 !important; row-gap: 22px; }
+  .band { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); row-gap: 22px; }
+  .band > div:nth-child(odd) { border-left: 0; }
   .model:nth-child(odd) { border-left: 0; }
 }
 @media (max-width: 800px) {
@@ -219,6 +231,8 @@ footer { color: var(--faint); font-size: 12px; text-align: center; margin-top: 2
 }
 @media (max-width: 560px) {
   .models { --n: 1 !important; }
+  .band { grid-template-columns: minmax(0, 1fr); }
+  .band > div { border-left: 0; }
   .model { border-left: 0; }
   .frow { grid-template-columns: 52px minmax(0, 1fr) auto; }
   .hide-sm { display: none; }
@@ -265,6 +279,7 @@ footer { color: var(--faint); font-size: 12px; text-align: center; margin-top: 2
 
   <!-- Dashboard -->
   <section data-view="overview">
+    <div class="card band" id="band"><div class="sk" style="height:96px;grid-column:1/-1;margin:0 22px"></div></div>
     <div class="card models" id="models"><div class="models-empty"><div class="sk" style="height:74px"></div></div></div>
 
     <div class="grid g-row2">
@@ -287,14 +302,14 @@ footer { color: var(--faint); font-size: 12px; text-align: center; margin-top: 2
       </div>
     </div>
 
-    <div class="grid g-row3">
+    <div class="grid g-2">
+      <div class="card">
+        <div class="card-h"><div><h2>Savings by feature</h2><p>Tokens your agents asked for, and what each Snout feature kept out</p></div></div>
+        <div id="mix"><div class="sk" style="height:264px"></div></div>
+      </div>
       <div class="card">
         <div class="card-h"><div><h2>Cost breakdown</h2><p id="cost-p">API-equivalent, from your agents' own usage logs</p></div><button class="link r" type="button" data-go="spend">View spend</button></div>
         <div id="cost"><div class="sk" style="height:200px"></div></div>
-      </div>
-      <div class="card">
-        <div class="card-h"><div><h2>What's entering context</h2><p>Tokens your agents asked for, by what Snout classified them as</p></div></div>
-        <div id="mix"><div class="sk" style="height:264px"></div></div>
       </div>
     </div>
   </section>
@@ -613,6 +628,31 @@ footer { color: var(--faint); font-size: 12px; text-align: center; margin-top: 2
     });
   }
 
+  /** The headline: what Snout saved over the days the ledger covers, against what was spent then. */
+  function renderBand(v) {
+    var box = $("band"); box.replaceChildren();
+    var daily = v.d.daily || [], spendBy = {};
+    if (v.sp) v.sp.series.forEach(function (r) { spendBy[r.day] = r.costUsd; });
+    var held = 0, asked = 0, reads = 0, spent = 0, top = 0;
+    daily.forEach(function (r) { held += r.heldBack; asked += r.inContext + r.heldBack; reads += r.reads; spent += spendBy[r.day] || 0; top = Math.max(top, r.heldBack); });
+    var saved = (held * v.rate) / 1e6, n = daily.length || 0;
+    var observe = v.d.meta && v.d.meta.mode === "observe";
+    var spark = h("div", { cls: "spark", "aria-hidden": "true" });
+    daily.forEach(function (r, i) { spark.appendChild(h("i", { cls: i === daily.length - 1 ? "now" : "", style: "height:" + (top ? Math.max(4, (r.heldBack / top) * 100) : 4) + "%", title: r.day + ": " + usd((r.heldBack * v.rate) / 1e6) + " saved" })); });
+    var savedEl = h("div", { cls: "v num" }), heldEl = h("div", { cls: "v num" });
+    box.appendChild(h("div", { cls: "hero" }, h("div", { cls: "k", text: "Saved by Snout, last " + n + " days" }), savedEl,
+      h("div", { cls: "s", text: "Kept-out tokens at $" + v.rate.toFixed(2) + "/M input" + (v.sp && v.sp.inputRate ? ", your model mix" : "") }), spark));
+    box.appendChild(h("div", null, h("div", { cls: "k", text: "Share of spend" }), h("div", { cls: "v num", text: spent ? pct(saved, spent + saved) + "%" : "—" }),
+      h("div", { cls: "s", text: spent ? "less than without Snout, on " + usd(spent) + " spent" : "appears after the first Claude Code or Codex session" })));
+    box.appendChild(h("div", null, h("div", { cls: "k", text: "Kept out of context" }), heldEl,
+      h("div", { cls: "s", text: asked ? pct(held, asked) + "% of " + fmt(asked) + " tokens agents asked for" : "nothing read yet" })));
+    box.appendChild(observe && v.d.couldHoldBack > 0
+      ? h("div", null, h("div", { cls: "k", text: "Waiting in observe mode" }), h("div", { cls: "v num", text: "~" + fmt(v.d.couldHoldBack) }), h("div", { cls: "s", text: "tokens enforce mode would also keep out" }))
+      : h("div", null, h("div", { cls: "k", text: "Reads trimmed" }), h("div", { cls: "v num", text: (v.d.gated || 0).toLocaleString() }), h("div", { cls: "s", text: "of " + (v.d.reads || reads).toLocaleString() + " reads" })));
+    tween("b-saved", saved, savedEl, usd);
+    tween("b-held", held, heldEl, function (x) { return "~" + fmt(x); });
+  }
+
   function renderToday(v) {
     tween("t-held", v.today.heldBack, $("t-held"), function (x) { return "~" + fmt(x); });
     $("t-held-s").textContent = "tokens, " + (v.today.inContext + v.today.heldBack ? pct(v.today.heldBack, v.today.inContext + v.today.heldBack) + "% of what agents asked for" : "nothing read yet today");
@@ -723,17 +763,27 @@ footer { color: var(--faint); font-size: 12px; text-align: center; margin-top: 2
     box.appendChild(t);
   }
 
+  // Each label belongs to the Snout feature that trims it (same grouping as Snout Cloud).
+  var FEATURES = [
+    { key: "source", name: "Your code", how: "always read in full", labels: /^(source|always-allow|secret|reversal|unclassified)$/ },
+    { key: "squeeze", name: "Command output", how: "Squeeze: problems and summary kept", labels: /^(command-output|tool-output)$/ },
+    { key: "sections", name: "Long docs & logs", how: "Section reads: head and a map", labels: /^long-/ },
+    { key: "repeat", name: "Repeats", how: "Repeat skip: pointer to the copy", labels: /^repeat-/ },
+    { key: "mcp", name: "MCP results", how: "MCP trimming, per server", labels: /^mcp/ },
+    { key: "bulk", name: "Bulk files", how: "Read gate: head and outline", labels: /./ },
+  ];
+  function featureOf(label) { for (var i = 0; i < FEATURES.length; i++) if (FEATURES[i].labels.test(label)) return FEATURES[i]; return FEATURES[FEATURES.length - 1]; }
+
   function renderMix(v) {
     var box = $("mix"); box.replaceChildren();
-    var labels = (v.d.byLabel || []).slice().sort(function (a, b) { return (b.inContext + b.heldBack) - (a.inContext + a.heldBack); });
-    var all = 0; labels.forEach(function (l) { all += l.inContext + l.heldBack; });
+    var groups = {};
+    (v.d.byLabel || []).forEach(function (l) {
+      var f = featureOf(l.key), g = groups[f.key] || (groups[f.key] = { key: f.key, name: f.name, how: f.how, inContext: 0, heldBack: 0, reads: 0 });
+      g.inContext += l.inContext; g.heldBack += l.heldBack; g.reads += l.reads;
+    });
+    var cols = FEATURES.map(function (f) { return groups[f.key]; }).filter(function (g) { return g && g.inContext + g.heldBack > 0; });
+    var all = 0; cols.forEach(function (c) { all += c.inContext + c.heldBack; });
     if (!all) { box.appendChild(h("div", { cls: "none", text: "Fills in as your agents read files." })); return; }
-    var cols = labels.slice(0, 4);
-    if (labels.length > 4) {
-      var rest = { key: "other", inContext: 0, heldBack: 0, reads: 0 };
-      labels.slice(4).forEach(function (l) { rest.inContext += l.inContext; rest.heldBack += l.heldBack; rest.reads += l.reads; });
-      cols.push(rest);
-    }
     var maxShare = 0; cols.forEach(function (c) { maxShare = Math.max(maxShare, (c.inContext + c.heldBack) / all); });
     var grid = h("div", { cls: "mix", style: "--n:" + cols.length });
     var BAR = 150;
@@ -742,9 +792,9 @@ footer { color: var(--faint); font-size: 12px; text-align: center; margin-top: 2
       var hgt = Math.max(3, (share / maxShare) * BAR);
       var outH = tot ? (c.heldBack / tot) * hgt : 0;
       var cut = c.heldBack > 0;
-      grid.appendChild(h("div", { cls: "mcol", title: labelOf(c.key) + ": " + c.reads + " reads, " + fmt(c.inContext) + " into context, ~" + fmt(c.heldBack) + " kept out" },
+      grid.appendChild(h("div", { cls: "mcol", title: c.name + " (" + c.how + "): " + c.reads + " reads, " + fmt(c.inContext) + " into context, ~" + fmt(c.heldBack) + " kept out" },
         h("div", { cls: "top" },
-          h("div", { cls: "k", text: c.key === "other" ? "Other" : labelOf(c.key) }),
+          h("div", { cls: "k", text: c.name }),
           h("div", { cls: "v num", text: fmt(tot) }),
           h("div", { cls: "s" + (cut ? " cut" : ""), text: cut ? "−" + pct(c.heldBack, tot) + "% kept out" : c.key === "source" ? "always read in full" : "read in full" })),
         h("div", { cls: "bar" },
@@ -873,6 +923,7 @@ footer { color: var(--faint); font-size: 12px; text-align: center; margin-top: 2
     state.data = d;
     var v = view(d);
     renderHead(v);
+    renderBand(v);
     renderModels(v);
     renderToday(v);
     renderFeed(v);

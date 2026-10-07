@@ -95,6 +95,16 @@ input { max-width: none; }
 .meter i.f { background: var(--c); }
 .models-empty { grid-column: 1 / -1; padding: 4px 22px; color: var(--muted); font-size: 13.5px; }
 
+.band { display: grid; grid-template-columns: minmax(0, 1.25fr) repeat(3, minmax(0, 1fr)); padding: 18px 0; margin-bottom: 16px; }
+.band > div { padding: 0 22px; border-left: 1px solid var(--line); min-width: 0; }
+.band > div:first-child { border-left: 0; }
+.band .k { font-size: 12.5px; color: var(--muted); }
+.band .v { font-size: 27px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.15; margin-top: 4px; }
+.band .hero .v { color: var(--accent-ink); font-size: 32px; }
+.band .s { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+.band .spark { display: flex; align-items: flex-end; gap: 2px; height: 26px; margin-top: 10px; max-width: 260px; }
+.band .spark i { flex: 1; min-width: 2px; background: var(--accent); opacity: 0.75; border-radius: 1.5px 1.5px 0 0; }
+.band .spark i.now { opacity: 1; }
 .tiles { display: grid; gap: 10px; }
 .tile { background: var(--tile); border-radius: 10px; padding: 12px 14px; }
 .tile .k { font-size: 12.5px; color: var(--muted); }
@@ -151,9 +161,9 @@ tr.pick:hover td { background: var(--tile); }
 .mix { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); height: 264px; }
 .mcol { display: flex; flex-direction: column; border-left: 1px dashed var(--line); min-width: 0; }
 .mcol .top { padding: 0 10px 0 12px; }
-.mcol .k { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mcol .k { font-size: 13px; font-weight: 600; line-height: 1.25; min-height: 2.5em; }
 .mcol .v { font-size: 19px; font-weight: 650; letter-spacing: -0.02em; margin-top: 2px; }
-.mcol .s { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.mcol .s { font-size: 12px; color: var(--muted); line-height: 1.3; }
 .mcol .s.cut { color: var(--accent-ink); font-weight: 600; }
 .mcol .bar { margin-top: auto; }
 .mcol .pct { font-size: 13px; font-weight: 600; padding: 0 0 6px 12px; }
@@ -185,6 +195,8 @@ footer { color: var(--faint); font-size: 12px; text-align: center; margin-top: 2
   .g-row2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .g-row2 > :last-child { grid-column: 1 / -1; }
   .models { --n: 2 !important; row-gap: 22px; }
+  .band { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); row-gap: 22px; }
+  .band > div:nth-child(odd) { border-left: 0; }
   .model:nth-child(odd) { border-left: 0; }
 }
 @media (max-width: 800px) {
@@ -197,6 +209,8 @@ footer { color: var(--faint); font-size: 12px; text-align: center; margin-top: 2
 }
 @media (max-width: 560px) {
   .models { --n: 1 !important; }
+  .band { grid-template-columns: minmax(0, 1fr); }
+  .band > div { border-left: 0; }
   .model { border-left: 0; }
   .hide-sm { display: none; }
   .mix { --n: 3 !important; }
@@ -285,6 +299,10 @@ footer { color: var(--faint); font-size: 12px; text-align: center; margin-top: 2
     return null;
   }
   var SHADES = [[/fable|mythos/, "#8B6CE0"], [/opus/, "#D97757"], [/sonnet/, "#E0A04C"], [/haiku/, "#C9B27A"], [/codex/, "#0E8C6D"], [/gpt|^o\d/, "#10A37F"], [/gemini.*flash/, "#6FA8FF"], [/gemini/, "#4285F4"]];
+  // List input price, $ per million tokens, for pricing what Snout kept out (same table as the CLI).
+  var INPUT_PRICE = [[/fable|mythos/, 10], [/opus-5-5/, 4], [/opus-(5|4-[5-8])/, 5], [/opus/, 15], [/sonnet-5/, 2], [/sonnet/, 3], [/haiku-4/, 1], [/haiku/, 0.8],
+    [/gpt-6-astra/, 10], [/gpt-6-sol/, 2], [/gpt-6-luna/, 0.1], [/gpt-5\.6-sol/, 4], [/gpt-5\.6-terra/, 2], [/gpt-5\.6-luna/, 0.2], [/gpt-5\.5/, 5], [/gpt-5\.4/, 2.5], [/gpt-5\.[23]/, 1.75], [/gpt-5\.1/, 1.25], [/gemini/, 2]];
+  function inputPrice(model) { var m = String(model || "").toLowerCase(); for (var i = 0; i < INPUT_PRICE.length; i++) if (INPUT_PRICE[i][0].test(m)) return INPUT_PRICE[i][1]; return null; }
   function modelColor(model) { var m = String(model || "").toLowerCase(); for (var i = 0; i < SHADES.length; i++) if (SHADES[i][0].test(m)) return SHADES[i][1]; return "#8a8a93"; }
   function modelLabel(model) {
     var m = String(model || "");
@@ -392,11 +410,15 @@ footer { color: var(--faint); font-size: 12px; text-align: center; margin-top: 2
       });
     }
     var today = d.today || { reads: 0, inContext: 0, heldBack: 0 };
-    var rate = sp && sp.tokens ? 3 : 3;
+    // Kept-out tokens priced at the input rate of the models that would have read them, weighted by spend.
+    var rate = 3, wSum = 0, wRate = 0;
+    if (sp) sp.byModel.forEach(function (m) { var p = inputPrice(m.key); if (p !== null && m.costUsd > 0) { wSum += m.costUsd; wRate += p * m.costUsd; } });
+    if (wSum) rate = wRate / wSum;
+    var tot = d.totals || { inContext: 0, heldBack: 0, reads: 0, gated: 0 };
     var activeToday = (d.activity || []).filter(function (a) { return a.reads > 0; });
     var people = {}, agents = {};
     activeToday.forEach(function (a) { (a.agent ? agents : people)[a.login] = 1; });
-    return { d: d, sp: sp, models: models, today: today, saved: (today.heldBack * rate) / 1e6, rate: rate, peopleToday: Object.keys(people).length, agentsToday: Object.keys(agents).length };
+    return { d: d, sp: sp, models: models, today: today, tot: tot, saved: (today.heldBack * rate) / 1e6, savedAll: (tot.heldBack * rate) / 1e6, spendAll: costAll, rate: rate, peopleToday: Object.keys(people).length, agentsToday: Object.keys(agents).length };
   }
 
   function setLive() {
@@ -471,14 +493,42 @@ footer { color: var(--faint); font-size: 12px; text-align: center; margin-top: 2
     return box;
   }
 
+  /** The headline for whoever runs the team: what Snout saved over the range, and for how many people. */
+  function savingsBand(v, team) {
+    var t = v.tot, asked = t.inContext + t.heldBack, days = v.d.days;
+    var box = h("div", { cls: "card band" });
+    var saved = h("div", { cls: "v num" }), held = h("div", { cls: "v num" });
+    var byDay = {}; (v.d.series || []).forEach(function (r) { byDay[r.key] = r; });
+    var pts = lastDays(Math.min(days, 30), byDay, function (k) { return { key: k, heldBack: 0 }; });
+    var top = 0; pts.forEach(function (p) { top = Math.max(top, p.heldBack); });
+    var spark = h("div", { cls: "spark", "aria-hidden": "true" });
+    pts.forEach(function (p, i) { spark.appendChild(h("i", { cls: i === pts.length - 1 ? "now" : "", style: "height:" + (top ? Math.max(4, (p.heldBack / top) * 100) : 4) + "%", title: dayName(p.key) + ": " + usd((p.heldBack * v.rate) / 1e6) + " saved" })); });
+    var share = v.spendAll ? pct(v.savedAll, v.spendAll + v.savedAll) : null;
+    var humans = v.d.byMember.filter(function (m) { return m.key.indexOf("agent:") !== 0; });
+    var saving = humans.filter(function (m) { return m.heldBack > 0; }).length;
+    var seats = team && team.members ? Math.max(team.members, humans.length) : humans.length;
+    box.appendChild(h("div", { cls: "hero" }, h("div", { cls: "k", text: "Estimated saved by Snout, last " + days + " days" }), saved,
+      h("div", { cls: "s", text: "Kept-out tokens at $" + v.rate.toFixed(2) + "/M input, " + (seats > 1 ? "the team's" : "your") + " model mix" }), spark));
+    box.appendChild(h("div", null, h("div", { cls: "k", text: "Share of spend" }), h("div", { cls: "v num", text: share !== null ? share + "%" : "—" }),
+      h("div", { cls: "s", text: share !== null ? "estimated: tokens kept out at your model prices" : "appears once machines sync spend" })));
+    box.appendChild(h("div", null, h("div", { cls: "k", text: "Kept out of context" }), held,
+      h("div", { cls: "s", text: asked ? pct(t.heldBack, asked) + "% of " + fmt(asked) + " tokens agents asked for" : "nothing synced yet" })));
+    box.appendChild(h("div", null, h("div", { cls: "k", text: seats > 1 ? "Snout working for" : "Reads trimmed" }),
+      h("div", { cls: "v num", text: seats > 1 ? saving + " of " + seats : (t.gated || 0).toLocaleString() }),
+      h("div", { cls: "s", text: seats > 1 ? (saving < seats ? "people; the rest have no savings synced" : "people, the whole team") : "of " + (t.reads || 0).toLocaleString() + " reads" })));
+    tween("savedAll", v.savedAll, saved, usd);
+    tween("heldAll", t.heldBack, held, function (x) { return "~" + fmt(x); });
+    return box;
+  }
+
   function todayCard(v) {
     var c = card(v.d.byMember.length > 1 ? "Snout today, whole team" : "Snout today", "What stayed out of your agents' context");
     var held = h("div", { cls: "v num" }), saved = h("div", { cls: "v num" });
     var asked = v.today.inContext + v.today.heldBack;
     c.body.appendChild(h("div", { cls: "tiles" },
       h("div", { cls: "tile hl" }, h("div", { cls: "k", text: "Kept out of context" }), held, h("div", { cls: "s", text: asked ? pct(v.today.heldBack, asked) + "% of what agents asked for" : "nothing synced yet today" })),
-      h("div", { cls: "tile" }, h("div", { cls: "k", text: "Saved" }), saved, h("div", { cls: "s", text: "at $" + v.rate.toFixed(2) + " per million input tokens" })),
-      h("div", { cls: "tile" }, h("div", { cls: "k", text: "Reads trimmed" }), h("div", { cls: "v num", text: v.today.gated.toLocaleString() }), h("div", { cls: "s", text: "of " + v.today.reads.toLocaleString() + " reads today" }))));
+      h("div", { cls: "tile" }, h("div", { cls: "k", text: "Estimated saved" }), saved, h("div", { cls: "s", text: "at $" + v.rate.toFixed(2) + " per million input tokens" })),
+      h("div", { cls: "tile" }, h("div", { cls: "k", text: "Reads trimmed" }), h("div", { cls: "v num", text: (v.today.gated || 0).toLocaleString() }), h("div", { cls: "s", text: "of " + v.today.reads.toLocaleString() + " reads today" }))));
     tween("held", v.today.heldBack, held, function (x) { return "~" + fmt(x); });
     tween("saved", v.saved, saved, usd);
     return c;
@@ -574,19 +624,33 @@ footer { color: var(--faint); font-size: 12px; text-align: center; margin-top: 2
     return c;
   }
 
+  // Each label belongs to the Snout feature that trims it.
+  var FEATURES = [
+    { key: "source", name: "Your code", how: "always read in full", labels: /^(source|always-allow|secret|reversal|unclassified)$/ },
+    { key: "squeeze", name: "Command output", how: "Squeeze: problems and summary kept", labels: /^(command-output|tool-output)$/ },
+    { key: "sections", name: "Long docs & logs", how: "Section reads: head and a map", labels: /^long-/ },
+    { key: "repeat", name: "Repeats", how: "Repeat skip: pointer to the copy", labels: /^repeat-/ },
+    { key: "mcp", name: "MCP results", how: "MCP trimming, per server", labels: /^mcp/ },
+    { key: "bulk", name: "Bulk files", how: "Read gate: head and outline", labels: /./ },
+  ];
+  function featureOf(label) { for (var i = 0; i < FEATURES.length; i++) if (FEATURES[i].labels.test(label)) return FEATURES[i]; return FEATURES[FEATURES.length - 1]; }
+
   function mixCard(v) {
-    var c = card("What's entering context", "Tokens agents asked for, by what Snout classified them as");
-    var labels = (v.d.byLabel || []).slice().sort(function (a, b) { return (b.inContext + b.heldBack) - (a.inContext + a.heldBack); });
-    var all = 0; labels.forEach(function (l) { all += l.inContext + l.heldBack; });
+    var c = card("Savings by feature", "Tokens agents asked for, and what each Snout feature kept out");
+    var groups = {};
+    (v.d.byLabel || []).forEach(function (l) {
+      var f = featureOf(l.key), g = groups[f.key] || (groups[f.key] = { key: f.key, name: f.name, how: f.how, inContext: 0, heldBack: 0, reads: 0 });
+      g.inContext += l.inContext; g.heldBack += l.heldBack; g.reads += l.reads;
+    });
+    var cols = FEATURES.map(function (f) { return groups[f.key]; }).filter(function (g) { return g && g.inContext + g.heldBack > 0; });
+    var all = 0; cols.forEach(function (g) { all += g.inContext + g.heldBack; });
     if (!all) { c.body.appendChild(h("div", { cls: "none", text: "Fills in as connected machines sync." })); return c; }
-    var cols = labels.slice(0, 4);
-    if (labels.length > 4) { var rest = { key: "other", inContext: 0, heldBack: 0, reads: 0 }; labels.slice(4).forEach(function (l) { rest.inContext += l.inContext; rest.heldBack += l.heldBack; rest.reads += l.reads; }); cols.push(rest); }
     var maxShare = 0; cols.forEach(function (x) { maxShare = Math.max(maxShare, (x.inContext + x.heldBack) / all); });
     var grid = h("div", { cls: "mix", style: "--n:" + cols.length });
     cols.forEach(function (x) {
       var tot = x.inContext + x.heldBack, share = tot / all, hgt = Math.max(3, (share / maxShare) * 150), outH = tot ? (x.heldBack / tot) * hgt : 0, cut = x.heldBack > 0;
-      grid.appendChild(h("div", { cls: "mcol", title: labelOf(x.key) + ": " + x.reads + " reads, " + fmt(x.inContext) + " into context, ~" + fmt(x.heldBack) + " kept out" },
-        h("div", { cls: "top" }, h("div", { cls: "k", text: x.key === "other" ? "Other" : labelOf(x.key) }), h("div", { cls: "v num", text: fmt(tot) }),
+      grid.appendChild(h("div", { cls: "mcol", title: x.name + " (" + x.how + "): " + x.reads.toLocaleString() + " reads, " + fmt(x.inContext) + " into context, ~" + fmt(x.heldBack) + " kept out" },
+        h("div", { cls: "top" }, h("div", { cls: "k", text: x.name }), h("div", { cls: "v num", text: fmt(tot) }),
           h("div", { cls: "s" + (cut ? " cut" : ""), text: cut ? "−" + pct(x.heldBack, tot) + "% kept out" : x.key === "source" ? "always read in full" : "read in full" })),
         h("div", { cls: "bar" }, h("div", { cls: "pct", text: Math.round(share * 100) + "%" }),
           h("div", { cls: "stack", style: "height:" + hgt + "px" }, h("i", { cls: "in", style: "height:" + (hgt - outH) + "px" }), h("i", { cls: "out", style: "height:" + outH + "px" })))));
@@ -621,7 +685,7 @@ footer { color: var(--faint); font-size: 12px; text-align: center; margin-top: 2
 
   function overview(v, team) {
     var d = v.d, byCost = !!v.sp;
-    var out = [modelStrip(v), h("div", { cls: "grid g-row2" }, todayCard(v), activityCard(v), trendCard(v)), h("div", { cls: "grid g-2" }, costCard(v), mixCard(v))];
+    var out = [savingsBand(v, team), modelStrip(v), h("div", { cls: "grid g-row2" }, todayCard(v), activityCard(v), trendCard(v)), h("div", { cls: "grid g-wide" }, mixCard(v), costCard(v))];
     var people = peopleList(d), projects = projectList(d);
     if (people.length > 1 || projects.length > 1) out.push(h("div", { cls: "grid g-2" },
       ranked("Top people", people, byCost, function () { state.tab = "people"; render(); }),

@@ -15,7 +15,7 @@ export type SqueezeKind = "test" | "install" | "build" | "search";
 
 /** Rules for deciding what a command is. The `if` filters on the hook mirror these. */
 const KINDS: [SqueezeKind, RegExp][] = [
-  ["test", /(^|[\s;&|(])((npm|pnpm|yarn|bun)\s+(run\s+)?test\b|npx\s+(jest|vitest|mocha|playwright\s+test)\b|(jest|vitest|mocha|pytest|rspec|phpunit)\b|python3?\s+-m\s+pytest\b|go\s+test\b|cargo\s+test\b|node\s+--test\b|deno\s+test\b)/],
+  ["test", /(^|[\s;&|(])((npm|pnpm|yarn|bun)\s+(run\s+)?test\b|npx\s+(jest|vitest|mocha|playwright\s+test)\b|(jest|vitest|mocha|pytest|rspec|phpunit)\b|python3?\s+-m\s+(pytest|unittest)\b|python3?\s+(\S*\/)?runtests\.py\b|python3?\s+(\S*\/)?manage\.py\s+test\b|go\s+test\b|cargo\s+test\b|node\s+--test\b|deno\s+test\b)/],
   ["install", /(^|[\s;&|(])((npm|pnpm)\s+(i|install|ci|add)\b|yarn(\s+(install|add))?\s*($|[;&|])|bun\s+(i|install|add)\b|pip3?\s+install\b|poetry\s+install\b|bundle(\s+install)?\s*($|[;&|])|go\s+mod\s+(download|tidy)\b|cargo\s+fetch\b|brew\s+install\b)/],
   ["build", /(^|[\s;&|(])((npm|pnpm|yarn|bun)\s+(run\s+)?build\b|npx\s+(tsc|vite|next|webpack)\b|\btsc\b|vite\s+build\b|next\s+build\b|webpack\b|cargo\s+build\b|go\s+build\b|make\b|mvn\b|\.?\/?gradlew?\b|docker\s+build\b)/],
   // Searches that walk a tree: recursive grep, ripgrep and friends, git grep, find, ls -R.
@@ -45,9 +45,15 @@ const ANSI = /\u001b\[[0-9;?]*[ -/]*[@-~]|\u001b\][^\u0007]*\u0007/g;
 /** Anything that reads as trouble is always kept, whatever the kind. */
 const TROUBLE = /\b(error|errors|err!|fail(ed|ure|ing)?|fatal|panic|exception|traceback|warn(ing)?s?|deprecated|vulnerab|critical|denied|cannot|can't|unable|not found|missing|undefined|timeout|timed out|segmentation)\b|✗|✕|×|❌|⚠|^\s*\(!\)/i;
 /** Passing-test lines: the bulk of a green run. */
-const PASSING = /^\s*(✓|✔|√|ok\s+\d+\b|PASS\b|\.{3,}$|test\s+\S+.*\.\.\.\s+ok$|--- PASS:|=== RUN\b|RUN\s|\[\s*PASSED\s*\]|\s*passed\s*$)/;
+const PASSING = /^\s*(✓|✔|√|ok\s+\d+\b|PASS\b|\.{3,}$|test\s+\S+.*\.\.\.\s+ok$|\w+ \([\w.]+\)( \S+)? \.\.\. (ok|skipped\b.*|expected failure)$|--- PASS:|=== RUN\b|RUN\s|\[\s*PASSED\s*\]|\s*passed\s*$)/;
 /** Summary lines worth keeping from any run. */
 const SUMMARY = /\b(tests?:|suites?:|passed|passing|failed|failing|skipped|pending|todo|duration|time:|elapsed|total|ran \d+|\d+ (tests?|specs?|examples?)|added \d+ packages?|removed \d+|changed \d+|audited \d+|up to date|found \d+ vulnerabilit|built in|compiled|done in|successfully|finished)\b|^#\s*(tests|pass|fail|suites|duration)/i;
+/**
+ * Where something happened: a traceback frame, a stack frame or a compiler pointer. Kept
+ * wherever it appears, since a summary that loses the exact file and line sends the agent
+ * back to rerun or search (Min et al., 2026: keep exact paths and identifiers).
+ */
+const LOCATION = /^\s*File "[^"]+", line \d+|^\s*at .+[(\s]\S+:\d+(:\d+)?\)?$|^\s*-->\s+\S+:\d+|^\s*\S+\.\w{1,6}:\d+(:\d+)?:\s/;
 /** Progress and chatter: spinners, fetch lines, percentages. */
 const NOISE = /^\s*([|/\\\-]\s*$|\d{1,3}%|⠋|⠙|⠹|⠸|⠼|⠴|⠦|⠧|⠇|⠏|Downloading\b|Fetching\b|Resolving\b|Collecting\b|Using cached\b|Requirement already satisfied\b|Compiling \S+ v?\d|Checking \S+ v?\d|npm (http|timing|sill|verb)\b|#\d+ \[)/i;
 
@@ -89,7 +95,7 @@ export function squeeze(kind: SqueezeKind, output: string, savedTo: string): Squ
       for (let j = i + 1; j < Math.min(n, i + 4); j++) if (lines[j]!.trim() && !PASSING.test(lines[j]!)) keep[j] = true;
       continue;
     }
-    if (SUMMARY.test(l)) keep[i] = true;
+    if (SUMMARY.test(l) || (LOCATION.test(l) && !PASSING.test(l))) keep[i] = true;
     else if (kind === "test" && PASSING.test(l)) keep[i] = false;
     else if (NOISE.test(l)) keep[i] = false;
   }
@@ -137,6 +143,11 @@ export function squeeze(kind: SqueezeKind, output: string, savedTo: string): Squ
 /** Search results: matches kept per file, files listed before collapsing the rest. */
 const MATCHES_PER_FILE = 3;
 const FILES_LISTED = 40;
+/** Searches this small are left whole, whatever their byte size. */
+const SMALL_SEARCH_LINES = 200;
+const SMALL_SEARCH_FILES = 10;
+/** Past FILES_LISTED, further files are still named (path and match count, no lines) up to this many. */
+const FILES_NAMED = 120;
 const LIST_LINES = 60;
 /** "path:line:text" or "path:text", the shape grep -rn, rg and git grep print. */
 const MATCH_LINE = /^([^\s:][^:]{0,300}?):(\d+[:-])?(.*)$/;
@@ -150,6 +161,11 @@ function squeezeSearch(output: string, savedTo: string): Squeezed | null {
   const lines = clean(output).filter((l) => l.trim());
   const n = lines.length;
   const matched = lines.map((l) => MATCH_LINE.exec(l));
+  // A few files' worth of matches is what the agent asked for; grouping it only hides lines it
+  // will come back for (PointFive C1: 20 matches in 3 files, long only because the paths were
+  // absolute, were grouped during a security review and cost extra turns).
+  const fileCount = new Set(matched.map((m) => m?.[1]).filter(Boolean)).size;
+  if (n <= SMALL_SEARCH_LINES && (fileCount <= SMALL_SEARCH_FILES || matched.every((m) => !m))) return null;
   const matchShare = matched.filter(Boolean).length / Math.max(n, 1);
   const out: string[] = [];
   let summary: string;
@@ -163,21 +179,35 @@ function squeezeSearch(output: string, savedTo: string): Squeezed | null {
     });
     let shown = 0;
     let hiddenFiles = 0, hiddenMatches = 0;
+    const named = [];
     for (const [file, hits] of files) {
-      if (shown >= FILES_LISTED) { hiddenFiles++; hiddenMatches += hits.length; continue; }
+      if (shown >= FILES_LISTED) {
+        hiddenFiles++;
+        hiddenMatches += hits.length;
+        if (named.length < FILES_NAMED) named.push(`${file} (${hits.length})`);
+        continue;
+      }
       shown++;
       out.push(...hits.slice(0, MATCHES_PER_FILE));
       if (hits.length > MATCHES_PER_FILE) out.push(`  (+${hits.length - MATCHES_PER_FILE} more in ${file})`);
     }
-    if (hiddenFiles) out.push(`  … ${hiddenFiles} more file${hiddenFiles === 1 ? "" : "s"} with ${hiddenMatches} match${hiddenMatches === 1 ? "" : "es"}`);
+    // The paths are the cheap part and often the answer (every file to change); keep them.
+    if (hiddenFiles) {
+      out.push(`  … ${hiddenFiles} more file${hiddenFiles === 1 ? "" : "s"} with ${hiddenMatches} match${hiddenMatches === 1 ? "" : "es"}, lines not shown:`);
+      out.push(`    ${named.join(", ")}${hiddenFiles > named.length ? `, and ${hiddenFiles - named.length} more` : ""}`);
+    }
     summary = `${n} matches in ${files.size} files; first ${MATCHES_PER_FILE} per file shown`;
   } else {
     out.push(...lines.slice(0, LIST_LINES));
     const rest = lines.slice(LIST_LINES);
     if (rest.length) {
+      // Count by directory below the prefix every path shares, so absolute paths count as
+      // `services/billing/`, not `/private/`.
+      const shared = commonDirPrefix(lines.map((l) => l.replace(/^\.\//, "")));
+      const prefix = shared.slice(0, shared.slice(0, -1).lastIndexOf("/") + 1); // keep the last shared folder for context
       const dirs = new Map<string, number>();
       for (const l of rest) {
-        const parts = l.replace(/^\.\//, "").split("/");
+        const parts = l.replace(/^\.\//, "").slice(prefix.length).split("/");
         const top = parts.length > 2 ? parts.slice(0, 2).join("/") + "/" : parts.length === 2 ? parts[0] + "/" : "(top level)";
         dirs.set(top, (dirs.get(top) ?? 0) + 1);
       }
@@ -195,13 +225,22 @@ function squeezeSearch(output: string, savedTo: string): Squeezed | null {
   return { kind: "search", text, beforeLines: n, afterLines: out.length, beforeBytes, afterBytes };
 }
 
+/** The longest directory prefix (ending in "/") shared by every path, or "". */
+function commonDirPrefix(paths: string[]): string {
+  if (!paths.length) return "";
+  let p = paths[0]!.slice(0, paths[0]!.lastIndexOf("/") + 1);
+  for (const x of paths) while (p && !x.startsWith(p)) p = p.slice(0, p.slice(0, -1).lastIndexOf("/") + 1);
+  return p;
+}
+
 /**
  * The `if` filters the hook is installed with, one per command family, so any other command
  * never starts Snout. Kept deliberately broad; `kindOf` decides precisely.
  */
 export const SQUEEZE_IFS = [
   "npm *", "pnpm *", "yarn *", "bun *", "npx *", "node --test *",
-  "pytest *", "python -m pytest *", "python3 -m pytest *", "pip install *", "pip3 install *", "poetry install *",
+  "pytest *", "python -m pytest *", "python3 -m pytest *", "python -m unittest*", "python3 -m unittest*",
+  "python tests/runtests.py*", "python3 tests/runtests.py*", "python runtests.py*", "python3 runtests.py*", "python manage.py test*", "python3 manage.py test*", "pip install *", "pip3 install *", "poetry install *",
   "go *", "cargo *", "make *", "tsc *", "mvn *", "gradle *", "./gradlew *", "docker build *",
   "bundle *", "rspec *", "jest *", "vitest *", "deno test *", "brew install *",
   "grep *", "rg *", "ag *", "ack *", "git grep *", "find *", "ls -R*",

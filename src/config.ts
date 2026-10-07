@@ -19,6 +19,8 @@ export interface Config {
   longDocs?: boolean;
   /** "concise" adds one short output-style instruction at session start (opt-in); default "normal". */
   output?: "normal" | "concise";
+  /** Suggest the files linked to names in each prompt, from a local repo map (opt-in). Default off. */
+  repoMap?: boolean;
   /**
    * Phase 1+ keys. They are declared so the shape is stable and a user's file survives an
    * upgrade, but NOTHING reads them yet. They are omitted from the defaults written to
@@ -157,6 +159,7 @@ export function loadConfig(paths: Paths): Config {
   const envMode = process.env.SNOUT_MODE;
   if (envMode === "observe" || envMode === "advise" || envMode === "enforce") cfg.mode = envMode;
   if (process.env.SNOUT_DISABLE) cfg.mode = "observe";
+  if (process.env.SNOUT_REPO_MAP === "1" || process.env.SNOUT_REPO_MAP === "0") cfg.repoMap = process.env.SNOUT_REPO_MAP === "1";
 
   return cfg;
 }

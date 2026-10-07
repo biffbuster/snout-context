@@ -122,3 +122,12 @@ test("built docs and third-party notices bench/label.mjs found missing", () => {
   assert.equal(classify("docs/index.html", '<html><head><link rel="stylesheet" href="site.css"></head></html>\n'), null, "a hand-written page stays silent");
   assert.equal(classify("docs/jazzy.md", "Notes on the jazzy.css theme.\n"), null, "mentioning jazzy is not being jazzy output");
 });
+
+test("Track A's three harmful trims stay readable; real banners and root deps/ still trim", () => {
+  const ciScript = '#!/bin/bash\n#\n# Verify that every Markdown file under directories that ESQL tests\n# manage as fully-generated content carries the standard "this is\n# generated, do not edit" header.\n#\nset -euo pipefail\n';
+  assert.equal(classify(".ci/scripts/check-esql-generated-headers.sh", ciScript), null, "a script describing a banner is not one");
+  assert.equal(classify("scripts/build/deps/brotli.ts", "/** Brotli build recipe. */\nimport type { Dependency } from '../source.ts';\n"), null, "nested deps/ is not vendored");
+  assert.equal(classify("deps/zlib/zlib.h", "/* zlib.h -- interface of the 'zlib' general purpose compression library */\n").rule, "vendored", "root deps/ still is");
+  assert.equal(classify("test/fixtures/sample_project/README.rst", "Sample project\n==============\n"), null, "hand-written fixtures are not asked about");
+  assert.equal(classify("src/__snapshots__/view.test.ts.snap", "// Jest Snapshot v1\nexports[`x`] = `1`;\n").rule, "snapshot", "recorded snapshots still are");
+});

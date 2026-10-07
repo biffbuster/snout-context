@@ -13,7 +13,8 @@ stores only the keys you set, so upgrades can move the defaults under you.
   "redactExempt": ["**/.env.example", "**/.env.sample", "..."],
   "repeatReads": true,            // what the agent already has, unchanged, is not sent again
   "longDocs": true,               // long docs: opening + section map; long logs: the tail
-  "output": "normal"              // "concise" adds one short output-style instruction (opt-in)
+  "output": "normal",             // "concise" adds one short output-style instruction (opt-in)
+  "repoMap": false                // true: suggest the files linked to names in each prompt (opt-in)
 }
 ```
 
@@ -29,6 +30,16 @@ subagent is tracked separately, and any edit, size or mtime change, or compactio
 returns its last lines and the line numbers of earlier errors. Any ranged read comes back as
 asked, and instruction files (CLAUDE.md, AGENTS.md, README, anything under `.claude/` and
 similar) are always read whole.
+
+`repoMap` (opt-in, default off; `snout map on|off`): Snout keeps a local index of which files
+declare or use each name in the project (hand-written files only; it reuses entries for unchanged
+files, so a rebuild after an edit takes well under a second). When a prompt names code the index
+knows, the agent gets up to 8 candidate file paths with the names that link them, about 300 tokens
+and never any file contents. Prompts that name nothing get nothing. `snout map "<request>"` shows
+what a prompt would get. Offline, on 1,788 SWE-bench issues it had never been scored on, a file the real fix edited was
+in the top 10 for 66% of issues, against 44% for full-text BM25 search and 28% for grep
+(`bench/mapeval.mjs --confirm`).
+Whether that lowers agent spend is not measured yet, which is why it is off by default.
 
 That is every key the shipped code reads. Keys for later phases — a model name, a tier-2
 budget, context-injection limits — are deliberately **absent** rather than present and
@@ -48,7 +59,9 @@ you believe you have turned something on. An earlier version shipped six of them
 | `snout init <agent>` | Hook setup for Codex, Cursor or Gemini CLI in this project |
 | `snout mcp` | MCP server (`snout_read`, `snout_classify`) for agents without read hooks |
 | `snout reset` | Clear this project's local records |
+| `snout audit context [--days N] [--map] [--json] [--archive <paths>] [--restore [id]]` | Instruction files, skills, commands, subagents and AI-written docs for every agent: tokens each adds per session, last use, who wrote it, and flags for unused, duplicate, stale and oversized ones. `--map` is a compact list for an agent to judge; `--archive` moves files to `.snout/archive/` after you confirm, and `--restore` brings them back |
 | `snout audit [--measure] [--days N]` | MCP servers your agents load, how often each was used, and the unused ones that still add their tool list to every request (with how to turn them off). `--measure` starts each local server once to count its tool-list tokens |
+| `snout map on\|off` · `snout map "<request>"` | Opt-in repo map: candidate file paths for each prompt that names code in the repo. Off by default |
 | `snout output concise\|normal` | Opt-in concise output: one short instruction at session start to skip recaps and restated code. Off by default |
 
 Cloud agents use `SNOUT_TOKEN` (a workspace key from the team dashboard) instead of `snout login`.

@@ -26,6 +26,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { gateEntries, squeezeEntries } from "../dist/lib.mjs";
+import { reliabilityLines, costLines, ledgerFacts, peakContext } from "./stats.mjs";
 
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, a, i, all) => (a.startsWith("--") ? [...acc, [a.slice(2), all[i + 1] && !all[i + 1].startsWith("--") ? all[i + 1] : true]] : acc), []),
@@ -342,6 +343,8 @@ function runOne(task, arm) {
     }
   }
   const g = out.is_error ? { own: false, suite: false, pass: false } : grade(dir, task);
+  const facts = ledgerFacts(ledger);
+  const peak = peakContext(out.session_id);
   const row = {
     task, arm, ...g,
     error: out.is_error ? String(out.result ?? out.subtype ?? "error").slice(0, 200) : undefined,
@@ -351,10 +354,14 @@ function runOne(task, arm) {
     inputTokens: (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0),
     outputTokens: u.output_tokens ?? 0,
     turns: out.num_turns ?? 0,
-    costUsd: out.total_cost_usd ?? 0,
+    costUsd: (out.total_cost_usd ?? 0) + facts.jevUsd,
     withheld,
     byRule,
     mcp,
+    followUps: facts.followUps,
+    followUpTokens: facts.followUpTokens,
+    jevUsd: facts.jevUsd,
+    peak: peak?.peak,
     seconds: Math.round((Date.now() - started) / 1000),
   };
   if (!row.pass) row.final = String(out.result ?? "").slice(0, 500);
@@ -390,10 +397,13 @@ function compare(off, on, arm, sum, pct, tasks) {
   console.log(`\n  ${arm} vs off (${paired.size} task${paired.size === 1 ? "" : "s"} run in both)`);
   console.log("");
   console.log(`  cost            ${pct(sum(on, "costUsd"), sum(off, "costUsd"))}   ($${sum(off, "costUsd").toFixed(2)} → $${sum(on, "costUsd").toFixed(2)})`);
+  const ci = bootstrap(off, on, "costUsd");
+  if (ci) console.log(`  cost 95% CI     ${ci}   (bootstrap over tasks, then runs within each task)`);
   console.log(`  input tokens    ${pct(sum(on, "inputTokens"), sum(off, "inputTokens"))}`);
   console.log(`  output tokens   ${pct(sum(on, "outputTokens"), sum(off, "outputTokens"))}`);
   console.log(`  turns           ${pct(sum(on, "turns"), sum(off, "turns"))}`);
   console.log(`  passing         off ${off.filter((r) => r.pass).length}/${off.length} · enforce ${on.filter((r) => r.pass).length}/${on.length}   (done AND existing suite still green)`);
+  for (const l of [...reliabilityLines(off, on, (r) => r.pass), ...costLines(off, on, sum)]) console.log(l);
   const rules = {};
   for (const r of on) for (const [k, v] of Object.entries(r.byRule ?? {})) rules[k] = (rules[k] ?? 0) + v;
   const servers = {};
@@ -403,6 +413,34 @@ function compare(off, on, arm, sum, pct, tasks) {
   // Only tasks that ran in both arms: a run that never happened is not a failure.
   const broken = tasks.filter((t) => on.some((r) => r.task === t) && off.some((r) => r.task === t && r.pass) && !on.some((r) => r.task === t && r.pass));
   if (broken.length) console.log(`  BROKEN by enforce: ${broken.join(", ")}`);
+}
+
+/**
+ * 95% interval for the change in total `key`, enforce vs off. Resamples tasks with replacement,
+ * then each arm's runs within a task, so it reflects both which tasks were picked and run-to-run
+ * variance. Seeded, so re-summarizing a file prints the same interval. Null under 2 runs per arm.
+ */
+function bootstrap(off, on, key, iters = 4000) {
+  const tasks = [...new Set(off.map((r) => r.task))];
+  const by = (rs, t) => rs.filter((r) => r.task === t).map((r) => r[key] ?? 0);
+  const cells = tasks.map((t) => [by(off, t), by(on, t)]);
+  if (cells.some(([a, b]) => a.length < 2 || b.length < 2)) return null;
+  const rand = rng(7);
+  const draw = (xs) => xs[Math.floor(rand() * xs.length)];
+  const mean = (xs) => xs.reduce((s, _) => s + draw(xs), 0) / xs.length;
+  const changes = [];
+  for (let i = 0; i < iters; i++) {
+    let a = 0, b = 0;
+    for (let j = 0; j < cells.length; j++) {
+      const [x, y] = draw(cells);
+      a += mean(x);
+      b += mean(y);
+    }
+    changes.push(b / a - 1);
+  }
+  changes.sort((x, y) => x - y);
+  const fmt = (v) => `${v <= 0 ? "−" : "+"}${Math.abs(v * 100).toFixed(1)}%`;
+  return `${fmt(changes[Math.floor(iters * 0.025)])} to ${fmt(changes[Math.floor(iters * 0.975)])}`;
 }
 
 function main() {
@@ -430,5 +468,5 @@ function main() {
   summarize(rows, MODEL, N);
 }
 
-export { makeFixture, TASKS, grade };
+export { makeFixture, TASKS, grade, bootstrap };
 if (import.meta.url === `file://${process.argv[1]}`) main();

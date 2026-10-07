@@ -15,11 +15,33 @@ bench/labels/
 # Token calibration runs — regenerable.
 bench/tokens/
 
-# A/B run results — regenerable.
-bench/ab-results/
+# A/B run results. Only the runs the docs cite are published, so every quoted number can be checked.
+bench/ab-results/*
+!bench/ab-results/run-1790613461290.json
+!bench/ab-results/run-1790709277914.json
+!bench/ab-results/run-1790632506002.json
+!bench/ab-results/run-1790779257454.json
+!bench/ab-results/run-1790708920778.json
+!bench/ab-results/run-1790734338726.json
+!bench/ab-results/library-1790778610259.json
+!bench/ab-results/long-1791229121880.json
+!bench/ab-results/long-1791232350718.json
 .env
 .env.*
 # local agent hook configs written by `snout init` (machine-specific paths)
 .cursor/
 .gemini/
 .codex/
+
+# Context-audit precision study (paused): corpus clones, scripts and runs stay local.
+bench/ai-corpus/
+bench/ai-results/
+bench/ai-corpus.mjs
+bench/ai-label.mjs
+bench/ai-manifest.json
+
+# Track A label sets carry the first 2 KB of third-party files; kept local, rebuilt from the pinned corpus.
+bench/gold/
+
+# Working plans handed to other agents; not part of the product.
+codex-*.md

@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -68,4 +68,36 @@ test("a long log returns its last lines and where earlier errors are", () => {
   assert.match(out.additionalContext, /long log/);
   assert.match(out.additionalContext, /L1201/);
   assert.doesNotMatch(out.additionalContext, /webhook/, "log text never reaches the note, only line numbers");
+});
+
+test("a file over Claude Code's 256 KB read limit is left to its own refusal, with no saving recorded", () => {
+  const root = project();
+  const big = Array.from({ length: 4000 }, (_, i) => `2026-10-02T10:00:00Z INFO GET /api/orders 200 ${i}ms user=u_${i % 500} trace=${"x".repeat(20)}`).join("\n") + "\n";
+  assert.ok(big.length > 256 * 1024);
+  writeFileSync(join(root, "big.log"), big);
+  assert.equal(pre(root, "big.log"), undefined, "no window: Claude Code refuses the whole read itself");
+  assert.ok(pre(root, "big.log", { offset: 3900, limit: 50 }) === undefined, "a ranged read still passes");
+  const whole = JSON.parse(readFileSync(join(root, ".snout/ledger.jsonl"), "utf8").split("\n")[0]);
+  assert.equal(whole.decision, "allow");
+  assert.equal(whole.tokensAvoidedEst, 0, "nothing withheld: none of it was going to reach the context");
+  assert.ok(!whole.trimmed);
+});
+
+test("a ranged read of a file over the size cap goes ahead (PointFive C1)", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const { mkdtempSync, mkdirSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const root = mkdtempSync(join(tmpdir(), "snout-ranged-"));
+  mkdirSync(join(root, "logs"));
+  const line = "2026-07-04T09:00:00Z INFO api ok request_id=r1 something happened here\n";
+  writeFileSync(join(root, "logs/prod.log"), line.repeat(25_000)); // ~1.8 MB
+  const cli = new URL("../dist/snout.mjs", import.meta.url).pathname;
+  const r = spawnSync(process.execPath, [cli, "pre-tool"], {
+    input: JSON.stringify({ session_id: "s", cwd: root, hook_event_name: "PreToolUse", tool_name: "Read", tool_use_id: "u", tool_input: { file_path: join(root, "logs/prod.log"), offset: 16990, limit: 400 } }),
+    encoding: "utf8", env: { ...process.env, SNOUT_MODE: "enforce" },
+  });
+  const out = JSON.parse(r.stdout || "{}");
+  const decision = out.hookSpecificOutput?.permissionDecision;
+  assert.ok(decision === undefined || decision === "allow", `ranged read was ${decision}: ${out.hookSpecificOutput?.permissionDecisionReason ?? ""}`);
 });

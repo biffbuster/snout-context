@@ -49,7 +49,9 @@ import { scorePrompt, scoreWithJev } from "./coach/coach.js";
 import { kindOf, squeeze } from "./squeeze/squeeze.js";
 import { trimMcp } from "./squeeze/mcp.js";
 import { auditServers, disableHint } from "./audit/mcp-servers.js";
+import { archiveFiles, auditContext, listArchives, renderAudit, renderMap, restoreArchive, toJson } from "./audit/context.js";
 import { docWindow, type DocWindow } from "./gate/longdoc.js";
+import { buildMap, candidates, renderCandidates, type RepoMap } from "./map/map.js";
 import { forgetReads, rememberRead, repeatOf, repeatOutput, requestedWindow, returnedWindow } from "./gate/repeat.js";
 
 const VERSION = "0.2.2";
@@ -316,6 +318,7 @@ function dispatch(command: string, input: HookInput): void {
     case "spend": return cmdSpend(paths, process.argv.slice(3));
     case "coach": return cmdCoach(paths, cfg, process.argv.slice(3));
     case "output": return cmdOutput(paths, cfg, process.argv.slice(3));
+    case "map": return cmdMap(paths, cfg, process.argv.slice(3));
     case "version": return say(`snout ${VERSION}`);
     case "status": return cmdStatus(paths, cfg);
     case "help": case "--help": case "-h": return say(HELP);
@@ -451,6 +454,7 @@ function withOutputStyle(cfg: Config, out: Record<string, unknown>): Record<stri
  * each was used, and the ones that only add their tool list to every request.
  */
 async function cmdAudit(args: string[]): Promise<void> {
+  if (args[0] === "context") return cmdAuditContext(args.slice(1));
   const flag = (name: string) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
   const days = Math.max(1, Number(flag("--days")) || 30);
   const dir = args.find((a, i) => !a.startsWith("-") && args[i - 1] !== "--days");
@@ -481,6 +485,68 @@ async function cmdAudit(args: string[]): Promise<void> {
   if (!measure) lines.push("", "Add --measure to start each local server once and count what its tool list costs.");
   if (reports.some((r) => r.source === "Claude account connector")) lines.push("Connectors from your Claude account can't be listed from local files, so unused ones don't show here. Claude Code loads large tool sets on demand, which limits their cost; review them at claude.ai → Settings → Connectors.");
   say(lines.join("\n"));
+}
+
+/**
+ * `snout audit context`: instruction files, skills, commands, agents and AI-written docs, what
+ * each costs per session, whether it's used, and which are dead weight. Archives only on request,
+ * after the user confirms, and every archive can be restored.
+ */
+async function cmdAuditContext(args: string[]): Promise<void> {
+  const valued = new Set(["--days", "--restore", "--max-tokens"]);
+  const flag = (name: string) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
+  const ai = args.indexOf("--archive");
+  const archivePaths = ai >= 0 ? args.slice(ai + 1).filter((a) => !a.startsWith("-")) : [];
+  const dir = ai >= 0 ? undefined : args.find((a, i) => !a.startsWith("-") && !valued.has(args[i - 1] ?? ""));
+  const paths = resolvePaths(dir);
+  const projectDir = paths.projectDir;
+
+  if (args.includes("--restore")) {
+    const id = flag("--restore");
+    if (!id || id.startsWith("-")) {
+      const list = listArchives(projectDir);
+      if (!list.length) return say("No archives in .snout/archive/.");
+      return say(["Archives (restore with: snout audit context --restore <id>)", ...list.map((m) => `  ${m.id}  ${m.files.length} file${m.files.length === 1 ? "" : "s"}: ${m.files.slice(0, 3).map((f) => f.path).join(", ")}${m.files.length > 3 ? ", …" : ""}`)].join("\n"));
+    }
+    try {
+      const r = restoreArchive(projectDir, id);
+      return say([`Restored ${r.restored.length} file${r.restored.length === 1 ? "" : "s"} from ${id}.`, ...r.restored.map((p) => `  ${p}`), ...(r.skipped.length ? [`Left in the archive (a file is back at that path, or it's missing): ${r.skipped.join(", ")}`] : [])].join("\n"));
+    } catch (err) {
+      return say(`snout audit context: ${(err as Error).message}`);
+    }
+  }
+
+  if (ai >= 0) {
+    if (!archivePaths.length) return say("Usage: snout audit context --archive <path> [more paths]");
+    const audit = auditContext(projectDir, { days: Math.max(1, Number(flag("--days")) || 30), noGit: true });
+    const kinds = new Map(audit.files.map((f) => [f.path, f]));
+    const lines = archivePaths.map((p) => { const f = kinds.get(p.replace(/^\.\//, "")); return `  ${p}${f ? `  (${f.kind}${f.kind === "always" ? ", loaded into every session" : ""})` : ""}`; });
+    const instructions = archivePaths.some((p) => kinds.get(p.replace(/^\.\//, ""))?.kind === "always");
+    say([`Move ${archivePaths.length} file${archivePaths.length === 1 ? "" : "s"} to .snout/archive/ (restorable with --restore):`, ...lines, ...(instructions ? ["Includes instruction files your agents load every session; they will stop seeing them."] : [])].join("\n"));
+    if (!args.includes("--yes")) {
+      if (!process.stdin.isTTY) return say("Not moved. Confirm by running it again with --yes.");
+      const answer = await new Promise<string>((done) => {
+        process.stdout.write("Move them? [y/N] ");
+        process.stdin.setEncoding("utf8");
+        process.stdin.once("data", (d) => { process.stdin.pause(); done(String(d).trim().toLowerCase()); });
+      });
+      if (answer !== "y" && answer !== "yes") return say("Not moved.");
+    }
+    try {
+      const m = archiveFiles(projectDir, archivePaths);
+      return say(`Archived to .snout/archive/${m.id}/. Undo with: snout audit context --restore ${m.id}`);
+    } catch (err) {
+      return say(`snout audit context: ${(err as Error).message}. Nothing was moved.`);
+    }
+  }
+
+  const days = Math.max(1, Number(flag("--days")) || 30);
+  const max = Number(flag("--max-tokens")) || undefined;
+  const ledger = readDecisions(paths.ledger, 20_000).map((r) => ({ path: r.path, ts: r.ts }));
+  const audit = auditContext(projectDir, { days, ledger, oversizedTokens: max });
+  if (args.includes("--json")) return say(JSON.stringify(toJson(audit), null, 2));
+  if (args.includes("--map")) return say(renderMap(audit));
+  say(renderAudit(audit, { all: args.includes("--all") }));
 }
 
 function cmdOutput(paths: Paths, cfg: Config, args: string[]): void {
@@ -714,8 +780,84 @@ function onPromptSubmit(input: HookInput, paths: Paths, cfg: Config): void {
   state.turn += 1;
   state.goalHash = createHash("sha256").update(input.prompt ?? "").digest("hex").slice(0, 12);
   const tip = coachPrompt(input.prompt ?? "", paths, cfg, state);
+  const files = cfg.repoMap ? suggestFiles(input.prompt ?? "", paths, cfg, state) : "";
   saveState(paths.state, state);
-  emit(tip ? { systemMessage: tip } : {});
+  emit({
+    ...(tip ? { systemMessage: tip } : {}),
+    ...(files ? { hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: files } } : {}),
+  });
+}
+
+/**
+ * Number of candidate files offered per prompt. Every one costs tokens on every later turn, and on
+ * short tasks the list cost as much as it saved (PointFive C1), so it stays short.
+ */
+const MAP_CANDIDATES = 4;
+
+/** Rebuilds the repo map, rereading only files whose size or mtime changed. Snout's own trim rules keep low-value files out. */
+function refreshMap(paths: Paths, cfg: Config): RepoMap {
+  let prev: RepoMap | null = null;
+  try { prev = JSON.parse(readFileSync(paths.map, "utf8")) as RepoMap; } catch { /* first build */ }
+  const lowValue = (rel: string) => {
+    try { return decide({ absPath: join(paths.projectDir, rel), projectDir: paths.projectDir, cfg }).value === 0; } catch { return false; }
+  };
+  const { map, read } = buildMap(paths.projectDir, prev, lowValue);
+  if (read || !prev) {
+    ensureDir(paths.snoutDir);
+    writeAtomic(paths.map, JSON.stringify(map));
+  }
+  return map;
+}
+
+/**
+ * The candidate-files line for a prompt (opt-in, `snout map on`), or "" when the prompt names
+ * nothing the map links to more than one file. Paths only, never contents; names in it come from
+ * a strict identifier pattern and paths go through safePath. Each suggestion is logged with its
+ * size, so its cost is counted and the benchmark can see which suggested files were opened.
+ */
+function suggestFiles(prompt: string, paths: Paths, cfg: Config, state: SessionState): string {
+  if (!prompt.trim()) return "";
+  try {
+    const cs = candidates(refreshMap(paths, cfg), prompt, MAP_CANDIDATES);
+    if (!cs.some((c) => c.defines.some((name) => namedExactly(prompt, name)))) return "";
+    const line = renderCandidates(cs.map((c) => ({ ...c, path: safePath(c.path) })));
+    appendRow(join(paths.snoutDir, "map-suggestions.jsonl"), {
+      ts: new Date().toISOString(), session: state.session, turn: state.turn,
+      paths: cs.map((c) => c.path), tokensEst: estimateTokens(Buffer.byteLength(line), "x.txt"),
+    });
+    return line;
+  } catch (err) {
+    recordError("repoMap", err);
+    return "";
+  }
+}
+
+/**
+ * True when the prompt names `name` itself, as code: the identifier appears verbatim and looks like
+ * one (mixed case, an underscore or digit, or long enough not to be an ordinary word). Plain words
+ * that merely join into a declared name ("tax rate" → taxRate) don't fire the suggestion.
+ */
+function namedExactly(prompt: string, name: string): boolean {
+  if (!new RegExp(`(^|[^A-Za-z0-9_])${name.replace(/[$]/g, "\\$")}($|[^A-Za-z0-9_])`).test(prompt)) return false;
+  return /[A-Z_0-9]/.test(name.slice(1)) || name.length >= 8 || (/^[A-Z]/.test(name) && name.length >= 6);
+}
+
+/** `snout map on|off` toggles suggestions; `snout map "<request>"` shows what a prompt would get. */
+function cmdMap(paths: Paths, cfg: Config, args: string[]): void {
+  const v = args[0];
+  if (v === "on" || v === "off") {
+    setConfigKey(paths.config, "repoMap", v === "on");
+    return say(v === "on"
+      ? "Repo map on. Each prompt that names code in this repo gets a short list of the files that define or use it (~300 tokens, paths only). Turn it off with `snout map off`."
+      : "Repo map off. Snout adds nothing to your prompts.");
+  }
+  const t0 = Date.now();
+  const map = refreshMap(paths, cfg);
+  const n = Object.keys(map.files).length;
+  const request = args.join(" ").trim();
+  if (!request) return say(`Repo map: ${n} files indexed in ${Date.now() - t0} ms (${cfg.repoMap ? "on" : "off"}). Usage: snout map on|off · snout map "<request>"`);
+  const line = renderCandidates(candidates(map, request, MAP_CANDIDATES).map((c) => ({ ...c, path: safePath(c.path) })));
+  say(line || "No file in the map is linked to names in that request.");
 }
 
 /** Coaching needs this many turns between tips, so a user iterating on a task is not nagged. */
@@ -824,6 +966,15 @@ function onPreTool(input: HookInput, paths: Paths, cfg: Config): void {
   const windowBytes = readWindowBytes(input, absPath);
   const g = classifyForGate(input, paths, cfg, state, absPath, windowBytes);
 
+  // Claude Code refuses a whole-file Read over 256 KB with a one-line "use offset and
+  // limit, or search" note, which is cheaper than any window Snout could return. Step aside, and
+  // record no saving: none of that file was ever going to reach the context.
+  if (!client && tool === "Read" && windowBytes === undefined && overNativeReadLimit(absPath)) {
+    recordRow(paths.ledger, { ...g.row, decision: "allow", tokensAvoidedEst: 0, tokensReadEst: 0, reason: "Over Claude Code's 256 KB read limit, which refuses this read itself" });
+    emit({});
+    return;
+  }
+
   // Trim rather than deny when the file has a useful head: the read goes ahead, cut to its
   // first lines, with the outline attached. A deny costs the agent a turn to re-plan; a trim
   // costs nothing, and the head plus the outline is usually what it wanted.
@@ -847,6 +998,10 @@ function onPreTool(input: HookInput, paths: Paths, cfg: Config): void {
   }
   gateResponse(input, paths, state, g, "");
 }
+
+/** Claude Code's Read refuses a whole file over 256 KB ("exceeds maximum allowed size"). */
+const NATIVE_READ_MAX_BYTES = 256 * 1024;
+const overNativeReadLimit = (absPath: string): boolean => sizeOf(absPath) > NATIVE_READ_MAX_BYTES;
 
 function isRegularFile(absPath: string): boolean {
   try {
@@ -1067,6 +1222,13 @@ function classifyForGate(input: HookInput, paths: Paths, cfg: Config, state: Ses
   const bytes = windowBytes ?? sizeOf(absPath);
   const estimated = estimateTokens(bytes, rel);
   let d = decide({ absPath, projectDir: paths.projectDir, cfg });
+  // The size cap is about the whole file crowding out the conversation. A ranged read is the
+  // narrow read the cap points the agent toward, so it is judged by its window, not the file
+  // (PointFive C1: a 400-line read of a 1.4 MB log was asked about, which headless runs treat
+  // as a refusal, and the agent spent 34 turns working around it).
+  if (d.rule === "oversized" && windowBytes !== undefined && windowBytes <= cfg.sizeCapBytes) {
+    d = { ...d, verdict: "allow", suppressedByMode: true };
+  }
   // Too small to be worth the turn a deny costs, or not a file at all: record, don't block.
   if (d.verdict !== "allow" && !worthGating(d, isRegularFile(absPath), estimated)) {
     d = { ...d, verdict: "allow", suppressedByMode: true };

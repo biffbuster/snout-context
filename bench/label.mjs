@@ -323,7 +323,12 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error(err.message);
-  process.exitCode = 1;
-});
+export { loadAllWithPredictions, labelOneJev, looksBinary, pool, JEV_USD_PER_MTOK, JEV_QUESTION };
+export const jevUsage = () => jevInputTokens;
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((err) => {
+    console.error(err.message);
+    process.exitCode = 1;
+  });
+}
