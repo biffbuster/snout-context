@@ -1,13 +1,14 @@
 // Repeat skip: what an agent already has, unchanged, is not sent again. Any change, another
 // agent, or a compaction gets the full text.
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const CLI = new URL("../dist/snout.mjs", import.meta.url).pathname;
+const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 const ENFORCE = { SNOUT_MODE: "enforce" };
 
 function project() {
@@ -152,4 +153,25 @@ test("a compound command that runs the squeeze hook twice for one call is record
   assert.equal(b.hookSpecificOutput.updatedToolOutput.stdout.split("\n").length, a.hookSpecificOutput.updatedToolOutput.stdout.split("\n").length, "both runs return the same output");
   const rows = readFileSync(join(root, ".snout/ledger.jsonl"), "utf8").trim().split("\n").map(JSON.parse).filter((r) => r.rule === "command-output");
   assert.equal(rows.length, 1, "savings are counted once");
+});
+
+test("a hook from a subdirectory the agent cd'd into uses the project's .snout, not a new one", async () => {
+  const { mkdtempSync, mkdirSync, writeFileSync, existsSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { spawnSync } = await import("node:child_process");
+  const root = mkdtempSync(join(tmpdir(), "snout-cd-"));
+  mkdirSync(join(root, ".snout"));
+  mkdirSync(join(root, "lib"));
+  writeFileSync(join(root, "lib/app.js"), "export const x = 1;\n");
+  const hook = (cwd, env = {}) => spawnSync(process.execPath, [CLI, "post-tool"], {
+    input: JSON.stringify({ session_id: "s", cwd, hook_event_name: "PostToolUse", tool_name: "Bash", tool_use_id: "u", tool_input: { command: "grep -rn x ." }, tool_response: { stdout: "app.js:1:x", stderr: "" } }),
+    encoding: "utf8", env: { ...process.env, CLAUDE_PROJECT_DIR: "", ...env },
+  });
+  hook(join(root, "lib"));
+  assert.ok(!existsSync(join(root, "lib/.snout")), "found the parent's .snout");
+  const other = mkdtempSync(join(tmpdir(), "snout-cd2-"));
+  mkdirSync(join(other, "pkg"));
+  hook(join(other, "pkg"), { CLAUDE_PROJECT_DIR: other });
+  assert.ok(!existsSync(join(other, "pkg/.snout")), "CLAUDE_PROJECT_DIR wins for a directory inside it");
 });

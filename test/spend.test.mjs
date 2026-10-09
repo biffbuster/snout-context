@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
@@ -6,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { claudeRequests, codexRequests, costOf, readSpend, claudeSlug, summarizeSpend } from "../dist/lib.mjs";
 
-const CLI = new URL("../dist/snout.mjs", import.meta.url).pathname;
+const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 const today = new Date().toISOString().slice(0, 10);
 
 const claudeLine = (o = {}) => JSON.stringify({
@@ -22,6 +23,7 @@ test("prices follow the published list: Opus 5.5 with 5m and 1h cache writes, an
   // fast: $8/$40, cache multipliers on top of the fast input rate
   assert.equal(costOf("claude-opus-5-5", { ...u, fast: true }), 8 + 10 + 16 + 0.4 + 40);
   assert.equal(costOf("claude-haiku-4-5-20251001", { ...u, cacheWrite5m: 0, cacheWrite1h: 0 }), 1 + 0.1 + 5, "dated snapshots price as their family");
+  assert.ok(Math.abs(costOf("claude-haiku-5-5", { ...u, cacheWrite5m: 0, cacheWrite1h: 0 }) - (0.1 + 0.01 + 0.5)) < 1e-9, "Haiku 5.5 is priced");
   assert.equal(costOf("gpt-6-astra", { input: 1e6, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 1e6, output: 1e6 }), 10 + 1 + 50);
   assert.equal(costOf("some-future-model", u), null);
 });

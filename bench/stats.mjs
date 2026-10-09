@@ -39,7 +39,8 @@ function choose(n, k) {
 }
 
 /** Pass^k for both arms, and the sign test on tasks solved every run in one arm but not the other. */
-export function reliabilityLines(off, on, ok) {
+export function reliabilityLines(off, on, ok, names = ["off", "enforce"]) {
+  const [base, arm] = names;
   const a = reliability(off, ok), b = reliability(on, ok);
   let wins = 0, losses = 0;
   for (const [t, offAll] of a.allOf) {
@@ -48,8 +49,8 @@ export function reliabilityLines(off, on, ok) {
     if (onAll) wins++; else losses++;
   }
   return [
-    `  solved every run off ${a.passAll}/${a.tasks} · enforce ${b.passAll}/${b.tasks}   (Pass^k; solved at least once: off ${a.passAny} · enforce ${b.passAny})`,
-    `  sign test       enforce better on ${wins} task(s), worse on ${losses}; exact two-sided p = ${signTest(wins, losses).toFixed(3)}`,
+    `  solved every run ${base} ${a.passAll}/${a.tasks} · ${arm} ${b.passAll}/${b.tasks}   (Pass^k; solved at least once: ${base} ${a.passAny} · ${arm} ${b.passAny})`,
+    `  sign test       ${arm} better on ${wins} task(s), worse on ${losses}; exact two-sided p = ${signTest(wins, losses).toFixed(3)}`,
   ];
 }
 

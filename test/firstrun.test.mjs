@@ -1,11 +1,12 @@
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const CLI = new URL("../dist/snout.mjs", import.meta.url).pathname;
+const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 const row = (o) => JSON.stringify({ ts: new Date().toISOString(), session: "s", turn: 1, tool: "Read", path: "src/a.ts", tier: 0, rule: "unclassified", value: 2, confidence: 0, decision: "allow", mode: "observe", reason: "", bytes: 1, tokensAvoidedEst: 0, tokensReadEst: 500, jevInputTokens: 0, latencyMs: 1, model: null, reversedByUser: false, ...o });
 
 function project(mode, rows) {

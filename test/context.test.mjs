@@ -1,5 +1,6 @@
 // `snout audit context`: inventory, usage, authorship, every flag, the map, archive and restore.
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -10,7 +11,7 @@ import {
   renderAudit, renderMap, totals, archiveFiles, restoreArchive, listArchives,
 } from "../dist/lib.mjs";
 
-const CLI = new URL("../dist/snout.mjs", import.meta.url).pathname;
+const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 const OLD = "2026-01-05T12:00:00Z";
 const words = (n, seed) => Array.from({ length: n }, (_, i) => `${seed}${i % 97} word${(i * 7) % 113}`).join(" ");
 

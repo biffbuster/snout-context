@@ -7,7 +7,10 @@
  * The design follows CorpusMap (Jeong et al., 2026, arXiv:2609.37226) for code:
  * - names, not documents, are the anchors; a name links files only when two or more share it,
  *   except a name the request types exactly as declared, which points to its declaring file;
- *   plain lowercase words count only when some file declares them;
+ *   a name no file declares counts only where the request writes it as code (backticks, a code
+ *   block or traceback, a call, an underscore), so English words ("Please", "Create") link nothing;
+ * - a file is "named" only when the request writes it as a file (`query.py`, `/query`, "the query
+ *   module"), not when a word matches its stem ("tests", "changelog");
  * - the map is a plain name→files index (no name→name edges: they added tokens, not recall);
  * - it is built without a model (declarations and identifiers), from hand-written files only:
  *   Snout's own rules leave out generated, vendored and lockfile content;
@@ -49,6 +52,10 @@ const MAX_FILES = 20_000;
 const MAX_WORDS = 3000;
 
 const WORD = /[A-Za-z_][A-Za-z0-9_]{3,63}/g;
+/** Test files: they use every name a bug report's example uses, so their uses count for less. */
+const TESTS = /(^|\/)(tests?|testing)\/|(^|\/)test_[^/]*$|_tests?\.[a-z]+$|\.(test|spec)\.[a-z]+$/i;
+/** Links in a request: their paths and hosts are not names or file references. */
+const URL = /\b(?:https?:\/\/|www\.)\S+/g;
 /** Files that mention names in prose rather than code. */
 const PROSE = /\.(md|mdx|rst|txt|ya?ml|json|toml|ini|cfg|html)$|(^|\/)(CHANGES|CHANGELOG|HISTORY|NEWS)/i;
 /** Language keywords and filler that would link every file to every other. */
@@ -142,6 +149,39 @@ export function requestNames(prompt: string): Set<string> {
 }
 
 /**
+ * Names the request writes as code: inside backticks, a fenced or indented block or a traceback
+ * line, or shaped like code in running text (a call, attribute access, decorator, an underscore,
+ * a digit, or a lowercase-first camelCase name).
+ */
+export function codeNames(request: string): Set<string> {
+  const out = new Set<string>();
+  const prompt = request.replace(URL, " ");
+  const spans = [
+    ...[...prompt.matchAll(/```[\s\S]*?```|`[^`\n]+`/g)].map((m) => m[0]),
+    ...prompt.split("\n").filter((l) => /^(\t| {4})|^\s*File "|^\s*(>>>|\$|In \[\d+\]:)/.test(l)),
+  ];
+  for (const sp of spans) for (const m of sp.matchAll(WORD)) out.add(m[0]);
+  for (const m of prompt.matchAll(/(?<=[.@])[A-Za-z_]\w{3,63}|[A-Za-z_]\w{3,63}(?=\()/g)) out.add(m[0]);
+  for (const m of prompt.matchAll(WORD)) if (/_|\d|^[a-z]+[A-Z]/.test(m[0])) out.add(m[0]);
+  return out;
+}
+
+/**
+ * True when the prompt names `name` itself, as code: the identifier appears verbatim and looks like
+ * one (mixed case, an underscore or digit, or long enough not to be an ordinary word). Plain words
+ * that merely join into a declared name ("tax rate" → taxRate) don't count.
+ */
+export function namedExactly(prompt: string, name: string): boolean {
+  if (!new RegExp(`(^|[^A-Za-z0-9_])${name.replace(/[$]/g, "\\$")}($|[^A-Za-z0-9_])`).test(prompt)) return false;
+  return /[A-Z_0-9]/.test(name.slice(1)) || name.length >= 8 || (/^[A-Z]/.test(name) && name.length >= 6);
+}
+
+/** The hook's firing rule: suggest only when a candidate declares a name the request types exactly. */
+export function shouldSuggest(cs: Candidate[], prompt: string): boolean {
+  return cs.some((c) => c.defines.some((name) => namedExactly(prompt, name)));
+}
+
+/**
  * Files linked to the names a request mentions, best first. A file that declares a name scores
  * more than one that only uses it; rarer names score more (inverse document frequency). Names
  * linked to only one file, or to too large a share of the project, are not anchors.
@@ -150,7 +190,8 @@ export function candidates(map: RepoMap, prompt: string, k = 15): Candidate[] {
   const paths = Object.keys(map.files);
   const N = paths.length;
   if (!N) return [];
-  const asked = requestNames(prompt);
+  const asked = requestNames(prompt.replace(URL, " "));
+  const asCode = codeNames(prompt);
   const askedLower = new Map<string, string>();
   for (const a of asked) if (a.length >= 6) askedLower.set(a.toLowerCase(), a);
 
@@ -173,9 +214,9 @@ export function candidates(map: RepoMap, prompt: string, k = 15): Candidate[] {
   };
   for (const [name, users] of usedBy) {
     const defs = definedBy.get(name) ?? [];
-    // A plain lowercase word ("drops", "config") is an anchor only if some file declares it;
-    // otherwise ordinary English in the request links unrelated files.
-    if (!defs.length && /^[a-z]+$/.test(name)) continue;
+    // A name no file declares is an anchor only where the request writes it as code; otherwise
+    // ordinary English ("drops", "Please", "Create") links unrelated files.
+    if (!defs.length && !asCode.has(name)) continue;
     // Short plain words ("repo", "name", "data") are declared somewhere in most projects.
     if (/^[a-z]{1,4}$/.test(name)) continue;
     const linked = new Set([...users, ...defs]);
@@ -184,13 +225,20 @@ export function candidates(map: RepoMap, prompt: string, k = 15): Candidate[] {
     if (linked.size > Math.max(25, N * 0.05)) continue;
     const idf = Math.log(1 + N / linked.size);
     for (const p of defs) add(p, 2 * idf, name, true);
-    // Docs, changelogs and CI config mention names in prose; they rank below code that uses them.
-    for (const p of users) if (!defs.includes(p)) add(p, PROSE.test(p) ? idf * 0.3 : idf, name, false);
+    // A plain word ("update", "select") that the request doesn't write as code points to the files
+    // declaring it; every file that merely uses the word is noise.
+    if (/^[a-z]+$/.test(name) && !asCode.has(name)) continue;
+    // Docs, changelogs and CI config mention names in prose; tests use every name in an example.
+    for (const p of users) if (!defs.includes(p)) add(p, PROSE.test(p) ? idf * 0.3 : TESTS.test(p) ? idf * 0.5 : idf, name, false);
   }
-  // A request that names a file directly ("fix utils.py", "the cart module").
+  // A request that names a file as a file ("fix utils.py", "src/cart", "the cart module"); a word
+  // that only matches a stem ("tests", "query", "changelog") is not a file reference.
+  const lower = prompt.replace(URL, " ").toLowerCase();
   for (const p of paths) {
     const stem = basename(p, extname(p)).toLowerCase();
-    if (stem.length >= 5 && (asked.has(stem) || [...asked].some((a) => a.toLowerCase() === stem))) add(p, Math.log(1 + N), stem, true);
+    if (stem.length < 5) continue;
+    const esc = stem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`(^|[^\\w.])${esc}\\.[a-z]{1,5}\\b|/${esc}\\b|\\b${esc} (module|file|package)\\b`).test(lower)) add(p, Math.log(1 + N), stem, true);
   }
   return [...scored.values()].sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, k);
 }

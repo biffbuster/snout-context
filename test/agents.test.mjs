@@ -2,13 +2,14 @@
 // vendor's docs: Cursor (cursor.com/docs/hooks), Gemini CLI (geminicli.com/docs/hooks),
 // Codex CLI (learn.chatgpt.com/docs/hooks).
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const CLI = new URL("../dist/snout.mjs", import.meta.url).pathname;
+const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 
 function project(mode = "enforce") {
   const root = mkdtempSync(join(tmpdir(), "snout-agents-"));

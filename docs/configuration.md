@@ -117,6 +117,21 @@ They are evaluated in this order, and the order is the policy:
    the rules handle is how two policies end up disagreeing, since the list runs first and
    overrides the rule's more nuanced verdict.
 
+## Pins: facts kept through compaction
+
+When Snout is on, right after the agent compacts its conversation Snout puts back the exact facts the
+summary may have lost: the test command that worked, tools that are missing, commands that ran too
+long, files changed and the current request. To keep something else, add a line to `.snout/pins.md`:
+
+```markdown
+- Never run migrations against prod
+- `config/deploy.yml` — deploy targets [re-read 20]
+```
+
+A line starting with a path points the agent to that file; `[re-read N]` brings its first N lines
+from disk (files matching the `redact` list never are). Up to 10 pins. Like `CLAUDE.md`, a committed
+`pins.md` reaches every agent that works in the repo, so treat it as project instructions.
+
 ## Ignore files
 
 `.snoutignore` in the project root is read and appended to the deny list: one glob per line,

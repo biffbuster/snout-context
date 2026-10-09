@@ -2,13 +2,14 @@
 // headings; a long log returns its tail and where errors are. Ranged reads and instruction
 // files are never cut.
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const CLI = new URL("../dist/snout.mjs", import.meta.url).pathname;
+const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 
 function project() {
   const root = mkdtempSync(join(tmpdir(), "snout-longdoc-"));
@@ -92,7 +93,7 @@ test("a ranged read of a file over the size cap goes ahead (PointFive C1)", asyn
   mkdirSync(join(root, "logs"));
   const line = "2026-07-04T09:00:00Z INFO api ok request_id=r1 something happened here\n";
   writeFileSync(join(root, "logs/prod.log"), line.repeat(25_000)); // ~1.8 MB
-  const cli = new URL("../dist/snout.mjs", import.meta.url).pathname;
+  const cli = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
   const r = spawnSync(process.execPath, [cli, "pre-tool"], {
     input: JSON.stringify({ session_id: "s", cwd: root, hook_event_name: "PreToolUse", tool_name: "Read", tool_use_id: "u", tool_input: { file_path: join(root, "logs/prod.log"), offset: 16990, limit: 400 } }),
     encoding: "utf8", env: { ...process.env, SNOUT_MODE: "enforce" },

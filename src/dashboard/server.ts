@@ -8,7 +8,8 @@
  *
  * Nothing leaves the machine. The page loads no fonts, scripts or images from anywhere.
  */
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { createRequire } from "node:module";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { statSync, unwatchFile, watchFile } from "node:fs";
 import { basename, join } from "node:path";
@@ -133,6 +134,9 @@ export function startDashboard(paths: Paths, opts: DashboardOptions): { close: (
   }, SPEND_MS);
 
   let port = opts.port;
+  // Loaded here, not imported at the top: an ESM import of node:http makes Node evaluate its lazy
+  // exports, which loads undici (fetch) and costs every hook process ~15 ms it never uses.
+  const { createServer } = createRequire(import.meta.url)("node:http") as typeof import("node:http");
   const server = createServer((req, res) => handle(req, res));
 
   function handle(req: IncomingMessage, res: ServerResponse): void {

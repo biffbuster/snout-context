@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, mkdirSync, renameSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, relative, resolve, isAbsolute } from "node:path";
 import type { Mode } from "./types.js";
 import { recordError, setErrorLog } from "./util/log.js";
 
@@ -21,6 +21,8 @@ export interface Config {
   output?: "normal" | "concise";
   /** Suggest the files linked to names in each prompt, from a local repo map (opt-in). Default off. */
   repoMap?: boolean;
+  /** Blocking hooks call a long-running `snout serve` over HTTP instead of starting Node each time. Default on; false keeps command hooks. */
+  fastHooks?: boolean;
   /**
    * Phase 1+ keys. They are declared so the shape is stable and a user's file survives an
    * upgrade, but NOTHING reads them yet. They are omitted from the defaults written to
@@ -60,7 +62,7 @@ export interface Paths {
  * sets and then to cwd. `cwd` from the hook is the most reliable of the three.
  */
 export function resolvePaths(hookCwd?: string): Paths {
-  const projectDir = resolve(hookCwd || process.env.CLAUDE_PROJECT_DIR || process.cwd());
+  const projectDir = projectRootOf(resolve(hookCwd || process.env.CLAUDE_PROJECT_DIR || process.cwd()));
   const snoutDir = join(projectDir, ".snout");
   adoptLegacyDir(join(projectDir, ".jev"), snoutDir);
   return {
@@ -105,6 +107,29 @@ export function userConfigPath(): string {
 }
 
 /** Snout was called jev before 0.2.0: move its data folder over once, so history carries on. */
+/**
+ * The project a directory belongs to. An agent that runs `cd lib` reports `lib` as its cwd on every
+ * later hook, which would start a second `.snout/` there: a split ledger, a lost repeat-read memory
+ * and an unread config (PointFive: a run failed as "unrelated edits" for exactly this). So a
+ * directory inside CLAUDE_PROJECT_DIR resolves to it, and otherwise to the nearest parent that
+ * already has a `.snout/`. The home directory never counts: its `.snout/` is the user config.
+ * The git root is deliberately not used, so a package inside a monorepo keeps its own data.
+ */
+function projectRootOf(dir: string): string {
+  const declared = process.env.CLAUDE_PROJECT_DIR ? resolve(process.env.CLAUDE_PROJECT_DIR) : null;
+  if (declared && isInside(dir, declared)) return declared;
+  const home = resolve(homedir());
+  for (let d = dir; ; d = dirname(d)) {
+    if (d === home || dirname(d) === d) return dir;
+    if (existsSync(join(d, ".snout"))) return d;
+  }
+}
+
+const isInside = (dir: string, root: string) => {
+  const rel = relative(root, dir);
+  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+};
+
 function adoptLegacyDir(legacy: string, current: string): void {
   try {
     if (!existsSync(current) && existsSync(legacy)) renameSync(legacy, current);

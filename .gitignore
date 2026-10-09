@@ -45,3 +45,4 @@ bench/gold/
 
 # Working plans handed to other agents; not part of the product.
 codex-*.md
+bench/frozen/

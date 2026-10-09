@@ -39,7 +39,10 @@ import { initAgent } from "./agents/init.js";
 import { startMcp } from "./mcp.js";
 import { startDashboard, type DashboardActions } from "./dashboard/server.js";
 import { liveDashboard, registerDashboard } from "./dashboard/registry.js";
-import { installGate, refreshGate, removeGate } from "./gate/install.js";
+import { createRequire } from "node:module";
+import { handoffText, workingState } from "./compact/handoff.js";
+import { memoryText, readPins, sessionFacts } from "./compact/memory.js";
+import { installGate, refreshGate, removeGate, HOOK_PORT, isSnoutUrl } from "./gate/install.js";
 import { AGENT_SYNC_MS, AUTO_SYNC_MS, buildPayload, cloudUrl, configDir, forgetCredentials, lastSync, loadCredentials, login, sync } from "./cloud/client.js";
 import { readSpend } from "./spend/usage.js";
 import { summarizeSpend } from "./spend/summary.js";
@@ -51,12 +54,16 @@ import { trimMcp } from "./squeeze/mcp.js";
 import { auditServers, disableHint } from "./audit/mcp-servers.js";
 import { archiveFiles, auditContext, listArchives, renderAudit, renderMap, restoreArchive, toJson } from "./audit/context.js";
 import { docWindow, type DocWindow } from "./gate/longdoc.js";
-import { buildMap, candidates, renderCandidates, type RepoMap } from "./map/map.js";
+import { buildMap, candidates, renderCandidates, shouldSuggest, type RepoMap } from "./map/map.js";
 import { forgetReads, rememberRead, repeatOf, repeatOutput, requestedWindow, returnedWindow } from "./gate/repeat.js";
 
 const VERSION = "0.2.2";
 /** This bundle, by absolute path: what the gate hook and the login flow run. */
 const BIN = resolve(process.argv[1] ?? "dist/snout.mjs");
+
+/** When the current hook call started. A one-shot hook starts at process start; `snout serve` resets it per request. */
+let requestStart = 0;
+const elapsedMs = () => Math.round(performance.now() - requestStart);
 
 const HOOK_EVENTS = new Set(["session-start", "prompt-submit", "pre-tool", "post-tool", "pre-compact", "stop", "squeeze"]);
 
@@ -75,6 +82,11 @@ function main(): void {
     return startMcp(paths.projectDir, loadConfig(paths), VERSION, writeOut);
   }
   if (command === "dashboard") return cmdDashboard(process.argv.slice(3));
+  if (command === "serve") {
+    if (process.argv.includes("--ensure")) void ensureServer().finally(() => process.exit(0));
+    else startServer();
+    return;
+  }
   if (command === "audit") {
     void cmdAudit(process.argv.slice(3)).catch((err) => recordError("audit", err)).finally(() => process.exit(0));
     return;
@@ -303,7 +315,7 @@ function dispatch(command: string, input: HookInput): void {
     case "pre-tool": return onPreTool(input, paths, cfg);
     case "post-tool": return onPostTool(input, paths, cfg);
     case "squeeze": return onSqueeze(input, paths, cfg);
-    case "pre-compact": return onPreCompact(input, paths);
+    case "pre-compact": return onPreCompact(input, paths, cfg);
     case "stop": return onStop(input, paths, cfg);
 
     case "report": return cmdReport(paths, cfg, process.argv.slice(3));
@@ -319,6 +331,7 @@ function dispatch(command: string, input: HookInput): void {
     case "coach": return cmdCoach(paths, cfg, process.argv.slice(3));
     case "output": return cmdOutput(paths, cfg, process.argv.slice(3));
     case "map": return cmdMap(paths, cfg, process.argv.slice(3));
+    case "fast": return cmdFast(paths, cfg, process.argv[3]);
     case "version": return say(`snout ${VERSION}`);
     case "status": return cmdStatus(paths, cfg);
     case "help": case "--help": case "-h": return say(HELP);
@@ -425,6 +438,24 @@ function onSessionStart(input: HookInput, paths: Paths, cfg: Config): void {
     if (gateInstalled(paths)) refreshGate(paths.projectDir, BIN);
   } catch (err) {
     recordError("refreshGate", err);
+  }
+  // The fast path needs `snout serve` up before the first gated call; this waits until it answers.
+  if (cfg.mode !== "observe" && fastGateInstalled(paths)) {
+    try {
+      spawnSync(process.execPath, [BIN, "serve", "--ensure"], { stdio: "ignore", timeout: 3000 });
+    } catch (err) {
+      recordError("ensureServer", err);
+    }
+  }
+  // Right after a compaction: put back the exact facts the summary may have lost (compact/memory.ts).
+  // The one place Snout adds context on its own; capped at ~1k tokens, only when Snout is on.
+  if ((input.source ?? input.session_start_reason) === "compact" && cfg.mode !== "observe" && input.transcript_path) {
+    try {
+      const text = memoryText(sessionFacts(input.transcript_path, paths.projectDir), readPins(paths.projectDir, paths.snoutDir), paths.projectDir, cfg);
+      if (text) return emit({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: cfg.output === "concise" ? `${text}\n\n${CONCISE_INSTRUCTION}` : text } });
+    } catch (err) {
+      recordError("memory", err);
+    }
   }
   const s = summarizeLedger(readDecisions(paths.ledger, 5000));
   const report = firstRunReport(paths, cfg, s);
@@ -594,7 +625,7 @@ function setMode(paths: Paths, next: "observe" | "advise" | "enforce"): string {
     removeGate(paths.projectDir);
     return "Observe: Snout records what agents read and trims nothing.";
   }
-  installGate(paths.projectDir, BIN);
+  installGate(paths.projectDir, BIN, loadConfig(paths).fastHooks !== false);
   return `${next === "enforce" ? "Enforce: Snout gates what enters context (trims bulky reads and results, sends long docs by section, skips repeats)" : "Advise: Snout asks before a read that would crowd context"}. New agent sessions pick it up; running ones after /reload-plugins.`;
 }
 
@@ -819,7 +850,7 @@ function suggestFiles(prompt: string, paths: Paths, cfg: Config, state: SessionS
   if (!prompt.trim()) return "";
   try {
     const cs = candidates(refreshMap(paths, cfg), prompt, MAP_CANDIDATES);
-    if (!cs.some((c) => c.defines.some((name) => namedExactly(prompt, name)))) return "";
+    if (!shouldSuggest(cs, prompt)) return "";
     const line = renderCandidates(cs.map((c) => ({ ...c, path: safePath(c.path) })));
     appendRow(join(paths.snoutDir, "map-suggestions.jsonl"), {
       ts: new Date().toISOString(), session: state.session, turn: state.turn,
@@ -832,14 +863,105 @@ function suggestFiles(prompt: string, paths: Paths, cfg: Config, state: SessionS
   }
 }
 
+/** `snout fast on|off`: blocking hooks go through `snout serve` over HTTP, or back to one process per call. */
+function cmdFast(paths: Paths, cfg: Config, v?: string): void {
+  if (v !== "on" && v !== "off") return say(`Fast hooks are ${cfg.fastHooks !== false ? "on" : "off"}. Usage: snout fast on|off`);
+  setConfigKey(paths.config, "fastHooks", v === "on");
+  if (cfg.mode !== "observe") installGate(paths.projectDir, BIN, v === "on");
+  say(v === "on"
+    ? `Fast hooks on. Gated calls go to a local Snout server on 127.0.0.1:${HOOK_PORT} instead of starting Node each time; it starts with the next session and stops after 30 idle minutes. If it is down, the agent carries on ungated.`
+    : "Fast hooks off. Each gated call runs its own Snout process.");
+}
+
+const SERVE_IDLE_MS = 30 * 60_000;
+const healthUrl = () => `http://127.0.0.1:${HOOK_PORT}/snout/v1/health`;
+
+async function serverVersion(): Promise<string | null> {
+  try {
+    const r = await fetch(healthUrl(), { signal: AbortSignal.timeout(300) });
+    return r.ok ? ((await r.json()) as { version?: string }).version ?? null : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Starts `snout serve` unless one of this version already answers, and waits up to 2 s for it. */
+async function ensureServer(): Promise<void> {
+  if ((await serverVersion()) === VERSION) return;
+  const child = spawn(process.execPath, [BIN, "serve"], { detached: true, stdio: "ignore" });
+  child.unref();
+  for (let i = 0; i < 40; i++) {
+    await new Promise((r) => setTimeout(r, 50));
+    if ((await serverVersion()) === VERSION) return;
+  }
+}
+
 /**
- * True when the prompt names `name` itself, as code: the identifier appears verbatim and looks like
- * one (mixed case, an underscore or digit, or long enough not to be an ordinary word). Plain words
- * that merely join into a declared name ("tax rate" → taxRate) don't fire the suggestion.
+ * The fast path's server: each POST to /snout/v1/<event> runs the same handler a hook process
+ * would, with its answer captured instead of printed. Local only: it listens on 127.0.0.1,
+ * refuses any Host but its own (DNS rebinding) and any body that isn't JSON (a web page can't
+ * send that without a preflight it never gets). One request at a time, since handlers are
+ * synchronous. An older version answering on the port is asked to step aside.
  */
-function namedExactly(prompt: string, name: string): boolean {
-  if (!new RegExp(`(^|[^A-Za-z0-9_])${name.replace(/[$]/g, "\\$")}($|[^A-Za-z0-9_])`).test(prompt)) return false;
-  return /[A-Z_0-9]/.test(name.slice(1)) || name.length >= 8 || (/^[A-Z]/.test(name) && name.length >= 6);
+function startServer(): void {
+  const hosts = new Set([`127.0.0.1:${HOOK_PORT}`, `localhost:${HOOK_PORT}`]);
+  let idle = setTimeout(() => process.exit(0), SERVE_IDLE_MS);
+  // Loaded here, not imported at the top: see dashboard/server.ts (an ESM import of node:http
+  // loads undici into every hook process).
+  const { createServer } = createRequire(import.meta.url)("node:http") as typeof import("node:http");
+  const server = createServer((req, res) => {
+    clearTimeout(idle);
+    idle = setTimeout(() => process.exit(0), SERVE_IDLE_MS);
+    const url = req.url ?? "";
+    if (!hosts.has(req.headers.host ?? "")) return void res.writeHead(403).end();
+    if (req.method === "GET" && url === "/snout/v1/health") {
+      res.writeHead(200, { "content-type": "application/json" });
+      return void res.end(JSON.stringify({ version: VERSION }));
+    }
+    if (req.method === "POST" && url === "/snout/v1/shutdown") {
+      res.writeHead(200).end();
+      return void setImmediate(() => process.exit(0));
+    }
+    const event = url.startsWith("/snout/v1/") ? url.slice("/snout/v1/".length) : "";
+    if (req.method !== "POST" || !HOOK_EVENTS.has(event) || !String(req.headers["content-type"] ?? "").includes("application/json")) {
+      return void res.writeHead(404).end();
+    }
+    const chunks: Buffer[] = [];
+    let size = 0;
+    req.on("data", (c: Buffer) => {
+      size += c.length;
+      if (size <= 16 * 1024 * 1024) chunks.push(c);
+    });
+    req.on("end", () => {
+      let body = "";
+      try {
+        const input = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}") as HookInput;
+        requestStart = performance.now();
+        capturing = true;
+        captured = null;
+        client = undefined;
+        duplicateCall = false;
+        dispatch(event, input);
+        if (captured) body = JSON.stringify(captured);
+      } catch (err) {
+        recordError("serve", err); // fail open: an empty 200 lets the call through
+      } finally {
+        capturing = false;
+      }
+      res.writeHead(200, body ? { "content-type": "application/json" } : {});
+      res.end(body);
+    });
+  });
+  server.on("error", async (err: NodeJS.ErrnoException) => {
+    if (err.code !== "EADDRINUSE") return process.exit(0);
+    // Something answers on the port: an older Snout steps aside; anything else keeps it.
+    const v = await serverVersion();
+    if (v && v !== VERSION) {
+      await fetch(`http://127.0.0.1:${HOOK_PORT}/snout/v1/shutdown`, { method: "POST" }).catch(() => {});
+      setTimeout(() => server.listen(HOOK_PORT, "127.0.0.1"), 200);
+    } else process.exit(0);
+  });
+  server.listen(HOOK_PORT, "127.0.0.1");
 }
 
 /** `snout map on|off` toggles suggestions; `snout map "<request>"` shows what a prompt would get. */
@@ -1148,7 +1270,7 @@ function repeatDumpResponse(input: HookInput, paths: Paths, state: SessionState,
       rule: "repeat-read", value: 1, confidence: 1, decision: "deny", mode: "enforce",
       reason: "Unchanged since this agent last read it, so the full text is already in context.",
       bytes, tokensAvoidedEst: Math.max(0, estimateTokens(bytes, f.rel) - 30), tokensReadEst: 30, jevInputTokens: 0,
-      latencyMs: Math.round(process.uptime() * 1000), model: null, reversedByUser: false, trimmed: true, ...agentOf(input),
+      latencyMs: elapsedMs(), model: null, reversedByUser: false, trimmed: true, ...agentOf(input),
     });
   }
   const names = files.map((f) => safePath(f.rel)).join(", ");
@@ -1191,7 +1313,7 @@ function repeatResponse(input: HookInput, paths: Paths, state: SessionState, abs
     tokensAvoidedEst: Math.max(0, estimated - 20),
     tokensReadEst: 20,
     jevInputTokens: 0,
-    latencyMs: Math.round(process.uptime() * 1000),
+    latencyMs: elapsedMs(),
     model: null,
     reversedByUser: false,
     trimmed: true,
@@ -1252,7 +1374,7 @@ function classifyForGate(input: HookInput, paths: Paths, cfg: Config, state: Ses
     tokensAvoidedEst: flagged ? estimated : 0,
     tokensReadEst: d.verdict === "allow" ? estimated : 0,
     jevInputTokens: 0,
-    latencyMs: Math.round(process.uptime() * 1000),
+    latencyMs: elapsedMs(),
     model: null,
     reversedByUser: false,
     ...readShape(input, absPath),
@@ -1364,7 +1486,7 @@ function onPostTool(input: HookInput, paths: Paths, cfg: Config): void {
   emit({});
 }
 
-function onPreCompact(input: HookInput, paths: Paths): void {
+function onPreCompact(input: HookInput, paths: Paths, cfg: Config): void {
   // Compaction is the outcome this plugin exists to postpone, so we record every one.
   const state = loadState(paths.state, input.session_id ?? "unknown");
   forgetReads(paths.snoutDir, state.session);
@@ -1382,7 +1504,15 @@ function onPreCompact(input: HookInput, paths: Paths): void {
     latency: { p50: 0, p95: 0, max: 0 },
     compacted: true,
   } satisfies TurnRow);
-  emit({});
+  // Plain text on stdout joins Claude Code's compaction instructions (see compact/handoff.ts).
+  if (cfg.mode !== "observe" && input.transcript_path) {
+    try {
+      const text = handoffText(workingState(input.transcript_path, paths.projectDir));
+      if (text) writeOut(text);
+    } catch (err) {
+      recordError("handoff", err);
+    }
+  }
 }
 
 function onStop(input: HookInput, paths: Paths, cfg: Config): void {
@@ -1513,7 +1643,7 @@ function recordToolOutput(input: HookInput, paths: Paths, state: SessionState, b
     tokensAvoidedEst: 0,
     tokensReadEst: tokens,
     jevInputTokens: 0,
-    latencyMs: Math.round(process.uptime() * 1000),
+    latencyMs: elapsedMs(),
     model: null,
     reversedByUser: false,
     observedOnly: true,
@@ -1559,7 +1689,7 @@ function recordObservation(
     tokensAvoidedEst: flagged ? estimated : 0,
     tokensReadEst: estimated,
     jevInputTokens: 0,
-    latencyMs: Math.round(process.uptime() * 1000),
+    latencyMs: elapsedMs(),
     model: null,
     reversedByUser: false,
     observedOnly: true,
@@ -2270,6 +2400,19 @@ function runningBundle(): string {
   return `${self}  (${kind})`;
 }
 
+/** True when the installed gate is the fast path: HTTP hooks to `snout serve`. */
+function fastGateInstalled(paths: Paths): boolean {
+  for (const f of ["settings.json", "settings.local.json"]) {
+    try {
+      const pre = (JSON.parse(readFileSync(join(paths.projectDir, ".claude", f), "utf8")) as { hooks?: { PreToolUse?: Array<{ hooks?: Array<{ url?: string }> }> } }).hooks?.PreToolUse ?? [];
+      if (pre.some((e) => (e.hooks ?? []).some((h) => isSnoutUrl(h.url)))) return true;
+    } catch {
+      // no file or not JSON: not ours to judge here
+    }
+  }
+  return false;
+}
+
 function gateInstalled(paths: Paths): boolean {
   return gateMatcher(paths) !== null;
 }
@@ -2297,11 +2440,11 @@ function gateMatcher(paths: Paths): string | null {
       // Parsed, not grepped: the previous regex matched the two strings anywhere in the
       // file, so an unrelated PreToolUse hook plus any mention of snout.mjs read as "ours".
       const settings = JSON.parse(readFileSync(p, "utf8")) as {
-        hooks?: Record<string, Array<{ matcher?: string; hooks?: Array<{ command?: string }> }>>;
+        hooks?: Record<string, Array<{ matcher?: string; hooks?: Array<{ command?: string; url?: string }> }>>;
       };
       const entries = settings.hooks?.PreToolUse ?? [];
       for (const entry of entries) {
-        if (!(entry.hooks ?? []).some((h) => typeof h.command === "string" && h.command.includes("snout.mjs"))) continue;
+        if (!(entry.hooks ?? []).some((h) => (typeof h.command === "string" && h.command.includes("snout.mjs")) || isSnoutUrl(h.url))) continue;
         found = true;
         for (const t of (entry.matcher ?? "").split("|")) if (t) tools.add(t);
       }
@@ -2340,4 +2483,4 @@ try {
 // The MCP server keeps running until its client closes stdin; everything else is one-shot.
 // So does the dashboard, until Ctrl-C.
 // So do the cloud commands, which exit when their request finishes.
-if (!["mcp", "dashboard", "login", "logout", "sync", "audit"].includes(process.argv[2] ?? "")) process.exit(0);
+if (!["mcp", "dashboard", "login", "logout", "sync", "audit", "serve"].includes(process.argv[2] ?? "")) process.exit(0);

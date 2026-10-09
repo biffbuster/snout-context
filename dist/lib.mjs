@@ -85,8 +85,8 @@ function escapeInline(s, max) {
   }
   if (out.length > max) {
     const head = out.slice(0, Math.floor(max * 0.6));
-    const tail = out.slice(-Math.floor(max * 0.3));
-    out = `${head}\u2026${tail}`;
+    const tail3 = out.slice(-Math.floor(max * 0.3));
+    out = `${head}\u2026${tail3}`;
   }
   return out;
 }
@@ -1100,8 +1100,8 @@ function splitGrepOutput(text, cwd, searchPath) {
     isFileCache.set(p, ok);
     return ok;
   };
-  const resolve5 = (p) => isAbsolute3(p) ? p : join3(cwd, p);
-  const single = searchPath && isFile(resolve5(searchPath)) ? resolve5(searchPath) : null;
+  const resolve6 = (p) => isAbsolute3(p) ? p : join3(cwd, p);
+  const single = searchPath && isFile(resolve6(searchPath)) ? resolve6(searchPath) : null;
   const lines = text.split("\n");
   lines.forEach((line, i) => {
     const bytes = Buffer.byteLength(line) + 1;
@@ -1109,17 +1109,17 @@ function splitGrepOutput(text, cwd, searchPath) {
       rest += bytes;
       return;
     }
-    const owner = ownerOf(line, resolve5, isFile) ?? single;
+    const owner = ownerOf(line, resolve6, isFile) ?? single;
     if (owner) files.set(owner, (files.get(owner) ?? 0) + bytes);
     else rest += bytes;
   });
   return { files, rest };
 }
-function ownerOf(line, resolve5, isFile) {
+function ownerOf(line, resolve6, isFile) {
   for (let i = 1; i < line.length && i < 1024; i++) {
     const c = line[i];
     if (c !== ":" && c !== "-") continue;
-    const abs = resolve5(line.slice(0, i));
+    const abs = resolve6(line.slice(0, i));
     if (isFile(abs)) return abs;
   }
   return null;
@@ -1128,7 +1128,7 @@ function ownerOf(line, resolve5, isFile) {
 // src/config.ts
 import { existsSync as existsSync3, readFileSync as readFileSync2, mkdirSync, renameSync } from "node:fs";
 import { homedir } from "node:os";
-import { join as join4, resolve as resolve2 } from "node:path";
+import { dirname, join as join4, relative as relative2, resolve as resolve2, isAbsolute as isAbsolute4 } from "node:path";
 
 // src/util/log.ts
 import { appendFileSync, existsSync as existsSync2, statSync as statSync4, truncateSync } from "node:fs";
@@ -1221,7 +1221,7 @@ var DEFAULTS = {
 // src/config.ts
 var PINNED_MODEL = "jev-1.13.0";
 function resolvePaths(hookCwd) {
-  const projectDir = resolve2(hookCwd || process.env.CLAUDE_PROJECT_DIR || process.cwd());
+  const projectDir = projectRootOf(resolve2(hookCwd || process.env.CLAUDE_PROJECT_DIR || process.cwd()));
   const snoutDir = join4(projectDir, ".snout");
   adoptLegacyDir(join4(projectDir, ".jev"), snoutDir);
   return {
@@ -1251,6 +1251,19 @@ function userConfigPath() {
   if (!process.env.SNOUT_HOME) adoptLegacyDir(join4(homedir(), ".jev"), join4(homedir(), ".snout"));
   return join4(process.env.SNOUT_HOME || join4(homedir(), ".snout"), "config.json");
 }
+function projectRootOf(dir) {
+  const declared = process.env.CLAUDE_PROJECT_DIR ? resolve2(process.env.CLAUDE_PROJECT_DIR) : null;
+  if (declared && isInside(dir, declared)) return declared;
+  const home = resolve2(homedir());
+  for (let d = dir; ; d = dirname(d)) {
+    if (d === home || dirname(d) === d) return dir;
+    if (existsSync3(join4(d, ".snout"))) return d;
+  }
+}
+var isInside = (dir, root) => {
+  const rel = relative2(root, dir);
+  return rel === "" || !rel.startsWith("..") && !isAbsolute4(rel);
+};
 function adoptLegacyDir(legacy, current) {
   try {
     if (!existsSync3(current) && existsSync3(legacy)) renameSync(legacy, current);
@@ -1290,13 +1303,13 @@ function isValidMode(v) {
 
 // src/ledger/store.ts
 import { appendFileSync as appendFileSync2, existsSync as existsSync4, mkdirSync as mkdirSync2, readFileSync as readFileSync3, statSync as statSync6 } from "node:fs";
-import { dirname as dirname2 } from "node:path";
+import { dirname as dirname3 } from "node:path";
 
 // src/util/atomic.ts
 import { renameSync as renameSync2, unlinkSync, writeFileSync } from "node:fs";
-import { dirname, join as join5 } from "node:path";
+import { dirname as dirname2, join as join5 } from "node:path";
 function writeAtomic(path, contents) {
-  const tmp = join5(dirname(path), `.tmp-${process.pid}-${Date.now().toString(36)}`);
+  const tmp = join5(dirname2(path), `.tmp-${process.pid}-${Date.now().toString(36)}`);
   try {
     writeFileSync(tmp, contents);
     renameSync2(tmp, path);
@@ -1350,7 +1363,7 @@ function tailLines(path, maxLines, maxBytes = 8 * 1024 * 1024) {
 
 // src/ledger/store.ts
 function ensureParent(path) {
-  const dir = dirname2(path);
+  const dir = dirname3(path);
   if (!existsSync4(dir)) mkdirSync2(dir, { recursive: true });
 }
 function appendRow(path, row) {
@@ -2052,7 +2065,7 @@ var mcpLabel = (server) => `mcp-${server.toLowerCase().replace(/[^a-z0-9]+/g, "-
 // src/spend/usage.ts
 import { existsSync as existsSync5, readdirSync, readFileSync as readFileSync5, statSync as statSync7, writeFileSync as writeFileSync2, mkdirSync as mkdirSync3 } from "node:fs";
 import { homedir as homedir2 } from "node:os";
-import { dirname as dirname3, join as join7, resolve as resolve3, sep } from "node:path";
+import { dirname as dirname4, join as join7, resolve as resolve3, sep } from "node:path";
 
 // src/spend/prices.ts
 import { readFileSync as readFileSync4 } from "node:fs";
@@ -2085,6 +2098,9 @@ var PRICES = {
   "claude-sonnet-4-6": claude(3, 0.3, 15),
   "claude-sonnet-4-5": claude(3, 0.3, 15),
   "claude-sonnet-4": claude(3, 0.3, 15),
+  // Released 2026-10-07 (anthropic.com/claude-haiku-5-5). Prompts over 100k tokens bill at 5× these
+  // rates; like the other models here, the long-context tier is not modelled.
+  "claude-haiku-5-5": claude(0.1, 0.01, 0.5),
   "claude-haiku-4-5": claude(1, 0.1, 5),
   "claude-3-5-haiku": claude(0.8, 0.08, 4),
   "gpt-6-astra": openai(10, 1, 50, 12.5),
@@ -2279,7 +2295,7 @@ function readSpend(projectDir, cachePath, configDir) {
   }
   for (const k of Object.keys(cache2)) if (!existsSync5(k)) delete cache2[k];
   if (cachePath) try {
-    mkdirSync3(dirname3(cachePath), { recursive: true });
+    mkdirSync3(dirname4(cachePath), { recursive: true });
     writeFileSync2(cachePath, JSON.stringify(cache2));
   } catch {
   }
@@ -2620,19 +2636,21 @@ var SQUEEZE_IFS = [
 
 // src/gate/install.ts
 var PRINTING_COMMANDS = ["cat", "head", "tail", "less", "more", "bat", "nl", "tac", "rev", "sed", "awk", "jq", "xxd", "od", "strings"];
-function squeezeEntries(bin) {
-  const command = `node "${bin}" squeeze`;
+var HOOK_PORT = Number(process.env.SNOUT_PORT) || 47613 + (process.getuid?.() ?? 0) % 1e3;
+var URL_MARK = "/snout/v1/";
+var hookUrl = (event) => `http://127.0.0.1:${HOOK_PORT}${URL_MARK}${event}`;
+var hookFor = (bin, event, fast, extra = {}) => fast ? { type: "http", url: hookUrl(event), timeout: 5, ...extra } : { type: "command", command: `node "${bin}" ${event}`, timeout: 5, ...extra };
+function squeezeEntries(bin, fast = false) {
   return [
-    { matcher: "Bash", hooks: SQUEEZE_IFS.map((c) => ({ type: "command", if: `Bash(${c})`, command, timeout: 5 })) },
+    { matcher: "Bash", hooks: SQUEEZE_IFS.map((c) => hookFor(bin, "squeeze", fast, { if: `Bash(${c})` })) },
     // Every MCP tool: large results (browser snapshots, diffs, query rows) are trimmed the same way.
-    { matcher: "mcp__.*", hooks: [{ type: "command", command, timeout: 5 }] }
+    { matcher: "mcp__.*", hooks: [hookFor(bin, "squeeze", fast)] }
   ];
 }
-function gateEntries(bin) {
-  const command = `node "${bin}" pre-tool`;
+function gateEntries(bin, fast = false) {
   return [
-    { matcher: "Read|NotebookRead", hooks: [{ type: "command", command, timeout: 5 }] },
-    { matcher: "Bash", hooks: PRINTING_COMMANDS.map((c) => ({ type: "command", if: `Bash(${c} *)`, command, timeout: 5 })) }
+    { matcher: "Read|NotebookRead", hooks: [hookFor(bin, "pre-tool", fast)] },
+    { matcher: "Bash", hooks: PRINTING_COMMANDS.map((c) => hookFor(bin, "pre-tool", fast, { if: `Bash(${c} *)` })) }
   ];
 }
 
@@ -2689,10 +2707,10 @@ function trimText(text) {
   let s = out.join("\n");
   if (s.length > TEXT_BUDGET) {
     const head = s.slice(0, Math.floor(TEXT_BUDGET * 0.7));
-    const tail = s.slice(s.length - Math.floor(TEXT_BUDGET * 0.3));
+    const tail3 = s.slice(s.length - Math.floor(TEXT_BUDGET * 0.3));
     s = `${head}
-\u2026 ${s.length - head.length - tail.length} characters omitted \u2026
-${tail}`;
+\u2026 ${s.length - head.length - tail3.length} characters omitted \u2026
+${tail3}`;
   }
   return s;
 }
@@ -2725,7 +2743,7 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { existsSync as existsSync6, lstatSync, mkdirSync as mkdirSync4, readdirSync as readdirSync2, readFileSync as readFileSync6, realpathSync, renameSync as renameSync3, rmdirSync, statSync as statSync8, writeFileSync as writeFileSync3 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
-import { basename as basename2, dirname as dirname4, extname, isAbsolute as isAbsolute4, join as join8, relative as relative2, resolve as resolve4, sep as sep2 } from "node:path";
+import { basename as basename2, dirname as dirname5, extname, isAbsolute as isAbsolute5, join as join8, relative as relative3, resolve as resolve4, sep as sep2 } from "node:path";
 var ACTION = { "one-off": "review", duplicate: "review", "near-duplicate": "merge", contained: "merge", stale: "fix", oversized: "trim", unused: "review" };
 var OVERSIZED_TOKENS = 2e3;
 var DAY = 864e5;
@@ -2842,7 +2860,7 @@ function userFiles(projectDir, home) {
     if (!existsSync6(dir)) return;
     const all = [];
     walk(dir, all, 9);
-    for (const f of all) if (re.test(relative2(dir, f).split(sep2).join("/"))) out.push({ abs: f, scope: "user", kind: "described", role, agents: ["claude"] });
+    for (const f of all) if (re.test(relative3(dir, f).split(sep2).join("/"))) out.push({ abs: f, scope: "user", kind: "described", role, agents: ["claude"] });
   };
   list(join8(claudeDir, "skills"), /^[^/]+\/SKILL\.md$/i, "skill");
   list(join8(claudeDir, "commands"), /\.md$/i, "command");
@@ -3000,25 +3018,25 @@ function staleRefs(text, fileAbs, projectDir, everExisted, workspaceScripts) {
   for (let c of cands) {
     if (/^[a-z]+:\/\//i.test(c) || c.startsWith("mailto:") || /[\s*?{}<>$|=]/.test(c) || c.startsWith("-") || c.startsWith("~") || c.startsWith("@")) continue;
     c = c.replace(/:\d+(-\d+)?$/, "").replace(/^\.\//, "");
-    if (!(c.includes("/") || /\.[a-z0-9]{1,6}$/i.test(c)) || isAbsolute4(c) || /^\.+$/.test(c) || c.endsWith("/")) continue;
+    if (!(c.includes("/") || /\.[a-z0-9]{1,6}$/i.test(c)) || isAbsolute5(c) || /^\.+$/.test(c) || c.endsWith("/")) continue;
     if (/^\d+(\.\d+)+$/.test(c)) continue;
-    const fromFile = resolve4(dirname4(fileAbs), c), fromRoot = resolve4(projectDir, c);
+    const fromFile = resolve4(dirname5(fileAbs), c), fromRoot = resolve4(projectDir, c);
     if (!fromFile.startsWith(projectDir) && !fromRoot.startsWith(projectDir)) continue;
     if (existsSync6(fromFile) || existsSync6(fromRoot)) continue;
     if (everExisted) {
-      const rels = [relative2(projectDir, fromFile), relative2(projectDir, fromRoot)].map((r) => r.split(sep2).join("/"));
+      const rels = [relative3(projectDir, fromFile), relative3(projectDir, fromRoot)].map((r) => r.split(sep2).join("/"));
       if (rels.some((r) => everExisted.has(r))) missing.add(c);
       continue;
     }
     const parentExists = (p) => {
-      const d = dirname4(p);
+      const d = dirname5(p);
       return d !== projectDir && existsSync6(d);
     };
     if (c.includes("/") ? parentExists(fromFile) || parentExists(fromRoot) : false) missing.add(c);
   }
   let scripts = null;
-  const relDir = relative2(projectDir, dirname4(fileAbs)).split(sep2);
-  const pkgDir = existsSync6(join8(dirname4(fileAbs), "package.json")) ? dirname4(fileAbs) : relDir[0] === "" || /^\.(claude|cursor|github|windsurf|clinerules|gemini|codex)$/.test(relDir[0] ?? "") ? projectDir : null;
+  const relDir = relative3(projectDir, dirname5(fileAbs)).split(sep2);
+  const pkgDir = existsSync6(join8(dirname5(fileAbs), "package.json")) ? dirname5(fileAbs) : relDir[0] === "" || /^\.(claude|cursor|github|windsurf|clinerules|gemini|codex)$/.test(relDir[0] ?? "") ? projectDir : null;
   if (pkgDir && existsSync6(join8(pkgDir, "package.json"))) {
     try {
       scripts = JSON.parse(readFileSync6(join8(pkgDir, "package.json"), "utf8")).scripts ?? {};
@@ -3042,7 +3060,7 @@ function auditContext(projectDir, opts = {}) {
   const maxTok = opts.oversizedTokens ?? OVERSIZED_TOKENS;
   const found = [];
   for (const abs of projectFiles(dir)) {
-    const c = classifyContextPath(relative2(dir, abs));
+    const c = classifyContextPath(relative3(dir, abs));
     if (c) found.push({ abs, scope: "project", ...c });
   }
   found.push(...userFiles(dir, home));
@@ -3078,7 +3096,7 @@ function auditContext(projectDir, opts = {}) {
     } catch {
       continue;
     }
-    const rel = f.scope === "project" ? relative2(dir, f.abs).split(sep2).join("/") : "~/" + relative2(home, f.abs).split(sep2).join("/");
+    const rel = f.scope === "project" ? relative3(dir, f.abs).split(sep2).join("/") : "~/" + relative3(home, f.abs).split(sep2).join("/");
     const tokens = estimateTokens(st.size, f.abs);
     const fm = frontmatter(text);
     let kind = f.kind;
@@ -3086,9 +3104,9 @@ function auditContext(projectDir, opts = {}) {
     const desc = (fm.name ?? "") + " " + (fm.description ?? text.replace(/^---[\s\S]*?---/, "").trim().split("\n")[0] ?? "");
     const perSession = kind === "always" ? tokens : kind === "described" ? estimateTokens(Buffer.byteLength(desc), "x.md") : 0;
     let use;
-    const id = (fm.name || (f.role === "skill" ? basename2(dirname4(f.abs)) : basename2(f.abs).replace(MD, ""))).toLowerCase();
-    if (f.role === "skill") use = usage.skills.get(id) ?? usage.skills.get(basename2(dirname4(f.abs)).toLowerCase());
-    else if (f.role === "command") use = usage.commands.get(relative2(join8(dirname4(f.abs).split(`${sep2}commands`)[0], "commands"), f.abs).replace(MD, "").split(sep2).join(":").toLowerCase()) ?? usage.commands.get(id);
+    const id = (fm.name || (f.role === "skill" ? basename2(dirname5(f.abs)) : basename2(f.abs).replace(MD, ""))).toLowerCase();
+    if (f.role === "skill") use = usage.skills.get(id) ?? usage.skills.get(basename2(dirname5(f.abs)).toLowerCase());
+    else if (f.role === "command") use = usage.commands.get(relative3(join8(dirname5(f.abs).split(`${sep2}commands`)[0], "commands"), f.abs).replace(MD, "").split(sep2).join(":").toLowerCase()) ?? usage.commands.get(id);
     else if (f.role === "agent") use = usage.agents.get(id);
     const read = usage.reads.get(f.abs);
     if (read) use = use ? [use[0] + read[0], read[1] > use[1] ? read[1] : use[1]] : read;
@@ -3161,8 +3179,8 @@ function auditContext(projectDir, opts = {}) {
   const comparable = files.filter((f) => !f.linkTo && (texts.get(f.abs) ?? "").length > 80).sort((a, b) => b.tokens - a.tokens).slice(0, 1500);
   const shared = (a, b) => a.agents.some((x) => b.agents.includes(x));
   const agentContext = (f) => f.kind !== "on-demand" || f.role !== "doc" || f.agents[0] !== "any" || REPORT_NAME.test(basename2(f.path).replace(MD, "")) || !f.path.includes("/");
-  const tail = (p) => p.replace(/^\.[a-z]+\//i, "");
-  const mirror = (a, b) => a.path !== b.path && tail(a.path) === tail(b.path) && !shared(a, b);
+  const tail3 = (p) => p.replace(/^\.[a-z]+\//i, "");
+  const mirror = (a, b) => a.path !== b.path && tail3(a.path) === tail3(b.path) && !shared(a, b);
   const norm = new Map(comparable.map((f) => [f.abs, normalize(texts.get(f.abs))]));
   const sh = new Map(comparable.map((f) => [f.abs, shingles(norm.get(f.abs))]));
   const hash = /* @__PURE__ */ new Map();
@@ -3307,8 +3325,8 @@ function archiveFiles(projectDir, paths, now = /* @__PURE__ */ new Date()) {
   const todo = [];
   for (const p of paths) {
     const abs = resolve4(dir, p);
-    const rel = relative2(dir, abs);
-    if (!rel || rel.startsWith("..") || isAbsolute4(rel)) throw new Error(`${p} is outside the project`);
+    const rel = relative3(dir, abs);
+    if (!rel || rel.startsWith("..") || isAbsolute5(rel)) throw new Error(`${p} is outside the project`);
     if (rel.split(sep2)[0] === ".snout" || rel.split(sep2)[0] === ".git") throw new Error(`${p} can't be archived`);
     if (!existsSync6(abs) || !statSync8(abs).isFile()) throw new Error(`${p} is not a file`);
     const buf = readFileSync6(abs);
@@ -3320,7 +3338,7 @@ function archiveFiles(projectDir, paths, now = /* @__PURE__ */ new Date()) {
   const manifest = { id, created: now.toISOString(), files };
   writeFileSync3(join8(base, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
   for (const [from, to] of todo) {
-    mkdirSync4(dirname4(to), { recursive: true });
+    mkdirSync4(dirname5(to), { recursive: true });
     renameSync3(from, to);
   }
   return manifest;
@@ -3350,7 +3368,7 @@ function restoreArchive(projectDir, id) {
   const restored = [], skipped = [];
   for (const f of manifest.files) {
     const from = join8(base, f.path), to = resolve4(dir, f.path);
-    if (relative2(dir, to).startsWith("..")) {
+    if (relative3(dir, to).startsWith("..")) {
       skipped.push(f.path);
       continue;
     }
@@ -3362,7 +3380,7 @@ function restoreArchive(projectDir, id) {
       skipped.push(f.path);
       continue;
     }
-    mkdirSync4(dirname4(to), { recursive: true });
+    mkdirSync4(dirname5(to), { recursive: true });
     renameSync3(from, to);
     restored.push(f.path);
   }
@@ -3384,16 +3402,265 @@ function restoreArchive(projectDir, id) {
   return { restored, skipped };
 }
 
+// src/compact/handoff.ts
+import { closeSync as closeSync3, openSync as openSync3, readSync as readSync3, statSync as statSync9 } from "node:fs";
+import { isAbsolute as isAbsolute6, relative as relative4 } from "node:path";
+var TAIL_BYTES = 8 * 1024 * 1024;
+var TEST = /\b(pytest|runtests\.py|bin\/test|jest|vitest|mocha|go test|cargo test|npm (run )?test|pnpm test|yarn test|node --test|rspec|phpunit|tox)\b/;
+var EDITS = /* @__PURE__ */ new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
+function tail(file) {
+  const size = statSync9(file).size;
+  const start = Math.max(0, size - TAIL_BYTES);
+  const buf = Buffer.alloc(size - start);
+  const fd = openSync3(file, "r");
+  try {
+    readSync3(fd, buf, 0, buf.length, start);
+  } finally {
+    closeSync3(fd);
+  }
+  const text = buf.toString("utf8");
+  return start ? text.slice(text.indexOf("\n") + 1) : text;
+}
+var oneLine = (s, n) => {
+  const t = s.replace(/\s+/g, " ").trim();
+  return t.length > n ? `${t.slice(0, n - 1)}\u2026` : t;
+};
+function workingState(transcriptPath, projectDir) {
+  const rel = (p) => {
+    if (!isAbsolute6(p)) return p;
+    const r = relative4(projectDir, p);
+    return r && !r.startsWith("..") && !isAbsolute6(r) ? r : p;
+  };
+  const rows = [];
+  for (const line of tail(transcriptPath).split("\n")) {
+    if (!line) continue;
+    let o;
+    try {
+      o = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (o.isSidechain) continue;
+    if (o.type === "system" && o.subtype === "compact_boundary") rows.length = 0;
+    else rows.push(o);
+  }
+  const state = { changed: [], read: [], todos: [] };
+  const uses = /* @__PURE__ */ new Map();
+  let lastTestId;
+  for (const o of rows) {
+    const content = o.message?.content;
+    if (o.type === "user" && !o.isMeta && !o.isCompactSummary) {
+      const text = typeof content === "string" ? content : Array.isArray(content) ? content.filter((b) => b.type === "text").map((b) => b.text).join(" ") : "";
+      if (text.trim() && !/^<(command-|local-command|system-reminder)/.test(text.trim())) state.request = oneLine(text, 400);
+    }
+    if (!Array.isArray(content)) continue;
+    for (const b of content) {
+      if (b.type === "tool_use") {
+        uses.set(b.id, b);
+        const file = b.input?.file_path ?? b.input?.notebook_path;
+        if (typeof file === "string") {
+          const list = EDITS.has(b.name) ? state.changed : b.name === "Read" ? state.read : null;
+          if (list) {
+            const p = rel(file);
+            const i = list.indexOf(p);
+            if (i >= 0) list.splice(i, 1);
+            list.unshift(p);
+          }
+        }
+        if (b.name === "Bash" && TEST.test(String(b.input?.command ?? ""))) lastTestId = b.id;
+        if (b.name === "TodoWrite" && Array.isArray(b.input?.todos)) state.todos = b.input.todos.filter((t) => t?.status !== "completed").map((t) => oneLine(String(t.content ?? ""), 120));
+      }
+      if (b.type === "tool_result" && b.tool_use_id === lastTestId) {
+        const out = typeof b.content === "string" ? b.content : Array.isArray(b.content) ? b.content.map((p) => p.text ?? "").join("\n") : "";
+        const lines = out.split("\n").map((l) => l.trim()).filter(Boolean);
+        const verdict = [...lines].reverse().find((l) => /\b(passed|failed|error|errors|ok|FAILED|OK)\b/.test(l)) ?? lines.at(-1) ?? "";
+        state.test = { command: oneLine(String(uses.get(b.tool_use_id)?.input?.command ?? ""), 160), result: oneLine(verdict, 200) };
+      }
+    }
+  }
+  const projectFirst = (list) => [...list.filter((p) => !p.startsWith("..") && !isAbsolute6(p)), ...list.filter((p) => p.startsWith("..") || isAbsolute6(p))];
+  state.changed = projectFirst(state.changed);
+  state.read = projectFirst(state.read.filter((p) => !state.changed.includes(p)));
+  return state;
+}
+function handoffText(s) {
+  const lines = [];
+  if (s.request) lines.push(`- Current request: ${s.request}`);
+  if (s.changed.length) lines.push(`- Files changed: ${s.changed.slice(0, 12).join(", ")}`);
+  if (s.read.length) lines.push(`- Files read recently: ${s.read.slice(0, 10).join(", ")}`);
+  if (s.test) lines.push(`- Last test run: \`${s.test.command}\` \u2192 ${s.test.result}`);
+  if (s.todos.length) lines.push(`- Open to-dos: ${s.todos.slice(0, 6).join("; ")}`);
+  if (!lines.length) return "";
+  return ["Keep this working state in the summary, with file paths exactly as written, so work continues without re-reading:", ...lines].join("\n");
+}
+
+// src/compact/memory.ts
+import { closeSync as closeSync4, existsSync as existsSync7, openSync as openSync4, readFileSync as readFileSync7, readSync as readSync4, statSync as statSync10 } from "node:fs";
+import { isAbsolute as isAbsolute7, join as join9, relative as relative5, resolve as resolve5 } from "node:path";
+var TAIL_BYTES2 = 16 * 1024 * 1024;
+var MAX_CHARS = 4e3;
+var TEST2 = /\b(pytest|runtests\.py|bin\/test|jest|vitest|mocha|go test|cargo test|npm (run )?test|pnpm test|yarn test|node --test|rspec|phpunit|tox|unittest)\b/;
+var RAN = /\b\d+ (passed|failed|errors?|skipped)\b|\bRan \d+ tests?\b|tests finished|^OK\b|\bOK \(|^FAILED\b|\bTests?:\s+\d+/m;
+var MISSING = [
+  [/No module named ['"]?([\w.]+)['"]?/, (m) => m[1]],
+  [/(?:^|\s)([\w.-]+): command not found/m, (m) => m[1]],
+  [/command not found: ([\w.-]+)/, (m) => m[1]]
+];
+var EDITS2 = /* @__PURE__ */ new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
+function tail2(file) {
+  const size = statSync10(file).size;
+  const start = Math.max(0, size - TAIL_BYTES2);
+  const buf = Buffer.alloc(size - start);
+  const fd = openSync4(file, "r");
+  try {
+    readSync4(fd, buf, 0, buf.length, start);
+  } finally {
+    closeSync4(fd);
+  }
+  const text = buf.toString("utf8");
+  return start ? text.slice(text.indexOf("\n") + 1) : text;
+}
+var oneLine2 = (s, n) => {
+  const t = s.replace(/\s+/g, " ").trim();
+  return t.length > n ? `${t.slice(0, n - 1)}\u2026` : t;
+};
+var resultText = (content) => typeof content === "string" ? content : Array.isArray(content) ? content.map((p) => p?.text ?? "").join("\n") : "";
+var SLOW = /did not complete within its \d+s timeout|moved to the background/;
+function sessionFacts(transcriptPath, projectDir) {
+  const rel = (p) => {
+    if (!isAbsolute7(p)) return p;
+    const r = relative5(projectDir, p);
+    return r && !r.startsWith("..") && !isAbsolute7(r) ? r : p;
+  };
+  const facts = { missing: [], slow: [], changed: [], todos: [] };
+  const uses = /* @__PURE__ */ new Map();
+  for (const line of tail2(transcriptPath).split("\n")) {
+    if (!line) continue;
+    let o;
+    try {
+      o = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (o.isSidechain) continue;
+    const content = o.message?.content;
+    if (o.type === "user" && !o.isMeta && !o.isCompactSummary) {
+      const text = typeof content === "string" ? content : Array.isArray(content) ? content.filter((b) => b.type === "text").map((b) => b.text).join(" ") : "";
+      if (text.trim() && !/^<(command-|local-command|system-reminder)/.test(text.trim())) facts.request = oneLine2(text, 400);
+    }
+    if (!Array.isArray(content)) continue;
+    for (const b of content) {
+      if (b.type === "tool_use") {
+        uses.set(b.id, b);
+        const file = b.input?.file_path ?? b.input?.notebook_path;
+        if (EDITS2.has(b.name) && typeof file === "string") {
+          const p = rel(file);
+          facts.changed = [p, ...facts.changed.filter((x) => x !== p)];
+        }
+        if (b.name === "TodoWrite" && Array.isArray(b.input?.todos)) facts.todos = b.input.todos.filter((t) => t?.status !== "completed").map((t) => oneLine2(String(t.content ?? ""), 120));
+        continue;
+      }
+      if (b.type !== "tool_result") continue;
+      const use = uses.get(b.tool_use_id);
+      if (use?.name !== "Bash") continue;
+      const command = String(use.input?.command ?? "");
+      const out = resultText(b.content);
+      if (SLOW.test(out)) {
+        const c = oneLine2(command, 160);
+        facts.slow = [c, ...facts.slow.filter((x) => x !== c)].slice(0, 3);
+      }
+      let missing = false;
+      for (const [re, name] of MISSING) {
+        const m = out.match(re);
+        if (!m) continue;
+        missing = true;
+        const n = name(m);
+        facts.missing = [{ name: n, evidence: oneLine2(m[0], 80) }, ...facts.missing.filter((x) => x.name !== n)];
+      }
+      if (!missing && TEST2.test(command) && RAN.test(out)) {
+        const lines = out.split("\n").map((l) => l.trim()).filter(Boolean);
+        const verdict = [...lines].reverse().find((l) => RAN.test(l)) ?? "";
+        facts.test = { command: oneLine2(command, 200), result: oneLine2(verdict, 120) };
+      }
+    }
+  }
+  if (facts.test) facts.missing = facts.missing.filter((m) => !facts.test.command.includes(m.name));
+  const projectFirst = (list) => [...list.filter((p) => !isAbsolute7(p)), ...list.filter((p) => isAbsolute7(p))];
+  facts.changed = projectFirst(facts.changed);
+  facts.missing = facts.missing.slice(0, 5);
+  return facts;
+}
+function readPins(projectDir, snoutDir) {
+  const file = join9(snoutDir, "pins.md");
+  if (!existsSync7(file)) return [];
+  const pins = [];
+  for (const raw of readFileSync7(file, "utf8").split("\n")) {
+    const m = raw.match(/^\s*[-*]\s+(.*\S)\s*$/);
+    if (!m) continue;
+    const text = m[1];
+    const reread = Number(text.match(/\[re-?read (\d+)\]/i)?.[1] ?? 0) || void 0;
+    const first = text.match(/^`([^`]+)`|^(\S+)/);
+    const candidate = first?.[1] ?? first?.[2] ?? "";
+    const looksLikePath = !/^https?:/.test(candidate) && (first?.[1] !== void 0 || /[/\\]|^\.\w|\.\w{1,10}$/.test(candidate));
+    pins.push(looksLikePath ? { text, path: candidate, reread: reread ? Math.min(reread, 40) : void 0 } : { text });
+    if (pins.length >= 10) break;
+  }
+  return pins;
+}
+function pinLines(pins, projectDir, secrets) {
+  const out = [];
+  for (const p of pins) {
+    out.push(`- ${p.text.replace(/\s*\[re-?read \d+\]/i, "")}`);
+    if (!p.path || !p.reread) continue;
+    const abs = isAbsolute7(p.path) ? p.path : resolve5(projectDir, p.path);
+    if (!existsSync7(abs)) {
+      out.push(`  (not on disk now: ${p.path})`);
+      continue;
+    }
+    const rel = relative5(projectDir, abs);
+    const asPattern = rel && !rel.startsWith("..") ? rel : abs.replace(/^\/+/, "");
+    if (secrets && matchesAny(asPattern, secrets.redact) && !matchesAny(asPattern, secrets.redactExempt)) {
+      out.push("  (contents not restored: the file matches a credential pattern)");
+      continue;
+    }
+    try {
+      const lines = readFileSync7(abs, "utf8").split("\n").slice(0, p.reread);
+      out.push("  ```", ...lines.map((l) => `  ${l.slice(0, 200)}`), "  ```");
+    } catch {
+      out.push(`  (could not read ${p.path})`);
+    }
+  }
+  return out;
+}
+function memoryText(facts, pins, projectDir, secrets) {
+  const sections = [];
+  if (pins.length) sections.push(["Pinned for this project:", ...pinLines(pins, projectDir, secrets)]);
+  const f = [];
+  if (facts.test) f.push(`- Tests run here with: \`${facts.test.command}\`${facts.test.result ? ` (last result: ${facts.test.result})` : ""}`);
+  for (const m of facts.missing) f.push(`- Not available here: ${m.name} (${m.evidence})`);
+  for (const c of facts.slow) f.push(`- Ran past the 2-minute tool limit here (prefer narrower tests): \`${c}\``);
+  if (facts.request) f.push(`- Current request: ${facts.request}`);
+  if (facts.changed.length) f.push(`- Files changed this session: ${facts.changed.slice(0, 12).join(", ")}`);
+  if (facts.todos.length) f.push(`- Open to-dos: ${facts.todos.slice(0, 6).join("; ")}`);
+  if (f.length) sections.push(["From this session:", ...f]);
+  if (!sections.length) return "";
+  let text = ["Snout restored these exact facts after compaction (from this session and .snout/pins.md):", ...sections.flat()].join("\n");
+  if (text.length > MAX_CHARS) text = `${text.slice(0, MAX_CHARS - 1)}\u2026`;
+  return text;
+}
+
 // src/map/map.ts
 import { spawnSync } from "node:child_process";
-import { readdirSync as readdirSync3, readFileSync as readFileSync7, statSync as statSync9 } from "node:fs";
-import { basename as basename3, extname as extname2, join as join9, relative as relative3, sep as sep3 } from "node:path";
+import { readdirSync as readdirSync3, readFileSync as readFileSync8, statSync as statSync11 } from "node:fs";
+import { basename as basename3, extname as extname2, join as join10, relative as relative6, sep as sep3 } from "node:path";
 var TEXT_EXT = /\.(m?js|cjs|jsx|ts|tsx|mts|cts|py|pyi|go|rs|java|kt|kts|cs|rb|php|swift|scala|c|cc|cpp|h|hpp|m|mm|ex|exs|erl|clj|lua|sh|bash|zsh|sql|graphql|proto|vue|svelte|astro|md|mdx|rst|txt|toml|ya?ml|json|ini|cfg|conf|env\.example|html|css|scss)$/i;
 var SKIP_DIR = /* @__PURE__ */ new Set(["node_modules", ".git", "dist", "build", "out", "target", "vendor", "third_party", "coverage", ".next", ".venv", "venv", "__pycache__", ".snout", ".claude", ".tox", ".mypy_cache", ".pytest_cache"]);
 var MAX_FILE_BYTES = 512 * 1024;
 var MAX_FILES = 2e4;
 var MAX_WORDS = 3e3;
 var WORD = /[A-Za-z_][A-Za-z0-9_]{3,63}/g;
+var TESTS = /(^|\/)(tests?|testing)\/|(^|\/)test_[^/]*$|_tests?\.[a-z]+$|\.(test|spec)\.[a-z]+$/i;
+var URL = /\b(?:https?:\/\/|www\.)\S+/g;
 var PROSE = /\.(md|mdx|rst|txt|ya?ml|json|toml|ini|cfg|html)$|(^|\/)(CHANGES|CHANGELOG|HISTORY|NEWS)/i;
 var STOP2 = new Set("this that with from import export return const self None True False null true false function class def async await else elif while yield None void static public private protected final string number boolean object undefined type interface extends implements raise except finally lambda pass break continue default switch case throw catch new delete typeof instanceof struct enum impl trait match package module require include using namespace println printf print len range dict list tuple int float str bool char auto var let elif then done when unless begin end".split(" "));
 var DECLARATIONS2 = [
@@ -3423,8 +3690,8 @@ function listFiles(projectDir) {
     for (const e of entries) {
       if (out.length >= MAX_FILES) return;
       if (e.isDirectory()) {
-        if (!SKIP_DIR.has(e.name) && !e.name.startsWith(".")) walk2(join9(dir, e.name));
-      } else if (e.isFile() && TEXT_EXT.test(e.name)) out.push(relative3(projectDir, join9(dir, e.name)).split(sep3).join("/"));
+        if (!SKIP_DIR.has(e.name) && !e.name.startsWith(".")) walk2(join10(dir, e.name));
+      } else if (e.isFile() && TEXT_EXT.test(e.name)) out.push(relative6(projectDir, join10(dir, e.name)).split(sep3).join("/"));
     }
   };
   walk2(projectDir);
@@ -3454,7 +3721,7 @@ function buildMap(projectDir, prev, skip) {
     if (skip?.(rel)) continue;
     let st;
     try {
-      st = statSync9(join9(projectDir, rel));
+      st = statSync11(join10(projectDir, rel));
     } catch {
       continue;
     }
@@ -3467,7 +3734,7 @@ function buildMap(projectDir, prev, skip) {
     }
     let text;
     try {
-      text = readFileSync7(join9(projectDir, rel), "utf8");
+      text = readFileSync8(join10(projectDir, rel), "utf8");
     } catch {
       continue;
     }
@@ -3490,11 +3757,31 @@ function requestNames(prompt) {
   }
   return names;
 }
+function codeNames(request) {
+  const out = /* @__PURE__ */ new Set();
+  const prompt = request.replace(URL, " ");
+  const spans = [
+    ...[...prompt.matchAll(/```[\s\S]*?```|`[^`\n]+`/g)].map((m) => m[0]),
+    ...prompt.split("\n").filter((l) => /^(\t| {4})|^\s*File "|^\s*(>>>|\$|In \[\d+\]:)/.test(l))
+  ];
+  for (const sp of spans) for (const m of sp.matchAll(WORD)) out.add(m[0]);
+  for (const m of prompt.matchAll(/(?<=[.@])[A-Za-z_]\w{3,63}|[A-Za-z_]\w{3,63}(?=\()/g)) out.add(m[0]);
+  for (const m of prompt.matchAll(WORD)) if (/_|\d|^[a-z]+[A-Z]/.test(m[0])) out.add(m[0]);
+  return out;
+}
+function namedExactly(prompt, name) {
+  if (!new RegExp(`(^|[^A-Za-z0-9_])${name.replace(/[$]/g, "\\$")}($|[^A-Za-z0-9_])`).test(prompt)) return false;
+  return /[A-Z_0-9]/.test(name.slice(1)) || name.length >= 8 || /^[A-Z]/.test(name) && name.length >= 6;
+}
+function shouldSuggest(cs, prompt) {
+  return cs.some((c) => c.defines.some((name) => namedExactly(prompt, name)));
+}
 function candidates(map, prompt, k = 15) {
   const paths = Object.keys(map.files);
   const N = paths.length;
   if (!N) return [];
-  const asked = requestNames(prompt);
+  const asked = requestNames(prompt.replace(URL, " "));
+  const asCode = codeNames(prompt);
   const askedLower = /* @__PURE__ */ new Map();
   for (const a of asked) if (a.length >= 6) askedLower.set(a.toLowerCase(), a);
   const definedBy = /* @__PURE__ */ new Map();
@@ -3515,18 +3802,22 @@ function candidates(map, prompt, k = 15) {
   };
   for (const [name, users] of usedBy) {
     const defs = definedBy.get(name) ?? [];
-    if (!defs.length && /^[a-z]+$/.test(name)) continue;
+    if (!defs.length && !asCode.has(name)) continue;
     if (/^[a-z]{1,4}$/.test(name)) continue;
     const linked = /* @__PURE__ */ new Set([...users, ...defs]);
     if (linked.size < 2 && !(defs.length && asked.has(name))) continue;
     if (linked.size > Math.max(25, N * 0.05)) continue;
     const idf = Math.log(1 + N / linked.size);
     for (const p of defs) add(p, 2 * idf, name, true);
-    for (const p of users) if (!defs.includes(p)) add(p, PROSE.test(p) ? idf * 0.3 : idf, name, false);
+    if (/^[a-z]+$/.test(name) && !asCode.has(name)) continue;
+    for (const p of users) if (!defs.includes(p)) add(p, PROSE.test(p) ? idf * 0.3 : TESTS.test(p) ? idf * 0.5 : idf, name, false);
   }
+  const lower = prompt.replace(URL, " ").toLowerCase();
   for (const p of paths) {
     const stem = basename3(p, extname2(p)).toLowerCase();
-    if (stem.length >= 5 && (asked.has(stem) || [...asked].some((a) => a.toLowerCase() === stem))) add(p, Math.log(1 + N), stem, true);
+    if (stem.length < 5) continue;
+    const esc = stem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`(^|[^\\w.])${esc}\\.[a-z]{1,5}\\b|/${esc}\\b|\\b${esc} (module|file|package)\\b`).test(lower)) add(p, Math.log(1 + N), stem, true);
   }
   return [...scored.values()].sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, k);
 }
@@ -3563,6 +3854,7 @@ export {
   claudeMdLine,
   claudeRequests,
   claudeSlug,
+  codeNames,
   codexRequests,
   costOf,
   dailyAggregates,
@@ -3576,6 +3868,7 @@ export {
   firstHit,
   fmtTokens,
   gateEntries,
+  handoffText,
   harnessOf,
   ignoredOutputDirIn,
   isValidMode,
@@ -3587,7 +3880,9 @@ export {
   loadState,
   looksCrafted,
   matchesAny,
+  memoryText,
   modelKey,
+  namedExactly,
   normalize,
   outline,
   overlap,
@@ -3597,6 +3892,7 @@ export {
   ratioFor,
   readClaudeTranscript,
   readDecisions,
+  readPins,
   readRows,
   readSpend,
   readTargets,
@@ -3621,7 +3917,9 @@ export {
   scoreLabels,
   scorePrompt,
   searchHint,
+  sessionFacts,
   shingles,
+  shouldSuggest,
   sizeOf,
   snoutignore,
   splitGrepOutput,
@@ -3641,5 +3939,6 @@ export {
   totalsOf,
   trimMcp,
   withOverride,
+  workingState,
   writeAtomic
 };

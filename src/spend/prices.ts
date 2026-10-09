@@ -52,6 +52,9 @@ export const PRICES: Record<string, Price> = {
   "claude-sonnet-4-6": claude(3, 0.3, 15),
   "claude-sonnet-4-5": claude(3, 0.3, 15),
   "claude-sonnet-4": claude(3, 0.3, 15),
+  // Released 2026-10-07 (anthropic.com/claude-haiku-5-5). Prompts over 100k tokens bill at 5× these
+  // rates; like the other models here, the long-context tier is not modelled.
+  "claude-haiku-5-5": claude(0.1, 0.01, 0.5),
   "claude-haiku-4-5": claude(1, 0.1, 5),
   "claude-3-5-haiku": claude(0.8, 0.08, 4),
   "gpt-6-astra": openai(10, 1, 50, 12.5),

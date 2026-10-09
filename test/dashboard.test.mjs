@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { mkdtempSync, mkdirSync, appendFileSync, writeFileSync, readFileSync, existsSync } from "node:fs";
@@ -7,7 +8,7 @@ import { join } from "node:path";
 import { request } from "node:http";
 import { summarizeLedger, dailyAggregates } from "../dist/lib.mjs";
 
-const CLI = new URL("../dist/snout.mjs", import.meta.url).pathname;
+const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 
 const row = (o) => ({
   ts: "2026-09-28T10:00:00.000Z", session: "s1", turn: 1, tool: "Read", path: "src/a.ts", tier: 0, rule: "unclassified",

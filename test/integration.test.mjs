@@ -4,13 +4,14 @@
  * shebang once shipped a bundle that could not load at all.
  */
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const CLI = new URL("../dist/snout.mjs", import.meta.url).pathname;
+const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 
 function project() {
   const root = mkdtempSync(join(tmpdir(), "snout-int-"));
@@ -375,8 +376,8 @@ test("snout mode enforce installs the gate itself, keeps other hooks, and observ
   const [kept, read, bash] = on.hooks.PreToolUse;
   assert.deepEqual(kept, mine, "the user's own hook is untouched");
   assert.equal(read.matcher, "Read|NotebookRead");
-  assert.match(read.hooks[0].command, /node ".*snout\.mjs" pre-tool/);
-  assert.ok(!read.hooks[0].command.includes("${CLAUDE_PLUGIN_ROOT}"), "project settings get an absolute path");
+  assert.equal(read.hooks[0].type, "http", "the fast path is the default");
+  assert.match(read.hooks[0].url, /^http:\/\/127\.0\.0\.1:\d+\/snout\/v1\/pre-tool$/);
   assert.equal(bash.matcher, "Bash");
   assert.ok(bash.hooks.every((x) => /^Bash\(\w+ \*\)$/.test(x.if)), "every Bash handler is if-filtered");
   assert.ok(bash.hooks.some((x) => x.if === "Bash(cat *)") && !bash.hooks.some((x) => /git|npm|rg|ls/.test(x.if)));
@@ -384,6 +385,11 @@ test("snout mode enforce installs the gate itself, keeps other hooks, and observ
 
   spawnSync(process.execPath, [CLI, "mode", "enforce"], { cwd: root, encoding: "utf8" });
   assert.equal(JSON.parse(readFileSync(join(root, ".claude", "settings.local.json"), "utf8")).hooks.PreToolUse.length, 3, "re-running does not duplicate");
+
+  spawnSync(process.execPath, [CLI, "fast", "off"], { cwd: root, encoding: "utf8" });
+  const cmd = JSON.parse(readFileSync(join(root, ".claude", "settings.local.json"), "utf8")).hooks.PreToolUse[1];
+  assert.match(cmd.hooks[0].command, /node ".*snout\.mjs" pre-tool/, "fast off puts command hooks back");
+  assert.ok(!cmd.hooks[0].command.includes("${CLAUDE_PLUGIN_ROOT}"), "project settings get an absolute path");
 
   spawnSync(process.execPath, [CLI, "mode", "observe"], { cwd: root, encoding: "utf8" });
   assert.deepEqual(JSON.parse(readFileSync(join(root, ".claude", "settings.local.json"), "utf8")).hooks.PreToolUse, [mine]);

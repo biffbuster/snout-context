@@ -1,10 +1,11 @@
 // Repo map: names linked to the files that declare or use them; a request gets candidate paths.
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildMap, candidates, renderCandidates, requestNames } from "../dist/lib.mjs";
+import { buildMap, candidates, renderCandidates, requestNames, shouldSuggest } from "../dist/lib.mjs";
 
 function project(files) {
   const dir = mkdtempSync(join(tmpdir(), "snout-map-"));
@@ -67,11 +68,34 @@ test("ordinary words are not anchors unless some file declares them", () => {
 // The hook: opt-in, paths only, logged, silent when the prompt names nothing the map knows.
 import { spawnSync } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
-const CLI = new URL("../dist/snout.mjs", import.meta.url).pathname;
+const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 const submit = (root, prompt) => {
   const r = spawnSync(process.execPath, [CLI, "prompt-submit"], { input: JSON.stringify({ session_id: "s1", cwd: root, hook_event_name: "UserPromptSubmit", prompt }), encoding: "utf8" });
   return JSON.parse(r.stdout || "{}");
 };
+
+// SWE pilot 2026-10-08 (pytest-dev__pytest-10356): "Please", "Consider" and "changelog" in the
+// issue fired four wrong files and missed the one the fix edits.
+test("capitalized English words and file-stem words don't anchor or fire the map", () => {
+  const { map } = buildMap(project({
+    "src/mark/structures.py": "def get_unpacked_marks(obj):\n    return getattr(obj, 'pytestmark', [])\n",
+    "src/nodes.py": "# Please keep in sync. Consider the update.\nclass Node:\n    pass\n",
+    "src/compat.py": "# Please note: Consider this update when you resolve imports.\n",
+    "doc/changelog.rst": "Changelog\n=========\nPlease read. Consider upgrading.\n",
+    "src/changelog.py": "def render(): pass\n",
+  }));
+  const issue = "Consider MRO when obtaining marks for classes. Please see below; a changelog entry would be nice.";
+  const cs = candidates(map, issue, 4);
+  assert.ok(!cs.some((c) => c.uses.includes("Please") || c.uses.includes("Consider")), JSON.stringify(cs));
+  assert.ok(!cs.some((c) => c.defines.includes("changelog")), JSON.stringify(cs));
+  assert.equal(shouldSuggest(cs, issue), false);
+  // Written as code, the same request finds the declaring file and fires.
+  const asCode = "Consider MRO in `get_unpacked_marks` when obtaining marks. A changelog.py entry too.";
+  const cs2 = candidates(map, asCode, 4);
+  assert.equal(cs2[0].path, "src/mark/structures.py");
+  assert.ok(cs2.some((c) => c.path === "src/changelog.py"));
+  assert.equal(shouldSuggest(cs2, asCode), true);
+});
 
 test("prompt hook: off by default, then suggests files once `snout map on` is set", () => {
   const root = shop();
