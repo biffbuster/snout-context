@@ -29,6 +29,7 @@ import { createHash } from "node:crypto";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, appendFileSync, chmodSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { gateEntries, squeezeEntries } from "../dist/lib.mjs";
 import { bootstrap } from "./long.mjs";
 import { reliabilityLines, costLines, ledgerFacts, peakContext, mapFacts } from "./stats.mjs";
@@ -39,12 +40,12 @@ const args = Object.fromEntries(
 const N = Number(args.n ?? 1);
 const MODEL = typeof args.model === "string" ? args.model : "haiku";
 /** --api: bill ANTHROPIC_API_KEY from .env.local instead of the Claude login (real billed cost, no plan usage). */
-const API_KEY = args.api ? (readFileSync(join(new URL("..", import.meta.url).pathname, ".env.local"), "utf8").split("\n").find((l) => l.startsWith("ANTHROPIC_API_KEY=")) ?? "").slice("ANTHROPIC_API_KEY=".length).trim() : null;
+const API_KEY = args.api ? (readFileSync(join(fileURLToPath(new URL("..", import.meta.url)), ".env.local"), "utf8").split("\n").find((l) => l.startsWith("ANTHROPIC_API_KEY=")) ?? "").slice("ANTHROPIC_API_KEY=".length).trim() : null;
 if (args.api && !API_KEY) throw new Error("--api: no ANTHROPIC_API_KEY in .env.local");
 const ARMS = (typeof args.arms === "string" ? args.arms : "off,enforce").split(",");
 const BUDGET = String(args.budget ?? "2.00");
 const JOBS = Number(args.jobs ?? 2);
-const REPO = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
+const REPO = fileURLToPath(new URL("..", import.meta.url)).replace(/\/$/, "");
 const SNOUT_BIN = process.env.SNOUT_BIN || join(REPO, "dist/snout.mjs");
 const SWE_PY = process.env.SWE_PY || join(homedir(), "opt/anaconda3/envs/swebench/bin/python");
 const DATASET = "SWE-bench/SWE-bench_Verified";
@@ -467,4 +468,4 @@ async function main() {
 
 export { sh, ensureImage, preflight, leftovers, removeContainers, dockerHealthy, grade, SWE_PY, DATASET, SNOUT_BIN, REPO };
 
-if (import.meta.url === `file://${process.argv[1]}`) main().catch((e) => { console.error(e); process.exit(1); });
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) main().catch((e) => { console.error(e); process.exit(1); });

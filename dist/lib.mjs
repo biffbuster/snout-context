@@ -2935,7 +2935,8 @@ function collectUsage(projectDir, days, home, ledger) {
         const st = statSync8(f);
         if (st.mtimeMs < Date.now() - days * DAY) continue;
         const text = readFileSync6(f, "utf8");
-        if (!text.includes(`"cwd":"${dir}`) && !text.includes(`"cwd": "${dir}`)) continue;
+        const cwd = JSON.stringify(dir).slice(1, -1);
+        if (!text.includes(`"cwd":"${cwd}`) && !text.includes(`"cwd": "${cwd}`)) continue;
         n++;
         const ts = st.mtime.toISOString();
         const patch = /\*\*\* (?:Add|Update) File: ([^\\\n"]+)/g;

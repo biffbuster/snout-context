@@ -139,7 +139,10 @@ export function measureServer(s: ServerConfig, timeoutMs = MEASURE_TIMEOUT_MS): 
       try { child.kill(); } catch { /* already gone */ }
       done(r);
     };
-    const child = spawn(s.command!, s.args ?? [], { env: { ...process.env, ...(s.env ?? {}) }, stdio: ["pipe", "pipe", "ignore"] });
+    // On Windows a bare `npx` or `uvx` is a .cmd script that only a shell can start, as the agents themselves do.
+    const viaCmd = process.platform === "win32" && !/[\\/]|\.(exe|com)$/i.test(s.command!);
+    const [file, argv] = viaCmd ? [process.env.ComSpec || "cmd.exe", ["/d", "/c", s.command!, ...(s.args ?? [])]] : [s.command!, s.args ?? []];
+    const child = spawn(file, argv, { env: { ...process.env, ...(s.env ?? {}) }, stdio: ["pipe", "pipe", "ignore"], windowsHide: true });
     const timer = setTimeout(() => finish({ error: `no tool list within ${timeoutMs / 1000}s` }), timeoutMs);
     child.on("error", (e) => finish({ error: e.message.slice(0, 80) }));
     let buf = "";

@@ -31,6 +31,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { gateEntries, squeezeEntries } from "../dist/lib.mjs";
+import { fileURLToPath } from "node:url";
 
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, a, i, arr) => (a.startsWith("--") ? [...acc, [a.slice(2), arr[i + 1]?.startsWith("--") ? true : arr[i + 1] ?? true]] : acc), []),
@@ -41,7 +42,7 @@ const AGENT = args.agent === "codex" ? "codex" : "claude";
 const MODEL = typeof args.model === "string" ? args.model : AGENT === "codex" ? "codex-default" : "sonnet";
 const ARMS = (typeof args.arms === "string" ? args.arms : "off,enforce").split(",");
 const BUDGET = String(args.budget ?? "1.00");
-const REPO = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
+const REPO = fileURLToPath(new URL("..", import.meta.url)).replace(/\/$/, "");
 const SNOUT_BIN = process.env.SNOUT_BIN || join(REPO, "dist/snout.mjs");
 
 // ------------------------------------------------------------------ fixture
@@ -400,4 +401,4 @@ export { makeFixture, TASKS };
 
 // Only when executed directly: importing this file (to inspect the fixture) must never
 // start paid Claude runs.
-if (process.argv[1] && new URL(import.meta.url).pathname === (await import("node:fs")).realpathSync(process.argv[1])) main();
+if (process.argv[1] && fileURLToPath(import.meta.url) === (await import("node:fs")).realpathSync(process.argv[1])) main();

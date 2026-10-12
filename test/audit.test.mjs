@@ -24,7 +24,7 @@ createInterface({ input: process.stdin }).on("line", (l) => { const m = JSON.par
   writeFileSync(join(project, ".mcp.json"), JSON.stringify({ mcpServers: { issues: { command: process.execPath, args: ["x.mjs"] }, warehouse: { command: process.execPath, args: [server] } } }));
   writeFileSync(join(home, ".claude.json"), JSON.stringify({ mcpServers: { github: { type: "http", url: "https://example.invalid/mcp" } }, projects: { [resolve(project)]: { mcpServers: {} } } }));
   mkdirSync(join(home, ".cursor"), { recursive: true });
-  writeFileSync(join(home, ".cursor", "mcp.json"), JSON.stringify({ mcpServers: { figma: { command: "npx", args: ["figma-mcp"] } } }));
+  writeFileSync(join(home, ".cursor", "mcp.json"), JSON.stringify({ mcpServers: { figma: { command: process.execPath, args: [join(home, "no-such-server.mjs")] } } }));
   // Session history: issues used twice, a Claude account connector once; warehouse and github never.
   const slug = resolve(project).replace(/[^A-Za-z0-9]/g, "-");
   mkdirSync(join(home, ".claude", "projects", slug), { recursive: true });
@@ -35,7 +35,7 @@ createInterface({ input: process.stdin }).on("line", (l) => { const m = JSON.par
 
 const run = (args, home, cwd, input = "") => spawnSync(process.execPath, [CLI, ...args], {
   // The suite runs files in parallel; on a busy runner a test server can need more than the 10 s default to answer.
-  cwd, input, encoding: "utf8", env: { ...process.env, HOME: home, CLAUDE_CONFIG_DIR: "", CODEX_HOME: join(home, ".codex"), SNOUT_MCP_MEASURE_MS: "60000" },
+  cwd, input, encoding: "utf8", env: { ...process.env, HOME: home, USERPROFILE: home, CLAUDE_CONFIG_DIR: "", CODEX_HOME: join(home, ".codex"), SNOUT_MCP_MEASURE_MS: "60000" },
 });
 
 test("audit lists configured servers with their usage and how to turn off the unused ones", () => {

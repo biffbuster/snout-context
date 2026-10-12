@@ -4,7 +4,7 @@
 import { copyFileSync, existsSync as existsSync16, mkdirSync as mkdirSync10, mkdtempSync as mkdtempSync2, readdirSync as readdirSync5, readFileSync as readFileSync19, readSync as readSync4, rmSync as rmSync3, statSync as statSync16, writeFileSync as writeFileSync6, writeSync } from "node:fs";
 import { createHash as createHash4 } from "node:crypto";
 import { spawn as spawn2, spawnSync as spawnSync4 } from "node:child_process";
-import { basename as basename6, dirname as dirname10, isAbsolute as isAbsolute10, join as join21, resolve as resolve10 } from "node:path";
+import { basename as basename6, dirname as dirname10, isAbsolute as isAbsolute11, join as join21, resolve as resolve10 } from "node:path";
 import { homedir as homedir6, tmpdir as tmpdir2 } from "node:os";
 
 // src/config.ts
@@ -2237,7 +2237,8 @@ function collectUsage(projectDir, days, home, ledger) {
         const st = statSync7(f);
         if (st.mtimeMs < Date.now() - days * DAY) continue;
         const text = readFileSync5(f, "utf8");
-        if (!text.includes(`"cwd":"${dir}`) && !text.includes(`"cwd": "${dir}`)) continue;
+        const cwd = JSON.stringify(dir).slice(1, -1);
+        if (!text.includes(`"cwd":"${cwd}`) && !text.includes(`"cwd": "${cwd}`)) continue;
         n++;
         const ts = st.mtime.toISOString();
         const patch = /\*\*\* (?:Add|Update) File: ([^\\\n"]+)/g;
@@ -2859,7 +2860,7 @@ function cap(s) {
 import { createRequire } from "node:module";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { readFileSync as readFileSync13, statSync as statSync13, unwatchFile, watchFile } from "node:fs";
-import { basename as basename5, join as join15 } from "node:path";
+import { basename as basename5, isAbsolute as isAbsolute8, join as join15 } from "node:path";
 
 // src/dashboard/summary.ts
 var TIMELINE_POINTS = 240;
@@ -5506,7 +5507,9 @@ function measureServer(s, timeoutMs = MEASURE_TIMEOUT_MS) {
       }
       done(r);
     };
-    const child = spawn(s.command, s.args ?? [], { env: { ...process.env, ...s.env ?? {} }, stdio: ["pipe", "pipe", "ignore"] });
+    const viaCmd = process.platform === "win32" && !/[\\/]|\.(exe|com)$/i.test(s.command);
+    const [file2, argv] = viaCmd ? [process.env.ComSpec || "cmd.exe", ["/d", "/c", s.command, ...s.args ?? []]] : [s.command, s.args ?? []];
+    const child = spawn(file2, argv, { env: { ...process.env, ...s.env ?? {} }, stdio: ["pipe", "pipe", "ignore"], windowsHide: true });
     const timer = setTimeout(() => finish2({ error: `no tool list within ${timeoutMs / 1e3}s` }), timeoutMs);
     child.on("error", (e) => finish2({ error: e.message.slice(0, 80) }));
     let buf = "";
@@ -5782,7 +5785,7 @@ function startDashboard(paths, opts) {
         const seen = /* @__PURE__ */ new Set();
         const next = [];
         for (const p of [...listFiles(paths.projectDir), ...s.readFiles.map((f) => f.key)]) {
-          if (seen.has(p) || p.startsWith("/") || p.startsWith("..")) continue;
+          if (seen.has(p) || isAbsolute8(p) || p.startsWith("..")) continue;
           seen.add(p);
           try {
             const st = statSync13(join15(paths.projectDir, p));
@@ -6036,11 +6039,11 @@ import { createRequire as createRequire2 } from "node:module";
 // src/replay/replay.ts
 import { existsSync as existsSync13, mkdirSync as mkdirSync8, mkdtempSync, readFileSync as readFileSync16, rmSync as rmSync2, writeFileSync as writeFileSync5 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname as dirname9, isAbsolute as isAbsolute9, join as join18, relative as relative8, sep as sep5 } from "node:path";
+import { dirname as dirname9, isAbsolute as isAbsolute10, join as join18, relative as relative8, sep as sep5 } from "node:path";
 
 // src/compact/memory.ts
 import { closeSync as closeSync3, existsSync as existsSync12, openSync as openSync3, readFileSync as readFileSync15, readSync as readSync3, statSync as statSync14 } from "node:fs";
-import { isAbsolute as isAbsolute8, join as join17, relative as relative7, resolve as resolve9, sep as sep4 } from "node:path";
+import { isAbsolute as isAbsolute9, join as join17, relative as relative7, resolve as resolve9, sep as sep4 } from "node:path";
 var TAIL_BYTES = 16 * 1024 * 1024;
 var HEAD_BYTES4 = 2 * 1024 * 1024;
 var MAX_CHARS = 4e3;
@@ -6101,7 +6104,7 @@ function testCommand(command, projectDir) {
     if (!words.length || NOT_RUNNER.has(words[0]) || !TEST.test(s.bare)) continue;
     let run = s.text.replace(/\s*2>&1\s*$/, "").split(`${projectDir}/`).join("");
     if (cd) {
-      const abs = isAbsolute8(cd) ? cd : resolve9(projectDir, cd);
+      const abs = isAbsolute9(cd) ? cd : resolve9(projectDir, cd);
       const r = relative7(projectDir, abs).split(sep4).join("/");
       if (r) run = `cd ${r.startsWith("..") ? cd : r} && ${run}`;
     }
@@ -6187,9 +6190,9 @@ function userText(o) {
 }
 function sessionFacts(transcriptPath, projectDir) {
   const rel = (p) => {
-    if (!isAbsolute8(p)) return p;
+    if (!isAbsolute9(p)) return p;
     const r = relative7(projectDir, p);
-    return r && !r.startsWith("..") && !isAbsolute8(r) ? r.split(sep4).join("/") : p;
+    return r && !r.startsWith("..") && !isAbsolute9(r) ? r.split(sep4).join("/") : p;
   };
   const facts = { rules: [], missing: [], slow: [], changed: [], todos: [] };
   const uses = /* @__PURE__ */ new Map();
@@ -6265,7 +6268,7 @@ function sessionFacts(transcriptPath, projectDir) {
     }
   }
   if (facts.test) facts.missing = facts.missing.filter((m) => !facts.test.command.includes(m.name));
-  const projectFirst = (list) => [...list.filter((p) => !isAbsolute8(p)), ...list.filter((p) => isAbsolute8(p))];
+  const projectFirst = (list) => [...list.filter((p) => !isAbsolute9(p)), ...list.filter((p) => isAbsolute9(p))];
   facts.changed = projectFirst(facts.changed);
   facts.missing = facts.missing.slice(0, 5);
   const kept = [];
@@ -6300,7 +6303,7 @@ function pinLines(pins, projectDir, secrets) {
   for (const p of pins) {
     out.push(`- ${p.text.replace(/\s*\[re-?read \d+\]/i, "")}`);
     if (!p.path || !p.reread) continue;
-    const abs = isAbsolute8(p.path) ? p.path : resolve9(projectDir, p.path);
+    const abs = isAbsolute9(p.path) ? p.path : resolve9(projectDir, p.path);
     if (!existsSync12(abs)) {
       out.push(`  (not on disk now: ${p.path})`);
       continue;
@@ -6400,7 +6403,7 @@ function shadowProject(lines, projectDir) {
     const f = o.toolUseResult?.file;
     if (!f || typeof f.filePath !== "string" || typeof f.content !== "string") continue;
     const r = relative8(projectDir, f.filePath);
-    if (!r || r.startsWith("..") || isAbsolute9(r)) continue;
+    if (!r || r.startsWith("..") || isAbsolute10(r)) continue;
     const prev = best.get(r);
     if (!prev || f.content.length > prev.content.length) best.set(r, { content: f.content, start: Number(f.startLine) || 1, total: Number(f.totalLines) || 0 });
   }
@@ -6429,9 +6432,9 @@ function replaySession(file2, run) {
   };
   const session = String(lines.find(({ o }) => o.sessionId)?.o.sessionId ?? file2);
   const rel = (p) => {
-    if (!isAbsolute9(p)) return p;
+    if (!isAbsolute10(p)) return p;
     const r2 = relative8(projectDir, p);
-    return r2 && !r2.startsWith("..") && !isAbsolute9(r2) ? r2.split(sep5).join("/") : p;
+    return r2 && !r2.startsWith("..") && !isAbsolute10(r2) ? r2.split(sep5).join("/") : p;
   };
   const r = {
     session,
@@ -8278,7 +8281,7 @@ function onPreTool(input, paths, cfg) {
     emit({});
     return;
   }
-  const absPath = isAbsolute10(filePath) ? filePath : join21(paths.projectDir, filePath);
+  const absPath = isAbsolute11(filePath) ? filePath : join21(paths.projectDir, filePath);
   const state = loadState(paths.state, input.session_id ?? "unknown");
   if (tool === "Read" && cfg.repeatReads !== false) {
     const rel = toRel(absPath, paths.projectDir);
@@ -8572,7 +8575,7 @@ function onPostTool(input, paths, cfg) {
   if (input.tool_name === "Read" && filePath) {
     const window = returnedWindow(input.tool_response);
     if (window) {
-      const abs = isAbsolute10(filePath) ? filePath : join21(paths.projectDir, filePath);
+      const abs = isAbsolute11(filePath) ? filePath : join21(paths.projectDir, filePath);
       rememberRead(paths.snoutDir, state.session, agentOf2(input).agentId, abs, toRel(abs, paths.projectDir), window, state.turn);
     }
   } else if (input.tool_name === "Bash") {
@@ -8735,7 +8738,7 @@ function recordToolOutput(input, paths, state, bytes) {
   });
 }
 function recordObservation(input, paths, cfg, filePath, state, bytesHint) {
-  const absPath = isAbsolute10(filePath) ? filePath : join21(paths.projectDir, filePath);
+  const absPath = isAbsolute11(filePath) ? filePath : join21(paths.projectDir, filePath);
   const rel = toRel(absPath, paths.projectDir);
   const d = decide({ absPath, projectDir: paths.projectDir, cfg });
   const returned = bytesHint ?? responseBytes(input.tool_response);
@@ -8770,7 +8773,7 @@ function recordObservation(input, paths, cfg, filePath, state, bytesHint) {
   });
 }
 function hasPreToolRow(paths, state, filePath, agentId) {
-  const rel = toRel(isAbsolute10(filePath) ? filePath : join21(paths.projectDir, filePath), paths.projectDir);
+  const rel = toRel(isAbsolute11(filePath) ? filePath : join21(paths.projectDir, filePath), paths.projectDir);
   return readDecisions(paths.ledger, 12).some(
     (r) => r.path === rel && r.turn === state.turn && r.session === state.session && r.agentId === agentId && !r.observedOnly
   );
@@ -8971,7 +8974,7 @@ function cmdExplain(paths, cfg, args) {
     say("Usage: /snout:explain <path> [--json]");
     return;
   }
-  const absPath = isAbsolute10(target) ? target : join21(paths.projectDir, target);
+  const absPath = isAbsolute11(target) ? target : join21(paths.projectDir, target);
   const rel = toRel(absPath, paths.projectDir);
   const bytes = sizeOf(absPath);
   const tokens2 = estimateTokens(bytes, rel);
@@ -9068,7 +9071,7 @@ function cmdScan(paths, cfg, args) {
   const topN = Math.max(0, Math.min(100, Number(flag("--top") ?? 10) || 10));
   const valued = /* @__PURE__ */ new Set(["--deny", "--ask", "--mode", "--top"]);
   const target = args.find((a, i) => !a.startsWith("--") && !valued.has(args[i - 1] ?? ""));
-  const root = target ? isAbsolute10(target) ? target : join21(paths.projectDir, target) : paths.projectDir;
+  const root = target ? isAbsolute11(target) ? target : join21(paths.projectDir, target) : paths.projectDir;
   const started = Date.now();
   const files = [];
   let truncated = false;

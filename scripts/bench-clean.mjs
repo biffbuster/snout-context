@@ -18,15 +18,17 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const APPLY = process.argv.includes("--apply");
-const REPO = new URL("..", import.meta.url).pathname;
+const REPO = fileURLToPath(new URL("..", import.meta.url));
 const RESULTS = join(REPO, "bench/ab-results");
 const DAY = 86_400_000;
 const sh = (cmd, args) => spawnSync(cmd, args, { encoding: "utf8" });
 const gone = (what, n) => console.log(`${APPLY ? "removed" : "would remove"} ${n} ${what}`);
 
-if (sh("pgrep", ["-f", "bench/(swe|swelong)\\.mjs"]).stdout.trim()) {
+// pgrep is POSIX only; on Windows (no pgrep) this check is skipped.
+if ((sh("pgrep", ["-f", "bench/(swe|swelong)\\.mjs"]).stdout ?? "").trim()) {
   console.log("a benchmark is running; nothing touched");
   process.exit(0);
 }

@@ -29,13 +29,14 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 // MAP_LIB=<path to a lib.mjs> scores another build (before/after a change) on the same tasks.
 const { buildMap, candidates, renderCandidates, requestNames, decide, DEFAULTS, shouldSuggest: libShouldSuggest } = await import(process.env.MAP_LIB || "../dist/lib.mjs");
 /** The hook's firing rule; builds before it moved into the library used this copy. */
 const shouldSuggest = libShouldSuggest ?? ((cs, prompt) => cs.some((c) => c.defines.some((name) => new RegExp(`(^|[^A-Za-z0-9_])${name.replace(/[$]/g, "\\$")}($|[^A-Za-z0-9_])`).test(prompt) && (/[A-Z_0-9]/.test(name.slice(1)) || name.length >= 8 || (/^[A-Z]/.test(name) && name.length >= 6)))));
 const SUGGESTED = 4; // what the hook shows the agent
 
-const REPO = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
+const REPO = fileURLToPath(new URL("..", import.meta.url)).replace(/\/$/, "");
 const SWE_PY = process.env.SWE_PY || join(homedir(), "opt/anaconda3/envs/swebench/bin/python");
 const KS = [1, 3, 5, 10, 15];
 const keep = process.argv.includes("--keep");

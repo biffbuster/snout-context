@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import {
   auditContext, classifyContextPath, staleRefs, normalize, shingles, overlap, authorOf, readClaudeTranscript,
   renderAudit, renderMap, totals, archiveFiles, restoreArchive, listArchives,
@@ -118,8 +118,8 @@ test("transcripts: skills, reads, commands and writes are counted", () => {
   assert.equal(u.skills.get("deploy")[0], 1);
   assert.equal(u.agents.get("reviewer")[0], 1);
   assert.equal(u.commands.get("ship")[0], 1);
-  assert.ok(u.writes.has("/p/a.md"));
-  assert.equal(u.reads.has("/p/old.md"), false, "reads before the window are not usage");
+  assert.ok(u.writes.has(resolve("/p/a.md")));
+  assert.equal(u.reads.has(resolve("/p/old.md")), false, "reads before the window are not usage");
 });
 
 test("stale references: deleted files and missing scripts, not examples", () => {
@@ -235,7 +235,7 @@ test("archive refuses paths outside the project, .git, .snout and missing files"
 
 test("cli: audit context reports, archives only with --yes, and restores", () => {
   const { root, home } = fixture();
-  const env = { ...process.env, HOME: home, CLAUDE_CONFIG_DIR: join(home, ".claude"), CODEX_HOME: join(home, ".codex") };
+  const env = { ...process.env, HOME: home, USERPROFILE: home, CLAUDE_CONFIG_DIR: join(home, ".claude"), CODEX_HOME: join(home, ".codex") };
   const run = (...a) => spawnSync(process.execPath, [CLI, "audit", "context", ...a], { cwd: root, encoding: "utf8", env, timeout: 30_000 });
   const report = run();
   assert.equal(report.status, 0, report.stderr);
@@ -262,7 +262,7 @@ test("mcp: snout_audit_context returns the map, read-only", () => {
     { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "snout_audit_context", arguments: { format: "map" } } },
     { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "snout_audit_context", arguments: {} } },
   ].map((m) => JSON.stringify(m)).join("\n") + "\n";
-  const r = spawnSync(process.execPath, [CLI, "mcp", root], { input, encoding: "utf8", timeout: 30_000, env: { ...process.env, HOME: home, CLAUDE_CONFIG_DIR: join(home, ".claude") } });
+  const r = spawnSync(process.execPath, [CLI, "mcp", root], { input, encoding: "utf8", timeout: 30_000, env: { ...process.env, HOME: home, USERPROFILE: home, CLAUDE_CONFIG_DIR: join(home, ".claude") } });
   const replies = Object.fromEntries(r.stdout.trim().split("\n").map((l) => JSON.parse(l)).map((x) => [x.id, x]));
   assert.match(replies[1].result.content[0].text, /^# Agent context map/);
   assert.match(replies[1].result.content[0].text, /CLAUDE\.md \| always/);

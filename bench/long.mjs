@@ -27,6 +27,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { gateEntries, squeezeEntries } from "../dist/lib.mjs";
 import { reliabilityLines, costLines, ledgerFacts, peakContext } from "./stats.mjs";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, a, i, all) => (a.startsWith("--") ? [...acc, [a.slice(2), all[i + 1] && !all[i + 1].startsWith("--") ? all[i + 1] : true]] : acc), []),
@@ -35,7 +36,7 @@ const N = Number(args.n ?? 1);
 const MODEL = typeof args.model === "string" ? args.model : "haiku";
 const ARMS = (typeof args.arms === "string" ? args.arms : "off,enforce").split(",");
 const BUDGET = String(args.budget ?? "1.50");
-const REPO = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
+const REPO = fileURLToPath(new URL("..", import.meta.url)).replace(/\/$/, "");
 const SNOUT_BIN = process.env.SNOUT_BIN || join(REPO, "dist/snout.mjs");
 
 // ------------------------------------------------------------------ fixture
@@ -469,4 +470,4 @@ function main() {
 }
 
 export { makeFixture, TASKS, grade, bootstrap };
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) main();

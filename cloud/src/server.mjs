@@ -3,6 +3,9 @@ import { openDb } from "./db.mjs";
 import { createApp } from "./app.mjs";
 
 const env = process.env;
+// `--dev` and `--demo` stand in for DEV_LOGIN=1 / DEMO=1, which Windows shells can't set inline.
+if (process.argv.includes("--dev") || process.argv.includes("--demo")) env.DEV_LOGIN = "1";
+if (process.argv.includes("--demo")) env.DEMO = "1";
 const production = env.NODE_ENV === "production";
 if (production && !env.SESSION_SECRET) throw new Error("SESSION_SECRET is required in production");
 if (production && env.DEV_LOGIN) throw new Error("DEV_LOGIN must not be set in production");

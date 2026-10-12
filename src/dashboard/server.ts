@@ -12,7 +12,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { createRequire } from "node:module";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { readFileSync, statSync, unwatchFile, watchFile } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, isAbsolute, join } from "node:path";
 import { loadConfig, type Paths } from "../config.js";
 import { readDecisions } from "../ledger/store.js";
 import { summarizeLedger, type DashboardSummary } from "./summary.js";
@@ -127,7 +127,7 @@ export function startDashboard(paths: Paths, opts: DashboardOptions): { close: (
         const next: { path: string; size: number }[] = [];
         // Files agents read count even when the listing skips them (dist/, lockfiles): that is where bloat lives.
         for (const p of [...listFiles(paths.projectDir), ...s.readFiles.map((f) => f.key)]) {
-          if (seen.has(p) || p.startsWith("/") || p.startsWith("..")) continue;
+          if (seen.has(p) || isAbsolute(p) || p.startsWith("..")) continue;
           seen.add(p);
           try {
             const st = statSync(join(paths.projectDir, p));

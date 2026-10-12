@@ -36,6 +36,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 import { tier0, DEFAULTS } from "../dist/lib.mjs";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, a, i, arr) => (a.startsWith("--") ? [...acc, [a.slice(2), arr[i + 1]]] : acc), []),
@@ -326,7 +327,7 @@ async function main() {
 export { loadAllWithPredictions, labelOneJev, looksBinary, pool, JEV_USD_PER_MTOK, JEV_QUESTION };
 export const jevUsage = () => jevInputTokens;
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   main().catch((err) => {
     console.error(err.message);
     process.exitCode = 1;

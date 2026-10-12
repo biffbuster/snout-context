@@ -322,7 +322,9 @@ function collectUsage(projectDir: string, days: number, home: string, ledger: Au
         const st = statSync(f);
         if (st.mtimeMs < Date.now() - days * DAY) continue;
         const text = readFileSync(f, "utf8");
-        if (!text.includes(`"cwd":"${dir}`) && !text.includes(`"cwd": "${dir}`)) continue;
+        // As JSON text: a Windows path's backslashes are escaped there.
+        const cwd = JSON.stringify(dir).slice(1, -1);
+        if (!text.includes(`"cwd":"${cwd}`) && !text.includes(`"cwd": "${cwd}`)) continue;
         n++;
         const ts = st.mtime.toISOString();
         const patch = /\*\*\* (?:Add|Update) File: ([^\\\n"]+)/g;

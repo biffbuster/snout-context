@@ -15,12 +15,13 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, write
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gateEntries, squeezeEntries } from "../dist/lib.mjs";
+import { fileURLToPath } from "node:url";
 
 const args = Object.fromEntries(process.argv.slice(2).reduce((a, x, i, arr) => (x.startsWith("--") ? [...a, [x.slice(2), arr[i + 1]?.startsWith("--") ? true : arr[i + 1] ?? true]] : a), []));
 const REPO = args.repo;
 const N = Number(args.n ?? 3);
 const MODEL = typeof args.model === "string" ? args.model : "haiku";
-const SNOUT_BIN = process.env.SNOUT_BIN || new URL("../dist/snout.mjs", import.meta.url).pathname;
+const SNOUT_BIN = process.env.SNOUT_BIN || fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 if (!REPO || !existsSync(join(REPO, "source"))) throw new Error("--repo must point at an installed ky checkout");
 
 const PROMPT = "In this repository (the ky HTTP client), what is the default retry limit, and which HTTP status codes does ky retry by default? Write the limit on the first line of ANSWER.txt and the status codes, comma-separated, on the second line.";
@@ -89,5 +90,5 @@ console.log(`  total tokens   ${pct(sum(on, "totalTokens"), sum(off, "totalToken
 console.log(`  cost           ${pct(sum(on, "costUsd"), sum(off, "costUsd"))}  ($${sum(off, "costUsd").toFixed(3)} → $${sum(on, "costUsd").toFixed(3)})`);
 console.log(`  turns (median) ${med(off.map((r) => r.turns))} → ${med(on.map((r) => r.turns))}`);
 console.log(`  passing        off ${off.filter((r) => r.pass).length}/${off.length} · on ${on.filter((r) => r.pass).length}/${on.length}`);
-mkdirSync(new URL("./ab-results/", import.meta.url).pathname, { recursive: true });
-writeFileSync(new URL(`./ab-results/library-${Date.now()}.json`, import.meta.url).pathname, JSON.stringify({ model: MODEL, n: N, rows }, null, 2));
+mkdirSync(fileURLToPath(new URL("./ab-results/", import.meta.url)), { recursive: true });
+writeFileSync(fileURLToPath(new URL(`./ab-results/library-${Date.now()}.json`, import.meta.url)), JSON.stringify({ model: MODEL, n: N, rows }, null, 2));

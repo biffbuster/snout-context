@@ -28,8 +28,9 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadAllWithPredictions, labelOneJev, looksBinary, pool, JEV_USD_PER_MTOK, JEV_QUESTION, jevUsage } from "./label.mjs";
+import { fileURLToPath } from "node:url";
 
-const HERE = new URL(".", import.meta.url).pathname;
+const HERE = fileURLToPath(new URL(".", import.meta.url));
 const OUT = join(HERE, "gold");
 const argv = process.argv.slice(2);
 const flag = (k) => argv.includes(k);

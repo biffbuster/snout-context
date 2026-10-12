@@ -20,9 +20,9 @@
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, join, relative, isAbsolute } from "node:path";
-import { pathToFileURL } from "node:url";
+import { pathToFileURL, fileURLToPath } from "node:url";
 
-const LIB = process.env.SNOUT_LIB || new URL("../dist/lib.mjs", import.meta.url).pathname;
+const LIB = process.env.SNOUT_LIB || fileURLToPath(new URL("../dist/lib.mjs", import.meta.url));
 const { sessionFacts, memoryText } = await import(pathToFileURL(LIB).href);
 
 const args = process.argv.slice(2);

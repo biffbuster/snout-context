@@ -55,7 +55,8 @@ const AGENTS = {
 };
 
 const summary = (line) => { if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, line + "\n"); };
-const npm = (...a) => execFileSync(process.platform === "win32" ? "npm.cmd" : "npm", a, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+// npm is a .cmd script on Windows, which Node only starts through a shell. Arguments here are fixed words.
+const npm = (...a) => execFileSync("npm", a, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], shell: process.platform === "win32" }).trim();
 
 function largestFile(dir) {
   let best = { size: 0, path: "" };
