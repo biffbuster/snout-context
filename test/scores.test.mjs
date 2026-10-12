@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -7,7 +8,7 @@ import { spawnSync } from "node:child_process";
 import { tier0, scoreFile, decide, bandOf, labelOf, summarize, THRESHOLDS, HINT_SCORE, DEFAULTS } from "../dist/lib.mjs";
 import { repos } from "../eval/dataset.mjs";
 
-const CLI = new URL("../dist/snout.mjs", import.meta.url).pathname;
+const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 const cfg = DEFAULTS;
 
 function repo(files) {

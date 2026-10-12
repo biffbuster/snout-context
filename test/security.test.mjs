@@ -2,6 +2,7 @@
  * Regression tests for defects found by auditing Phase 0 against benchmark best practice. Each test names the defect it locks down.
  */
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync } from "node:fs";
@@ -9,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { tier0, decide, DEFAULTS, safePath, looksCrafted, tailLines, writeAtomic, snoutignore } from "../dist/lib.mjs";
 
-const CLI = new URL("../dist/snout.mjs", import.meta.url).pathname;
+const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 
 function repo() {
   const root = mkdtempSync(join(tmpdir(), "snout-sec-"));

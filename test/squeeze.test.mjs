@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
@@ -6,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { squeeze, kindOf } from "../dist/lib.mjs";
 
-const CLI = new URL("../dist/snout.mjs", import.meta.url).pathname;
+const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 
 const jestPass = () => [
   "> shop@1.0.0 test", "> jest", "",
@@ -104,4 +105,28 @@ test("observe mode, other commands and interrupted runs pass through untouched",
   assert.equal(hook(root, { tool_input: { command: "npm test" }, tool_response: resp }, "observe"), null);
   assert.equal(hook(root, { tool_input: { command: "git log" }, tool_response: resp }), null);
   assert.equal(hook(root, { tool_input: { command: "npm test" }, tool_response: { ...resp, interrupted: true } }), null);
+});
+
+test("Python's other test runners are recognised", () => {
+  for (const c of ["python tests/runtests.py admin_views", "python3 -m unittest discover -v", "python manage.py test shop", "cd repo && python3 tests/runtests.py -v 2 forms"]) assert.equal(kindOf(c), "test", c);
+  for (const c of ["python script.py", "python -c 'print(1)'", "python3 manage.py migrate"]) assert.equal(kindOf(c), null, c);
+});
+
+test("a verbose Django run drops its passing lines but keeps every file-and-line location", () => {
+  const out = [
+    "Testing against Django installed in '/testbed/django'",
+    ...Array.from({ length: 150 }, (_, i) => `test_case_${i} (forms_tests.tests.test_forms.FormsTestCase.test_case_${i}) ... ok`),
+    "test_skipped (forms_tests.tests.test_forms.FormsTestCase.test_skipped) ... skipped 'requires PIL'",
+    "/testbed/django/forms/fields.py:412: RemovedInDjango60Warning: the default scheme will change",
+    '  File "/testbed/django/forms/boundfield.py", line 88, in as_widget',
+    ...Array.from({ length: 40 }, (_, i) => `test_more_${i} (forms_tests.tests.test_widgets.WidgetTests.test_more_${i}) ... ok`),
+    "", "----------------------------------------------------------------------", "Ran 192 tests in 2.418s", "", "OK (skipped=1)",
+  ].join("\n");
+  const s = squeeze("test", out, "x.log");
+  assert.ok(s);
+  assert.doesNotMatch(s.text, /test_case_77 /);
+  assert.match(s.text, /fields\.py:412/);
+  assert.match(s.text, /File "\/testbed\/django\/forms\/boundfield\.py", line 88/);
+  assert.match(s.text, /Ran 192 tests/);
+  assert.match(s.text, /OK \(skipped=1\)/);
 });

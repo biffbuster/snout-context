@@ -68,6 +68,8 @@ export interface DashboardSummary {
   topRead: Slice[];
   /** The chart: files the gate held back most, then the largest full reads, up to CHART_FILES. */
   files: FileDetail[];
+  /** Every file read, with its label and last read, for the repo map (largest first, capped). */
+  readFiles: (Slice & { label: string; last: string })[];
   mode?: string;
   sessions: (Slice & { first: string; last: string; clients: string[] })[];
   /** Cumulative inContext and heldBack over time, at most TIMELINE_POINTS points. */
@@ -84,6 +86,7 @@ const FEED = 60;
 const CHART_FILES = 8;
 const HISTORY = 6;
 const DAILY_DAYS = 14;
+const READ_FILES = 3000;
 
 const isFlagged = (r: DecisionRow): boolean => r.value <= 1 && r.rule !== "unclassified";
 const clientOf = (r: DecisionRow): string => r.client ?? "claude";
@@ -235,6 +238,11 @@ export function summarizeLedger(rows: DecisionRow[], now = new Date()): Dashboar
       const d = details.get(f.key)!;
       return { ...f, label: d.label, reason: d.reason, trimmed: d.trimmed, last: d.last, history: d.history.slice().reverse() };
     }),
+    readFiles: sliceFiles
+      .filter((f) => f.key)
+      .sort((a, b) => b.inContext + b.heldBack - (a.inContext + a.heldBack))
+      .slice(0, READ_FILES)
+      .map((f) => ({ ...f, label: details.get(f.key)!.label, last: details.get(f.key)!.last })),
     sessions: [...sessions.values()].sort((a, b) => (a.last < b.last ? 1 : -1)).slice(0, 20),
     timeline: thin(timeline, TIMELINE_POINTS),
     recent: feed.slice(-FEED).reverse(),

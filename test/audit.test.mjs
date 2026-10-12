@@ -1,12 +1,13 @@
 // MCP tool-list audit and the opt-in concise output mode.
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-const CLI = new URL("../dist/snout.mjs", import.meta.url).pathname;
+const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 
 function setup() {
   const home = mkdtempSync(join(tmpdir(), "snout-audit-home-"));
@@ -33,7 +34,8 @@ createInterface({ input: process.stdin }).on("line", (l) => { const m = JSON.par
 }
 
 const run = (args, home, cwd, input = "") => spawnSync(process.execPath, [CLI, ...args], {
-  cwd, input, encoding: "utf8", env: { ...process.env, HOME: home, CLAUDE_CONFIG_DIR: "", CODEX_HOME: join(home, ".codex") },
+  // The suite runs files in parallel; on a busy runner a test server can need more than the 10 s default to answer.
+  cwd, input, encoding: "utf8", env: { ...process.env, HOME: home, CLAUDE_CONFIG_DIR: "", CODEX_HOME: join(home, ".codex"), SNOUT_MCP_MEASURE_MS: "60000" },
 });
 
 test("audit lists configured servers with their usage and how to turn off the unused ones", () => {

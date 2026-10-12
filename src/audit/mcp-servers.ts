@@ -125,7 +125,10 @@ const toolPrefixName = (name: string) => name.replace(/[^A-Za-z0-9_-]/g, "_");
  * Starts a local stdio server, asks for its tool list, and estimates the tokens it costs per
  * request (about 4 characters per token of JSON). Remote servers are skipped. Never throws.
  */
-export function measureServer(s: ServerConfig, timeoutMs = 10_000): Promise<{ tools: number; listTokens: number } | { error: string }> {
+/** How long a server gets to answer with its tool list. SNOUT_MCP_MEASURE_MS raises it on slow or loaded machines (CI). */
+const MEASURE_TIMEOUT_MS = Number(process.env.SNOUT_MCP_MEASURE_MS) || 10_000;
+
+export function measureServer(s: ServerConfig, timeoutMs = MEASURE_TIMEOUT_MS): Promise<{ tools: number; listTokens: number } | { error: string }> {
   if (!s.command) return Promise.resolve({ error: s.url ? "remote server: not measured" : "no command to start" });
   return new Promise((done) => {
     let settled = false;

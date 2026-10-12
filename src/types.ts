@@ -38,6 +38,8 @@ export interface HookInput {
   tool_response?: unknown;
   prompt?: string;
   session_start_reason?: string;
+  /** SessionStart: "startup", "resume", "clear", "compact" or "fork". */
+  source?: string;
   /** The model the session runs on; Claude Code sends it with SessionStart. */
   model?: string;
   compaction_reason?: string;

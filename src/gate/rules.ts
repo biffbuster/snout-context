@@ -110,9 +110,11 @@ const LICENSE_FILES = new Set([
  * `bench/label.mjs` flagged `nodejs/node`'s `deps/LIEF/` as unclassified; checking the real
  * repo found `deps/` holding ~30 independent third-party projects (LIEF, openssl, v8, zlib,
  * uv, sqlite, undici, ...), the same convention `vendor/` names for other ecosystems.
+ * `deps` counts only at the repository root (ROOT_VENDOR_DIRS): Track A found bun's
+ * hand-written build recipes in `scripts/build/deps/` trimmed as vendored.
  */
 const VENDOR_DIRS = [
-  "node_modules", ".git", "vendor", "deps",
+  "node_modules", ".git", "vendor",
   ".next", ".nuxt", ".svelte-kit", ".turbo", ".parcel-cache", ".cache",
   "__pycache__", ".venv", "venv", ".tox", ".mypy_cache", ".pytest_cache", ".ruff_cache",
   ".nyc_output", ".gradle", ".terraform", "Pods", "DerivedData",
@@ -287,7 +289,8 @@ const RULES: readonly Rule[] = [
   {
     label: "vendored",
     run: (s) => {
-      const vendorDir = firstSegmentMatch(s.rel, VENDOR_DIRS) ?? s.ignoredOutputDir(s.rel);
+      const top = s.rel.split("/")[0]!;
+      const vendorDir = firstSegmentMatch(s.rel, VENDOR_DIRS) ?? (s.rel.includes("/") && ROOT_VENDOR_DIRS.includes(top) ? top : null) ?? s.ignoredOutputDir(s.rel);
       return vendorDir
         ? low("vendored", `${safePath(s.rel)} sits inside ${safeText(vendorDir, 40)}/, a directory of installed or generated output rather than source you maintain.`)
         : null;
@@ -327,7 +330,9 @@ const RULES: readonly Rule[] = [
   {
     label: "snapshot",
     run: (s, name) =>
-      /(^|\/)(__snapshots__|__fixtures__|cassettes|fixtures)(\/|$)/.test(s.rel) || name.endsWith(".snap")
+      // Recorded output only. Plain fixtures/ folders were dropped: Track A's audit found most of
+      // them hold hand-written test inputs, and the ask stopped the agent to read them.
+      /(^|\/)(__snapshots__|cassettes)(\/|$)/.test(s.rel) || name.endsWith(".snap")
         ? marginal("snapshot", `${safePath(s.rel)} is a recorded snapshot or fixture; useful only when the task is specifically about it.`)
         : null,
   },
@@ -540,6 +545,16 @@ function extOf(name: string): string | null {
   return m?.[1]?.toLowerCase() ?? null;
 }
 
+/** True when `marker` sits inside a double-quoted string on `line`, judged by an odd number of quotes on either side. */
+function insideDoubleQuotes(line: string, marker: string): boolean {
+  const i = line.indexOf(marker);
+  const count = (t: string) => (t.match(/"/g) ?? []).length;
+  return count(line.slice(0, i)) % 2 === 1 || count(line.slice(i + marker.length)) % 2 === 1;
+}
+
+/** Vendor directory names that mean third-party code only as a repository's top-level folder. */
+const ROOT_VENDOR_DIRS = ["deps"];
+
 function firstSegmentMatch(rel: string, dirs: readonly string[]): string | null {
   const segments = rel.split("/");
   for (const seg of segments.slice(0, -1)) {
@@ -638,9 +653,13 @@ function generatedMarker(headBuf: Uint8Array | null): string | null {
     if (head.includes(marker)) return marker;
   }
 
-  const banner = head.split("\n", BANNER_LINES).join("\n");
+  // A weak marker on a line that quotes something is talking about a banner, not being one
+  // (Track A: a CI script describing the "this is generated, do not edit" header it checks for).
+  const bannerLines = head.split("\n", BANNER_LINES);
+  const banner = bannerLines.join("\n");
   for (const marker of WEAK_MARKERS) {
-    if (banner.includes(marker) && GENERATOR_HINT.test(banner)) return marker;
+    const line = bannerLines.find((l) => l.includes(marker));
+    if (line && !insideDoubleQuotes(line, marker) && GENERATOR_HINT.test(banner)) return marker;
   }
   return null;
 }

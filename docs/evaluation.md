@@ -68,7 +68,8 @@ remain unmeasured, and the gaps matter more than the numbers that exist:
   rules — so it measures regression protection, not behaviour on an unseen repository.
 - **Calibration.** Deterministic rules return 1.0 or 0.8 by construction, so there is no
   calibration to report; the table stays empty by design until a model-backed tier ships.
-- **Real cost and latency under load.** Zero API calls means neither exists yet.
+- **Cost and latency.** The classifier eval makes no API calls, so it has no cost. Agent spend is
+  measured separately by the A/B harnesses (see benchmark.md).
 
 ## A correction to the original savings model
 

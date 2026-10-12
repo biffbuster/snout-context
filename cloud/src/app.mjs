@@ -484,6 +484,8 @@ export function createApp({ db, config }) {
     const client = url.searchParams.get("client");
     if (project) where.push(`d.project_id = $${params.push(Number(project))}`);
     if (client) where.push(`d.client = $${params.push(client)}`);
+    const model = url.searchParams.get("model");
+    if (model) where.push(`d.model = $${params.push(model === "unknown" ? "" : model)}`);
     const w = where.join(" and ");
     const sums = "sum(d.reads)::float8 as reads, sum(d.gated)::float8 as gated, sum(d.in_context)::float8 as \"inContext\", sum(d.held_back)::float8 as \"heldBack\", sum(d.could_hold_back)::float8 as \"couldHoldBack\"";
     const sw = w.replace(/\bd\./g, "s.");
@@ -496,7 +498,7 @@ export function createApp({ db, config }) {
       db.query(`select u.login as key, ${ssum} from spend_daily s join users u on u.id = s.user_id where ${sw} group by u.login`, params),
       db.query(`select distinct s.model from spend_daily s where ${sw} and s.cost_usd is null`, params),
     ]);
-    const [totals, series, byProject, byClient, byLabel, byModelSaved, byMember, projects, clients] = await Promise.all([
+    const [totals, series, byProject, byClient, byLabel, byModelSaved, byMember, projects, clients, modelList, labelProject, labelDay] = await Promise.all([
       db.query(`select ${sums} from usage_daily d where ${w}`, params),
       db.query(`select to_char(d.day, 'YYYY-MM-DD') as key, ${sums} from usage_daily d where ${w} group by d.day order by d.day`, params),
       db.query(`select p.id::text as key, p.name, ${sums} from usage_daily d join projects p on p.id = d.project_id where ${w} group by p.id, p.name order by 6 desc, 5 desc`, params),
@@ -506,6 +508,10 @@ export function createApp({ db, config }) {
       db.query(`select u.login as key, u.avatar, ${sums} from usage_daily d join users u on u.id = d.user_id where ${w} group by u.login, u.avatar order by 7 desc, 6 desc`, params),
       db.query("select id::text as id, name from projects where team_id = $1 order by name", [team]),
       db.query("select distinct client from usage_daily where team_id = $1 order by client", [team]),
+      db.query("select model from spend_daily where team_id = $1 union select model from usage_daily where team_id = $1 and model <> '' order by 1", [team]),
+      // The context flow: each label per project, and each label per day over the last four weeks of the range.
+      db.query(`select d.label as key, d.project_id::text as project, ${sums} from usage_daily d where ${w} group by d.label, d.project_id`, params),
+      db.query(`select to_char(d.day, 'YYYY-MM-DD') as day, d.label as key, ${sums} from usage_daily d where ${w} and d.day > (now() at time zone 'utc')::date - 28 group by d.day, d.label`, params),
     ]);
     // Live view: today, per-model spend with today and 7-day figures, and who synced most recently.
     const recent = `${w} and d.day >= (now() at time zone 'utc')::date - 1`;
@@ -548,7 +554,7 @@ export function createApp({ db, config }) {
     for (const m of byMember) m.spend = spendOf(spendByMember, m.key);
     json(res, 200, {
       days, plan: teamRow?.plan ?? "free", limits, capped: asked > days ? { historyDays: limits.historyDays } : null,
-      totals: t, series, byProject, byClient, ...splitMcp(byLabel), byModel: byModelSaved, byMember, projects, clients: clients.map((c) => c.client),
+      totals: t, series, byProject, byClient, ...splitMcp(byLabel), byModel: byModelSaved, byMember, projects, clients: clients.map((c) => c.client), models: modelList.map((m) => m.model), flow: { byLabelProject: labelProject, byLabelDay: labelDay },
       spend: { ...st, series: spendSeries, byModel: spendModels.length ? spendModels : spendByModel, unpriced: unpriced.map((u) => u.model), today: { requests: sday.requests || 0, tokens: sday.tokens || 0, costUsd: sday.costUsd || 0 } },
       today: tday, activity, lastSyncAt: last?.at ?? null, now: new Date().toISOString(),
     });

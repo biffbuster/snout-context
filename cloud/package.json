@@ -8,6 +8,7 @@
   "scripts": {
     "start": "node src/server.mjs",
     "dev": "DEV_LOGIN=1 node src/server.mjs",
+    "dev:demo": "DEV_LOGIN=1 DEMO=1 node src/server.mjs",
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {

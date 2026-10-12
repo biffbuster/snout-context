@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:http";
@@ -6,7 +7,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, statSync, existsSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const CLI = new URL("../dist/snout.mjs", import.meta.url).pathname;
+const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 
 function project() {
   const root = mkdtempSync(join(tmpdir(), "snout-cloud-"));

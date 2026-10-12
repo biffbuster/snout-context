@@ -34,8 +34,9 @@ would have saved; `snout mode enforce` turns it on.
 
 ## How it works
 
-Before your agent reads a file or sees a tool's output, Snout checks what it is, locally, in under
-a millisecond:
+Before your agent reads a file or sees a tool's output, Snout checks what it is, locally. The check
+itself takes under a millisecond; each hook call is a short Node process, so it adds a fraction of a
+second, mostly Node's startup.
 
 | What enters context | What the agent gets |
 | --- | --- |
@@ -47,21 +48,28 @@ a millisecond:
 | Output of a passing test, install, build or search | The problems and the summary, grouped by file; the full log is saved |
 | Generated, vendored and built files | The first lines, an outline, and a search hint |
 | `.env` and key files | Snout asks you first |
+| Your request names code in the repo (opt-in: `snout map on`) | Up to four paths that declare or use it, so the agent opens them instead of searching; never file contents |
 
 When no rule is sure, the file is read in full, and every error lets the read through. Any ranged
 read (a specific set of lines) comes back exactly as asked.
 
 ## Results
 
-Real agent sessions, Snout off vs. on, each task graded by its own test. [Method and caveats](docs/benchmark.md).
+Real headless agent sessions on test projects we built, Snout off vs. on, each task graded by its
+own test. Spend is the agent's reported cost at API list prices. Raw rows for every line are in
+[`bench/ab-results/`](bench/ab-results); [method and caveats](docs/benchmark.md).
 
 | | Result |
 | --- | --- |
-| Long multi-step sessions with docs, logs and MCP connectors (Haiku, 11 tasks, 1 run each) | **−41%** input tokens, **−28%** spend, 11/11 passing |
-| Spend on tasks that meet bulk files, everything on (Haiku, 48 runs) | **−33%**, 24/24 passing |
-| Spend on bulk-file tasks, read gate alone | **−23%** Sonnet · **−24%** Haiku · **−23%** Codex |
-| A large generated file · a passing test run · a large MCP result | **−90%** · **−87%** · **−74%** |
-| Tasks with nothing to trim | no change |
+| Long multi-step sessions with docs, logs and MCP connectors (Haiku, 11 tasks, 66 runs) | **−22%** input tokens, **−19%** spend (95% CI −37% to +6%), 33/33 passing; **−52%** on a codebase-wide rename, **−43%** on a task answered from a long handbook |
+| Spend on tasks that meet bulk files, everything on (Haiku, 12 tasks, 48 runs) | **−33%**, 24/24 passing |
+| Bulk-file tasks, read gate alone | spend **−24%** Haiku (90 runs) · **−23%** Sonnet (36 runs) · tokens **−23%** Codex (60 runs) |
+| Single examples: a lockfile read · a passing test run's output · a 60-issue MCP result | tokens **−90%** · lines **−87%** · characters **−74%** |
+| Tasks with nothing to trim | within noise (−5% to +1% across runs) |
+
+These projects were built to contain the bulk Snout trims, so the numbers show what it saves when
+that bulk is on the agent's path, not the average saving on any repo. Single runs of the same task
+vary by 20–40%.
 
 ## CLI
 
@@ -69,6 +77,8 @@ Real agent sessions, Snout off vs. on, each task graded by its own test. [Method
 snout                   # status: what's been kept out, and what it saved
 snout scan              # what in this repo would crowd your agent's context
 snout audit             # MCP servers: which are used, what each one's results cost and saved
+snout audit context     # instructions, skills and AI-written docs: per-session cost, last use, dead weight
+snout map on            # opt-in: suggest the files your prompt names (paths only)
 snout report            # what was read, kept out and saved, with spend
 snout dashboard         # live savings in your browser
 snout mode enforce      # start trimming (observe = record only)

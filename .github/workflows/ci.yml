@@ -4,12 +4,12 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_call: # the nightly watcher runs this same suite
+  workflow_dispatch:
 
 jobs:
   verify:
     runs-on: ${{ matrix.os }}
-    # Windows is new: it reports without blocking until its first green run.
-    continue-on-error: ${{ matrix.os == 'windows-latest' }}
     strategy:
       fail-fast: false
       matrix:
@@ -21,8 +21,8 @@ jobs:
           - os: windows-latest
             node: "22.x"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ matrix.node }}
       - run: npm ci
@@ -65,8 +65,8 @@ jobs:
       run:
         working-directory: cloud
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: "22.x"
       - run: npm ci
@@ -75,8 +75,8 @@ jobs:
   latency:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: "22.x"
       - run: npm ci

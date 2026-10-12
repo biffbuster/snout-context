@@ -38,7 +38,9 @@
     "eval": "node eval/run.mjs",
     "eval:json": "node eval/run.mjs --json",
     "verify": "npm run typecheck && npm run build && npm test && npm run eval && npm run bench",
-    "doctor": "node dist/snout.mjs doctor"
+    "doctor": "node dist/snout.mjs doctor",
+    "compat": "node scripts/compat.mjs",
+    "bench:clean": "node scripts/bench-clean.mjs"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.128.0",

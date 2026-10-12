@@ -29,3 +29,7 @@ export { scorePrompt } from "./coach/coach.js";
 export { squeeze, kindOf, SQUEEZE_IFS } from "./squeeze/squeeze.js";
 export { gateEntries, squeezeEntries } from "./gate/install.js";
 export { trimMcp } from "./squeeze/mcp.js";
+export { auditContext, classifyContextPath, staleRefs, normalize, shingles, overlap, authorOf, readClaudeTranscript, renderAudit, renderMap, toJson, totals, archiveFiles, restoreArchive, listArchives, OVERSIZED_TOKENS } from "./audit/context.js";
+export { sessionFacts, readPins, memoryText, testCommand, readProgress, sessionStartMs } from "./compact/memory.js";
+export { buildMap, candidates, renderCandidates, requestNames, codeNames, namedExactly, shouldSuggest, listFiles, entryFor, type RepoMap, type Candidate } from "./map/map.js";
+export { replaySession, totals as replayTotals, renderReplay, compactionWhatIf, COMPACTION_COSTS, type SessionReplay, type WhatIf } from "./replay/replay.js";

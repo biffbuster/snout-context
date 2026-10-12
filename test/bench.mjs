@@ -27,6 +27,7 @@
  *     machine; what we control is the delta, so that is what is gated.
  */
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -134,7 +135,7 @@ function paired(a, b) {
 }
 
 const enforce = { SNOUT_MODE: "enforce" };
-const CLI = new URL("../dist/snout.mjs", import.meta.url).pathname;
+const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 
 // Each form is paired with a floor measured the *same* way, because the cost of starting a
 // process is a property of the environment, not of this code. Measured here: bare `node -e

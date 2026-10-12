@@ -1,12 +1,13 @@
 // `snout mcp`: a full stdio session through the real bundle.
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const CLI = new URL("../dist/snout.mjs", import.meta.url).pathname;
+const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 
 function project() {
   const root = mkdtempSync(join(tmpdir(), "snout-mcp-"));
@@ -39,7 +40,7 @@ test("mcp: initializes, lists its tools, and ignores notifications", () => {
   ]);
   assert.equal(r[1].result.serverInfo.name, "snout");
   assert.equal(r[1].result.protocolVersion, "2025-06-18");
-  assert.deepEqual(r[2].result.tools.map((t) => t.name), ["snout_read", "snout_classify"]);
+  assert.deepEqual(r[2].result.tools.map((t) => t.name), ["snout_read", "snout_classify", "snout_audit_context"]);
   assert.equal(r[3].error.code, -32601);
   assert.equal(Object.keys(r).length, 3, "no reply to a notification");
 });

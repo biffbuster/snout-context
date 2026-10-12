@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
@@ -6,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { trimMcp } from "../dist/lib.mjs";
 
-const CLI = new URL("../dist/snout.mjs", import.meta.url).pathname;
+const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 
 const issues = () => JSON.stringify(Array.from({ length: 60 }, (_, i) => ({
   number: 1000 + i, title: `Checkout fails when cart has ${i} items`, state: i % 3 ? "open" : "closed",
@@ -79,5 +80,5 @@ test("enforce installs the MCP trim hook for every MCP tool", () => {
   const root = mkdtempSync(join(tmpdir(), "snout-mcp-"));
   spawnSync(process.execPath, [CLI, "mode", "enforce"], { cwd: root, encoding: "utf8" });
   const s = JSON.parse(readFileSync(join(root, ".claude/settings.local.json"), "utf8"));
-  assert.ok(s.hooks.PostToolUse.some((e) => e.matcher === "mcp__.*" && /snout\.mjs" squeeze/.test(e.hooks[0].command)));
+  assert.ok(s.hooks.PostToolUse.some((e) => e.matcher === "mcp__.*" && (/snout\.mjs" squeeze/.test(e.hooks[0].command ?? "") || /\/snout\/v1\/squeeze$/.test(e.hooks[0].url ?? ""))));
 });
