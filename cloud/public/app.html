@@ -1580,7 +1580,7 @@ footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 2
       var name = h("input", { placeholder: "Team name", "aria-label": "Team name", maxlength: "60" });
       var go = h("button", { cls: "btn dark", type: "button", text: "Create team" });
       go.addEventListener("click", function () { if (name.value.trim()) post("/api/teams", { name: name.value }).then(function (r) { location.href = "/?team=" + r.id; }); });
-      invite.append(h("p", { cls: "note", style: "margin:0 0 12px", text: "A team pools everyone's totals. Members connect with the same command and pick the team when approving. Free for up to 10 people." }), h("div", { cls: "row" }, name, go));
+      invite.append(h("p", { cls: "note", style: "margin:0 0 12px", text: "A team pools everyone's totals. Members connect with the same command and pick the team when approving." }), h("div", { cls: "row" }, name, go));
     } else {
       teamPanel(team, invite);
     }

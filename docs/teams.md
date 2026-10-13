@@ -11,7 +11,7 @@ every CI run is gated and reporting," in under ten minutes. Status column says w
 | 2. See the waste | each developer | `snout scan` grades the repo; `snout dashboard` shows savings live. The reason to go further. | Done |
 | 3. Sign in | the lead | "Sign in with GitHub" on the web app. A personal workspace exists at once. | Done |
 | 4. Create the organization | the lead | Guided setup, below. | Next |
-| 5. Invite | the lead | Invite link, or add by GitHub username. Free up to 10 people; the Team plan past that. | Link done; usernames next |
+| 5. Invite | the lead | Invite link, or add by GitHub username. Team plan ($15 per active developer per month; private beta). | Link done; usernames next |
 | 6. Connect machines | each developer | `snout login`, pick the organization. Syncs daily totals after each session. | Done |
 | 7. Connect CI | the lead | A workspace API key in CI; `snout ci` gates and reports agent runs. | Next |
 | 8. Set guardrails | the lead | Budgets and alerts per team, project, agent or model. | Later |
@@ -23,7 +23,7 @@ One screen per step, each skippable, each with a visible "done" state. The dashb
 after step 1.
 
 1. **Name it.** Organization name; the lead becomes owner.
-2. **Plan.** Free (up to 10 people, 90 days) or Team for larger teams ($8 per active developer per month). Stripe Checkout; the
+2. **Plan.** Team ($15 per active developer per month; private beta, by invitation: usesnout.xyz/contact). Stripe Checkout; the
    webhook flips `plan` and lifts the caps. Seats count developers who synced that month.
 3. **Invite.** Paste GitHub usernames or share a link. Roles: owner (billing, keys, members),
    admin (members, rules), member (sees team totals, syncs).

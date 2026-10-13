@@ -59,6 +59,29 @@ export function initAgent(agent: Agent, projectDir: string, cmd = selfCommand())
   return { file, events: groups.map(([e]) => e) };
 }
 
+/**
+ * `snout init <agent> --remove`: takes Snout's own entries out of that agent's project hook config
+ * and leaves everyone else's. An event left with no hooks is dropped; a file left with nothing is kept.
+ */
+export function removeAgent(agent: Agent, projectDir: string): { file: string; removed: number } {
+  const file = agent === "cursor" ? join(projectDir, ".cursor", "hooks.json") : agent === "gemini" ? join(projectDir, ".gemini", "settings.json") : join(projectDir, ".codex", "hooks.json");
+  if (!existsSync(file)) return { file, removed: 0 };
+  const cfg = load(file);
+  let removed = 0;
+  for (const [e, list] of Object.entries(cfg.hooks ?? {})) {
+    if (!Array.isArray(list)) continue;
+    const kept = list.filter((h: Json) => {
+      const ours = agent === "cursor" ? OURS.test(String(h?.command ?? "")) : Array.isArray(h?.hooks) && h.hooks.some((x: Json) => OURS.test(String(x?.command ?? "")));
+      if (ours) removed++;
+      return !ours;
+    });
+    if (kept.length) cfg.hooks[e] = kept;
+    else delete cfg.hooks[e];
+  }
+  if (removed) save(file, cfg);
+  return { file, removed };
+}
+
 function load(file: string): Json {
   if (!existsSync(file)) return {};
   const parsed = JSON.parse(readFileSync(file, "utf8"));

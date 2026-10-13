@@ -2029,6 +2029,24 @@ function initAgent(agent, projectDir, cmd = selfCommand()) {
   save(file2, cfg);
   return { file: file2, events: groups.map(([e]) => e) };
 }
+function removeAgent(agent, projectDir) {
+  const file2 = agent === "cursor" ? join6(projectDir, ".cursor", "hooks.json") : agent === "gemini" ? join6(projectDir, ".gemini", "settings.json") : join6(projectDir, ".codex", "hooks.json");
+  if (!existsSync5(file2)) return { file: file2, removed: 0 };
+  const cfg = load(file2);
+  let removed = 0;
+  for (const [e, list] of Object.entries(cfg.hooks ?? {})) {
+    if (!Array.isArray(list)) continue;
+    const kept = list.filter((h) => {
+      const ours2 = agent === "cursor" ? OURS.test(String(h?.command ?? "")) : Array.isArray(h?.hooks) && h.hooks.some((x) => OURS.test(String(x?.command ?? "")));
+      if (ours2) removed++;
+      return !ours2;
+    });
+    if (kept.length) cfg.hooks[e] = kept;
+    else delete cfg.hooks[e];
+  }
+  if (removed) save(file2, cfg);
+  return { file: file2, removed };
+}
 function load(file2) {
   if (!existsSync5(file2)) return {};
   const parsed = JSON.parse(readFileSync4(file2, "utf8"));
@@ -5204,14 +5222,15 @@ async function login(url, say2, openBrowser2) {
     return false;
   }
   let start;
+  const beta = url === DEFAULT_CLOUD_URL ? " Snout Cloud is in private beta; everything local works without it. To join: https://usesnout.xyz/contact" : "";
   try {
     start = await post(`${url}/api/device/start`, { client: "snout-cli" });
   } catch (err) {
-    say2(`Could not reach ${url}: ${err.message}`);
+    say2(`Could not reach ${url}: ${err.message}.${beta}`);
     return false;
   }
   if (start.status !== 200 || !start.json?.device_code) {
-    say2(`${url} did not start a login (${start.status}).`);
+    say2(`${url} did not start a login (${start.status}).${beta}`);
     return false;
   }
   const { device_code, user_code, verify_url, interval = 3, expires_in = 600 } = start.json;
@@ -6046,7 +6065,7 @@ import { closeSync as closeSync3, existsSync as existsSync12, openSync as openSy
 import { isAbsolute as isAbsolute9, join as join17, relative as relative7, resolve as resolve9, sep as sep4 } from "node:path";
 var TAIL_BYTES = 16 * 1024 * 1024;
 var HEAD_BYTES4 = 2 * 1024 * 1024;
-var MAX_CHARS = 4e3;
+var MAX_CHARS = 6e3;
 var TEST = /\b(pytest|runtests\.py|bin\/test|jest|vitest|mocha|go test|cargo test|npm (run )?test|pnpm test|yarn test|node --test|rspec|phpunit|tox|unittest)\b/;
 var RAN = /\b\d+ (passed|failed|errors?|skipped)\b|\bRan \d+ tests?\b|tests finished|^OK\b|\bOK \(|^FAILED\b|\bTests?:\s+\d+/m;
 var NOT_RUNNER = /* @__PURE__ */ new Set(["cat", "grep", "rg", "sed", "awk", "head", "tail", "echo", "printf", "ls", "find", "pip", "pip3", "conda", "apt", "apt-get", "brew", "which", "type", "man"]);
@@ -6355,6 +6374,7 @@ function readProgress(snoutDir, sinceMs) {
 function memoryText(facts, pins, projectDir, secrets, progress) {
   const sections = [];
   if (progress) sections.push(["Your progress notes (.snout/progress.md, written before the compaction):", ...progress.split("\n").slice(0, 25)]);
+  if (facts.rules?.length) sections.push(["Your instructions this session, verbatim (oldest first; where two conflict, the later one holds):", ...facts.rules.map((r) => `- ${r}`)]);
   if (pins.length) sections.push(["Pinned for this project:", ...pinLines(pins, projectDir, secrets)]);
   const f = [];
   if (facts.test) f.push(`- Tests run here with: \`${facts.test.command}\`${facts.test.result ? ` (last result: ${facts.test.result})` : ""}`);
@@ -6363,14 +6383,24 @@ function memoryText(facts, pins, projectDir, secrets, progress) {
   if (facts.error) f.push(`- Last error, not yet followed by a passing run: ${facts.error.line} (from \`${facts.error.command}\`)`);
   if (facts.goal && facts.goal !== facts.request) f.push(`- First request this session: ${facts.goal}`);
   if (facts.request) f.push(`- Current request: ${facts.request}`);
-  if (facts.changed.length) f.push(`- Files changed this session: ${facts.changed.slice(0, 12).join(", ")}`);
   if (facts.todos.length) f.push(`- Open to-dos: ${facts.todos.slice(0, 6).join("; ")}`);
-  if (f.length) sections.push(["From this session:", ...f]);
-  if (facts.rules?.length) sections.push(["Your instructions this session, verbatim (oldest first):", ...facts.rules.map((r) => `- ${r}`)]);
-  if (!sections.length) return "";
   const head = "Snout restored these exact facts after compaction (from this session and .snout/pins.md):";
-  let body = sections.flat().join("\n");
   const room = MAX_CHARS - head.length - PROGRESS_ASK.length - 2;
+  const render = () => [...sections, ...f.length ? [["From this session:", ...f]] : []].flat().join("\n");
+  if (facts.changed.length) {
+    const label = "- Files changed this session: ";
+    let left = room - render().length - 1 - label.length - (f.length ? 0 : "From this session:\n".length);
+    const listed = [];
+    for (const p of facts.changed) {
+      const cost = p.length + (listed.length ? 2 : 0);
+      if (cost > left) break;
+      listed.push(p);
+      left -= cost;
+    }
+    if (listed.length) f.push(`${label}${listed.join(", ")}${listed.length < facts.changed.length ? ` (and ${facts.changed.length - listed.length} more)` : ""}`);
+  }
+  let body = render();
+  if (!body) return "";
   if (body.length > room) body = `${body.slice(0, room - 1)}\u2026`;
   return [head, body, PROGRESS_ASK].join("\n");
 }
@@ -6574,7 +6604,8 @@ function replaySession(file2, run) {
         const prefix = join18(dir, "prefix.jsonl");
         writeFileSync5(prefix, lines.slice(0, at).map((l) => l.raw).join("\n") + "\n");
         const facts = sessionFacts(prefix, projectDir);
-        r.memory.chars += memoryText(facts, [], projectDir).length;
+        const restored = memoryText(facts, [], projectDir);
+        r.memory.chars += restored.length;
         const next = lines.slice(at + 1).flatMap(({ o }) => Array.isArray(o.message?.content) ? o.message.content : []).filter((b) => b?.type === "tool_use").slice(0, 40);
         const runner = (c) => c.split(/\s+/).slice(0, 3).join(" ");
         const testsNext = next.filter((b) => b.name === "Bash" && typeof b.input?.command === "string").map((b) => testCommand(b.input.command, projectDir)).filter(Boolean);
@@ -6582,7 +6613,7 @@ function replaySession(file2, run) {
           r.memory.withTest++;
           if (testsNext.some((t) => runner(t) === runner(facts.test.command))) r.memory.testUsed++;
         } else if (testsNext.length) r.memory.testMissed++;
-        const listed = new Set(facts.changed.slice(0, 12));
+        const listed = new Set(facts.changed.filter((p) => restored.includes(p)));
         for (const b of next) {
           const p = b.input?.file_path;
           if (!EDITS2.has(b.name) || typeof p !== "string") continue;
@@ -7536,6 +7567,7 @@ function openBrowser(url) {
   }
 }
 function cmdInit(agent, cwd) {
+  if (process.argv.includes("--remove")) return cmdRemove(agent, cwd);
   if (agent === "claude" || agent === "claude-code") {
     return say("Claude Code runs Snout as a plugin:\n\n  claude plugin marketplace add biffbuster/snout-context\n  claude plugin install snout@snout-context\n\nThen start a new session in this project. `snout` shows what it's doing.");
   }
@@ -7552,6 +7584,26 @@ Sets that agent up in this project so it runs Snout on every read.`);
   } catch (err) {
     recordError("init", err);
     say(`snout init ${agent} failed: ${safeText(err.message, 200)}`);
+  }
+}
+function cmdRemove(agent, cwd) {
+  const rest = "Snout's records stay in .snout/ until you delete that folder; the local fast-hook server, if running, stops after 30 idle minutes.";
+  if (agent === "claude" || agent === "claude-code") {
+    return say(`To remove Snout from Claude Code:
+
+  snout mode observe                        # takes out the gate in .claude/settings.local.json
+  claude plugin uninstall snout@snout-context
+
+${rest}`);
+  }
+  if (!isAgent(agent)) return say(`Usage: snout init <claude|${AGENTS.join("|")}> --remove`);
+  const paths = resolvePaths(cwd);
+  try {
+    const { file: file2, removed } = removeAgent(agent, paths.projectDir);
+    say(removed ? `Removed Snout's ${removed} hook entr${removed === 1 ? "y" : "ies"} from ${toRel(file2, paths.projectDir)}; other hooks are untouched. ${rest}` : `No Snout hooks in ${toRel(file2, paths.projectDir)}. ${rest}`);
+  } catch (err) {
+    recordError("init", err);
+    say(`snout init ${agent} --remove failed: ${safeText(err.message, 200)}`);
   }
 }
 function dispatch(command, input) {

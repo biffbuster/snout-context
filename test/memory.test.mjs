@@ -74,7 +74,22 @@ test("a re-read pin never brings a credential file's contents into context", () 
 test("the restored block stays under its cap however long the session is", () => {
   const dir = mkdtempSync(join(tmpdir(), "snout-cap-"));
   const f = { request: "x".repeat(400), missing: [], slow: [], changed: Array.from({ length: 500 }, (_, i) => `src/file${i}.py`), todos: Array.from({ length: 50 }, (_, i) => `todo ${i}`) };
-  assert.ok(memoryText(f, [], dir).length <= 4000);
+  assert.ok(memoryText(f, [], dir).length <= 6000);
+});
+
+test("instructions are never what the cap cuts, and the changed-file list takes the room that is left", () => {
+  const dir = mkdtempSync(join(tmpdir(), "snout-cap-"));
+  const rules = ["Never push to main without asking first.", "Always run the tests before you say a task is done.", "Actually, do push once the tests pass."];
+  const f = { request: "x".repeat(400), rules, missing: [], slow: [], changed: Array.from({ length: 500 }, (_, i) => `src/module${i}/file${i}.py`), todos: [] };
+  const text = memoryText(f, [], dir, undefined, "p".repeat(1500));
+  assert.ok(text.length <= 6000);
+  for (const r of rules) assert.ok(text.includes(r), `kept: ${r}`);
+  assert.match(text, /where two conflict, the later one holds/);
+  const listed = text.match(/Files changed this session: (.*) \(and (\d+) more\)/);
+  assert.ok(listed, "says how many files did not fit");
+  assert.ok(listed[1].split(", ").length > 12, "more than the old fixed 12 when there is room");
+  assert.equal(listed[1].split(", ")[0], "src/module0/file0.py", "most recent first");
+  assert.equal(listed[1].split(", ").length + Number(listed[2]), 500);
 });
 
 test("SessionStart after a compaction adds the facts to context when Snout is on, and nothing in observe", () => {
@@ -144,7 +159,7 @@ test("the agent's progress notes come back first after a compaction; notes from 
   assert.equal(readProgress(snout, since), undefined, "a file last written before the session began is someone else's work");
   // The ask survives the cap.
   const long = memoryText({ request: "x".repeat(400), missing: [], slow: [], changed: Array.from({ length: 500 }, (_, i) => `src/f${i}.py`), todos: [] }, [], dir, undefined, "p".repeat(5000));
-  assert.ok(long.length <= 4000);
+  assert.ok(long.length <= 6000);
   assert.match(long, /Keep `\.snout\/progress\.md` current.*next compaction\.$/);
 });
 

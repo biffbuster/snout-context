@@ -132,3 +132,21 @@ test("init writes each agent's config, is safe to re-run, and keeps other hooks"
   assert.equal(codex.hooks.PreToolUse[0].matcher, "^Bash$");
   assert.match(codex.hooks.PreToolUse[0].hooks[0].command, /hook codex PreToolUse$/);
 });
+
+test("init --remove takes out only Snout's hooks, for every agent", () => {
+  const root = project();
+  mkdirSync(join(root, ".cursor"));
+  writeFileSync(join(root, ".cursor", "hooks.json"), JSON.stringify({ version: 1, hooks: { beforeShellExecution: [{ command: "./other.sh" }] } }));
+  mkdirSync(join(root, ".codex"));
+  writeFileSync(join(root, ".codex", "hooks.json"), JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: "command", command: "./notify.sh" }] }] } }));
+  for (const a of ["cursor", "gemini", "codex"]) run(["init", a], undefined, root);
+  for (const a of ["cursor", "gemini", "codex"]) assert.match(run(["init", a, "--remove"], undefined, root), /Removed Snout's \d+ hook entr/);
+  const cursor = json(readFileSync(join(root, ".cursor", "hooks.json"), "utf8"));
+  assert.deepEqual(cursor.hooks, { beforeShellExecution: [{ command: "./other.sh" }] });
+  const codex = json(readFileSync(join(root, ".codex", "hooks.json"), "utf8"));
+  assert.deepEqual(codex.hooks, { Stop: [{ hooks: [{ type: "command", command: "./notify.sh" }] }] });
+  const gemini = json(readFileSync(join(root, ".gemini", "settings.json"), "utf8"));
+  assert.deepEqual(gemini.hooks, {});
+  assert.match(run(["init", "codex", "--remove"], undefined, root), /No Snout hooks/);
+  assert.match(run(["init", "claude", "--remove"], undefined, root), /claude plugin uninstall snout@snout-context/);
+});

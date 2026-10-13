@@ -267,7 +267,8 @@ export function replaySession(file: string, run: HookRunner): SessionReplay {
         const prefix = join(dir, "prefix.jsonl");
         writeFileSync(prefix, lines.slice(0, at).map((l) => l.raw).join("\n") + "\n");
         const facts = sessionFacts(prefix, projectDir);
-        r.memory.chars += memoryText(facts, [], projectDir).length;
+        const restored = memoryText(facts, [], projectDir);
+        r.memory.chars += restored.length;
         const next = lines.slice(at + 1).flatMap(({ o }) => (Array.isArray(o.message?.content) ? o.message.content : [])).filter((b: any) => b?.type === "tool_use").slice(0, 40);
         const runner = (c: string) => c.split(/\s+/).slice(0, 3).join(" ");
         const testsNext = next.filter((b: any) => b.name === "Bash" && typeof b.input?.command === "string").map((b: any) => testCommand(b.input.command, projectDir)).filter(Boolean) as string[];
@@ -275,7 +276,7 @@ export function replaySession(file: string, run: HookRunner): SessionReplay {
           r.memory.withTest++;
           if (testsNext.some((t) => runner(t) === runner(facts.test!.command))) r.memory.testUsed++;
         } else if (testsNext.length) r.memory.testMissed++;
-        const listed = new Set(facts.changed.slice(0, 12));
+        const listed = new Set(facts.changed.filter((p) => restored.includes(p)));
         for (const b of next) {
           const p = b.input?.file_path;
           if (!EDITS.has(b.name) || typeof p !== "string") continue;

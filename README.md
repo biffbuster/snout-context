@@ -88,6 +88,21 @@ snout login             # connect to Snout Cloud
 
 In Claude Code: `/snout:report`, `/snout:mode`, `/snout:explain`. More commands: [docs/configuration.md](docs/configuration.md).
 
+## Uninstall
+
+```bash
+# Claude Code
+snout mode observe                          # removes the gate from .claude/settings.local.json
+claude plugin uninstall snout@snout-context
+
+# Codex, Cursor, Gemini CLI: removes only Snout's hooks from that agent's config in this project
+snout init codex --remove                   # or cursor, gemini
+
+npm uninstall -g usesnout
+```
+
+Snout's records live in `.snout/` in each project; delete the folder to remove them.
+
 ## Snout Cloud
 
 One dashboard for your team's agents: savings and real spend by person, project, coding agent and
@@ -96,11 +111,11 @@ model. Cloud agents (CI, Claude Code on the web, Codex cloud) connect with a wor
 
 | Plan | Price | Includes |
 | --- | --- | --- |
-| **Free** | $0 | Everything local, unlimited. Cloud dashboard for you or a team of up to 10: all projects, 90 days of history, 3 cloud-agent keys, 500 agent runs a day |
-| **Team** | $8 per developer / month, billed yearly ($10 monthly) | For larger teams: unlimited people, a year of history, unlimited keys, 5,000 agent runs a month included, then $5 per 10,000 |
+| **Free** | $0 | Everything local, unlimited: trimming, memory after compaction, spend tracking, project scan and audit, the local dashboard |
+| **Team** | $15 per active developer / month | One dashboard for the team's agents: spend and savings by person, project, agent and model; budgets and alerts; shared rules; cloud-agent keys |
 | **Enterprise** | Contact us | SSO, audit log, self-hosting |
 
-Creating a team is invite-only while in beta. Sign in at [app.usesnout.xyz](https://app.usesnout.xyz).
+Snout Cloud is in private beta. To join, [contact us](https://usesnout.xyz/contact).
 
 ## Privacy
 

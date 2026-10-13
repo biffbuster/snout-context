@@ -35,7 +35,7 @@ import { debug, recordError } from "./util/log.js";
 import { safePath, safeText } from "./util/safe.js";
 import { writeAtomic } from "./util/atomic.js";
 import { AGENTS, fromInternal, isAgent, toInternal } from "./agents/adapt.js";
-import { initAgent } from "./agents/init.js";
+import { initAgent, removeAgent } from "./agents/init.js";
 import { startMcp } from "./mcp.js";
 import { startDashboard, type DashboardActions } from "./dashboard/server.js";
 import { liveDashboard, registerDashboard } from "./dashboard/registry.js";
@@ -278,6 +278,7 @@ function openBrowser(url: string): void {
 }
 
 function cmdInit(agent: string | undefined, cwd?: string): void {
+  if (process.argv.includes("--remove")) return cmdRemove(agent, cwd);
   if (agent === "claude" || agent === "claude-code") {
     return say("Claude Code runs Snout as a plugin:\n\n  claude plugin marketplace add biffbuster/snout-context\n  claude plugin install snout@snout-context\n\nThen start a new session in this project. `snout` shows what it's doing.");
   }
@@ -292,6 +293,23 @@ function cmdInit(agent: string | undefined, cwd?: string): void {
   } catch (err) {
     recordError("init", err);
     say(`snout init ${agent} failed: ${safeText((err as Error).message, 200)}`);
+  }
+}
+
+/** `snout init <agent> --remove`: undoes `snout init` for that agent in this project. */
+function cmdRemove(agent: string | undefined, cwd?: string): void {
+  const rest = "Snout's records stay in .snout/ until you delete that folder; the local fast-hook server, if running, stops after 30 idle minutes.";
+  if (agent === "claude" || agent === "claude-code") {
+    return say(`To remove Snout from Claude Code:\n\n  snout mode observe                        # takes out the gate in .claude/settings.local.json\n  claude plugin uninstall snout@snout-context\n\n${rest}`);
+  }
+  if (!isAgent(agent)) return say(`Usage: snout init <claude|${AGENTS.join("|")}> --remove`);
+  const paths = resolvePaths(cwd);
+  try {
+    const { file, removed } = removeAgent(agent, paths.projectDir);
+    say(removed ? `Removed Snout's ${removed} hook entr${removed === 1 ? "y" : "ies"} from ${toRel(file, paths.projectDir)}; other hooks are untouched. ${rest}` : `No Snout hooks in ${toRel(file, paths.projectDir)}. ${rest}`);
+  } catch (err) {
+    recordError("init", err);
+    say(`snout init ${agent} --remove failed: ${safeText((err as Error).message, 200)}`);
   }
 }
 
@@ -451,7 +469,7 @@ function onSessionStart(input: HookInput, paths: Paths, cfg: Config): void {
     }
   }
   // Right after a compaction: put back the exact facts the summary may have lost, and the agent's own
-  // progress notes (compact/memory.ts). Capped at ~1k tokens, only when Snout is on.
+  // progress notes (compact/memory.ts). Capped at ~1.5k tokens, only when Snout is on.
   if ((input.source ?? input.session_start_reason) === "compact" && cfg.mode !== "observe" && input.transcript_path) {
     try {
       const progress = readProgress(paths.snoutDir, sessionStartMs(input.transcript_path));

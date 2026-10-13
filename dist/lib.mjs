@@ -3412,7 +3412,7 @@ import { closeSync as closeSync3, existsSync as existsSync7, openSync as openSyn
 import { isAbsolute as isAbsolute6, join as join9, relative as relative4, resolve as resolve5, sep as sep3 } from "node:path";
 var TAIL_BYTES = 16 * 1024 * 1024;
 var HEAD_BYTES = 2 * 1024 * 1024;
-var MAX_CHARS = 4e3;
+var MAX_CHARS = 6e3;
 var TEST = /\b(pytest|runtests\.py|bin\/test|jest|vitest|mocha|go test|cargo test|npm (run )?test|pnpm test|yarn test|node --test|rspec|phpunit|tox|unittest)\b/;
 var RAN = /\b\d+ (passed|failed|errors?|skipped)\b|\bRan \d+ tests?\b|tests finished|^OK\b|\bOK \(|^FAILED\b|\bTests?:\s+\d+/m;
 var NOT_RUNNER = /* @__PURE__ */ new Set(["cat", "grep", "rg", "sed", "awk", "head", "tail", "echo", "printf", "ls", "find", "pip", "pip3", "conda", "apt", "apt-get", "brew", "which", "type", "man"]);
@@ -3721,6 +3721,7 @@ function readProgress(snoutDir, sinceMs) {
 function memoryText(facts, pins, projectDir, secrets, progress) {
   const sections = [];
   if (progress) sections.push(["Your progress notes (.snout/progress.md, written before the compaction):", ...progress.split("\n").slice(0, 25)]);
+  if (facts.rules?.length) sections.push(["Your instructions this session, verbatim (oldest first; where two conflict, the later one holds):", ...facts.rules.map((r) => `- ${r}`)]);
   if (pins.length) sections.push(["Pinned for this project:", ...pinLines(pins, projectDir, secrets)]);
   const f = [];
   if (facts.test) f.push(`- Tests run here with: \`${facts.test.command}\`${facts.test.result ? ` (last result: ${facts.test.result})` : ""}`);
@@ -3729,14 +3730,24 @@ function memoryText(facts, pins, projectDir, secrets, progress) {
   if (facts.error) f.push(`- Last error, not yet followed by a passing run: ${facts.error.line} (from \`${facts.error.command}\`)`);
   if (facts.goal && facts.goal !== facts.request) f.push(`- First request this session: ${facts.goal}`);
   if (facts.request) f.push(`- Current request: ${facts.request}`);
-  if (facts.changed.length) f.push(`- Files changed this session: ${facts.changed.slice(0, 12).join(", ")}`);
   if (facts.todos.length) f.push(`- Open to-dos: ${facts.todos.slice(0, 6).join("; ")}`);
-  if (f.length) sections.push(["From this session:", ...f]);
-  if (facts.rules?.length) sections.push(["Your instructions this session, verbatim (oldest first):", ...facts.rules.map((r) => `- ${r}`)]);
-  if (!sections.length) return "";
   const head = "Snout restored these exact facts after compaction (from this session and .snout/pins.md):";
-  let body = sections.flat().join("\n");
   const room = MAX_CHARS - head.length - PROGRESS_ASK.length - 2;
+  const render = () => [...sections, ...f.length ? [["From this session:", ...f]] : []].flat().join("\n");
+  if (facts.changed.length) {
+    const label = "- Files changed this session: ";
+    let left = room - render().length - 1 - label.length - (f.length ? 0 : "From this session:\n".length);
+    const listed = [];
+    for (const p of facts.changed) {
+      const cost = p.length + (listed.length ? 2 : 0);
+      if (cost > left) break;
+      listed.push(p);
+      left -= cost;
+    }
+    if (listed.length) f.push(`${label}${listed.join(", ")}${listed.length < facts.changed.length ? ` (and ${facts.changed.length - listed.length} more)` : ""}`);
+  }
+  let body = render();
+  if (!body) return "";
   if (body.length > room) body = `${body.slice(0, room - 1)}\u2026`;
   return [head, body, PROGRESS_ASK].join("\n");
 }
@@ -4121,7 +4132,8 @@ function replaySession(file, run) {
         const prefix = join11(dir, "prefix.jsonl");
         writeFileSync4(prefix, lines.slice(0, at).map((l) => l.raw).join("\n") + "\n");
         const facts = sessionFacts(prefix, projectDir);
-        r.memory.chars += memoryText(facts, [], projectDir).length;
+        const restored = memoryText(facts, [], projectDir);
+        r.memory.chars += restored.length;
         const next = lines.slice(at + 1).flatMap(({ o }) => Array.isArray(o.message?.content) ? o.message.content : []).filter((b) => b?.type === "tool_use").slice(0, 40);
         const runner = (c) => c.split(/\s+/).slice(0, 3).join(" ");
         const testsNext = next.filter((b) => b.name === "Bash" && typeof b.input?.command === "string").map((b) => testCommand(b.input.command, projectDir)).filter(Boolean);
@@ -4129,7 +4141,7 @@ function replaySession(file, run) {
           r.memory.withTest++;
           if (testsNext.some((t) => runner(t) === runner(facts.test.command))) r.memory.testUsed++;
         } else if (testsNext.length) r.memory.testMissed++;
-        const listed = new Set(facts.changed.slice(0, 12));
+        const listed = new Set(facts.changed.filter((p) => restored.includes(p)));
         for (const b of next) {
           const p = b.input?.file_path;
           if (!EDITS2.has(b.name) || typeof p !== "string") continue;

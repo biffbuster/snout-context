@@ -187,14 +187,16 @@ export async function login(url: string, say: (s: string) => void, openBrowser: 
     return false;
   }
   let start;
+  // The hosted cloud is in private beta: say so, and that everything local works without it.
+  const beta = url === DEFAULT_CLOUD_URL ? " Snout Cloud is in private beta; everything local works without it. To join: https://usesnout.xyz/contact" : "";
   try {
     start = await post(`${url}/api/device/start`, { client: "snout-cli" });
   } catch (err) {
-    say(`Could not reach ${url}: ${(err as Error).message}`);
+    say(`Could not reach ${url}: ${(err as Error).message}.${beta}`);
     return false;
   }
   if (start.status !== 200 || !start.json?.device_code) {
-    say(`${url} did not start a login (${start.status}).`);
+    say(`${url} did not start a login (${start.status}).${beta}`);
     return false;
   }
   const { device_code, user_code, verify_url, interval = 3, expires_in = 600 } = start.json;

@@ -13,7 +13,10 @@
  * - pins the user wrote in `.snout/pins.md`, verbatim; a pin marked `[re-read N]` brings the first N
  *   lines of its file from disk, so the content is current, not the pre-compaction copy.
  *
- * The block is capped (MAX_CHARS) so it stays constant as sessions grow.
+ * The block is capped (MAX_CHARS) so it stays constant as sessions grow. What would change the agent's
+ * next answer comes first and is never what the cap cuts: the user's instructions (a later one holds
+ * where two conflict), the agent's own notes, pins, then the facts; the list of changed files takes
+ * whatever room is left, most recent first.
  */
 import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -21,7 +24,7 @@ import { matchesAny } from "../util/glob.js";
 
 const TAIL_BYTES = 16 * 1024 * 1024;
 const HEAD_BYTES = 2 * 1024 * 1024;
-export const MAX_CHARS = 4000; // ~1k tokens
+export const MAX_CHARS = 6000; // ~1.5k tokens
 const TEST = /\b(pytest|runtests\.py|bin\/test|jest|vitest|mocha|go test|cargo test|npm (run )?test|pnpm test|yarn test|node --test|rspec|phpunit|tox|unittest)\b/;
 /** A test run that actually ran: the runner printed a count or a verdict. */
 const RAN = /\b\d+ (passed|failed|errors?|skipped)\b|\bRan \d+ tests?\b|tests finished|^OK\b|\bOK \(|^FAILED\b|\bTests?:\s+\d+/m;
@@ -370,8 +373,9 @@ export function readProgress(snoutDir: string, sinceMs: number): string | undefi
 /** The text added to the context right after a compaction, or "" when there is nothing to restore. */
 export function memoryText(facts: SessionFacts, pins: Pin[], projectDir: string, secrets?: Secrets, progress?: string): string {
   const sections: string[][] = [];
-  // Progress first: it is the agent's reasoning, and the cap below truncates from the end.
   if (progress) sections.push(["Your progress notes (.snout/progress.md, written before the compaction):", ...progress.split("\n").slice(0, 25)]);
+  // Before the facts, so the cap never cuts them: they are the user's own words about how to work.
+  if (facts.rules?.length) sections.push(["Your instructions this session, verbatim (oldest first; where two conflict, the later one holds):", ...facts.rules.map((r) => `- ${r}`)]);
   if (pins.length) sections.push(["Pinned for this project:", ...pinLines(pins, projectDir, secrets)]);
   const f: string[] = [];
   if (facts.test) f.push(`- Tests run here with: \`${facts.test.command}\`${facts.test.result ? ` (last result: ${facts.test.result})` : ""}`);
@@ -380,15 +384,26 @@ export function memoryText(facts: SessionFacts, pins: Pin[], projectDir: string,
   if (facts.error) f.push(`- Last error, not yet followed by a passing run: ${facts.error.line} (from \`${facts.error.command}\`)`);
   if (facts.goal && facts.goal !== facts.request) f.push(`- First request this session: ${facts.goal}`);
   if (facts.request) f.push(`- Current request: ${facts.request}`);
-  if (facts.changed.length) f.push(`- Files changed this session: ${facts.changed.slice(0, 12).join(", ")}`);
   if (facts.todos.length) f.push(`- Open to-dos: ${facts.todos.slice(0, 6).join("; ")}`);
-  if (f.length) sections.push(["From this session:", ...f]);
-  if (facts.rules?.length) sections.push(["Your instructions this session, verbatim (oldest first):", ...facts.rules.map((r) => `- ${r}`)]);
-  if (!sections.length) return "";
   const head = "Snout restored these exact facts after compaction (from this session and .snout/pins.md):";
-  let body = sections.flat().join("\n");
   // The ask is always whole: it is what keeps the next restore useful.
   const room = MAX_CHARS - head.length - PROGRESS_ASK.length - 2;
+  const render = () => [...sections, ...(f.length ? [["From this session:", ...f]] : [])].flat().join("\n");
+  // Changed files last, as many as fit (most recent first): a long session edits more than the rest leaves room for.
+  if (facts.changed.length) {
+    const label = "- Files changed this session: ";
+    let left = room - render().length - 1 - label.length - (f.length ? 0 : "From this session:\n".length);
+    const listed: string[] = [];
+    for (const p of facts.changed) {
+      const cost = p.length + (listed.length ? 2 : 0);
+      if (cost > left) break;
+      listed.push(p);
+      left -= cost;
+    }
+    if (listed.length) f.push(`${label}${listed.join(", ")}${listed.length < facts.changed.length ? ` (and ${facts.changed.length - listed.length} more)` : ""}`);
+  }
+  let body = render();
+  if (!body) return "";
   if (body.length > room) body = `${body.slice(0, room - 1)}…`;
   return [head, body, PROGRESS_ASK].join("\n");
 }
