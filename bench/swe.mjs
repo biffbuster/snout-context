@@ -154,7 +154,10 @@ function ensureImage(image) {
  * inside the container (an agent's \`python - <<EOF\` script that edits source) are copied back, so
  * the patch holds every edit; new untracked files a command creates there stay in the container.
  */
-const SHIM = (entry) => `#!/bin/sh
+const CONDA = "source /opt/miniconda3/etc/profile.d/conda.sh && conda activate testbed && ";
+/** Repository files a command changed inside the container: tracked files that differ from the baseline. */
+const GIT_CHANGED = `docker exec "$c" sh -c 'cd /testbed && git -c core.quotepath=off diff --name-only --no-renames --diff-filter=ACMT HEAD'`;
+const SHIM = (entry, { activate = CONDA, before = "", changed = GIT_CHANGED } = {}) => `#!/bin/sh
 here="$(pwd -P)"
 # The task checkout: the nearest folder up from here with a .swe-task file (it names the container),
 # else the one .current points to (a chain of tasks in one session), else the folder above .bin.
@@ -184,10 +187,10 @@ for a in "$@"; do case "$a" in -*) ;; *) [ -f "$a" ] || continue; f="$(cd "$(dir
   [ -s "$gone" ] && tr '\\n' '\\0' < "$gone" | docker exec -i "$c" sh -c 'cd /testbed && xargs -0 rm -rf --'
   rm -f "$present" "$gone"
 )
-docker exec -i -w "$wd" "$c" bash -c 'source /opt/miniconda3/etc/profile.d/conda.sh && conda activate testbed && exec ${entry} "$@"' ${entry} "$@"
+${before}docker exec -i -w "$wd" "$c" bash -c '${activate}exec ${entry} "$@"' ${entry} "$@"
 rc=$?
 back="$(mktemp)"
-docker exec "$c" sh -c 'cd /testbed && git -c core.quotepath=off diff --name-only --no-renames --diff-filter=ACMT HEAD' > "$back" 2>/dev/null
+${changed} > "$back" 2>/dev/null
 [ -s "$back" ] && tr '\\n' '\\0' < "$back" | docker exec -i "$c" sh -c 'cd /testbed && xargs -0 tar -cf -' | (cd "$root" && tar -xf - 2>/dev/null)
 rm -f "$back"
 exit $rc
@@ -226,11 +229,14 @@ export function prepareCheckout(task, dir, label) {
   startContainer(task.image, dir, label);
 }
 
-/** `python`, `python3` and `pytest` shims for the agent, in `dir`/.bin. */
-export function writeShims(dir) {
+/**
+ * `python`, `python3` and `pytest` shims for the agent, in `dir`/.bin. Another harness can name other
+ * tools, how to enter the container's environment, and which files to copy back (bench/nl2repo.mjs).
+ */
+export function writeShims(dir, tools = [["python", "python"], ["python3", "python"], ["pytest", "pytest"]], env = {}) {
   mkdirSync(join(dir, ".bin"), { recursive: true });
-  for (const [name, entry] of [["python", "python"], ["python3", "python"], ["pytest", "pytest"]]) {
-    writeFileSync(join(dir, ".bin", name), SHIM(entry));
+  for (const [name, entry] of tools) {
+    writeFileSync(join(dir, ".bin", name), SHIM(entry, env));
     chmodSync(join(dir, ".bin", name), 0o755);
   }
 }
@@ -466,6 +472,6 @@ async function main() {
   summarize(JSON.parse(readFileSync(outFile, "utf8")));
 }
 
-export { sh, ensureImage, preflight, leftovers, removeContainers, dockerHealthy, grade, SWE_PY, DATASET, SNOUT_BIN, REPO };
+export { sh, ensureImage, preflight, leftovers, removeContainers, dockerHealthy, grade, startContainer, SWE_PY, DATASET, SNOUT_BIN, REPO };
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) main().catch((e) => { console.error(e); process.exit(1); });

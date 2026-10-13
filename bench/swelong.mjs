@@ -29,6 +29,7 @@ import { createHash } from "node:crypto";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 // SNOUT_BIN: a frozen build, so edits to dist/ during a run can't change the arm under test.
 import { sh, ensureImage, prepareCheckout, writeShims, armSettings, preflight, leftovers, removeContainers, dockerHealthy, grade, REPO, SNOUT_BIN } from "./swe.mjs";
 
@@ -115,13 +116,39 @@ function transcriptFacts(sessionId) {
   let subCost = 0, subCalls = 0;
   for (const s of subs) for (const { u, model } of usages(s)) { subCost += callCost(model ?? MODEL, u) ?? 0; subCalls++; }
   let calls = 0, peak = 0, over = 0, cost = 0;
-  const compactions = readFileSync(f, "utf8").split("\n").filter((l) => l.includes('"compact_boundary"')).length;
-  for (const { u, model } of usages(f)) {
+  const entries = readFileSync(f, "utf8").split("\n").filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return undefined; } }).filter(Boolean);
+  // Each call is tagged with the issue it served: the last "Issue N of M" prompt before it.
+  // The compaction call itself is not in the transcript (only its boundary and summary are), so each
+  // compaction is priced conservatively: the whole pre-compaction context at the uncached input
+  // price, plus the summary at the output price.
+  const pr = PRICES[String(MODEL).replace(/-\d{8}$/, "")];
+  const perIssue = [0];
+  const last = new Map();
+  let issue = 0, compactions = 0, compactionCost = 0;
+  entries.forEach((o, i) => {
+    const c = o.message?.content;
+    if (o.type === "user" && !o.isMeta && !o.isCompactSummary) {
+      const m = /Issue (\d+) of \d+:/.exec(typeof c === "string" ? c : Array.isArray(c) ? c.filter((b) => b.type === "text").map((b) => b.text).join(" ") : "");
+      if (m) { issue = Number(m[1]); perIssue[issue] ??= 0; }
+    }
+    if (o.type === "assistant" && o.message?.usage) last.set(o.message.id, { u: o.message.usage, model: o.message.model, issue });
+    if (o.subtype === "compact_boundary") {
+      compactions++;
+      const summary = entries.slice(i + 1, i + 4).find((x) => x.isCompactSummary);
+      const out = Math.round(JSON.stringify(summary?.message?.content ?? "").length / 4);
+      const k = pr ? ((o.compactMetadata?.preTokens ?? 0) * pr.p[0] + out * pr.p[3]) / 1e6 : 0;
+      compactionCost += k;
+      perIssue[issue] = (perIssue[issue] ?? 0) + k;
+    }
+  });
+  for (const { u, model, issue: n } of last.values()) {
     const prompt = (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0);
-    cost += callCost(model ?? MODEL, u) ?? 0; calls++; peak = Math.max(peak, prompt);
+    const c = callCost(model ?? MODEL, u) ?? 0;
+    cost += c; calls++; peak = Math.max(peak, prompt);
+    perIssue[n] = (perIssue[n] ?? 0) + c;
     if (PRICES[MODEL] && prompt > PRICES[MODEL].tierAt) over++;
   }
-  return { transcript: f, costUsd: cost + subCost, mainCostUsd: cost, subagentCostUsd: subCost, subagentCalls: subCalls, calls, peak, callsOverTier: over, compactions };
+  return { transcript: f, costUsd: cost + subCost + compactionCost, mainCostUsd: cost, subagentCostUsd: subCost, compactionCostUsd: compactionCost, subagentCalls: subCalls, calls, peak, callsOverTier: over, compactions, perIssueUsd: perIssue.map((x) => Number((x ?? 0).toFixed(5))) };
 }
 
 const firstPrompt = (n) => `You'll work through ${n} GitHub issues in this session, one at a time. Each issue has its own folder here, a separate checkout of its repository; the next issue comes after you finish the current one.
@@ -155,7 +182,8 @@ function runClaude(dir, text, resume, arm) {
     child.stdout.on("data", (d) => (stdout += d));
     child.stderr.on("data", (d) => (stderr += d));
     let timedOut = false;
-    const timer = setTimeout(() => { timedOut = true; child.kill("SIGTERM"); }, 30 * 60_000);
+    // SWELONG_ISSUE_LIMIT_MS shortens the limit only to test the hang path with a stand-in claude.
+    const timer = setTimeout(() => { timedOut = true; child.kill("SIGTERM"); }, Number(process.env.SWELONG_ISSUE_LIMIT_MS) || 30 * 60_000);
     child.on("close", () => { clearTimeout(timer); resolve({ stdout, stderr, timedOut }); });
   });
 }
@@ -271,6 +299,10 @@ function summarize(saved) {
     const solved = (x) => rows.filter((r) => r.arm === x && chains.includes(r.chain)).flatMap((r) => r.tasks).filter((t) => t.resolved).length;
     const tot = (x) => rows.filter((r) => r.arm === x && chains.includes(r.chain)).flatMap((r) => r.tasks).length;
     const c0 = sum(base, "costUsd"), c1 = sum(a, "costUsd");
+    // Pre-registered secondary (2026-10-12): the second half of each session, where the context is large.
+    const late = (x) => rows.filter((r) => r.arm === x && chains.includes(r.chain) && r.perIssueUsd?.length > 2).reduce((s, r) => s + r.perIssueUsd.slice(Math.floor(r.tasks.length / 2) + 1).reduce((t, v) => t + v, 0), 0);
+    const l0 = late(base), l1 = late(a);
+    if (l0 > 0) console.log(`\n  ${a} vs ${base}, second half of each session (issues after the midpoint, subagents excluded): cost ${l1 <= l0 ? "−" : "+"}${Math.abs((1 - l1 / l0) * 100).toFixed(1)}% ($${l0.toFixed(2)} → $${l1.toFixed(2)})`);
     console.log(`\n  ${a} vs ${base}: cost ${c1 <= c0 ? "−" : "+"}${Math.abs((1 - c1 / c0) * 100).toFixed(1)}% ($${c0.toFixed(2)} → $${c1.toFixed(2)}) · resolved ${solved(base)}/${tot(base)} → ${solved(a)}/${tot(a)} · cost per resolved $${(c0 / Math.max(1, solved(base))).toFixed(3)} → $${(c1 / Math.max(1, solved(a))).toFixed(3)}`);
   }
   // Pre-registered statistics (docs/benchmark-protocol.md, "Long sessions"): 95% bootstrap
@@ -344,6 +376,9 @@ print(json.dumps([{k: d[k] for k in ("instance_id","repo","base_commit","problem
     CHAINS[name] = pool.slice(0, d.count).map((t) => t.instance_id);
     for (const id of CHAINS[name]) used.add(id);
   }
+  // One 80-issue session (2026-10-12): Sonnet adds ~4–5k tokens per issue, so a 40-issue chain never
+  // reaches the 300k compaction window Snout ships with; 80 issues do (peak ~340–420k without it).
+  CHAINS.djangoL80 = [...CHAINS.djangoL1, ...CHAINS.djangoL2];
   const byId = new Map([...extra, ...all].map((t) => [t.instance_id, t]));
   const names = typeof args.chains === "string" ? args.chains.split(",") : ["django20"];
   const plan = [];
@@ -370,7 +405,7 @@ print(json.dumps([{k: d[k] for k in ("instance_id","repo","base_commit","problem
   for (const [ch, ts, a, rep] of plan) { // one at a time: a chain runs several containers
     const row = await runChain(ch, ts, a, rep);
     rows.push(row); save(); done++;
-    process.stderr.write(`[${done}/${plan.length}] ${ch} · ${a} · rep ${rep}: ${row.infra ? `INFRA ${row.infra}` : `${row.calls} calls · peak ${Math.round(row.peak / 1000)}k · ${row.compactions} compaction(s) · $${row.costUsd.toFixed(3)} · ${row.tasks.filter((t) => t.patch.trim()).length}/${row.tasks.length} patched`}\n`);
+    process.stderr.write(`[${done}/${plan.length}] ${ch} · ${a} · rep ${rep}: ${row.infra ? `INFRA ${row.infra}` : `${row.calls} calls · peak ${Math.round(row.peak / 1000)}k · ${row.compactions} compaction(s) · $${(row.costUsd ?? 0).toFixed(3)} ·${row.tasks.filter((t) => t.patch.trim()).length}/${row.tasks.length} patched`}\n`);
     if (!dockerHealthy(ts[0].image)) { console.error("Docker unhealthy; stopping"); break; }
     // --max-spend: stop before the next session once the run has cost this much (priced from transcripts).
     const spent = rows.reduce((x, r) => x + (r.costUsd ?? 0), 0);
@@ -381,4 +416,7 @@ print(json.dumps([{k: d[k] for k in ("instance_id","repo","base_commit","problem
   summarize(JSON.parse(readFileSync(outFile, "utf8")));
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+export { transcriptFacts, PRICES };
+
+// Only when run directly: bench/nl2repo.mjs imports the cost functions above.
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) main().catch((e) => { console.error(e); process.exit(1); });

@@ -487,3 +487,62 @@ compaction loses a lot), but only a live run says whether the agent still resolv
     it. `bench/retention.mjs` on 207 recorded compactions: first request 15% → 100% verbatim, last
     unresolved error 27% → 87%, all facts 66% → 82%. The summary now also breaks unresolved issues
     down by kind (wrong fix, no edit, hang, not reached, budget cap, context full, CLI error).
+  - Final checks (2026-10-12, still before any session ran):
+    - Hang path, without model calls (a stand-in `claude` that never finishes chosen issues, and a
+      shortened limit): after one hang the issue's container is restarted, its stuck process is
+      gone and the chain continues with every issue patched; after three the chain-run stops and
+      is marked as an infrastructure failure. The progress line no longer crashes on a chain-run
+      without a priced transcript.
+    - End to end on the frozen build (`--chains smoke`, Sonnet 5.5, one run per arm, $0.59 plus
+      about $0.05 for one forced compaction): `default` 4/5, `snout-c150k` 4/5 (both miss
+      django-15916), graded with no empty patches or errors; neither arm reached 150k. On `/compact`
+      (43k → 3k tokens) Snout's memory restored the test command with its last result, the first
+      request verbatim (no issue text), the current request, the changed files and the user's
+      instructions. Known gap: a file edited by a `python` script rather than an edit tool is not
+      in Snout's changed-files list (Claude Code's own summary kept it here). Left as is so the
+      build stays the frozen one.
+    - Docker holds exactly the 85 images the chains and smoke run use; a django container grows
+      about 3 MB while running tests, so space is not a constraint.
+
+## Long-session SWE-bench run, 80 issues per session (`bench/swelong.mjs`), fixed 2026-10-12 before it runs
+
+Replaces the Sonnet compaction run above, which never launched. Two findings before launch changed
+its design: Sonnet adds about 4–5k tokens per issue on an 18k base (the estimate above assumed 7k), and
+Claude Code compacts about 33k below the window, so 40-issue chains at 150k would compact only once
+or twice, late. The question is now Snout against plain Claude Code.
+
+**Question.** In one long session of real SWE-bench Verified issues, does Claude Code with Snout
+(compaction at 300k with Snout's post-compaction memory) cost less per resolved issue than plain
+Claude Code, with no loss in the resolved rate?
+
+- Tasks: `djangoL80`, one session of 80 django issues: `djangoL1` then `djangoL2` (seeds 20261011,
+  20261012), in that fixed order. Never run by any arm; disjoint from every earlier chain and the 15
+  SWE pilot tasks. Django is the only repository with 80 unused eligible issues.
+- Arms: `default` (Snout observe-only; Claude Code's own window, 1M for Sonnet 5.5, so no compaction
+  is expected) and `snout-c300k` (Snout on: enforce, post-compaction memory,
+  `CLAUDE_CODE_AUTO_COMPACT_WINDOW=300000`). If `default` compacts, that is reported.
+- Claude Sonnet 5.5, Claude Code 2.1.296 pinned (auto-update off), API key billing, frozen Snout
+  build `bench/frozen/snout-long80.mjs` (sha256 `58bbe46bab02…`, recorded in the result files), the
+  advisor tool off in both arms. 3 runs per arm (6 sessions, 240 paired issue attempts). Two runners
+  in parallel, one per arm, each running runs 0, 1, 2 in order, so the arms run at the same time
+  (`SWE_SHARED_DOCKER=1`). $6.00 cap per issue, 30-minute limit per issue, $75 cap per runner ($150
+  in all). Official grading, one file at a time, after both runners finish.
+- **Primary:** resolved rate, `snout-c300k` vs `default`, paired by issue and run, strict view. Pass
+  if the 95% interval's lower bound is above −7 points (from the memory run's paired variance, a run
+  with no true difference passes ~92% of the time at 240 pairs).
+- **Headline cost figure:** cost per resolved issue over the whole session, with its 95% bootstrap
+  interval (resampling sessions), priced per call from the transcripts at list prices.
+- **Secondary:** cost over the second half of each session (issues 41–80, where the context is
+  large); peak context; compactions; cost per issue across the session (a chart). Reported whatever
+  they show.
+- Cost accounting (fixed before launch): the compaction call is not in Claude Code's transcript, so
+  each compaction is charged conservatively as the whole pre-compaction context at the uncached input
+  price plus the summary at the output price (on the smoke run: $0.10 for one 43k compaction,
+  about twice its likely real cost). Calls are attributed to the issue whose prompt they follow.
+- Expected: `default` peaks around 340–420k with no compaction; `snout-c300k` compacts about once,
+  around issue 50–60. If quality holds, cost per resolved issue falls an estimated 25–35%, more in
+  the second half. Estimated spend ~$110.
+- Build since the smoke check (2026-10-12): the memory now puts the user's instructions before the
+  facts, so the cap never cuts them, says that a later instruction holds where two conflict, and lists
+  as many changed files as fit (cap 4,000 → 6,000 characters). `bench/retention.mjs` on 210 recorded
+  compactions: all facts kept 82% → 97%, changed files 79% → 99%, real sessions 53% → 65%.
