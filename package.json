@@ -33,7 +33,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "node --test test/*.test.mjs",
+    "test": "node scripts/test.mjs",
     "bench": "node test/bench.mjs",
     "eval": "node eval/run.mjs",
     "eval:json": "node eval/run.mjs --json",

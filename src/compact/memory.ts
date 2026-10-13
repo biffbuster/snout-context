@@ -3,7 +3,7 @@
  * after a compaction the agent forgot how the project's tests run, installed and ran another test
  * runner, and waited past the time limit. Claude Code's summary is a paraphrase; this restores a
  * few exact facts instead, right after compaction (SessionStart with source "compact"), with no
- * model and no search:
+ * model and no search. Codex fires the same hook; its session file is read through compact/codex.ts.
  *
  * - session facts, taken by fixed rules from the whole session transcript (compactions included):
  *   the test command that ran, tools the environment lacks, commands that ran too long for the
@@ -21,13 +21,14 @@
 import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { matchesAny } from "../util/glob.js";
+import { codexRows } from "./codex.js";
 
 const TAIL_BYTES = 16 * 1024 * 1024;
 const HEAD_BYTES = 2 * 1024 * 1024;
 export const MAX_CHARS = 6000; // ~1.5k tokens
-const TEST = /\b(pytest|runtests\.py|bin\/test|jest|vitest|mocha|go test|cargo test|npm (run )?test|pnpm test|yarn test|node --test|rspec|phpunit|tox|unittest)\b/;
+const TEST = /\b(pytest|runtests\.py|bin\/test|jest|vitest|mocha|go test|cargo test|(?:npm|pnpm|yarn)(?:\.cmd)? (?:run )?test|node --test|rspec|phpunit|tox|unittest)\b/;
 /** A test run that actually ran: the runner printed a count or a verdict. */
-const RAN = /\b\d+ (passed|failed|errors?|skipped)\b|\bRan \d+ tests?\b|tests finished|^OK\b|\bOK \(|^FAILED\b|\bTests?:\s+\d+/m;
+const RAN = /\b\d+ (passed|failed|errors?|skipped)\b|\bRan \d+ tests?\b|tests finished|^OK\b|\bOK \(|^FAILED\b|\bTests?:\s+\d+|^[#ℹ]?\s*pass\s+\d+\s*$/m;
 /** First words that only mention a runner (`grep pytest`, `pip install pytest`), never run one. */
 const NOT_RUNNER = new Set(["cat", "grep", "rg", "sed", "awk", "head", "tail", "echo", "printf", "ls", "find", "pip", "pip3", "conda", "apt", "apt-get", "brew", "which", "type", "man"]);
 
@@ -169,7 +170,7 @@ const MAX_RULES = 12;
  */
 const ERROR_LINE = /^(?:[\w.]+(?:Error|Exception)\b(?::.*)?|(?:FAILED|ERROR) [\w./:\[\]-]+.*|(?:FAIL|ERROR): \w+ \(.*|error\[\w+\]: .+|[^\s:]+:\d+(?::\d+)?: error: .+|(?:\S+:\s+)?error TS\d+: .+)$/;
 /** A test verdict with nothing failing. */
-const PASSED = (verdict: string) => RAN.test(verdict) && !/\b[1-9]\d* (failed|errors?)\b|FAILED|\b(failures|errors)=\d/i.test(verdict);
+const PASSED = (verdict: string) => RAN.test(verdict) && !/\b[1-9]\d* (failed|errors?)\b|FAILED|\b(failures|errors)=\d|\bfail [1-9]/i.test(verdict);
 
 function errorLine(out: string): string | undefined {
   const lines = out.split("\n").map((l) => l.trim());
@@ -192,8 +193,13 @@ function userText(o: any): string | undefined {
   return typeof content === "string" ? content : Array.isArray(content) ? content.filter((b: any) => b.type === "text").map((b: any) => b.text).join(" ") : "";
 }
 
-/** Facts from the whole session transcript, across compactions. */
+/** Claude Code facts from the whole session transcript, across compactions. */
 export function sessionFacts(transcriptPath: string, projectDir: string): SessionFacts {
+  const first = statSync(transcriptPath).size > TAIL_BYTES ? firstRequest(transcriptPath) : undefined;
+  return factsFromClaudeRows(tail(transcriptPath).split("\n"), projectDir, first);
+}
+
+function factsFromClaudeRows(lines: Iterable<string>, projectDir: string, first?: string): SessionFacts {
   const rel = (p: string) => {
     if (!isAbsolute(p)) return p;
     const r = relative(projectDir, p);
@@ -202,11 +208,8 @@ export function sessionFacts(transcriptPath: string, projectDir: string): Sessio
   };
   const facts: SessionFacts = { rules: [], missing: [], slow: [], changed: [], todos: [] };
   const uses = new Map<string, any>();
-  if (statSync(transcriptPath).size > TAIL_BYTES) {
-    const first = firstRequest(transcriptPath);
-    if (first) facts.goal = oneLine(first, 600);
-  }
-  for (const line of tail(transcriptPath).split("\n")) {
+  if (first) facts.goal = oneLine(first, 600);
+  for (const line of lines) {
     if (!line) continue;
     let o: any;
     try { o = JSON.parse(line); } catch { continue; }
@@ -259,6 +262,9 @@ export function sessionFacts(transcriptPath: string, projectDir: string): Sessio
       if (runner) {
         const lines = out.split("\n").map((l) => l.trim()).filter(Boolean);
         verdict = [...lines].reverse().find((l) => RAN.test(l)) ?? "";
+        // node --test prints `ℹ pass N` then `ℹ fail N`; a failure count belongs in the verdict.
+        const failed = out.match(/^\s*[#ℹ]?\s*fail\s+[1-9]\d*\s*$/m);
+        if (failed && verdict && !verdict.includes(failed[0].trim())) verdict = `${verdict} · ${failed[0].trim()}`;
         facts.test = { command: oneLine(runner, 200), result: oneLine(verdict, 120) };
       }
       // A file printed or searched may contain error text; only a command that ran can fail.
@@ -284,6 +290,11 @@ export function sessionFacts(transcriptPath: string, projectDir: string): Sessio
   }
   facts.rules = kept;
   return facts;
+}
+
+/** Codex facts, by the same rules: its session file read as Claude rows (compact/codex.ts). */
+export function codexSessionFacts(transcriptPath: string, projectDir: string): SessionFacts {
+  return factsFromClaudeRows(codexRows(tail(transcriptPath).split(/\n/)), projectDir);
 }
 
 export interface Pin { text: string; path?: string; reread?: number }

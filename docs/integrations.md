@@ -7,7 +7,7 @@ it do.
 | --- | --- | --- | --- |
 | Claude Code | Plugin hooks | Trims bulk reads, attaches an outline | Tested live |
 | Gemini CLI | `BeforeTool` / `AfterTool` hooks | Trims bulk reads by rewriting offset and limit | Tested against the documented hook format |
-| Codex CLI | `PreToolUse` / `PostToolUse` hooks | Denies whole-file prints of bulk files with a search hint | Tested live; A/B: −23% on bulk-file tasks, 30/30 passing |
+| Codex CLI | `PreToolUse` / `PostToolUse` / `SessionStart` hooks | Denies ambiguous bulk prints; trims a single literal PowerShell generated/vendored read; restores bounded context after compaction | Windows deny/recovery, 60-line trim, and manual compaction tested live; a three-pair forced-read task passed quality checks, with held-out results still open |
 | Cursor | `beforeReadFile` / `beforeShellExecution` hooks | Denies bulk reads (Cursor hooks can't trim) | Tested against the documented hook format |
 | Copilot, Windsurf, Cline, Zed and other MCP clients | MCP server | Offers `snout_read`, which returns bulk files as head plus outline | Tested with a scripted MCP session |
 
@@ -36,15 +36,23 @@ cd your-project
 snout init codex         # writes .codex/hooks.json
 ```
 
+`snout init codex` installs PreToolUse, PostToolUse, and SessionStart. It removes older
+Snout-owned UserPromptSubmit and Stop entries if re-run, while preserving other tools' hooks.
 Codex loads project hooks only in a trusted folder, and runs a new hook only after you
-approve it. Open Codex in the project once, trust the folder, and approve Snout's hooks with
-`/hooks`. Until then the hooks are skipped without any error.
+approve it. Open Codex in the project once, trust the folder, and approve these three Snout
+hooks with `/hooks`. Until then the hooks are skipped without any error.
 
 Codex reads files through shell commands, so Snout gates whole-file prints such as
-`cat package-lock.json` and points the agent to a `grep` instead. In a live run, Codex
-followed the hint and answered from one matching line: 3,382 tokens with Snout, 14,026
-without. Codex already truncates long command output, so Snout's report overstates the
-tokens withheld on Codex; use the agent's own token count for savings.
+`cat package-lock.json` and points the agent to a targeted search. On Windows, a single
+literal `Get-Content -LiteralPath` of a generated or vendored file can instead be
+rewritten to a 60-line read; a live Codex session received only those lines. Compound
+commands and credentials remain on the deny path. Codex output Squeeze is still off:
+the local CLI's only live-proven replacement response reported a tool error. Codex can
+truncate command output on its own, so use the agent's reported usage rather than
+Snout's file-size estimate for savings. A three-pair forced-read Windows pilot passed
+its task checks with a 25.3% lower effective-token proxy on the bulk task and 5.3%
+higher proxy on the control. The older Codex A/B in [the benchmark](benchmark.md)
+does not score this new trim. See [its validation record](harness-validation-codex.md).
 
 ## Cursor
 

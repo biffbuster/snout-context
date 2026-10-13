@@ -8,8 +8,8 @@
  *   Cursor      beforeReadFile / beforeShellExecution can only allow or deny, so a trim
  *               becomes a deny, and every response must be valid JSON: Cursor treats
  *               anything else as a block.
- *   Codex CLI   hooks already use Claude's shape (Bash reads, hookSpecificOutput), so
- *               payloads pass through.
+ *   Codex CLI   shares the event envelope, but supports a smaller set of hook decisions.
+ *               Translate responses so unsupported Claude fields never reach Codex.
  */
 import type { HookInput } from "../types.js";
 
@@ -35,7 +35,10 @@ export function toInternal(agent: Agent, event: string, raw: Raw): { command: st
 
 /** The text to print on stdout for this agent, given the gate's Claude-shaped response. */
 export function fromInternal(agent: Agent, event: string, out: Out): string {
-  if (agent === "codex") return out ? JSON.stringify(out) : "";
+  if (agent === "codex") {
+    const result = codexOut(event, out);
+    return result ? JSON.stringify(result) : "";
+  }
   if (agent === "gemini") return JSON.stringify(geminiOut(out));
   return JSON.stringify(cursorOut(event, out));
 }
@@ -50,6 +53,45 @@ const CODEX_EVENTS: Record<string, string> = {
   PreCompact: "pre-compact",
   Stop: "stop",
 };
+
+function codexOut(event: string, out: Out): Raw | null {
+  if (!out) return null;
+  const hook = hso(out);
+  if (event === "PreToolUse") {
+    const result: Raw = {};
+    if (str(out.systemMessage)) result.systemMessage = out.systemMessage;
+    if (!hook) return Object.keys(result).length ? result : null;
+    const decision = str(hook.permissionDecision);
+    const reason = str(hook.permissionDecisionReason);
+    const specific: Raw = { hookEventName: "PreToolUse" };
+    // Codex fails open on "ask". An unexpected ask must never silently expose a file.
+    if (decision === "ask") {
+      specific.permissionDecision = "deny";
+      specific.permissionDecisionReason = reason ? `${reason} Codex cannot request approval from PreToolUse; use a bounded read or targeted search, or ask the user to add this file to Snout's allow-list if a full read is necessary.` : "Codex cannot request approval from PreToolUse; use a bounded read or targeted search, or ask the user to add this file to Snout's allow-list if a full read is necessary.";
+    } else if (decision === "deny") {
+      specific.permissionDecision = "deny";
+      if (reason) specific.permissionDecisionReason = reason;
+    } else if (decision === "allow") {
+      const updated = hook.updatedInput;
+      if (updated && typeof updated === "object" && !Array.isArray(updated)) {
+        specific.permissionDecision = "allow";
+        specific.updatedInput = updated;
+      }
+    }
+    if (str(hook.additionalContext)) specific.additionalContext = hook.additionalContext;
+    if (Object.keys(specific).length > 1) result.hookSpecificOutput = specific;
+    return Object.keys(result).length ? result : null;
+  }
+  if (event === "PostToolUse") {
+    // Codex does not support Claude's updatedToolOutput. Observations stay observations;
+    // never report that the original tool output was replaced.
+    const result: Raw = {};
+    if (str(out.systemMessage)) result.systemMessage = out.systemMessage;
+    if (str(hook?.additionalContext)) result.hookSpecificOutput = { hookEventName: "PostToolUse", additionalContext: hook!.additionalContext };
+    return Object.keys(result).length ? result : null;
+  }
+  return out;
+}
 
 // ---------- Gemini CLI ----------
 

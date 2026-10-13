@@ -145,6 +145,8 @@ export function measureServer(s: ServerConfig, timeoutMs = MEASURE_TIMEOUT_MS): 
     const child = spawn(file, argv, { env: { ...process.env, ...(s.env ?? {}) }, stdio: ["pipe", "pipe", "ignore"], windowsHide: true });
     const timer = setTimeout(() => finish({ error: `no tool list within ${timeoutMs / 1000}s` }), timeoutMs);
     child.on("error", (e) => finish({ error: e.message.slice(0, 80) }));
+    child.on("close", () => finish({ error: "server exited before returning a tool list" }));
+    child.stdin.on("error", () => {}); // an invalid server may close stdin before initialize
     let buf = "";
     child.stdout.on("data", (chunk: Buffer) => {
       buf += chunk.toString("utf8");
