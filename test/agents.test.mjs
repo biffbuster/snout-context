@@ -8,6 +8,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { boundedPowerShellRead, fromInternal, powerShellDumpTargets } from "../dist/lib.mjs";
 
 const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 
@@ -99,10 +100,124 @@ test("gemini: AfterTool records the read in the ledger", () => {
 
 // ---------- Codex CLI ----------
 
-test("codex: `cat` of a lockfile is denied in Claude's hook shape", () => {
+test("codex: `cat` of a lockfile is denied using a supported hook response", () => {
   const root = project();
   const out = json(run(["hook", "codex", "PreToolUse"], { session_id: "s1", turn_id: "t1", cwd: root, hook_event_name: "PreToolUse", model: "gpt", tool_name: "Bash", tool_use_id: "u1", tool_input: { command: "cat package-lock.json" } }));
   assert.equal(out.hookSpecificOutput.permissionDecision, "deny");
+});
+
+test("codex: credential reads are denied instead of sending unsupported ask", () => {
+  const root = project();
+  writeFileSync(join(root, ".env"), "TOKEN=example\n");
+  const out = json(run(["hook", "codex", "PreToolUse"], { session_id: "s1", cwd: root, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "cat .env" } }));
+  assert.equal(out.hookSpecificOutput.permissionDecision, "deny");
+  assert.match(out.hookSpecificOutput.permissionDecisionReason, /Codex cannot prompt/);
+  const rows = readFileSync(join(root, ".snout", "ledger.jsonl"), "utf8").trim().split("\n").map(json);
+  assert.equal(rows.at(-1).decision, "deny");
+});
+
+test("codex: uncertain value reads proceed without an unsupported ask", () => {
+  const root = project();
+  mkdirSync(join(root, "__snapshots__"));
+  writeFileSync(join(root, "__snapshots__", "feature.snap"), "snapshot entry\n".repeat(1000));
+  const out = run(["hook", "codex", "PreToolUse"], { session_id: "s1", cwd: root, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "cat __snapshots__/feature.snap" } });
+  assert.equal(out, "");
+});
+
+test("codex: response adapter removes unsupported Claude output replacement", () => {
+  const output = fromInternal("codex", "PostToolUse", { hookSpecificOutput: { hookEventName: "PostToolUse", updatedToolOutput: { stdout: "trimmed" } } });
+  assert.equal(output, "");
+  const ask = json(fromInternal("codex", "PreToolUse", { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "ask", permissionDecisionReason: "Review this file" } }));
+  assert.equal(ask.hookSpecificOutput.permissionDecision, "deny");
+  assert.ok(!JSON.stringify(ask).includes('"ask"'));
+  assert.match(ask.hookSpecificOutput.permissionDecisionReason, /bounded read or targeted search/);
+  assert.doesNotMatch(ask.hookSpecificOutput.permissionDecisionReason, /snout allow/);
+});
+
+test("codex: SessionStart leaves Claude gate settings alone; Claude still repairs its own gate", () => {
+  const root = project("observe");
+  mkdirSync(join(root, ".claude"));
+  const settings = join(root, ".claude", "settings.local.json");
+  const stale = JSON.stringify({ hooks: { PreToolUse: [{ matcher: "Read", hooks: [{ type: "command", command: 'node "C:/old/snout.mjs" pre-tool' }] }] } });
+  writeFileSync(settings, stale);
+  const input = { session_id: "s1", cwd: root, source: "startup", hook_event_name: "SessionStart" };
+
+  run(["hook", "codex", "SessionStart"], input);
+  assert.equal(readFileSync(settings, "utf8"), stale, "Codex must not rewrite .claude settings");
+
+  run(["session-start"], input, root);
+  assert.notEqual(readFileSync(settings, "utf8"), stale, "Claude must still repair its stale gate");
+});
+
+test("codex: native PowerShell whole-file reads are gated, bounded reads are not", () => {
+  const root = project();
+  const payload = (command) => ({ session_id: "s1", cwd: root, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command } });
+  const whole = json(run(["hook", "codex", "PreToolUse"], payload("Get-Content -LiteralPath 'package-lock.json'")));
+  assert.equal(whole.hookSpecificOutput.permissionDecision, "deny");
+  assert.match(whole.hookSpecificOutput.permissionDecisionReason, /Select-String -LiteralPath/);
+  assert.match(whole.hookSpecificOutput.permissionDecisionReason, /ask the user to add/);
+  assert.doesNotMatch(whole.hookSpecificOutput.permissionDecisionReason, /run snout allow/);
+  assert.doesNotMatch(whole.hookSpecificOutput.permissionDecisionReason, /\/snout:allow|grep/);
+  for (const command of ["Get-Content -TotalCount 10 package-lock.json", "Get-Content package-lock.json | Select-String left-pad", "Get-Content package-lock.json > copy.txt"]) {
+    assert.equal(run(["hook", "codex", "PreToolUse"], payload(command)), "", command);
+  }
+  assert.equal(run(["pre-tool"], payload("Get-Content package-lock.json"), root), "", "Claude's Bash detector is unchanged");
+});
+
+test("codex: PowerShell parser accepts literal paths with spaces, rejects expressions", () => {
+  const root = project();
+  writeFileSync(join(root, "a file.txt"), "contents\n");
+  assert.deepEqual(powerShellDumpTargets('Get-Content -LiteralPath "a file.txt"', root), [join(root, "a file.txt")]);
+  for (const command of ["Get-Content $file", "Get-Content *.txt", "Get-Content (Join-Path . a.txt)", "Get-Content 'a file.txt' | Out-String", "Get-Content 'a file.txt' -Tail 2"]) {
+    assert.deepEqual(powerShellDumpTargets(command, root), [], command);
+  }
+});
+
+test("codex: wrapped pwsh compound command gates a whole generated file", () => {
+  const root = project();
+  const command = String.raw`"C:\Tools\pwsh.exe" -Command "Write-Output '--- client ---'; Get-Content src/client.gen.js; Write-Output '--- test ---'; Get-Content src/app.ts"`;
+  assert.deepEqual(powerShellDumpTargets(command, root), [join(root, "src/client.gen.js"), join(root, "src/app.ts")]);
+  const out = json(run(["hook", "codex", "PreToolUse"], { session_id: "s1", cwd: root, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command } }));
+  assert.equal(out.hookSpecificOutput.permissionDecision, "deny");
+  assert.match(out.hookSpecificOutput.permissionDecisionReason, /client\.gen\.js/);
+  for (const bounded of [
+    '"C:\\Tools\\pwsh.exe" -Command "Get-Content src/client.gen.js -TotalCount 10; rg -n getOrder src/client.gen.js"',
+    '"C:\\Tools\\pwsh.exe" -Command "Get-Content src/client.gen.js | Select-String getOrder"',
+  ]) assert.deepEqual(powerShellDumpTargets(bounded, root), [], bounded);
+});
+
+test("codex: a single literal PowerShell generated-file read is bounded", () => {
+  const root = project();
+  const command = "Get-Content -LiteralPath 'src/client.gen.js'";
+  const out = json(run(["hook", "codex", "PreToolUse"], { session_id: "s1", cwd: root, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command } }));
+  assert.equal(out.hookSpecificOutput.permissionDecision, "allow");
+  assert.equal(out.hookSpecificOutput.updatedInput.command, "Get-Content -LiteralPath 'src/client.gen.js' -TotalCount 60");
+  assert.match(out.hookSpecificOutput.additionalContext, /lines 1–60/);
+  const rows = readFileSync(join(root, ".snout", "ledger.jsonl"), "utf8").trim().split("\n").map(json);
+  assert.equal(rows.at(-1).trimmed, true);
+  assert.equal(rows.at(-1).range, "1:60");
+  for (const unsafe of [
+    "Get-Content -LiteralPath 'src/client.gen.js'; Write-Output hi",
+    "Get-Content -LiteralPath 'src/client.gen.js' | Out-String",
+    "Get-Content -LiteralPath 'src/client.gen.js' > out.txt",
+    "Get-Content -LiteralPath $file",
+  ]) assert.equal(boundedPowerShellRead(unsafe, root, join(root, "src/client.gen.js"), 60), null, unsafe);
+});
+
+test("codex: a multiline credential read stays denied, never trimmed", () => {
+  const root = project();
+  writeFileSync(join(root, ".env"), Array.from({ length: 100 }, (_, i) => `TOKEN_${i}=private`).join("\n"));
+  const out = json(run(["hook", "codex", "PreToolUse"], { session_id: "s1", cwd: root, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "Get-Content -LiteralPath '.env'" } }));
+  assert.equal(out.hookSpecificOutput.permissionDecision, "deny");
+  assert.equal(out.hookSpecificOutput.updatedInput, undefined);
+  assert.doesNotMatch(JSON.stringify(out), /TOKEN_0=private/);
+});
+
+test("codex: MCP output is counted in enforce mode without a Claude Squeeze hook", () => {
+  const root = project();
+  run(["hook", "codex", "PostToolUse"], { session_id: "s1", cwd: root, hook_event_name: "PostToolUse", tool_name: "mcp__fixture__read", tool_input: { path: "docs" }, tool_response: { content: [{ type: "text", text: "MCP result" }] } });
+  const rows = readFileSync(join(root, ".snout", "ledger.jsonl"), "utf8").trim().split("\n").map(json);
+  assert.ok(rows.some((row) => row.client === "codex" && row.rule === "tool-output" && row.tool === "mcp__fixture__read"), JSON.stringify(rows));
 });
 
 test("unknown agent: prints usage and exits 0", () => {
@@ -115,6 +230,11 @@ test("init writes each agent's config, is safe to re-run, and keeps other hooks"
   const root = project();
   mkdirSync(join(root, ".cursor"));
   writeFileSync(join(root, ".cursor", "hooks.json"), JSON.stringify({ version: 1, hooks: { beforeShellExecution: [{ command: "./other.sh" }] } }));
+  mkdirSync(join(root, ".codex"));
+  writeFileSync(join(root, ".codex", "hooks.json"), JSON.stringify({ hooks: {
+    UserPromptSubmit: [{ hooks: [{ command: 'node "C:/old/snout.mjs" hook codex UserPromptSubmit' }, { command: "./other-prompt.sh" }] }],
+    Stop: [{ hooks: [{ command: 'node "C:/old/snout.mjs" hook codex Stop' }] }],
+  } }));
   for (let i = 0; i < 2; i++) for (const a of ["cursor", "gemini", "codex"]) assert.match(run(["init", a], undefined, root), new RegExp(`snout init ${a}: wrote`));
 
   const cursor = json(readFileSync(join(root, ".cursor", "hooks.json"), "utf8"));
@@ -131,4 +251,9 @@ test("init writes each agent's config, is safe to re-run, and keeps other hooks"
   assert.equal(codex.hooks.PreToolUse.length, 1);
   assert.equal(codex.hooks.PreToolUse[0].matcher, "^Bash$");
   assert.match(codex.hooks.PreToolUse[0].hooks[0].command, /hook codex PreToolUse$/);
+  assert.equal(codex.hooks.PostToolUse.length, 1);
+  assert.equal(codex.hooks.SessionStart.length, 1);
+  assert.equal(codex.hooks.UserPromptSubmit.length, 1, "keep only the other agent's prompt hook");
+  assert.equal(codex.hooks.UserPromptSubmit[0].hooks[0].command, "./other-prompt.sh");
+  assert.equal(codex.hooks.Stop, undefined, "remove the old Snout Stop hook");
 });

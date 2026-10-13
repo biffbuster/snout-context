@@ -24,7 +24,7 @@ const HEAD_BYTES = 2 * 1024 * 1024;
 export const MAX_CHARS = 4000; // ~1k tokens
 const TEST = /\b(pytest|runtests\.py|bin\/test|jest|vitest|mocha|go test|cargo test|npm (run )?test|pnpm test|yarn test|node --test|rspec|phpunit|tox|unittest)\b/;
 /** A test run that actually ran: the runner printed a count or a verdict. */
-const RAN = /\b\d+ (passed|failed|errors?|skipped)\b|\bRan \d+ tests?\b|tests finished|^OK\b|\bOK \(|^FAILED\b|\bTests?:\s+\d+/m;
+const RAN = /\b\d+ (passed|failed|errors?|skipped)\b|\bRan \d+ tests?\b|tests finished|^OK\b|\bOK \(|^FAILED\b|\bTests?:\s+\d+|^[#ℹ]?\s*pass\s+\d+\s*$/m;
 /** First words that only mention a runner (`grep pytest`, `pip install pytest`), never run one. */
 const NOT_RUNNER = new Set(["cat", "grep", "rg", "sed", "awk", "head", "tail", "echo", "printf", "ls", "find", "pip", "pip3", "conda", "apt", "apt-get", "brew", "which", "type", "man"]);
 
@@ -189,8 +189,13 @@ function userText(o: any): string | undefined {
   return typeof content === "string" ? content : Array.isArray(content) ? content.filter((b: any) => b.type === "text").map((b: any) => b.text).join(" ") : "";
 }
 
-/** Facts from the whole session transcript, across compactions. */
+/** Claude Code facts from the whole session transcript, across compactions. */
 export function sessionFacts(transcriptPath: string, projectDir: string): SessionFacts {
+  const first = statSync(transcriptPath).size > TAIL_BYTES ? firstRequest(transcriptPath) : undefined;
+  return factsFromClaudeRows(tail(transcriptPath).split("\n"), projectDir, first);
+}
+
+function factsFromClaudeRows(lines: Iterable<string>, projectDir: string, first?: string): SessionFacts {
   const rel = (p: string) => {
     if (!isAbsolute(p)) return p;
     const r = relative(projectDir, p);
@@ -199,11 +204,8 @@ export function sessionFacts(transcriptPath: string, projectDir: string): Sessio
   };
   const facts: SessionFacts = { rules: [], missing: [], slow: [], changed: [], todos: [] };
   const uses = new Map<string, any>();
-  if (statSync(transcriptPath).size > TAIL_BYTES) {
-    const first = firstRequest(transcriptPath);
-    if (first) facts.goal = oneLine(first, 600);
-  }
-  for (const line of tail(transcriptPath).split("\n")) {
+  if (first) facts.goal = oneLine(first, 600);
+  for (const line of lines) {
     if (!line) continue;
     let o: any;
     try { o = JSON.parse(line); } catch { continue; }
@@ -281,6 +283,56 @@ export function sessionFacts(transcriptPath: string, projectDir: string): Sessio
   }
   facts.rules = kept;
   return facts;
+}
+
+/** Codex rollout records are best-effort: their on-disk format is not a stable API. */
+export function codexSessionFacts(transcriptPath: string, projectDir: string): SessionFacts {
+  const converted: string[] = [];
+  const calls = new Map<string, { name: string; args: any }>();
+  let synthetic = 0;
+  const command = (cmd: string, output: string) => {
+    const id = `codex-command-${synthetic++}`;
+    converted.push(JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", id, name: "Bash", input: { command: cmd } }] } }));
+    converted.push(JSON.stringify({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: id, content: output }] } }));
+  };
+  for (const line of tail(transcriptPath).split("\n")) {
+    if (!line) continue;
+    let row: any;
+    try { row = JSON.parse(line); } catch { continue; }
+    if (row.type === "event_msg" && row.payload?.type === "item_completed" && row.payload.item?.type === "CommandExecution") {
+      const item = row.payload.item;
+      const cmd = Array.isArray(item.command) ? item.command.at(-1) : item.command;
+      const output = item.aggregated_output ?? item.formatted_output ?? [item.stdout, item.stderr].filter(Boolean).join("\n");
+      if (typeof cmd === "string" && typeof output === "string") command(cmd, output);
+      continue;
+    }
+    if (row.type !== "response_item") continue;
+    const item = row.payload;
+    if (item?.type === "message" && item.role === "user") {
+      const kinds = item.internal_chat_message_metadata_passthrough?.content_item_kinds;
+      if (Array.isArray(kinds) && !kinds.includes("user.text")) continue;
+      const text = Array.isArray(item.content) ? item.content.filter((p: any) => p?.type === "input_text").map((p: any) => p.text ?? "").join(" ") : "";
+      if (text.trim()) converted.push(JSON.stringify({ type: "user", message: { content: text } }));
+    } else if (item?.type === "function_call") {
+      let args: any = {};
+      try { args = JSON.parse(item.arguments ?? "{}"); } catch { /* malformed call */ }
+      calls.set(item.call_id, { name: item.name, args });
+      const patch = typeof args === "string" ? args : args?.input ?? args?.patch;
+      if (item.name === "apply_patch" && typeof patch === "string") {
+        for (const match of patch.matchAll(/^\*\*\* (?:Add|Update) File: (.+)$/gm)) {
+          const id = `codex-edit-${synthetic++}`;
+          converted.push(JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", id, name: "Edit", input: { file_path: match[1] } }] } }));
+        }
+      }
+      if (item.name === "update_plan" && Array.isArray(args?.plan)) {
+        converted.push(JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", id: `codex-plan-${synthetic++}`, name: "TodoWrite", input: { todos: args.plan.map((p: any) => ({ content: p.step, status: p.status })) } }] } }));
+      }
+    } else if (item?.type === "function_call_output") {
+      const call = calls.get(item.call_id);
+      if (call?.name === "exec_command" && typeof call.args?.cmd === "string") command(call.args.cmd, resultText(item.output));
+    }
+  }
+  return factsFromClaudeRows(converted, projectDir);
 }
 
 export interface Pin { text: string; path?: string; reread?: number }

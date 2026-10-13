@@ -270,12 +270,16 @@ test("mcp: snout_audit_context returns the map, read-only", () => {
   assert.equal(existsSync(join(root, ".snout/archive")), false);
 });
 
-test("a symlinked CLAUDE.md is one file; a copy for another agent costs no session twice", async () => {
+test("a symlinked CLAUDE.md is one file; a copy for another agent costs no session twice", async (t) => {
   const { symlinkSync } = await import("node:fs");
   const root = mkdtempSync(join(tmpdir(), "snout-link-"));
   const home = mkdtempSync(join(tmpdir(), "snout-link-home-"));
   put(root, "AGENTS.md", "# Shared\n" + words(3000, "shared"));
-  symlinkSync("AGENTS.md", join(root, "CLAUDE.md"));
+  try { symlinkSync("AGENTS.md", join(root, "CLAUDE.md")); }
+  catch (err) {
+    if (process.platform === "win32" && err?.code === "EPERM") return t.skip("Windows symlinks require Developer Mode or a privileged token");
+    throw err;
+  }
   let f = byPath(auditContext(root, { home, noGit: true }));
   assert.equal(f["CLAUDE.md"].linkTo, "AGENTS.md");
   assert.deepEqual(codes(f["CLAUDE.md"]), []);

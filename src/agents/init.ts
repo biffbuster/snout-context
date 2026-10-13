@@ -45,18 +45,36 @@ export function initAgent(agent: Agent, projectDir: string, cmd = selfCommand())
   const groups: [string, string | undefined][] =
     agent === "gemini"
       ? [["BeforeTool", "read_file|run_shell_command"], ["AfterTool", ".*"], ["SessionStart", undefined]]
-      : [["PreToolUse", "^Bash$"], ["PostToolUse", ".*"], ["SessionStart", undefined], ["UserPromptSubmit", undefined], ["Stop", undefined]];
+      : [["PreToolUse", "^Bash$"], ["PostToolUse", ".*"], ["SessionStart", undefined]];
   for (const [e, matcher] of groups) {
-    const kept = (Array.isArray(cfg.hooks[e]) ? cfg.hooks[e] : []).filter(
-      (g: Json) => !(Array.isArray(g?.hooks) && g.hooks.some((h: Json) => OURS.test(String(h?.command ?? "")))),
-    );
+    const kept = withoutSnoutHooks(cfg.hooks[e]);
     const entry: Json = { type: "command", command: hook(e) };
     if (agent === "gemini") Object.assign(entry, { name: "snout", timeout: 10000 });
     kept.push({ ...(matcher ? { matcher } : {}), hooks: [entry] });
     cfg.hooks[e] = kept;
   }
+  // Re-running init removes Snout's earlier optional Codex hooks without touching
+  // other tools' entries. Unapproved hooks can prevent the approved core from running.
+  if (agent === "codex") {
+    for (const e of ["UserPromptSubmit", "Stop"]) {
+      if (!Array.isArray(cfg.hooks[e])) continue;
+      const kept = withoutSnoutHooks(cfg.hooks[e]);
+      if (kept.length) cfg.hooks[e] = kept;
+      else delete cfg.hooks[e];
+    }
+  }
   save(file, cfg);
   return { file, events: groups.map(([e]) => e) };
+}
+
+/** Remove only Snout commands, even when another tool shares the same hook group. */
+function withoutSnoutHooks(groups: unknown): Json[] {
+  if (!Array.isArray(groups)) return [];
+  return groups.flatMap((group: Json) => {
+    if (!Array.isArray(group?.hooks)) return [group];
+    const hooks = group.hooks.filter((h: Json) => !OURS.test(String(h?.command ?? "")));
+    return hooks.length ? [{ ...group, hooks }] : [];
+  });
 }
 
 function load(file: string): Json {

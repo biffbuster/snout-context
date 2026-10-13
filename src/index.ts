@@ -4,6 +4,7 @@ export { decide, applyMode, bandOf, withOverride, searchHint, THRESHOLDS } from 
 export { firstHit, scoreLabels, labelOf, parseGitignore, ignoredOutputDirIn, LABELS, HINT_SCORE } from "./gate/rules.js";
 export { summarize } from "./gate/summary.js";
 export { readTargets, dumpTargets } from "./gate/bash.js";
+export { boundedPowerShellRead, powerShellDumpTargets } from "./gate/powershell.js";
 export { responseText, responseBytes } from "./gate/response.js";
 export { splitGrepOutput } from "./gate/grep.js";
 export { DEFAULTS, loadConfig, resolvePaths, attach, ensureDir, isValidMode } from "./config.js";
@@ -30,6 +31,7 @@ export { squeeze, kindOf, SQUEEZE_IFS } from "./squeeze/squeeze.js";
 export { gateEntries, squeezeEntries } from "./gate/install.js";
 export { trimMcp } from "./squeeze/mcp.js";
 export { auditContext, classifyContextPath, staleRefs, normalize, shingles, overlap, authorOf, readClaudeTranscript, renderAudit, renderMap, toJson, totals, archiveFiles, restoreArchive, listArchives, OVERSIZED_TOKENS } from "./audit/context.js";
-export { sessionFacts, readPins, memoryText, testCommand, readProgress, sessionStartMs } from "./compact/memory.js";
+export { sessionFacts, codexSessionFacts, readPins, memoryText, testCommand, readProgress, sessionStartMs } from "./compact/memory.js";
+export { fromInternal } from "./agents/adapt.js";
 export { buildMap, candidates, renderCandidates, requestNames, codeNames, namedExactly, shouldSuggest, listFiles, entryFor, type RepoMap, type Candidate } from "./map/map.js";
 export { replaySession, totals as replayTotals, renderReplay, compactionWhatIf, COMPACTION_COSTS, type SessionReplay, type WhatIf } from "./replay/replay.js";

@@ -136,6 +136,13 @@ function paired(a, b) {
 
 const enforce = { SNOUT_MODE: "enforce" };
 const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
+const shellCommand = (command) => process.platform === "win32"
+  ? ["powershell.exe", "-NoProfile", "-Command", command]
+  : ["sh", "-c", command];
+const shippedCommand = process.platform === "win32"
+  ? `& node '${CLI.replaceAll("'", "''")}' pre-tool`
+  : `node "${CLI}" pre-tool`;
+const floorCommand = process.platform === "win32" ? "& node -e 0" : "node -e 0";
 
 // Each form is paired with a floor measured the *same* way, because the cost of starting a
 // process is a property of the environment, not of this code. Measured here: bare `node -e
@@ -146,8 +153,8 @@ const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 // the run must not inflate the plugin's number while leaving the floor's untouched. An
 // earlier version sampled them separately and charged that difference to the classifier.
 const [shipped, shellFloor] = paired(
-  { label: "shipped form (shell)", argv: ["sh", "-c", `node "${CLI}" pre-tool`], rel: "package-lock.json", env: enforce },
-  { label: "  floor: bare node via shell", argv: ["sh", "-c", "node -e 0"], rel: "src/app.ts", env: {} },
+  { label: "shipped form (shell)", argv: shellCommand(shippedCommand), rel: "package-lock.json", env: enforce },
+  { label: "  floor: bare node via shell", argv: shellCommand(floorCommand), rel: "src/app.ts", env: {} },
 );
 const layer2 = [
   spawned("allow path  (exec)", ["node", CLI, "pre-tool"], "src/app.ts", enforce),

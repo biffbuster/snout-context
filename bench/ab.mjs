@@ -13,8 +13,8 @@
  * get pulled into — a large lockfile, a minified dist/ bundle, a generated API client, a
  * vendored library — next to ordinary source with real bugs and failing tests.
  *
- * The claim this produces is "X% fewer tokens, N of N tasks still pass". A task that passes
- * off and fails under enforce is the headline failure, reported first.
+ * An efficiency claim requires every selected run to pass its task. A task that passes off
+ * and fails under enforce is the headline regression, reported first.
  *
  * Usage:
  *   node bench/ab.mjs --n 1 --tasks cart                 # smoke: 1 task x 2 arms
@@ -23,13 +23,14 @@
  *   node bench/ab.mjs --agent codex --n 5                # the same tasks on Codex CLI
  *   options: --arms off,enforce  --budget 1.00 (USD cap per run)  --keep (leave temp dirs)
  *
- * Codex reports tokens, not dollars, on a ChatGPT plan, so its headline is effective tokens:
- * uncached input + cached input at a tenth + output, the weighting a bill applies.
+ * Codex reports tokens, not dollars, on a ChatGPT plan, so its comparison uses a proxy:
+ * uncached input + cached input at a tenth + output. This is not an actual bill.
  */
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, symlinkSync, realpathSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, realpathSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, basename, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { gateEntries, squeezeEntries } from "../dist/lib.mjs";
 import { fileURLToPath } from "node:url";
 
@@ -135,6 +136,18 @@ const TASKS = {
   format: { prompt: "Add `formatPrice(cents, currency)` to src/format.js supporting USD ($) and EUR (€) with thousands separators, so `node --test test/format.test.js` passes.", check: (d) => nodeTest(d, "test/format.test.js") },
   pricing: { prompt: "Discounts should never exceed 10%. Cap them and make `node --test test/pricing.test.js` pass.", check: (d) => nodeTest(d, "test/pricing.test.js") },
   users: { prompt: "fetchUserName returns undefined. Find the bug and make `node --test test/users.test.js` pass.", check: (d) => nodeTest(d, "test/users.test.js") },
+  usersRead: {
+    // Controlled ingress check: both arms start with the same whole-file read, then must
+    // complete the real users task. This isolates the native Codex rewrite, not natural use.
+    prompt: "First read src/api/client.gen.js once with a single standalone whole-file shell command: on Windows use Get-Content -LiteralPath 'src/api/client.gen.js', and on Unix use cat src/api/client.gen.js. Do not combine that first read with another command or a pipe. Then fix fetchUserName so `node --test test/users.test.js` passes.",
+    check: (d) => nodeTest(d, "test/users.test.js"),
+  },
+  usersCompound: {
+    // Adverse ingress check: the same generated read inside a compound command must be
+    // denied under Codex, then the agent must recover and complete the users task.
+    prompt: "First run one shell command that prints 'begin', then all of src/api/client.gen.js, then 'end'. On Windows use Write-Output 'begin'; Get-Content -LiteralPath 'src/api/client.gen.js'; Write-Output 'end'. On Unix use printf 'begin\\n'; cat src/api/client.gen.js; printf 'end\\n'. Then fix fetchUserName so `node --test test/users.test.js` passes.",
+    check: (d) => nodeTest(d, "test/users.test.js"),
+  },
   // The tasks below put a flagged bulk file on the natural path to the answer. They are the
   // ones where snout can save anything at all; the five above are the control.
   orders: {
@@ -181,14 +194,18 @@ const TASKS = {
 };
 
 /** Tasks that put a flagged bulk file on the natural path; the rest are the control. */
-const BULK = ["orders", "money", "crash", "overview", "deps", "suite", "issue7", "issue45"];
+const BULK = ["orders", "money", "crash", "overview", "deps", "suite", "issue7", "issue45", "usersRead", "usersCompound"];
 
 function nodeTest(dir, file) {
   return spawnSync(process.execPath, ["--test", file], { cwd: dir, encoding: "utf8", timeout: 60_000 }).status === 0;
 }
 
 function makeFixture(arm) {
-  const dir = mkdtempSync(join(tmpdir(), `snout-ab-${arm}-`));
+  // Codex runs inside the real repository so its already-reviewed project hooks and
+  // workspace-write permission apply. Claude retains its established temp fixture path.
+  const base = AGENT === "codex" ? join(REPO, ".snout", "ab-fixtures") : tmpdir();
+  if (AGENT === "codex") mkdirSync(base, { recursive: true });
+  const dir = mkdtempSync(join(base, `snout-ab-${arm}-`));
   for (const [rel, body] of Object.entries(FILES)) {
     mkdirSync(dirname(join(dir, rel)), { recursive: true });
     writeFileSync(join(dir, rel), body);
@@ -205,14 +222,8 @@ function makeFixture(arm) {
   mkdirSync(join(dir, ".claude"), { recursive: true });
   writeFileSync(join(dir, ".claude/settings.json"), JSON.stringify({ hooks }, null, 2));
   writeFileSync(join(dir, ".mcp.json"), JSON.stringify({ mcpServers: { issues: { command: process.execPath, args: [join(dir, "tools/issues-mcp.mjs")] } } }, null, 2));
-  if (AGENT === "codex") {
-    // Same arms through Snout's Codex adapter: both record after each tool, only enforce gates.
-    const cmd = (event) => ({ type: "command", command: `node "${SNOUT_BIN}" hook codex ${event}` });
-    const codexHooks = { PostToolUse: [{ matcher: ".*", hooks: [cmd("PostToolUse")] }] };
-    if (arm === "enforce") codexHooks.PreToolUse = [{ matcher: "^Bash$", hooks: [cmd("PreToolUse")] }];
-    mkdirSync(join(dir, ".codex"), { recursive: true });
-    writeFileSync(join(dir, ".codex/hooks.json"), JSON.stringify({ hooks: codexHooks }, null, 2));
-  }
+  // Codex inherits this repository's reviewed hooks. SNOUT_MODE selects the arm;
+  // generating fixture-local hooks would require new trust for each run.
   mkdirSync(join(dir, ".snout"), { recursive: true });
   writeFileSync(join(dir, ".snout/config.json"), JSON.stringify({ mode: arm === "enforce" ? "enforce" : "observe" }) + "\n");
   return dir;
@@ -221,40 +232,64 @@ function makeFixture(arm) {
 // ------------------------------------------------------------------ run
 
 /**
- * One Codex run. A throwaway CODEX_HOME trusts only this fixture (Codex loads project hooks
- * only in a trusted folder) and links the user's existing sign-in, so the real ~/.codex is
- * never touched. The result is shaped like Claude's so the rest of the harness is shared.
+ * One Codex run under the already trusted repository hook layer. No credential copies,
+ * hook-trust bypass, or approval bypass. The result is shaped like Claude's.
  */
-function runCodex(task, dir) {
-  const home = mkdtempSync(join(tmpdir(), "snout-ab-codexhome-"));
-  symlinkSync(join(homedir(), ".codex", "auth.json"), join(home, "auth.json"));
-  writeFileSync(join(home, "config.toml"), `[projects."${realpathSync(dir)}"]\ntrust_level = "trusted"\n`);
-  const argv = ["exec", "--json", "-s", "workspace-write", "--dangerously-bypass-hook-trust", "--skip-git-repo-check", "-C", dir];
+function runCodex(task, dir, arm) {
+  const argv = ["exec", "--json", "-s", "workspace-write", "-C", dir];
+  if (process.platform === "win32" && process.env.SNOUT_CODEX_WINDOWS_SANDBOX) {
+    argv.push("-c", `windows.sandbox=${process.env.SNOUT_CODEX_WINDOWS_SANDBOX}`);
+  }
   if (MODEL !== "codex-default") argv.push("-m", MODEL);
-  argv.push(TASKS[task].prompt);
-  const r = spawnSync("codex", argv, { cwd: dir, encoding: "utf8", timeout: 15 * 60_000, env: { ...process.env, CODEX_HOME: home }, maxBuffer: 64 * 1024 * 1024 });
-  rmSync(home, { recursive: true, force: true });
-  let input = 0, cached = 0, output = 0, turns = 0, error, final = "";
+  // Node's default test isolation spawns a child that this Windows Codex sandbox rejects
+  // with EPERM. Both A/B arms get the same task and the same working test command.
+  const prompt = process.platform === "win32"
+    ? TASKS[task].prompt.replace(/\bnode --test\b/g, "node --test --test-isolation=none")
+    : TASKS[task].prompt;
+  argv.push(prompt);
+  // npm's Windows `codex` shim is a .cmd/.ps1 wrapper, which spawnSync cannot execute as
+  // a native binary. CODEX_CLI_JS points to the installed CLI's JavaScript entry point.
+  const cli = process.env.CODEX_CLI_JS;
+  const env = { ...process.env, SNOUT_MODE: arm === "enforce" ? "enforce" : "observe" };
+  const r = cli
+    ? spawnSync(process.execPath, [cli, ...argv], { cwd: dir, encoding: "utf8", timeout: 15 * 60_000, env, maxBuffer: 64 * 1024 * 1024 })
+    : spawnSync("codex", argv, { cwd: dir, encoding: "utf8", timeout: 15 * 60_000, env, maxBuffer: 64 * 1024 * 1024 });
+  // Kept fixtures contain only generated test data; preserve the agent event stream on
+  // request so a host/tool failure can be diagnosed instead of mistaken for a Snout effect.
+  if (args.keep) {
+    writeFileSync(join(dir, ".snout/codex-exec.jsonl"), r.stdout || "");
+    writeFileSync(join(dir, ".snout/codex-exec.stderr.txt"), r.stderr || r.error?.message || "");
+  }
+  let input = 0, cached = 0, output = 0, reasoning = 0, turns = 0, error, final = "";
+  const expectedTests = [...new Set(TASKS[task].prompt.match(/\btest\/[\w./-]+\.test\.js\b/g) ?? [])];
+  let inSessionTestPassed = expectedTests.length ? false : null;
   for (const line of (r.stdout || "").split("\n")) {
     if (!line.trim()) continue;
     let e;
     try { e = JSON.parse(line); } catch { continue; }
     if (e.type === "turn.completed" && e.usage) {
+      turns++;
       input += e.usage.input_tokens ?? 0;
       cached += e.usage.cached_input_tokens ?? 0;
-      output += (e.usage.output_tokens ?? 0) + (e.usage.reasoning_output_tokens ?? 0);
-    } else if (e.type === "item.completed" && e.item?.type === "command_execution") turns++;
-    else if (e.type === "item.completed" && e.item?.type === "agent_message") final = e.item.text ?? final;
+      output += e.usage.output_tokens ?? 0;
+      reasoning += e.usage.reasoning_output_tokens ?? 0;
+    } else if (e.type === "item.completed" && e.item?.type === "command_execution") {
+      const command = String(e.item.command ?? "");
+      const result = String(e.item.aggregated_output ?? "");
+      const passed = Number(result.match(/(?:^|\n)[ℹ#]\s*pass\s+(\d+)\b/m)?.[1] ?? 0);
+      if (/\bnode --test\b/.test(command) && expectedTests.every((file) => command.includes(file)) && e.item.exit_code === 0 && passed >= expectedTests.length && /(?:^|\n)[ℹ#]\s*fail\s+0\b/m.test(result)) inSessionTestPassed = true;
+    } else if (e.type === "item.completed" && e.item?.type === "agent_message") final = e.item.text ?? final;
     else if (e.type === "error" || e.type === "turn.failed") error = String(e.message ?? e.error?.message ?? e.type);
   }
-  if (!input && !error) error = (r.stderr || "no output").slice(0, 200);
+  if (!input && !error) error = (r.error?.message || r.stderr || "no output").slice(0, 200);
   return {
     is_error: !!error && !input,
     result: error ?? final,
     num_turns: turns,
     total_cost_usd: 0,
-    usage: { input_tokens: input - cached, cache_read_input_tokens: cached, output_tokens: output },
+    usage: { input_tokens: input - cached, cache_read_input_tokens: cached, output_tokens: output, reasoning_output_tokens: reasoning },
     effTokens: Math.round(input - cached + cached * 0.1 + output),
+    inSessionTestPassed,
   };
 }
 
@@ -277,7 +312,7 @@ function runOne(task, arm) {
     { cwd: dir, encoding: "utf8", timeout: 15 * 60_000, env: { ...process.env, SNOUT_MODE: arm === "enforce" ? "enforce" : "observe" }, maxBuffer: 64 * 1024 * 1024 },
   );
   let out = {};
-  if (AGENT === "codex") out = runCodex(task, dir);
+  if (AGENT === "codex") out = runCodex(task, dir, arm);
   else {
     try {
       out = JSON.parse(r.stdout);
@@ -311,18 +346,29 @@ function runOne(task, arm) {
     cacheWrite: u.cache_creation_input_tokens ?? 0,
     cacheRead: u.cache_read_input_tokens ?? 0,
     outputTokens: u.output_tokens ?? 0,
+    ...(AGENT === "codex" ? { reasoningTokens: u.reasoning_output_tokens ?? 0 } : {}),
     turns: out.num_turns ?? 0,
     costUsd: out.total_cost_usd ?? 0,
     ...(out.effTokens !== undefined ? { effTokens: out.effTokens } : {}),
+    ...(AGENT === "codex" ? { inSessionTestPassed: out.inSessionTestPassed } : {}),
     denials,
     trims,
     lowValueRead,
     withheld,
     seconds: Math.round((Date.now() - started) / 1000),
   };
+  if (AGENT === "codex") {
+    const hooks = join(dir, ".snout/hooks.jsonl");
+    row.hookEvents = existsSync(hooks) ? readFileSync(hooks, "utf8").split("\n").filter(Boolean).length : 0;
+  }
   // A failed run keeps the agent's last words, so the reason survives the deleted fixture.
   if (!row.pass) row.final = String(out.result ?? "").slice(0, 500);
-  if (!args.keep) rmSync(dir, { recursive: true, force: true });
+  if (!args.keep) {
+    const base = realpathSync(AGENT === "codex" ? join(REPO, ".snout", "ab-fixtures") : tmpdir());
+    const target = realpathSync(dir);
+    if (dirname(target) !== base || !basename(target).startsWith(`snout-ab-${arm}-`)) throw new Error("refusing to remove a fixture outside its expected parent");
+    rmSync(target, { recursive: true, force: true });
+  }
   else row.dir = dir;
   return row;
 }
@@ -331,6 +377,16 @@ const median = (xs) => {
   const s = [...xs].sort((a, b) => a - b);
   return s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : 0;
 };
+
+function scoreBlockers(rows, tasks, n) {
+  const blockers = [];
+  if (rows.length !== tasks.length * n * 2 || rows.some((r) => !r.pass)) blockers.push("every off/enforce task must pass");
+  if (n < 3) blockers.push("at least three paired repeats are required");
+  if (rows.some((r) => r.inSessionTestPassed === false)) blockers.push("a required Codex task test did not pass inside its session");
+  if (!tasks.some((t) => BULK.includes(t)) || !tasks.some((t) => !BULK.includes(t))) blockers.push("include a bulk-path task and a control task");
+  if (!rows.some((r) => r.arm === "enforce" && (r.denials + r.trims) > 0)) blockers.push("no Snout gate intervention was observed");
+  return blockers;
+}
 
 function main() {
   if (typeof args.summarize === "string") {
@@ -356,8 +412,9 @@ function main() {
   writeFileSync(outFile, JSON.stringify({ agent: AGENT, model: MODEL, n: N, measuredAt: new Date().toISOString(), rows }, null, 2));
   console.log(`\nFull results: ${outFile}`);
   const broken = summarize(rows, tasks, MODEL, N);
-  // --gate: a release check. Any task that passes with snout off and fails with it on fails the run.
-  if (args.gate && broken.length) process.exitCode = 1;
+  // A release score requires every selected run to complete its task. A failed baseline
+  // cannot establish that enforcement preserved task quality either.
+  if (args.gate && (broken.length || scoreBlockers(rows, tasks, N).length)) process.exitCode = 1;
 }
 
 /** Prints the comparison. `--summarize <results.json>` re-runs it on a saved file. */
@@ -382,6 +439,12 @@ function summarize(rows, tasks, model, n) {
     const sum = (rs, k) => rs.reduce((x, r) => x + r[k], 0);
     console.log("");
     if (broken.length) console.log(`  BROKEN by enforce: ${broken.join(", ")} — passes with snout off, fails with it on.`);
+    const blockers = scoreBlockers(rows, tasks, n);
+    if (blockers.length) {
+      console.log(`  Efficiency score: not computed (${blockers.join("; ")}). Token counts above are diagnostics only.`);
+      console.log(`  Tasks passing:   off ${off.filter((r) => r.pass).length}/${off.length} · enforce ${on.filter((r) => r.pass).length}/${on.length}`);
+      return broken;
+    }
     const pct = (a, b) => (b > 0 ? `${a <= b ? "-" : "+"}${Math.abs((1 - a / b) * 100).toFixed(1)}%` : "n/a");
     // Cost leads: most input tokens are cache reads billed at a tenth of the price, so a
     // summed token count overstates the turns a deny adds and understates the bulk it avoids.
@@ -401,4 +464,4 @@ export { makeFixture, TASKS };
 
 // Only when executed directly: importing this file (to inspect the fixture) must never
 // start paid Claude runs.
-if (process.argv[1] && fileURLToPath(import.meta.url) === (await import("node:fs")).realpathSync(process.argv[1])) main();
+if (process.argv[1] && realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1])) main();

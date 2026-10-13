@@ -43,7 +43,7 @@ bench/ai-manifest.json
 # Track A label sets carry the first 2 KB of third-party files; kept local, rebuilt from the pinned corpus.
 bench/gold/
 
-# Working plans handed to other agents; not part of the product.
-codex-*.md
+# Keep root scratch plans local; track the reviewed Codex plan in docs.
+/codex-*.md
 docs/memory-for-codex.md
 bench/frozen/
