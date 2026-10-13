@@ -63,8 +63,9 @@ export interface Paths {
  */
 export function resolvePaths(hookCwd?: string): Paths {
   const projectDir = projectRootOf(resolve(hookCwd || process.env.CLAUDE_PROJECT_DIR || process.cwd()));
-  const snoutDir = join(projectDir, ".snout");
-  adoptLegacyDir(join(projectDir, ".jev"), snoutDir);
+  // SNOUT_DIR keeps Snout's records outside the project (a sandbox or CI run that must leave it untouched).
+  const snoutDir = process.env.SNOUT_DIR ? resolve(process.env.SNOUT_DIR) : join(projectDir, ".snout");
+  if (!process.env.SNOUT_DIR) adoptLegacyDir(join(projectDir, ".jev"), snoutDir);
   return {
     projectDir,
     snoutDir,

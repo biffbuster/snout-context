@@ -103,8 +103,8 @@ var DEFAULTS = {
 // src/config.ts
 function resolvePaths(hookCwd) {
   const projectDir = projectRootOf(resolve(hookCwd || process.env.CLAUDE_PROJECT_DIR || process.cwd()));
-  const snoutDir = join(projectDir, ".snout");
-  adoptLegacyDir(join(projectDir, ".jev"), snoutDir);
+  const snoutDir = process.env.SNOUT_DIR ? resolve(process.env.SNOUT_DIR) : join(projectDir, ".snout");
+  if (!process.env.SNOUT_DIR) adoptLegacyDir(join(projectDir, ".jev"), snoutDir);
   return {
     projectDir,
     snoutDir,
@@ -6344,7 +6344,7 @@ function pinLines(pins, projectDir, secrets) {
 }
 var PROGRESS_FILE = "progress.md";
 var PROGRESS_MAX_CHARS = 1500;
-var PROGRESS_ASK = "- Keep `.snout/progress.md` current while you work, at most 10 lines: the goal, your current approach, what failed and why, the next step. Snout restores it verbatim after the next compaction.";
+var progressAsk = (file2) => `- Keep \`${file2}\` current while you work, at most 10 lines: the goal, your current approach, what failed and why, the next step. Snout restores it verbatim after the next compaction.`;
 function sessionStartMs(transcriptPath) {
   try {
     const fd = openSync3(transcriptPath, "r");
@@ -6371,7 +6371,8 @@ function readProgress(snoutDir, sinceMs) {
     return void 0;
   }
 }
-function memoryText(facts, pins, projectDir, secrets, progress) {
+function memoryText(facts, pins, projectDir, secrets, progress, progressFile = ".snout/progress.md") {
+  const ask = progressAsk(progressFile);
   const sections = [];
   if (progress) sections.push(["Your progress notes (.snout/progress.md, written before the compaction):", ...progress.split("\n").slice(0, 25)]);
   if (facts.rules?.length) sections.push(["Your instructions this session, verbatim (oldest first; where two conflict, the later one holds):", ...facts.rules.map((r) => `- ${r}`)]);
@@ -6385,7 +6386,7 @@ function memoryText(facts, pins, projectDir, secrets, progress) {
   if (facts.request) f.push(`- Current request: ${facts.request}`);
   if (facts.todos.length) f.push(`- Open to-dos: ${facts.todos.slice(0, 6).join("; ")}`);
   const head = "Snout restored these exact facts after compaction (from this session and .snout/pins.md):";
-  const room = MAX_CHARS - head.length - PROGRESS_ASK.length - 2;
+  const room = MAX_CHARS - head.length - ask.length - 2;
   const render = () => [...sections, ...f.length ? [["From this session:", ...f]] : []].flat().join("\n");
   if (facts.changed.length) {
     const label = "- Files changed this session: ";
@@ -6402,7 +6403,7 @@ function memoryText(facts, pins, projectDir, secrets, progress) {
   let body = render();
   if (!body) return "";
   if (body.length > room) body = `${body.slice(0, room - 1)}\u2026`;
-  return [head, body, PROGRESS_ASK].join("\n");
+  return [head, body, ask].join("\n");
 }
 
 // src/replay/replay.ts
@@ -7743,7 +7744,8 @@ function onSessionStart(input, paths, cfg) {
   if ((input.source ?? input.session_start_reason) === "compact" && cfg.mode !== "observe" && input.transcript_path) {
     try {
       const progress = readProgress(paths.snoutDir, sessionStartMs(input.transcript_path));
-      const text = memoryText(sessionFacts(input.transcript_path, paths.projectDir), readPins(paths.projectDir, paths.snoutDir), paths.projectDir, cfg, progress);
+      const progressFile = toRel(join21(paths.snoutDir, PROGRESS_FILE), paths.projectDir);
+      const text = memoryText(sessionFacts(input.transcript_path, paths.projectDir), readPins(paths.projectDir, paths.snoutDir), paths.projectDir, cfg, progress, progressFile);
       if (text) return emit({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: cfg.output === "concise" ? `${text}
 
 ${CONCISE_INSTRUCTION}` : text } });

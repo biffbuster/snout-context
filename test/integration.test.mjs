@@ -301,6 +301,21 @@ test("PostToolUse records a classification without any blocking hook installed",
   assert.equal(rows[0].decision, "allow", "nothing was blocked, so nothing may claim to have been");
 });
 
+test("SNOUT_DIR keeps Snout's records out of the project", () => {
+  const root = project();
+  const elsewhere = mkdtempSync(join(tmpdir(), "snout-dir-"));
+  const env = { SNOUT_DIR: elsewhere };
+  hook(root, "prompt-submit", { prompt: "look at the lockfile" }, env);
+  hook(root, "post-tool", {
+    tool_name: "Read",
+    tool_use_id: "t1",
+    tool_input: { file_path: join(root, "package-lock.json") },
+    tool_response: { type: "text", file: { filePath: "package-lock.json", content: "x".repeat(4000) } },
+  }, env);
+  assert.equal(readFileSync(join(elsewhere, "ledger.jsonl"), "utf8").trim().split("\n").length, 1);
+  assert.equal(existsSync(join(root, ".snout")), false, "nothing written inside the project");
+});
+
 test("PostToolUse sizes a read by what it returned, not by the whole file", () => {
   const root = project();
   const whole = readFileSync(join(root, "package-lock.json"), "utf8").length;

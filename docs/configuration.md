@@ -90,6 +90,7 @@ change measurably did (low-value tokens per session, before vs after).
 | Variable | Effect |
 | --- | --- |
 | `SNOUT_MODE` | Overrides `mode` for one session. |
+| `SNOUT_DIR` | Where Snout keeps its records instead of the project's `.snout/` (for sandboxes and CI runs that must leave the project untouched). |
 | `SNOUT_DISABLE` | Any value forces `observe`. The kill switch. |
 | `SNOUT_DEBUG` | Diagnostics to stderr. |
 | `TYPESAFE_API_KEY` | Lets `snout coach jev` score prompts with TypeSafe's Jev. Optional. |

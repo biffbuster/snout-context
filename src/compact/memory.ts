@@ -343,7 +343,8 @@ function pinLines(pins: Pin[], projectDir: string, secrets?: Secrets): string[] 
  */
 export const PROGRESS_FILE = "progress.md";
 const PROGRESS_MAX_CHARS = 1500;
-const PROGRESS_ASK = "- Keep `.snout/progress.md` current while you work, at most 10 lines: the goal, your current approach, what failed and why, the next step. Snout restores it verbatim after the next compaction.";
+/** The ask names where the notes go: `.snout/progress.md`, or the file under SNOUT_DIR when Snout keeps its records elsewhere. */
+const progressAsk = (file: string) => `- Keep \`${file}\` current while you work, at most 10 lines: the goal, your current approach, what failed and why, the next step. Snout restores it verbatim after the next compaction.`;
 
 /** When the session began: the first timestamp in its transcript (file times differ by platform). */
 export function sessionStartMs(transcriptPath: string): number {
@@ -371,7 +372,8 @@ export function readProgress(snoutDir: string, sinceMs: number): string | undefi
 }
 
 /** The text added to the context right after a compaction, or "" when there is nothing to restore. */
-export function memoryText(facts: SessionFacts, pins: Pin[], projectDir: string, secrets?: Secrets, progress?: string): string {
+export function memoryText(facts: SessionFacts, pins: Pin[], projectDir: string, secrets?: Secrets, progress?: string, progressFile = ".snout/progress.md"): string {
+  const ask = progressAsk(progressFile);
   const sections: string[][] = [];
   if (progress) sections.push(["Your progress notes (.snout/progress.md, written before the compaction):", ...progress.split("\n").slice(0, 25)]);
   // Before the facts, so the cap never cuts them: they are the user's own words about how to work.
@@ -387,7 +389,7 @@ export function memoryText(facts: SessionFacts, pins: Pin[], projectDir: string,
   if (facts.todos.length) f.push(`- Open to-dos: ${facts.todos.slice(0, 6).join("; ")}`);
   const head = "Snout restored these exact facts after compaction (from this session and .snout/pins.md):";
   // The ask is always whole: it is what keeps the next restore useful.
-  const room = MAX_CHARS - head.length - PROGRESS_ASK.length - 2;
+  const room = MAX_CHARS - head.length - ask.length - 2;
   const render = () => [...sections, ...(f.length ? [["From this session:", ...f]] : [])].flat().join("\n");
   // Changed files last, as many as fit (most recent first): a long session edits more than the rest leaves room for.
   if (facts.changed.length) {
@@ -405,5 +407,5 @@ export function memoryText(facts: SessionFacts, pins: Pin[], projectDir: string,
   let body = render();
   if (!body) return "";
   if (body.length > room) body = `${body.slice(0, room - 1)}…`;
-  return [head, body, PROGRESS_ASK].join("\n");
+  return [head, body, ask].join("\n");
 }

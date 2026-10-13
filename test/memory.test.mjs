@@ -108,6 +108,15 @@ test("SessionStart after a compaction adds the facts to context when Snout is on
   assert.doesNotMatch(off, /additionalContext/);
 });
 
+test("with SNOUT_DIR the restore asks for progress notes where Snout keeps its records", () => {
+  const dir = mkdtempSync(join(tmpdir(), "snout-mem-dir-"));
+  const elsewhere = mkdtempSync(join(tmpdir(), "snout-mem-out-"));
+  const transcript = session(dir);
+  const input = JSON.stringify({ hook_event_name: "SessionStart", source: "compact", session_id: "s1", transcript_path: transcript, cwd: dir });
+  const out = JSON.parse(spawnSync(process.execPath, [CLI, "session-start"], { cwd: dir, input, encoding: "utf8", env: { ...process.env, SNOUT_MODE: "enforce", SNOUT_DIR: elsewhere } }).stdout);
+  assert.ok(out.hookSpecificOutput.additionalContext.includes(`Keep \`${join(elsewhere, "progress.md").replace(/\\/g, "/")}\` current`));
+});
+
 test("only a real test-runner run counts as how tests run, not a script that mentions one", () => {
   const dir = mkdtempSync(join(tmpdir(), "snout-testcmd-"));
   // From the memory benchmark (2026-10-09): these were restored as "Tests run here with".

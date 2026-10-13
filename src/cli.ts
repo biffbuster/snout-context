@@ -41,7 +41,7 @@ import { startDashboard, type DashboardActions } from "./dashboard/server.js";
 import { liveDashboard, registerDashboard } from "./dashboard/registry.js";
 import { createRequire } from "node:module";
 import { compactionWhatIf, COMPACTION_COSTS, renderReplay, replaySession, totals, type HookRunner } from "./replay/replay.js";
-import { memoryText, readPins, readProgress, sessionFacts, sessionStartMs } from "./compact/memory.js";
+import { memoryText, PROGRESS_FILE, readPins, readProgress, sessionFacts, sessionStartMs } from "./compact/memory.js";
 import { installGate, refreshGate, removeGate, HOOK_PORT, isSnoutUrl } from "./gate/install.js";
 import { AGENT_SYNC_MS, AUTO_SYNC_MS, buildPayload, cloudUrl, configDir, forgetCredentials, lastSync, loadCredentials, login, sync } from "./cloud/client.js";
 import { readSpend } from "./spend/usage.js";
@@ -473,7 +473,8 @@ function onSessionStart(input: HookInput, paths: Paths, cfg: Config): void {
   if ((input.source ?? input.session_start_reason) === "compact" && cfg.mode !== "observe" && input.transcript_path) {
     try {
       const progress = readProgress(paths.snoutDir, sessionStartMs(input.transcript_path));
-      const text = memoryText(sessionFacts(input.transcript_path, paths.projectDir), readPins(paths.projectDir, paths.snoutDir), paths.projectDir, cfg, progress);
+      const progressFile = toRel(join(paths.snoutDir, PROGRESS_FILE), paths.projectDir);
+      const text = memoryText(sessionFacts(input.transcript_path, paths.projectDir), readPins(paths.projectDir, paths.snoutDir), paths.projectDir, cfg, progress, progressFile);
       if (text) return emit({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: cfg.output === "concise" ? `${text}\n\n${CONCISE_INSTRUCTION}` : text } });
     } catch (err) {
       recordError("memory", err);
