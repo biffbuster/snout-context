@@ -64,14 +64,15 @@ own test. Spend is the agent's reported cost at API list prices. Raw rows for ev
 | | Result |
 | --- | --- |
 | Long multi-step sessions with docs, logs and MCP connectors (Haiku, 11 tasks, 66 runs) | **−22%** input tokens, **−19%** spend (95% CI −37% to +6%), 33/33 passing; **−52%** on a codebase-wide rename, **−43%** on a task answered from a long handbook |
-| Spend on tasks that meet bulk files, everything on (Haiku, 12 tasks, 48 runs) | **−33%**, 24/24 passing |
-| Bulk-file tasks, read gate alone | spend **−24%** Haiku (90 runs) · **−23%** Sonnet (36 runs) · tokens **−23%** Codex (60 runs) |
+| Everything on (Haiku, 12 tasks, 48 runs) | **−26%** spend (95% CI −38% to −12%), 24/24 passing; **−33%** on the 8 tasks that meet bulk files (CI −45% to −18%) |
+| Bulk-file tasks, read gate alone (5 tasks) | spend **−24%** Haiku (50 runs, CI −45% to +3%) · **−23%** Sonnet (20 runs, CI −47% to +7%) · tokens **−23%** Codex (30 runs, CI −34% to −14%) |
 | Single examples: a lockfile read · a passing test run's output · a 60-issue MCP result | tokens **−90%** · lines **−87%** · characters **−74%** |
 | Tasks with nothing to trim | within noise (−5% to +1% across runs) |
 
 These projects were built to contain the bulk Snout trims, so the numbers show what it saves when
 that bulk is on the agent's path, not the average saving on any repo. Single runs of the same task
-vary by 20–40%.
+vary by 20–40%, and an interval that crosses zero means the saving is likely but not proven. Every
+number above rebuilds from its results file, without an API key: [docs/claims.md](docs/claims.md).
 
 ## CLI
 

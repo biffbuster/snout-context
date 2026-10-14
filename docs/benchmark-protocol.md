@@ -546,3 +546,27 @@ Claude Code, with no loss in the resolved rate?
   facts, so the cap never cuts them, says that a later instruction holds where two conflict, and lists
   as many changed files as fit (cap 4,000 → 6,000 characters). `bench/retention.mjs` on 210 recorded
   compactions: all facts kept 82% → 97%, changed files 79% → 99%, real sessions 53% → 65%.
+
+## Publication standard, fixed 2026-10-13
+
+Applies to every number published from now on: README, site, posts. Earlier results are listed
+against it in [claims.md](claims.md).
+
+1. **Fixed before the run, in this file:** the task set, arms, model and agent versions, the frozen
+   Snout build, the primary metric, and the no-quality-loss margin in points (5 unless a section
+   says otherwise; the long-session runs keep their registered 7).
+2. **Primary metric:** cost per solved attempt (total cost over total solved), arm vs. plain agent,
+   tasks paired. For agents that report tokens and not dollars, effective tokens (uncached input +
+   0.1 × cached input + output), labelled as tokens.
+3. **Intervals:** 95%, from a bootstrap over tasks with a fixed seed (`bench/report.mjs`).
+   "Saving" only if the cost interval lies below zero. "No quality loss" only if the interval for
+   the change in solved attempts lies above −margin. A result that meets neither is published as
+   measured, with both intervals, and is not called a saving.
+4. **Everything run is reported:** every arm and configuration, attempts excluded for
+   infrastructure (agent never ran, usage limit, harness failure) counted and listed, never
+   dropped silently. A subset (bulk-path tasks) is published only next to the whole run.
+5. **Published with the number:** `docs/results/<study>/` holding `attempts.csv`, `summary.json`
+   and `chart.svg` from `bench/report.mjs`, the command that rebuilt them, and the results file
+   they came from. Anyone can rebuild them without a key or a paid call.
+6. **A number whose per-attempt data isn't in the repository is not published.** Raw transcripts
+   stay private; the per-attempt table is enough to rebuild every statistic.
