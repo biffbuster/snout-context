@@ -8650,13 +8650,19 @@ function onPreTool(input, paths, cfg) {
   }
   gateResponse(input, paths, state, g, "");
 }
+var powerShellRead = false;
 function shellDumpTargets(command, cwd) {
   const bash = dumpTargets(command, cwd);
-  return client === "codex" && bash.length === 0 ? powerShellDumpTargets(command, cwd) : bash;
+  return client === "codex" && bash.length === 0 ? powerShellTargets(command, cwd) : bash;
 }
 function shellReadTargets(command, cwd) {
   const bash = readTargets(command, cwd);
-  return client === "codex" && bash.length === 0 ? powerShellDumpTargets(command, cwd) : bash;
+  return client === "codex" && bash.length === 0 ? powerShellTargets(command, cwd) : bash;
+}
+function powerShellTargets(command, cwd) {
+  const targets = powerShellDumpTargets(command, cwd);
+  if (targets.length) powerShellRead = true;
+  return targets;
 }
 var NATIVE_READ_MAX_BYTES = 256 * 1024;
 var overNativeReadLimit = (absPath) => sizeOf(absPath) > NATIVE_READ_MAX_BYTES;
@@ -8950,7 +8956,7 @@ function withAgentOverride(reason, rel) {
 }
 function agentSearchHint(rule, rel, oneLine2) {
   const hint = searchHint(rule, rel, { oneLine: oneLine2 });
-  return client === "codex" && process.platform === "win32" && hint ? powerShellSearchHint(rel) : hint;
+  return client === "codex" && powerShellRead && hint ? powerShellSearchHint(rel) : hint;
 }
 function onPostTool(input, paths, cfg) {
   maybeAutoSync(paths);

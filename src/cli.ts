@@ -1153,14 +1153,23 @@ function onPreTool(input: HookInput, paths: Paths, cfg: Config): void {
   gateResponse(input, paths, state, g, "");
 }
 
+/** The gated read was a PowerShell command, so the agent's search hint is PowerShell too, on any OS. */
+let powerShellRead = false;
+
 function shellDumpTargets(command: string, cwd: string): string[] {
   const bash = dumpTargets(command, cwd);
-  return client === "codex" && bash.length === 0 ? powerShellDumpTargets(command, cwd) : bash;
+  return client === "codex" && bash.length === 0 ? powerShellTargets(command, cwd) : bash;
 }
 
 function shellReadTargets(command: string, cwd: string): string[] {
   const bash = readTargets(command, cwd);
-  return client === "codex" && bash.length === 0 ? powerShellDumpTargets(command, cwd) : bash;
+  return client === "codex" && bash.length === 0 ? powerShellTargets(command, cwd) : bash;
+}
+
+function powerShellTargets(command: string, cwd: string): string[] {
+  const targets = powerShellDumpTargets(command, cwd);
+  if (targets.length) powerShellRead = true;
+  return targets;
 }
 
 /** Claude Code's Read refuses a whole file over 256 KB ("exceeds maximum allowed size"). */
@@ -1494,7 +1503,7 @@ function withAgentOverride(reason: string, rel: string): string {
 
 function agentSearchHint(rule: string, rel: string, oneLine: boolean): string {
   const hint = searchHint(rule, rel, { oneLine });
-  return client === "codex" && process.platform === "win32" && hint ? powerShellSearchHint(rel) : hint;
+  return client === "codex" && powerShellRead && hint ? powerShellSearchHint(rel) : hint;
 }
 
 /**
