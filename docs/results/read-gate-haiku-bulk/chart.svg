@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" font-family="system-ui, sans-serif" font-size="12">
+<style>.fg{fill:#1f2328}.mu{fill:#59636e}.ax{stroke:#d1d9e0}.pt{fill:#0969da}.bs{fill:#59636e}@media (prefers-color-scheme:dark){.fg{fill:#e6edf3}.mu{fill:#9198a1}.ax{stroke:#3d444d}.pt{fill:#4493f8}.bs{fill:#9198a1}}</style>
+<text class="fg" x="72" y="24" font-size="14" font-weight="600">Solved attempts vs. cost · run-1790613461290.json</text>
+<line class="ax" x1="72" x2="616" y1="344" y2="344"/><text class="mu" x="64" y="348" text-anchor="end">0%</text>
+<line class="ax" x1="72" x2="616" y1="270" y2="270"/><text class="mu" x="64" y="274" text-anchor="end">25%</text>
+<line class="ax" x1="72" x2="616" y1="196" y2="196"/><text class="mu" x="64" y="200" text-anchor="end">50%</text>
+<line class="ax" x1="72" x2="616" y1="122" y2="122"/><text class="mu" x="64" y="126" text-anchor="end">75%</text>
+<line class="ax" x1="72" x2="616" y1="48" y2="48"/><text class="mu" x="64" y="52" text-anchor="end">100%</text>
+<text class="mu" x="72" y="362" text-anchor="middle">$0.0000</text>
+<text class="mu" x="208" y="362" text-anchor="middle">$0.0169</text>
+<text class="mu" x="344" y="362" text-anchor="middle">$0.0338</text>
+<text class="mu" x="480" y="362" text-anchor="middle">$0.0507</text>
+<text class="mu" x="616" y="362" text-anchor="middle">$0.0676</text>
+<text class="mu" x="344" y="388" text-anchor="middle">Mean API cost per attempt (lower is better)</text>
+<text class="mu" transform="translate(16 196) rotate(-90)" text-anchor="middle">Solved attempts</text>
+<circle class="bs" cx="545.0434782608696" cy="48" r="6"/><text class="fg" x="555.0434782608696" y="68">off · 25/25</text>
+<circle class="pt" cx="430.16259501483097" cy="48" r="6"/><text class="fg" x="440.16259501483097" y="68">enforce · 25/25</text>
+</svg>

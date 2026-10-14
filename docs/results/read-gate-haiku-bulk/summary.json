@@ -1,0 +1,58 @@
+{
+  "files": [
+    "run-1790613461290.json"
+  ],
+  "base": "off",
+  "marginPts": 5,
+  "tasks": [
+    "orders",
+    "money",
+    "crash",
+    "overview",
+    "deps"
+  ],
+  "metric": "costUsd",
+  "bootstrap": {
+    "resamples": 4000,
+    "seed": 20261013,
+    "unit": "task"
+  },
+  "comparisons": [
+    {
+      "base": "off",
+      "arm": "enforce",
+      "tasks": 5,
+      "attempts": {
+        "off": 25,
+        "enforce": 25
+      },
+      "solved": {
+        "off": 25,
+        "enforce": 25
+      },
+      "meanCostPerAttempt": {
+        "off": 0.058745520000000016,
+        "enforce": 0.044478888
+      },
+      "costPerSolved": {
+        "off": 0.058745520000000016,
+        "enforce": 0.044478888
+      },
+      "solvedDiffPts": 0,
+      "solvedDiffCi": [
+        0,
+        0
+      ],
+      "costPerSolvedChangePct": -24.28548083326185,
+      "costPerSolvedCi": [
+        -45.2444490815322,
+        3.12888711114947
+      ],
+      "marginPts": 5,
+      "noQualityLoss": true,
+      "saving": false
+    }
+  ],
+  "excluded": 0,
+  "unscored": 0
+}
