@@ -22,6 +22,7 @@ import { fingerprintOf, scoreFile, sizeOf, tier0, toRel } from "./gate/tier0.js"
 import { labelOf } from "./gate/rules.js";
 import { summarize, type ScannedFile, type Summary } from "./gate/summary.js";
 import { dumpTargets, readTargets } from "./gate/bash.js";
+import { boundedPowerShellRead, powerShellDumpTargets, powerShellSearchHint } from "./gate/powershell.js";
 import { outline } from "./gate/outline.js";
 import { splitGrepOutput } from "./gate/grep.js";
 import { responseBytes, responseText } from "./gate/response.js";
@@ -41,7 +42,7 @@ import { startDashboard, type DashboardActions } from "./dashboard/server.js";
 import { liveDashboard, registerDashboard } from "./dashboard/registry.js";
 import { createRequire } from "node:module";
 import { compactionWhatIf, COMPACTION_COSTS, renderReplay, replaySession, totals, type HookRunner } from "./replay/replay.js";
-import { memoryText, PROGRESS_FILE, readPins, readProgress, sessionFacts, sessionStartMs } from "./compact/memory.js";
+import { codexSessionFacts, memoryText, PROGRESS_FILE, readPins, readProgress, sessionFacts, sessionStartMs } from "./compact/memory.js";
 import { installGate, refreshGate, removeGate, HOOK_PORT, isSnoutUrl } from "./gate/install.js";
 import { AGENT_SYNC_MS, AUTO_SYNC_MS, buildPayload, cloudUrl, configDir, forgetCredentials, lastSync, loadCredentials, login, sync } from "./cloud/client.js";
 import { readSpend } from "./spend/usage.js";
@@ -377,7 +378,6 @@ function recordHeartbeat(paths: Paths, event: string, input: HookInput): void {
     event,
     session: input.session_id ?? "unknown",
   };
-  // Kept on the heartbeat too, so `doctor` can show whether these fields arrive at all.
   appendRow(paths.hooks, { ...row, ...agentOf(input) });
   rotateIfLarge(paths.hooks);
 }
@@ -453,19 +453,21 @@ function onSessionStart(input: HookInput, paths: Paths, cfg: Config): void {
   if (typeof input.model === "string" && input.model) state.model = input.model.slice(0, 64);
   saveState(paths.state, state);
 
-  // Deliberately no additionalContext: a plugin that saves tokens must not spend them. The
-  // line below goes to the user only.
-  try {
-    if (gateInstalled(paths)) refreshGate(paths.projectDir, BIN);
-  } catch (err) {
-    recordError("refreshGate", err);
-  }
-  // The fast path needs `snout serve` up before the first gated call; this waits until it answers.
-  if (cfg.mode !== "observe" && fastGateInstalled(paths)) {
+  // Only Claude's plugin owns its .claude gate and fast-path server. Other agents
+  // must not repair or start Claude hooks when their own session begins.
+  if (!client) {
     try {
-      spawnSync(process.execPath, [BIN, "serve", "--ensure"], { stdio: "ignore", timeout: 3000 });
+      if (gateInstalled(paths)) refreshGate(paths.projectDir, BIN);
     } catch (err) {
-      recordError("ensureServer", err);
+      recordError("refreshGate", err);
+    }
+    // The fast path needs `snout serve` up before the first gated Claude call.
+    if (cfg.mode !== "observe" && fastGateInstalled(paths)) {
+      try {
+        spawnSync(process.execPath, [BIN, "serve", "--ensure"], { stdio: "ignore", timeout: 3000 });
+      } catch (err) {
+        recordError("ensureServer", err);
+      }
     }
   }
   // Right after a compaction: put back the exact facts the summary may have lost, and the agent's own
@@ -473,8 +475,9 @@ function onSessionStart(input: HookInput, paths: Paths, cfg: Config): void {
   if ((input.source ?? input.session_start_reason) === "compact" && cfg.mode !== "observe" && input.transcript_path) {
     try {
       const progress = readProgress(paths.snoutDir, sessionStartMs(input.transcript_path));
+      const facts = client === "codex" ? codexSessionFacts(input.transcript_path, paths.projectDir) : sessionFacts(input.transcript_path, paths.projectDir);
       const progressFile = toRel(join(paths.snoutDir, PROGRESS_FILE), paths.projectDir);
-      const text = memoryText(sessionFacts(input.transcript_path, paths.projectDir), readPins(paths.projectDir, paths.snoutDir), paths.projectDir, cfg, progress, progressFile);
+      const text = memoryText(facts, readPins(paths.projectDir, paths.snoutDir), paths.projectDir, cfg, progress, progressFile);
       if (text) return emit({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: cfg.output === "concise" ? `${text}\n\n${CONCISE_INSTRUCTION}` : text } });
     } catch (err) {
       recordError("memory", err);
@@ -1071,7 +1074,7 @@ function onPreTool(input: HookInput, paths: Paths, cfg: Config): void {
   // dumpTargets); targeted reads — grep, head, jq, a pipe — are what the deny points to.
   if (tool === "Bash") {
     const command = stringField(input.tool_input, "command");
-    const targets = command ? dumpTargets(command, paths.projectDir) : [];
+    const targets = command ? shellDumpTargets(command, paths.projectDir) : [];
     const state = loadState(paths.state, input.session_id ?? "unknown");
     if (targets.length && cfg.repeatReads !== false && cfg.mode === "enforce") {
       const agentId = agentOf(input).agentId;
@@ -1082,6 +1085,11 @@ function onPreTool(input: HookInput, paths: Paths, cfg: Config): void {
       const g = classifyForGate(input, paths, cfg, state, absPath);
       // Allowed files are recorded by PostToolUse from what the command actually printed.
       if (g.d.verdict === "allow") continue;
+      if (client === "codex" && cfg.mode === "enforce" && g.d.verdict === "deny" && (g.d.rule === "generated" || g.d.rule === "vendored") && targets.length === 1 && command) {
+        const head = headWindow(absPath);
+        const bounded = head && boundedPowerShellRead(command, paths.projectDir, absPath, head.lines);
+        if (head && bounded) return trimShellResponse(input, paths, g, head, bounded);
+      }
       recordRow(paths.ledger, g.row);
       return gateResponse(input, paths, state, g, "Printing it whole with Bash is gated like a Read.");
     }
@@ -1143,6 +1151,25 @@ function onPreTool(input: HookInput, paths: Paths, cfg: Config): void {
     return;
   }
   gateResponse(input, paths, state, g, "");
+}
+
+/** The gated read was a PowerShell command, so the agent's search hint is PowerShell too, on any OS. */
+let powerShellRead = false;
+
+function shellDumpTargets(command: string, cwd: string): string[] {
+  const bash = dumpTargets(command, cwd);
+  return client === "codex" && bash.length === 0 ? powerShellTargets(command, cwd) : bash;
+}
+
+function shellReadTargets(command: string, cwd: string): string[] {
+  const bash = readTargets(command, cwd);
+  return client === "codex" && bash.length === 0 ? powerShellTargets(command, cwd) : bash;
+}
+
+function powerShellTargets(command: string, cwd: string): string[] {
+  const targets = powerShellDumpTargets(command, cwd);
+  if (targets.length) powerShellRead = true;
+  return targets;
 }
 
 /** Claude Code's Read refuses a whole file over 256 KB ("exceeds maximum allowed size"). */
@@ -1233,8 +1260,34 @@ function trimResponse(input: HookInput, paths: Paths, g: Gated, head: { lines: n
       updatedInput: { ...(input.tool_input ?? {}), offset: 1, limit: head.lines },
       // Model-visible. Everything from the file went through outline()'s allow-list, and
       // the path through safePath (inside withOverride and d.reason).
-      additionalContext: withOverride(
+      additionalContext: withAgentOverride(
         `snout trimmed this read: ${d.reason} (~${fmtTokens(estimated)} tokens), so only lines 1–${head.lines} of ${head.totalLines} were returned.${contents.outline} Read other ranges with offset and limit.${searchHint(d.rule, rel, { oneLine: contents.oneLine })}`,
+        rel,
+      ),
+    },
+    systemMessage: `snout trimmed: ${safePath(rel)} · ${d.rule} · lines 1–${head.lines} of ${head.totalLines}, ~${fmtTokens(Math.max(0, estimated - headTokens))} tokens withheld`,
+  });
+}
+
+/** Codex's Bash hook can rewrite an unambiguous native PowerShell whole-file read. */
+function trimShellResponse(input: HookInput, paths: Paths, g: Gated, head: { lines: number; bytes: number; totalLines: number }, command: string): void {
+  const { absPath, rel, d, estimated } = g;
+  const headTokens = estimateTokens(head.bytes, rel);
+  recordRow(paths.ledger, {
+    ...g.row,
+    tokensAvoidedEst: Math.max(0, estimated - headTokens),
+    tokensReadEst: headTokens,
+    trimmed: true,
+    range: `1:${head.lines}`,
+  });
+  const contents = contentsOf(absPath, rel, d.rule);
+  emit({
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "allow",
+      updatedInput: { ...(input.tool_input ?? {}), command },
+      additionalContext: withAgentOverride(
+        `snout trimmed this read: ${d.reason} (~${fmtTokens(estimated)} tokens), so only lines 1–${head.lines} of ${head.totalLines} were returned.${contents.outline} For another range, pipe Get-Content to Select-Object -Skip N -First M.${agentSearchHint(d.rule, rel, contents.oneLine)}`,
         rel,
       ),
     },
@@ -1276,7 +1329,7 @@ function docResponse(input: HookInput, paths: Paths, g: Gated, doc: DocWindow): 
       hookEventName: "PreToolUse",
       permissionDecision: "allow",
       updatedInput: { ...(input.tool_input ?? {}), offset: doc.start, limit: doc.lines },
-      additionalContext: withOverride(
+      additionalContext: withAgentOverride(
         `snout: ${safePath(rel)} is ${what}, so only lines ${doc.start}–${end} of ${doc.totalLines} were returned.${doc.map} Read the part you need with offset and limit; any ranged read comes back in full.`,
         rel,
       ),
@@ -1351,7 +1404,7 @@ function repeatResponse(input: HookInput, paths: Paths, state: SessionState, abs
       hookEventName: "PreToolUse",
       permissionDecision: "allow",
       updatedInput: { ...t, offset: Number(t.offset) || 1, limit: 1 },
-      additionalContext: withOverride(
+      additionalContext: withAgentOverride(
         `snout: ${safePath(rel)} is unchanged since you read ${describeWindow(prior.window)} earlier in this conversation${prior.turn ? ` (turn ${prior.turn})` : ""}${window === prior.window ? "" : `, which includes ${describeWindow(window)}`}, so only its first line was returned. Use that earlier copy; it is still accurate.`,
         rel,
       ),
@@ -1368,6 +1421,19 @@ function classifyForGate(input: HookInput, paths: Paths, cfg: Config, state: Ses
   const bytes = windowBytes ?? sizeOf(absPath);
   const estimated = estimateTokens(bytes, rel);
   let d = decide({ absPath, projectDir: paths.projectDir, cfg });
+  if (client === "codex" && d.verdict === "ask") {
+    // Codex PreToolUse cannot ask for approval: that response fails open. Preserve the
+    // credential and crafted-path boundary, while letting uncertain value calls through.
+    const sensitive = d.rule === "secret" || d.rule === "crafted-path";
+    d = {
+      ...d,
+      verdict: sensitive ? "deny" : "allow",
+      ...(sensitive ? {} : { suppressedByMode: true }),
+      reason: sensitive
+        ? `${d.reason} Codex cannot prompt for this read from PreToolUse; allow it explicitly in Snout if intended.`
+        : `${d.reason} Codex cannot prompt from PreToolUse, so this uncertain read was allowed.`,
+    };
+  }
   // The size cap is about the whole file crowding out the conversation. A ranged read is the
   // narrow read the cap points the agent toward, so it is judged by its window, not the file
   // (PointFive C1: a 400-line read of a 1.4 MB log was asked about, which headless runs treat
@@ -1417,8 +1483,8 @@ function gateResponse(input: HookInput, paths: Paths, state: SessionState, g: Ga
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
       permissionDecision: d.verdict,
-      permissionDecisionReason: withOverride(
-        `${d.reason} (~${fmtTokens(estimated)} tokens, confidence ${d.confidence.toFixed(2)})${lead ? " " + lead : ""}${contents.outline}${searchHint(d.rule, rel, { oneLine: contents.oneLine })}`,
+      permissionDecisionReason: withAgentOverride(
+        `${d.reason} (~${fmtTokens(estimated)} tokens, confidence ${d.confidence.toFixed(2)})${lead ? " " + lead : ""}${contents.outline}${agentSearchHint(d.rule, rel, contents.oneLine)}`,
         rel,
       ),
     },
@@ -1429,10 +1495,23 @@ function gateResponse(input: HookInput, paths: Paths, state: SessionState, g: Ga
   });
 }
 
+function withAgentOverride(reason: string, rel: string): string {
+  return client === "codex"
+    ? `${reason} Continue with a bounded read or search. If the whole file is essential, ask the user to add ${safePath(rel)} to Snout's allow list.`
+    : withOverride(reason, rel);
+}
+
+function agentSearchHint(rule: string, rel: string, oneLine: boolean): string {
+  const hint = searchHint(rule, rel, { oneLine });
+  return client === "codex" && powerShellRead && hint ? powerShellSearchHint(rel) : hint;
+}
+
 /**
- * PostToolUse runs with `async: true`, so it never blocks the agent. That makes it the
- * right home for recording, and in observe mode it is the *only* hook that runs: paying
- * ~120 ms of Node start-up on the critical path to block nothing would be a bad trade.
+ * Claude's PostToolUse runs with `async: true`, so it never blocks that agent. Codex
+ * invokes its PostToolUse synchronously but this handler still observes only: the
+ * tested replacement response surfaced a tool error. In observe mode this is the
+ * only tool hook that needs to run; adding a blocking PreToolUse just to record reads
+ * would pay process start-up on the critical path without changing their result.
  *
  * It also has something PreToolUse does not — the real size of what the read returned —
  * so `tokensReadEst` here is derived from the actual result rather than from a `stat`.
@@ -1457,7 +1536,7 @@ function onPostTool(input: HookInput, paths: Paths, cfg: Config): void {
     const resp = input.tool_response as Record<string, unknown> | undefined;
     const command = stringField(input.tool_input, "command");
     if (command && resp && typeof resp.stdout === "string" && resp.interrupted !== true) {
-      for (const abs of dumpTargets(command, paths.projectDir)) {
+      for (const abs of shellDumpTargets(command, paths.projectDir)) {
         rememberRead(paths.snoutDir, state.session, agentOf(input).agentId, abs, toRel(abs, paths.projectDir), "full", state.turn);
       }
     }
@@ -1472,8 +1551,9 @@ function onPostTool(input: HookInput, paths: Paths, cfg: Config): void {
   } else if (!filePath && input.tool_name === "Grep") {
     recordGrep(input, paths, cfg, state);
   } else if (!filePath && isToolOutput(input.tool_name)) {
-    // In enforce mode the squeeze hook sees every MCP result and records it, trimmed or not.
-    if (!(cfg.mode === "enforce" && (input.tool_name ?? "").startsWith("mcp__"))) recordToolOutput(input, paths, state, responseBytes(input.tool_response));
+    // Claude's separate Squeeze hook records MCP results in enforce mode. Codex does not
+    // install that hook, so its PostToolUse observation must still account for the result.
+    if (!(cfg.mode === "enforce" && client !== "codex" && (input.tool_name ?? "").startsWith("mcp__"))) recordToolOutput(input, paths, state, responseBytes(input.tool_response));
   }
 
   // The tool ran despite an ask/deny, which means the user overrode us. That is the
@@ -1584,7 +1664,7 @@ function recordBashReads(input: HookInput, paths: Paths, cfg: Config, state: Ses
   if (!command) return;
   // A file PreToolUse gated and the user then let through already has its row, plus the
   // override row below; recording it again would count it twice.
-  const targets = readTargets(command, paths.projectDir).filter((p) => toRel(p, paths.projectDir) !== gatedRel);
+  const targets = shellReadTargets(command, paths.projectDir).filter((p) => toRel(p, paths.projectDir) !== gatedRel);
   if (targets.length === 0) return;
 
   // The result is the concatenation of everything the command printed, so no single file's

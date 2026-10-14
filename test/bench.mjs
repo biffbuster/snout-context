@@ -28,9 +28,9 @@
  */
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
+import { mkdtempSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { tier0, DEFAULTS } from "../dist/lib.mjs";
 
 const N = Number(process.env.BENCH_N || 40);
@@ -134,6 +134,14 @@ function paired(a, b) {
   });
 }
 
+function gitBash() {
+  if (process.env.CLAUDE_CODE_GIT_BASH_PATH) return process.env.CLAUDE_CODE_GIT_BASH_PATH;
+  const git = spawnSync("where", ["git"], { encoding: "utf8" }).stdout?.split(/\r?\n/)[0];
+  const bash = git && join(dirname(dirname(git)), "bin", "bash.exe");
+  if (!bash || !existsSync(bash)) throw new Error("Git Bash not found; set CLAUDE_CODE_GIT_BASH_PATH");
+  return bash;
+}
+
 const enforce = { SNOUT_MODE: "enforce" };
 const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 
@@ -145,9 +153,11 @@ const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 // Interleaved, one sample each per round: a background process that lands halfway through
 // the run must not inflate the plugin's number while leaving the floor's untouched. An
 // earlier version sampled them separately and charged that difference to the classifier.
+// On Windows, Claude Code runs hooks through Git Bash, which is rarely on PATH as `sh`.
+const SH = process.platform === "win32" ? gitBash() : "sh";
 const [shipped, shellFloor] = paired(
-  { label: "shipped form (shell)", argv: ["sh", "-c", `node "${CLI}" pre-tool`], rel: "package-lock.json", env: enforce },
-  { label: "  floor: bare node via shell", argv: ["sh", "-c", "node -e 0"], rel: "src/app.ts", env: {} },
+  { label: "shipped form (shell)", argv: [SH, "-c", `node "${CLI}" pre-tool`], rel: "package-lock.json", env: enforce },
+  { label: "  floor: bare node via shell", argv: [SH, "-c", "node -e 0"], rel: "src/app.ts", env: {} },
 );
 const layer2 = [
   spawned("allow path  (exec)", ["node", CLI, "pre-tool"], "src/app.ts", enforce),

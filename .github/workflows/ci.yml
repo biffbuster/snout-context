@@ -27,6 +27,7 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run check:bench
       - run: npm test
 
       # The eval gate: false-deny <= 2%, flag precision >= 95%, covered accuracy >= 95%.

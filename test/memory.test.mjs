@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { sessionFacts, readPins, memoryText, testCommand, readProgress } from "../dist/lib.mjs";
+import { sessionFacts, codexSessionFacts, readPins, memoryText, testCommand, readProgress } from "../dist/lib.mjs";
 
 const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 const use = (id, name, input) => ({ type: "assistant", message: { content: [{ type: "tool_use", id, name, input }] } });
@@ -268,4 +268,57 @@ test("in a transcript too long to read whole, the first request still comes from
   const f = sessionFacts(file, dir);
   assert.equal(f.goal, "Port the billing module to the new payments API.");
   assert.equal(f.request, "Now update the changelog.");
+});
+
+test("Codex rollout restores the same test and missing-tool facts at SessionStart", () => {
+  const dir = mkdtempSync(join(tmpdir(), "snout-codex-mem-"));
+  mkdirSync(join(dir, ".snout"));
+  const file = join(dir, "rollout.jsonl");
+  const call = (id, cmd) => ({ type: "response_item", payload: { type: "function_call", name: "exec_command", call_id: id, arguments: JSON.stringify({ cmd }) } });
+  const output = (id, text) => ({ type: "response_item", payload: { type: "function_call_output", call_id: id, output: text } });
+  writeFileSync(file, [
+    { type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "Fix the HNF rank bug" }] } },
+    { type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "# AGENTS.md instructions for fixture\n<INSTRUCTIONS>Do not commit</INSTRUCTIONS>" }], internal_chat_message_metadata_passthrough: { content_item_kinds: ["agents_md.instructions"] } } },
+    call("a", "pytest sympy/matrices"), output("a", "No module named pytest"),
+    call("b", "python bin/test sympy/matrices/tests/test_normalforms.py"), output("b", "== tests finished: 12 passed, 1 skipped =="),
+    { type: "compacted", payload: {} },
+  ].map(JSON.stringify).join("\n") + "\n");
+  writeFileSync(join(dir, ".snout", "config.json"), JSON.stringify({ mode: "enforce" }));
+  writeFileSync(join(dir, ".snout", "pins.md"), "- `.env` — credentials [re-read 5]\n");
+  writeFileSync(join(dir, ".env"), "API_KEY=secret-do-not-restore\n");
+  const facts = codexSessionFacts(file, dir);
+  assert.equal(facts.request, "Fix the HNF rank bug");
+  assert.equal(facts.test.command, "python bin/test sympy/matrices/tests/test_normalforms.py");
+  assert.deepEqual(facts.missing, [{ name: "pytest", evidence: "No module named pytest" }]);
+  const run = (mode) => {
+    writeFileSync(join(dir, ".snout", "config.json"), JSON.stringify({ mode }));
+    return spawnSync(process.execPath, [CLI, "hook", "codex", "SessionStart"], { cwd: dir, input: JSON.stringify({ hook_event_name: "SessionStart", source: "compact", session_id: "s1", transcript_path: file, cwd: dir }), encoding: "utf8", env: { ...process.env, SNOUT_MODE: "" } });
+  };
+  const on = run("enforce");
+  assert.equal(on.status, 0, on.stderr);
+  const context = JSON.parse(on.stdout).hookSpecificOutput.additionalContext;
+  assert.match(context, /Tests run here with: `python bin\/test/);
+  assert.match(context, /Not available here: pytest/);
+  assert.doesNotMatch(context, /secret-do-not-restore/);
+  assert.match(context, /contents not restored: the file matches a credential pattern/);
+  const off = run("observe");
+  assert.equal(off.status, 0, off.stderr);
+  assert.doesNotMatch(off.stdout, /additionalContext/);
+});
+
+test("current Codex CommandExecution rollout records restore exact command results", () => {
+  const dir = mkdtempSync(join(tmpdir(), "snout-codex-current-"));
+  const file = join(dir, "rollout.jsonl");
+  const command = (cmd, output) => ({ type: "event_msg", payload: { type: "item_completed", item: { type: "CommandExecution", command: ["pwsh.exe", "-Command", cmd], status: "completed", aggregated_output: output } } });
+  writeFileSync(file, [
+    { type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "Fix the HNF rank bug" }] } },
+    { type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "# AGENTS.md instructions for fixture\n<INSTRUCTIONS>Do not commit</INSTRUCTIONS>" }], internal_chat_message_metadata_passthrough: { content_item_kinds: ["agents_md.instructions"] } } },
+    command("python -m pytest sympy/matrices", "No module named pytest"),
+    command("npm test", "Tests: 12 passed, 1 skipped"),
+    command("node --test --test-isolation=none test/bash.test.mjs", "ℹ tests 13\nℹ pass 13\nℹ fail 0"),
+    { type: "compacted", payload: {} },
+  ].map(JSON.stringify).join("\n") + "\n");
+  const facts = codexSessionFacts(file, dir);
+  assert.deepEqual(facts.test, { command: "node --test --test-isolation=none test/bash.test.mjs", result: "ℹ pass 13" });
+  assert.deepEqual(facts.missing, [{ name: "pytest", evidence: "No module named pytest" }]);
 });

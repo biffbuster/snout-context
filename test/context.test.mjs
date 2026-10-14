@@ -270,21 +270,32 @@ test("mcp: snout_audit_context returns the map, read-only", () => {
   assert.equal(existsSync(join(root, ".snout/archive")), false);
 });
 
-test("a symlinked CLAUDE.md is one file; a copy for another agent costs no session twice", async () => {
+test("a symlinked CLAUDE.md is one file; a copy for another agent costs no session twice", async (t) => {
   const { symlinkSync } = await import("node:fs");
   const root = mkdtempSync(join(tmpdir(), "snout-link-"));
   const home = mkdtempSync(join(tmpdir(), "snout-link-home-"));
   put(root, "AGENTS.md", "# Shared\n" + words(3000, "shared"));
-  symlinkSync("AGENTS.md", join(root, "CLAUDE.md"));
-  let f = byPath(auditContext(root, { home, noGit: true }));
-  assert.equal(f["CLAUDE.md"].linkTo, "AGENTS.md");
-  assert.deepEqual(codes(f["CLAUDE.md"]), []);
-  assert.deepEqual(codes(f["AGENTS.md"]), ["oversized"]);
-  const a = auditContext(root, { home, noGit: true });
-  assert.equal(totals(a).always.perSession, f["AGENTS.md"].tokens, "per agent, not summed across agents");
+  let linked = true;
+  try {
+    symlinkSync("AGENTS.md", join(root, "CLAUDE.md"));
+  } catch (e) {
+    // Windows allows symlinks only as admin or with Developer Mode on; the copy half still runs.
+    if (e.code !== "EPERM") throw e;
+    linked = false;
+    t.diagnostic("symlinks not permitted here; link half skipped");
+  }
+  let f;
+  if (linked) {
+    f = byPath(auditContext(root, { home, noGit: true }));
+    assert.equal(f["CLAUDE.md"].linkTo, "AGENTS.md");
+    assert.deepEqual(codes(f["CLAUDE.md"]), []);
+    assert.deepEqual(codes(f["AGENTS.md"]), ["oversized"]);
+    const a = auditContext(root, { home, noGit: true });
+    assert.equal(totals(a).always.perSession, f["AGENTS.md"].tokens, "per agent, not summed across agents");
+    rmSync(join(root, "CLAUDE.md"));
+  }
 
   // A real copy instead of a link: flagged so the copies don't drift, but no per-session saving.
-  rmSync(join(root, "CLAUDE.md"));
   put(root, "CLAUDE.md", readFileSync(join(root, "AGENTS.md"), "utf8"));
   f = byPath(auditContext(root, { home, noGit: true }));
   const dup = [f["CLAUDE.md"], f["AGENTS.md"]].find((x) => codes(x).includes("duplicate"));
