@@ -17,15 +17,34 @@ export function powerShellDumpTargets(command: string, cwd: string): string[] {
     ? (wrapped?.[3] ?? wrapped?.[4] ?? command)
     : command;
   const targets = new Set<string>();
+  let activeCwd: string | null = cwd;
   for (const part of splitCommands(script)) {
+    // Codex commonly enters a task checkout before reading a relative path. Track only
+    // literal directory changes; after an expression or unknown location change, do not
+    // guess that a subsequent relative read still refers to the original project root.
+    if (/^\s*(?:Set-Location|cd|sl|Push-Location|pushd|Pop-Location|popd)\b/i.test(part)) {
+      const location = /^\s*(?:Set-Location|cd|sl)\s+(?:(?:-LiteralPath|-Path)\s+)?(?:"([^"`$]+)"|'([^'`$]+)'|([^\s"'`;&|<>$(){}\[\]*?]+))\s*$/i.exec(part);
+      const path = location?.[1] ?? location?.[2] ?? location?.[3];
+      const previousCwd = activeCwd;
+      activeCwd = null;
+      if (path && !/[`$*?\[\]]/.test(path) && (previousCwd || isAbsolute(path))) {
+        const directory = resolve(previousCwd ?? cwd, path);
+        try {
+          if (existsSync(directory) && statSync(directory).isDirectory()) activeCwd = directory;
+        } catch {
+          // An unresolved location must not make later relative reads target the root.
+        }
+      }
+      continue;
+    }
     const match = WHOLE_READ.exec(part);
     if (!match) continue;
     const path = match[2] ?? match[3] ?? match[4];
     if (!path || path.startsWith("-")) continue;
     // -Path interprets wildcards. -LiteralPath does not, but there is still no reason to
     // guess at a path if the user supplied an expansion or expression.
-    if (/[`$*?\[\]]/.test(path)) continue;
-    const abs = resolve(isAbsolute(path) ? path : resolve(cwd, path));
+    if (/[`$*?\[\]]/.test(path) || (!activeCwd && !isAbsolute(path))) continue;
+    const abs = resolve(isAbsolute(path) ? path : resolve(activeCwd!, path));
     try {
       if (existsSync(abs) && statSync(abs).isFile()) targets.add(abs);
     } catch {

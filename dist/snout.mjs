@@ -1263,13 +1263,28 @@ function powerShellDumpTargets(command, cwd) {
   const exe = wrapped?.[1] ?? wrapped?.[2];
   const script = exe && /(?:^|[\\/])(?:pwsh|powershell)(?:\.exe)?$/i.test(exe) ? wrapped?.[3] ?? wrapped?.[4] ?? command : command;
   const targets = /* @__PURE__ */ new Set();
+  let activeCwd = cwd;
   for (const part of splitCommands(script)) {
+    if (/^\s*(?:Set-Location|cd|sl|Push-Location|pushd|Pop-Location|popd)\b/i.test(part)) {
+      const location = /^\s*(?:Set-Location|cd|sl)\s+(?:(?:-LiteralPath|-Path)\s+)?(?:"([^"`$]+)"|'([^'`$]+)'|([^\s"'`;&|<>$(){}\[\]*?]+))\s*$/i.exec(part);
+      const path2 = location?.[1] ?? location?.[2] ?? location?.[3];
+      const previousCwd = activeCwd;
+      activeCwd = null;
+      if (path2 && !/[`$*?\[\]]/.test(path2) && (previousCwd || isAbsolute4(path2))) {
+        const directory = resolve3(previousCwd ?? cwd, path2);
+        try {
+          if (existsSync4(directory) && statSync4(directory).isDirectory()) activeCwd = directory;
+        } catch {
+        }
+      }
+      continue;
+    }
     const match = WHOLE_READ.exec(part);
     if (!match) continue;
     const path = match[2] ?? match[3] ?? match[4];
     if (!path || path.startsWith("-")) continue;
-    if (/[`$*?\[\]]/.test(path)) continue;
-    const abs = resolve3(isAbsolute4(path) ? path : resolve3(cwd, path));
+    if (/[`$*?\[\]]/.test(path) || !activeCwd && !isAbsolute4(path)) continue;
+    const abs = resolve3(isAbsolute4(path) ? path : resolve3(activeCwd, path));
     try {
       if (existsSync4(abs) && statSync4(abs).isFile()) targets.add(abs);
     } catch {

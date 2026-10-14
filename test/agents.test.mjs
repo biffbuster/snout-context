@@ -173,6 +173,21 @@ test("codex: PowerShell parser accepts literal paths with spaces, rejects expres
   }
 });
 
+test("codex: a literal location change gates the task file, not a same-named root file", () => {
+  const root = project();
+  const task = join(root, "task checkout");
+  mkdirSync(task);
+  writeFileSync(join(task, "package-lock.json"), JSON.stringify({ task: "y".repeat(20_000) }));
+  const command = "Set-Location -LiteralPath 'task checkout'; Get-Content -LiteralPath 'package-lock.json'";
+  assert.deepEqual(powerShellDumpTargets(command, root), [join(task, "package-lock.json")]);
+  assert.deepEqual(powerShellDumpTargets(`"C:\\Tools\\pwsh.exe" -Command "${command}"`, root), [join(task, "package-lock.json")]);
+  assert.deepEqual(powerShellDumpTargets("cd 'task checkout'; Get-Content package-lock.json", root), [join(task, "package-lock.json")]);
+  const out = json(run(["hook", "codex", "PreToolUse"], { session_id: "s1", cwd: root, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command } }));
+  assert.equal(out.hookSpecificOutput.permissionDecision, "deny");
+  assert.match(out.hookSpecificOutput.permissionDecisionReason, /task checkout/);
+  assert.deepEqual(powerShellDumpTargets("Set-Location $where; Get-Content package-lock.json", root), []);
+  assert.deepEqual(powerShellDumpTargets("Push-Location 'task checkout'; Get-Content package-lock.json", root), []);
+});
 test("codex: wrapped pwsh compound command gates a whole generated file", () => {
   const root = project();
   const command = String.raw`"C:\Tools\pwsh.exe" -Command "Write-Output '--- client ---'; Get-Content src/client.gen.js; Write-Output '--- test ---'; Get-Content src/app.ts"`;

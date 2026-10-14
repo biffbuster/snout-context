@@ -15,7 +15,9 @@ snout scan              # how much of this repo would crowd your agent's context
 ```
 
 Free and local: no account, and your code never leaves your machine. Works with Claude Code, Codex,
-Cursor, Gemini CLI and any MCP agent.
+Cursor, Gemini CLI and any MCP agent. Agent hooks differ: Claude Code can shorten successful tool
+output, while Codex currently gates shell reads and records output usage. See [agent
+capabilities](docs/integrations.md).
 
 ## Install
 

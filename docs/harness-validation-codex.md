@@ -11,6 +11,17 @@ This work now lives in `C:/Users/buster/Desktop/snout-context` on branch `codex/
 
 `npm run verify` passes on Windows: 293 tests, eval, latency.
 
+### Desktop checkout live gate — 2026-10-13
+
+The local Codex CLI opened `C:/Users/buster/Desktop/snout-context` and trusted that folder. The reviewed `.codex/hooks.json` has exactly three active events—PreToolUse, PostToolUse, and SessionStart—and all three commands invoke this checkout's `dist/snout.mjs`. No extra hook was approved. The branch is `codex/integration` at `c697b6f`; the freshly fetched `origin/main` is `c399258`, already an ancestor of this branch. The working tree was clean before the checks.
+
+`npm run verify` passed in this checkout: typecheck, build, all 15 benchmark entry-point syntax checks, tests, the 71-case classifier evaluation, and the latency benchmark. The new syntax gate catches the duplicate-import failure that the previous verify command missed. In a live enforce-mode session (`01a13715-d01e-7182-98e9-5840b23c7b42`), Codex attempted a whole-file `Get-Content -LiteralPath package-lock.json`. PreToolUse denied it before execution; Codex recovered with `Select-String` and found root version `0.2.2`. The local ledger has one `client: codex` lockfile denial (18,728 bytes, 8,436 **estimated withheld file tokens**, not realized model savings). SessionStart, PreToolUse, and PostToolUse events appeared, with no hook errors.
+
+In a separate interactive session (`01a13716-71d5-78f2-84e5-86b23ba70ff9`), Codex ran `node --test --test-isolation=none test/bash.test.mjs` with 13 passes. Manual `/compact` triggered SessionStart again. The Codex rollout contains a model-visible developer message restoring that exact test command and `ℹ pass 13`; Codex answered from that fact without a further tool call. The temporary enforce config was removed, returning the checkout to its original default observe behavior. These are local CLI checks, not automatic-compaction, cloud, or task-level savings evidence.
+
+The next held-out task gate is still open. The current `bench/ab.mjs` tasks are synthetic; its duplicate `fileURLToPath` import was found by `node --check` and removed. The SWE-bench runner in `bench/swe.mjs` is Claude-only and uses POSIX shims, so it cannot serve as a Windows Codex result unchanged. Docker Desktop initially had no running Linux engine; it was started, and `docker version` then succeeded (server 27.5.1, about 16 GB memory). No SWE-bench task images are cached, the host Python has no `swebench` package, and the official dataset row API timed out from this machine. Fresh public issues, paired natural prompts, in-session checks, official external grading, and an observe-first supervised pilot therefore have **not** been run in this checkout. The Codex held-out execution protocol is recorded in `docs/codex-harness-plan.md`.
+## Earlier independent checkout — historical
+
 The Codex implementation is uncommitted on `codex/codex-harness-live` in the independent clone at `C:/Users/buster/Documents/snout-context-codex`. Its `origin` is `https://github.com/biffbuster/snout-context.git`; HEAD is `406e7a3`, the verified `origin/main` baseline at setup. The clone has its own `.git`, dependencies, built bundle, and ignored project-local `.codex/hooks.json`. No commit or push has been made.
 
 
@@ -190,3 +201,59 @@ file remains open.
 
 The implementation and test order is maintained in `docs/codex-harness-plan.md`.
 
+
+## Desktop Docker held-out connection probe (2026-10-13)
+
+Docker Desktop authentication now works. The official 500-row SWE-bench Verified Parquet
+was downloaded and checked against SHA-256
+`a45b1fe4e2f0c8390b2b2938ac83e92ed5979000856808f3679c07812e9e6dcd`.
+The pre-registered draw and immutable image digests are in
+`bench/codex-heldout-tasks.json`; the selected issues are Astropy 7166, Matplotlib
+22719, and scikit-learn 14141. All three pinned Docker images are local. The
+new Windows runner copies each `/testbed` into a separate checkout under
+`bench/heldout-workspaces/`, excluded only in this checkout's `.git/info/exclude`.
+It starts Codex from the trusted Snout root, so SessionStart, PreToolUse, and
+PostToolUse run while task edits stay in the copied checkout. Each Python/pytest
+request crosses a local file queue serviced by the host runner into the
+matching pinned container; the sandboxed Codex process never needs Docker
+Desktop's named pipe. No Claude hook or plugin setting changed.
+
+The first Astropy off/on pair (`run-2026-10-13T21-39-02-267Z`) was
+**infrastructure-invalid**: Codex could edit source but direct Docker test
+requests were denied by the Windows sandbox. A fresh queue-backed pair
+(`.snout/heldout/runs/run-2026-10-13T21-41-36-752Z/report.json`) gave both
+arms a successful in-session Astropy pytest result, active trusted hooks,
+no edits outside their isolated task checkout, and identical 530-byte
+source patches. The official SWE-bench 3.0.17 external grade first failed
+for infrastructure reasons: Windows converted its generated Linux eval script
+to CRLF, breaking Conda activation and test patch application. A process-local
+LF write shim, fresh grade IDs ending in `lf2`, and the same saved patches
+then produced **resolved** for both arms, with 1/1 FAIL_TO_PASS and 6/6
+PASS_TO_PASS tests passing. The failed grader attempt remains in the ignored
+run logs and is not treated as a patch failure.
+
+| Astropy smoke | Observe/off | Enforce/on |
+| --- | ---: | ---: |
+| In-session pytest / official external grade | Pass / resolved | Pass / resolved |
+| Trusted hook events | 12 | 16 |
+| Denials / trims | 0 / 0 | 0 / 0 |
+| Input tokens (cached included) | 142,653 | 204,965 |
+| Cached input / output tokens | 115,968 / 1,423 | 176,896 / 2,041 |
+| Effective-token proxy | 39,705 | 47,800 |
+
+This is a connection and quality smoke test, not a held-out efficiency score.
+There was no Snout intervention, and the one pair has substantial run noise.
+The two other repositories, three paired repeats per task, external grading
+of every run, false-denial review, and the operator-reviewed pilot remain open.
+No commit or push was made.
+
+## Held-out repeat outcome and Codex path-gate retest (2026-10-13)
+
+The official SWE-bench grader resolved 8 of 9 observe/off sessions and 9 of 9 enforce/on sessions across three paired repeats for each of the frozen Astropy, Matplotlib, and scikit-learn issues. The unresolved Astropy off-arm run had a genuine failing official test, not a grader error. All 18 sessions had live trusted hooks and a passing task-specific Docker pytest response. The saved repeat report incorrectly labels four `python -m pytest` Matplotlib runs as lacking in-session success; the bridge's recorded zero-exit pytest responses and final agent reports show the tests did pass. A Matplotlib off-arm patch edited existing `lib/matplotlib/tests/test_category.py` against the frozen prompt. All root checkouts stayed clean; task scope and complete paired quality did not pass. Each arm had zero denies and zero trims, so no natural-task context savings is established. Raw traces and official reports remain locally in ignored `.snout/heldout/runs/`; the frozen selection and image digests are tracked in `bench/codex-heldout-tasks.json`.
+
+During review, a live root-started Codex read after `Set-Location` was found to resolve against the root lockfile in the old parser, despite the command entering an ignored task checkout. The Codex-only PowerShell parser now tracks literal `Set-Location`/`cd` changes, and declines to guess relative reads after an unresolved location change. A regression with same-named root/task lockfiles passed. After rebuilding, a direct hook payload denied `bench/heldout-workspaces/hook-gate-probe/package-lock.json` at the task path (~10.8k estimated tokens), and real Codex CLI 0.153.4 invoked the three trusted hooks and blocked the exact command before output. The bundle hash changed from the frozen held-out value `edeb0e16b5f76fb003a509e5a5eaa72c28092f296c0c2968c03b10892add8985` to `9d2320fb7e068938971e46be59a686fe6854647a8b00b71b4639d930e8bd7966`; do not treat old task grades as new-bundle coverage. The live probe is saved locally at `.snout/heldout/path-gate-probe-fixed.jsonl`.
+
+`npm run verify` passed after the fix: typecheck, build, 17 benchmark syntax entry points, 294 tests with one Windows symlink half skipped, the 71-case classifier evaluation, and the latency benchmark. Fresh `origin/main` at `c399258` is an ancestor of `codex/integration` (`c697b6f`, three existing commits ahead); no new commit or push was made. The Claude plugin/hook files were not edited. The branch is conflict-free with current `origin/main` and passed the Windows integration checks. An integration merge still needs branch CI and a Mac smoke check against the same bundle; the user has deferred scores and the supervised pilot until after integration. Near-equal Claude/Codex scores cannot be claimed from these results.
+## Integration merge versus score gate (2026-10-13)
+
+The user wants to share and merge the functional Codex integration first, then measure matched Claude/Codex scores. Current `origin/main` remains an ancestor of `codex/integration`; `git diff --check origin/main` reports no errors, and `npm pack --dry-run` includes the rebuilt `dist/snout.mjs`. The Windows source regression suite and focused live Codex lockfile gate pass. CI now checks benchmark syntax on its macOS, Windows, and Linux matrix, but this uncommitted branch has not run CI. On this Windows host, `claude` 2.1.280 is available, but `claude plugin list` does not show Snout installed; local `.claude/settings.local.json` has an older HTTP gate pointing at a server that is not currently listening. This is a machine-local Claude setup limitation, not evidence of a repository regression. The Mac Claude installation and its cached plugin version must be checked after the branch is shared. The minimum integration merge check is green branch CI plus live Mac Claude and Codex smoke using the same bundle; the held-out score and supervisor pilot remain later release/parity gates.
