@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import {
-  auditContext, classifyContextPath, staleRefs, normalize, shingles, overlap, authorOf, readClaudeTranscript,
+  auditContext, classifyContextPath, claudeImports, staleRefs, normalize, shingles, overlap, authorOf, readClaudeTranscript,
   renderAudit, renderMap, totals, archiveFiles, restoreArchive, listArchives,
 } from "../dist/lib.mjs";
 
@@ -362,4 +362,58 @@ test("stale skips workspace-targeted scripts, workspace scripts and gitignored r
   assert.match(stale.reason, /npm run deploy/);
   assert.match(stale.reason, /src\/gone\.ts/);
   assert.doesNotMatch(stale.reason, /storybook|-w|dist\/cli|intent\.json/);
+});
+
+test("@imports in CLAUDE.md count as loaded every session; code spans, emails and missing paths don't", () => {
+  const root = mkdtempSync(join(tmpdir(), "snout-imp-"));
+  const home = mkdtempSync(join(tmpdir(), "snout-imp-home-"));
+  git(root, ["init", "-q"]);
+  put(root, "CLAUDE.md", "# Rules\nSee @docs/style.md and @README.md.\nMail dev@example.com, use `@docs/not-an-import.md`, install @scope/pkg.\n```\n@docs/fenced.md\n```\n");
+  put(root, "docs/style.md", "# Style\nAlso @deep/more.md\n" + words(3000, "style"));
+  put(root, "docs/deep/more.md", "# More\n" + words(200, "more"));
+  put(root, "docs/not-an-import.md", "# No\n" + words(200, "no"));
+  put(root, "docs/fenced.md", "# No\n" + words(200, "fenced"));
+  put(root, "README.md", "# Readme\n" + words(100, "readme"));
+  put(home, ".claude/CLAUDE.md", "Personal: @~/notes/me.md\n");
+  put(home, "notes/me.md", "# Me\n" + words(100, "me"));
+  assert.deepEqual(claudeImports(readFileSync(join(root, "CLAUDE.md"), "utf8"), join(root, "CLAUDE.md"), home).map((p) => p.slice(root.length + 1).split("\\").join("/")).sort(), ["README.md", "docs/style.md"]);
+  const a = auditContext(root, { home, noUsage: true, noGit: true });
+  const f = byPath(a);
+  assert.equal(f["docs/style.md"].kind, "always");
+  assert.equal(f["docs/style.md"].importedBy, "CLAUDE.md");
+  assert.ok(f["docs/style.md"].agents.includes("claude"));
+  assert.match(f["docs/style.md"].flags.find((x) => x.code === "oversized").reason, /imported by CLAUDE\.md/);
+  assert.equal(f["docs/deep/more.md"].kind, "always", "imports are followed from imported files");
+  assert.equal(f["docs/deep/more.md"].importedBy, "docs/style.md");
+  assert.equal(f["README.md"].kind, "always");
+  assert.equal(f["docs/not-an-import.md"].kind, "on-demand");
+  assert.equal(f["docs/fenced.md"].kind, "on-demand");
+  assert.equal(f["~/notes/me.md"].kind, "always");
+  assert.ok(totals(a).always.byAgent.claude > f["docs/style.md"].tokens);
+  assert.match(renderMap(a), /docs\/style\.md <- @CLAUDE\.md/);
+});
+
+test(".claude/rules load every session unless scoped with paths:", () => {
+  const root = mkdtempSync(join(tmpdir(), "snout-rules-"));
+  const home = mkdtempSync(join(tmpdir(), "snout-rules-home-"));
+  git(root, ["init", "-q"]);
+  put(root, ".claude/rules/testing.md", "# Testing\nRun the tests.\n");
+  put(root, ".claude/rules/api.md", "---\npaths:\n  - \"src/api/**/*.ts\"\n---\n# API\nValidate input.\n");
+  put(home, ".claude/rules/mine.md", "# Mine\nBe brief.\n");
+  assert.deepEqual(classifyContextPath(".claude/rules/frontend/react.md"), { kind: "always", role: "rules", agents: ["claude"] });
+  const f = byPath(auditContext(root, { home, noUsage: true, noGit: true }));
+  assert.equal(f[".claude/rules/testing.md"].kind, "always");
+  assert.equal(f[".claude/rules/api.md"].kind, "on-demand");
+  assert.equal(f[".claude/rules/api.md"].perSession, 0);
+  assert.equal(f["~/.claude/rules/mine.md"].kind, "always");
+});
+
+test("a gitignored CLAUDE.local.md still counts: Claude Code loads it", () => {
+  const root = mkdtempSync(join(tmpdir(), "snout-local-"));
+  const home = mkdtempSync(join(tmpdir(), "snout-local-home-"));
+  git(root, ["init", "-q"]);
+  put(root, ".gitignore", "CLAUDE.local.md\n");
+  put(root, "CLAUDE.local.md", "# Private\n" + words(100, "private"));
+  const f = byPath(auditContext(root, { home, noUsage: true, noGit: true }));
+  assert.equal(f["CLAUDE.local.md"].kind, "always");
 });

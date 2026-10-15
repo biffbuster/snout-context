@@ -238,6 +238,7 @@ var GENERATED_FILENAME_SUFFIXES = [
   // GitHub Agentic Workflows compiles `x.md` to `x.lock.yml`; found by bench/label.mjs in dotnet/aspnetcore.
   ".lock.yml"
 ];
+var MIGRATION_SNAPSHOT = /(^|\/)(migrations?|drizzle)\/meta\/\d{4}_snapshot\.json$/i;
 var NO_COMMENT_SYNTAX_EXT = /* @__PURE__ */ new Set(["json", "yaml", "yml"]);
 var STRONG_MARKERS = [
   "@generated",
@@ -392,6 +393,9 @@ var RULES = [
           "generated",
           `${safePath(s.rel)} sits inside ${safeText(genDir, 40)}/, a directory convention for machine-generated ${safeText(ext.toUpperCase(), 6)} output that cannot carry a generator banner.`
         );
+      }
+      if (ext === "json" && MIGRATION_SNAPSHOT.test(s.rel)) {
+        return low("generated", `${safePath(s.rel)} is a schema snapshot the migration tool writes for every migration; the .sql migrations hold the changes.`);
       }
       const genSuffix = GENERATED_FILENAME_SUFFIXES.find((x) => name.endsWith(x));
       if (genSuffix) {
@@ -585,8 +589,11 @@ function generatedMarker(headBuf) {
   const bannerLines = head.split("\n", BANNER_LINES);
   const banner = bannerLines.join("\n");
   for (const marker of WEAK_MARKERS) {
-    const line = bannerLines.find((l) => l.includes(marker));
-    if (line && !insideDoubleQuotes(line, marker) && GENERATOR_HINT.test(banner)) return marker;
+    const line = bannerLines.find((l) => l.toLowerCase().includes(marker.toLowerCase()));
+    if (!line) continue;
+    const at = line.toLowerCase().indexOf(marker.toLowerCase());
+    const seen = line.slice(at, at + marker.length);
+    if (!insideDoubleQuotes(line, seen) && GENERATOR_HINT.test(banner)) return seen;
   }
   return null;
 }
@@ -2878,7 +2885,7 @@ function projectFiles(projectDir) {
       for (const f of all) set.add(f);
     }
   }
-  for (const f of [".cursorrules", ".windsurfrules", ".clinerules"]) {
+  for (const f of [".cursorrules", ".windsurfrules", ".clinerules", "CLAUDE.local.md"]) {
     const p = join8(projectDir, f);
     if (existsSync7(p) && statSync9(p).isFile()) set.add(p);
   }
@@ -2915,6 +2922,7 @@ function classifyContextPath(rel) {
   if (lower.startsWith(".github/instructions/") && MD.test(lower)) return { kind: "described", role: "rules", agents: ["copilot"] };
   if (lower === ".windsurfrules" || lower.startsWith(".windsurf/rules/") && MD.test(lower)) return { kind: "always", role: "rules", agents: ["windsurf"] };
   if (lower === ".clinerules" || lower.startsWith(".clinerules/") && MD.test(lower)) return { kind: "always", role: "rules", agents: ["cline"] };
+  if (/^\.claude\/rules\/.+\.md$/i.test(p)) return { kind: "always", role: "rules", agents: ["claude"] };
   if (/^\.claude\/skills\/[^/]+\/skill\.md$/i.test(p)) return { kind: "described", role: "skill", agents: ["claude"] };
   if (/^\.claude\/commands\/.+\.md$/i.test(p)) return { kind: "described", role: "command", agents: ["claude"] };
   if (/^\.claude\/agents\/.+\.md$/i.test(p)) return { kind: "described", role: "agent", agents: ["claude"] };
@@ -2927,6 +2935,53 @@ function classifyContextPath(rel) {
   const agent = AGENT_DIR[dirs[0]?.toLowerCase() ?? ""];
   return { kind: "on-demand", role: "doc", agents: [agent ?? "any"] };
 }
+function claudeImports(text, fileAbs, home) {
+  const prose = text.replace(/^(```|~~~)[\s\S]*?^\1/gm, "").replace(/`[^`\n]*`/g, "");
+  const out = /* @__PURE__ */ new Set();
+  for (const m of prose.matchAll(/(?:^|\s)@((?:~\/)?[^\s`'"()<>[\]]+)/g)) {
+    const p = m[1].replace(/[.,;:!?]+$/, "");
+    const abs = p.startsWith("~/") ? join8(home, p.slice(2)) : isAbsolute6(p) ? p : resolve5(dirname5(fileAbs), p);
+    try {
+      if (statSync9(abs).isFile()) out.add(abs);
+    } catch {
+    }
+  }
+  return [...out];
+}
+function addImports(found, projectDir, home) {
+  const byAbs = new Map(found.map((f) => [resolve5(f.abs), f]));
+  const name = (abs) => (abs.startsWith(projectDir + sep2) ? relative3(projectDir, abs) : "~/" + relative3(home, abs)).split(sep2).join("/");
+  let level = found.filter((f) => f.kind === "always" && f.role === "instructions" && f.agents.includes("claude")).map((f) => resolve5(f.abs));
+  const seen = new Set(level);
+  for (let hop = 0; hop < 5 && level.length; hop++) {
+    const next = [];
+    for (const from of level) {
+      let text;
+      try {
+        text = readFileSync6(from, "utf8");
+      } catch {
+        continue;
+      }
+      for (const abs of claudeImports(text, from, home)) {
+        if (seen.has(abs)) continue;
+        seen.add(abs);
+        next.push(abs);
+        const f = byAbs.get(abs);
+        if (f) {
+          if (f.kind === "always") continue;
+          f.kind = "always";
+          f.agents = [.../* @__PURE__ */ new Set([...f.agents.filter((a) => a !== "any"), "claude"])];
+          f.importedBy = name(from);
+        } else {
+          const nf = { abs, scope: abs.startsWith(projectDir + sep2) ? "project" : "user", kind: "always", role: "import", agents: ["claude"], importedBy: name(from) };
+          found.push(nf);
+          byAbs.set(abs, nf);
+        }
+      }
+    }
+    level = next;
+  }
+}
 function userFiles(projectDir, home) {
   const claudeDir = process.env.CLAUDE_CONFIG_DIR || join8(home, ".claude");
   const out = [];
@@ -2937,12 +2992,13 @@ function userFiles(projectDir, home) {
   add(join8(claudeDir, "projects", resolve5(projectDir).replace(/[^A-Za-z0-9]/g, "-"), "memory", "MEMORY.md"), { kind: "always", role: "memory", agents: ["claude"] });
   add(join8(process.env.CODEX_HOME || join8(home, ".codex"), "AGENTS.md"), { kind: "always", role: "instructions", agents: ["codex"] });
   add(join8(home, ".gemini", "GEMINI.md"), { kind: "always", role: "instructions", agents: ["gemini"] });
-  const list = (dir, re, role) => {
+  const list = (dir, re, role, kind = "described") => {
     if (!existsSync7(dir)) return;
     const all = [];
     walk(dir, all, 9);
-    for (const f of all) if (re.test(relative3(dir, f).split(sep2).join("/"))) out.push({ abs: f, scope: "user", kind: "described", role, agents: ["claude"] });
+    for (const f of all) if (re.test(relative3(dir, f).split(sep2).join("/"))) out.push({ abs: f, scope: "user", kind, role, agents: ["claude"] });
   };
+  list(join8(claudeDir, "rules"), /\.md$/i, "rules", "always");
   list(join8(claudeDir, "skills"), /^[^/]+\/SKILL\.md$/i, "skill");
   list(join8(claudeDir, "commands"), /\.md$/i, "command");
   list(join8(claudeDir, "agents"), /\.md$/i, "agent");
@@ -3146,6 +3202,7 @@ function auditContext(projectDir, opts = {}) {
     if (c) found.push({ abs, scope: "project", ...c });
   }
   found.push(...userFiles(dir, home));
+  addImports(found, dir, home);
   const workspaceScripts = /* @__PURE__ */ new Set();
   for (const abs of projectFiles(dir)) {
     if (basename2(abs) !== "package.json") continue;
@@ -3183,6 +3240,7 @@ function auditContext(projectDir, opts = {}) {
     const fm = frontmatter(text);
     let kind = f.kind;
     if (f.role === "rules" && extname(f.abs) === ".mdc" && fm.alwaysapply !== "true") kind = "described";
+    if (f.role === "rules" && f.agents.includes("claude") && "paths" in fm && !f.importedBy) kind = "on-demand";
     const desc = (fm.name ?? "") + " " + (fm.description ?? text.replace(/^---[\s\S]*?---/, "").trim().split("\n")[0] ?? "");
     const perSession = kind === "always" ? tokens2 : kind === "described" ? estimateTokens(Buffer.byteLength(desc), "x.md") : 0;
     let use;
@@ -3212,7 +3270,8 @@ function auditContext(projectDir, opts = {}) {
       author: authorOf(g, usage.writes.has(f.abs)),
       created,
       flags: [],
-      savePerSession: 0
+      savePerSession: 0,
+      ...f.importedBy ? { importedBy: f.importedBy } : {}
     });
     texts.set(f.abs, text);
   }
@@ -3240,7 +3299,7 @@ function auditContext(projectDir, opts = {}) {
   for (const f of files) {
     const name = basename2(f.path);
     if (f.kind === "always" && f.tokens > maxTok && !f.linkTo)
-      flag(f, "oversized", `loaded into every session at ~${fmtTokens(f.tokens)} tokens; over ${fmtTokens(maxTok)}, move detail into skills or docs read on demand`, f.tokens - maxTok);
+      flag(f, "oversized", `loaded into every session at ~${fmtTokens(f.tokens)} tokens${f.importedBy ? ` (imported by ${f.importedBy})` : ""}; over ${fmtTokens(maxTok)}, move detail into skills or docs read on demand`, f.tokens - maxTok);
     if (f.kind === "described" && old(f) && f.uses === 0)
       flag(f, "unused", `not invoked in ${days} days; its description still costs ~${fmtTokens(f.perSession)} tokens every session`, f.perSession);
     const stem = name.replace(MD, "");
@@ -3386,7 +3445,7 @@ function renderMap(a) {
     "# path | kind | role | tokens | per-session | uses | last used | author | flags"
   ];
   for (const f of a.files) {
-    lines.push([f.linkTo ? `${f.path} -> ${f.linkTo}` : f.path, f.kind, f.role, f.tokens, f.perSession, f.uses === null ? "-" : f.uses, f.kind === "always" ? "-" : when(f.lastUsed), f.author, f.flags.map((x) => `${x.code}\u2192${x.action}(${x.reason})`).join("; ") || "-"].join(" | "));
+    lines.push([f.linkTo ? `${f.path} -> ${f.linkTo}` : f.importedBy ? `${f.path} <- @${f.importedBy}` : f.path, f.kind, f.role, f.tokens, f.perSession, f.uses === null ? "-" : f.uses, f.kind === "always" ? "-" : when(f.lastUsed), f.author, f.flags.map((x) => `${x.code}\u2192${x.action}(${x.reason})`).join("; ") || "-"].join(" | "));
   }
   if (a.conflictCandidates.length) {
     lines.push("", "# Pairs to check for contradicting instructions (topic overlap 0-1):");
@@ -3483,10 +3542,6 @@ function restoreArchive(projectDir, id) {
   }
   return { restored, skipped };
 }
-
-// src/compact/memory.ts
-import { closeSync as closeSync3, existsSync as existsSync8, openSync as openSync3, readFileSync as readFileSync7, readSync as readSync3, statSync as statSync10 } from "node:fs";
-import { isAbsolute as isAbsolute8, join as join9, relative as relative4, resolve as resolve7, sep as sep3 } from "node:path";
 
 // src/compact/codex.ts
 import { isAbsolute as isAbsolute7, resolve as resolve6 } from "node:path";
@@ -3622,6 +3677,8 @@ function parts(content) {
 }
 
 // src/compact/memory.ts
+import { closeSync as closeSync3, existsSync as existsSync8, openSync as openSync3, readFileSync as readFileSync7, readSync as readSync3, statSync as statSync10 } from "node:fs";
+import { isAbsolute as isAbsolute8, join as join9, relative as relative4, resolve as resolve7, sep as sep3 } from "node:path";
 var TAIL_BYTES = 16 * 1024 * 1024;
 var HEAD_BYTES = 2 * 1024 * 1024;
 var MAX_CHARS = 6e3;
@@ -4576,11 +4633,13 @@ export {
   byAgentOf,
   candidates,
   classifyContextPath,
+  claudeImports,
   claudeMdLine,
   claudeRequests,
   claudeSlug,
   codeNames,
   codexRequests,
+  codexRows,
   codexSessionFacts,
   compactionWhatIf,
   costOf,

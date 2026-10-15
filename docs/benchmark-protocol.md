@@ -570,3 +570,47 @@ against it in [claims.md](claims.md).
    they came from. Anyone can rebuild them without a key or a paid call.
 6. **A number whose per-attempt data isn't in the repository is not published.** Raw transcripts
    stay private; the per-attempt table is enough to rebuild every statistic.
+
+## Claude Code confirmation on held-out SWE-bench Verified, fixed 2026-10-14 before it runs
+
+**Question.** On SWE-bench Verified issues no Snout run has used, does Claude Code with Snout
+(enforce) cost less per resolved issue than plain Claude Code, with no loss in resolved issues?
+The target is a narrow interval: the headline is the point estimate with its 95% interval.
+
+- **Tasks.** 80 issues drawn with seed 20261014 from SWE-bench Verified, excluding every issue used
+  by any earlier run in this file, `bench/swe-tasks.json`, `bench/codex-heldout-tasks.json` and the
+  long-session chains. The draw is written to a new manifest and hashed before any attempt.
+  - **Tuning set:** the first 20 in draw order. Used to tune Snout and run the pilot; never reported
+    as a result.
+  - **Confirmation set:** the other 60. No tuning, inspection of transcripts or rerun selection
+    happens on them before the confirmation run is complete.
+- **Arms.** `off` (plain Claude Code, Snout observe-only) and `enforce` (Snout on). Internal-only
+  arms may add other Claude Code context tools under the same conditions; they are reported only
+  in internal notes unless the owner decides otherwise before the run.
+- **Agent and model.** Claude Code headless, version pinned at freeze and recorded, auto-update
+  off; Claude Sonnet 5.5, default effort; API key billing; same prompt, tools, budget ($2.00 per
+  attempt) and 30-minute limit in every arm. Arms run interleaved, so time-of-day effects fall on
+  both.
+- **Build.** One `npm pack` of the commit under test, sha256 recorded in every result file. Any
+  change after the confirmation run starts makes a new study.
+- **Pilot (not a result).** Tuning set × 1 attempt per arm. It checks the harness on this machine
+  and measures cost per attempt for the quote. Stop and fix if 2+ attempts fail for infrastructure
+  reasons or Snout's records are missing.
+- **Confirmation.** 60 tasks × 3 attempts per arm (180 paired attempts per arm), run only after its
+  cost is quoted to and approved by the owner, with the cap recorded here before it starts.
+- **Primary metric.** Billed cost per resolved attempt (total cost / total resolved), `enforce` vs
+  `off`, tasks paired, 95% bootstrap over tasks (seed 20261014, `bench/report.mjs`). Resolved =
+  the official SWE-bench grader on the final diff.
+- **Rules.** Margin 5 points: no quality loss only if the interval for the change in resolved
+  attempts lies above −5 points. Saving only if the cost interval lies below zero. The planned
+  precision is about ±5 points on the cost change; if the interval is wider, it is published as
+  measured, not narrowed by adding runs after looking.
+- **Secondary, reported whatever they show.** Turns per attempt, cache-write and cache-read tokens,
+  output tokens, wall time, Snout interventions and regrets (a held-back file or trimmed output
+  fetched again). Turns and cache writes are reported next to cost because compression that cuts
+  tokens can raise the bill through extra turns.
+- **Exclusions.** Attempts where the agent never ran or the harness failed are counted, listed and
+  rerun once; never dropped silently.
+- **Publication.** Per the publication standard, both arms and every attempt are published. The
+  headline "N% lower cost per solved task (95% interval A–B), same solve rate" is used only if both
+  rules pass.

@@ -523,12 +523,14 @@ async function cmdAudit(args: string[]): Promise<void> {
   const unused = reports.filter((r) => r.calls === 0);
   for (const r of reports) {
     const used = r.calls === null ? "usage not tracked" : r.calls === 0 ? "never used" : `${r.calls} call${r.calls === 1 ? "" : "s"}`;
-    const cost = r.listTokens !== undefined ? ` · ${r.tools} tools, ~${fmtTokens(r.listTokens)} tokens per request` : r.measureError ? ` · ${r.measureError}` : "";
+    const cost = r.listTokens === undefined ? (r.measureError ? ` · ${r.measureError}` : "")
+      : r.deferred ? ` · ${r.tools} tools, ~${fmtTokens(r.namesTokens ?? 0)} tokens per request (names only; ~${fmtTokens(r.listTokens)} once loaded)`
+      : ` · ${r.tools} tools, ~${fmtTokens(r.listTokens)} tokens per request`;
     lines.push(`  ${r.calls === 0 ? "✗" : "·"} ${safeText(r.name, 40).padEnd(22)} ${used.padEnd(18)} ${r.source}${cost}`);
   }
   if (unused.length) {
-    const perReq = unused.reduce((a, r) => a + (r.listTokens ?? 0), 0);
-    lines.push("", `${unused.length} server${unused.length === 1 ? " was" : "s were"} never used, but still send ${unused.length === 1 ? "its" : "their"} tool list with every request${perReq ? ` (~${fmtTokens(perReq)} tokens each time)` : ""}. To turn ${unused.length === 1 ? "it" : "them"} off:`);
+    const perReq = unused.reduce((a, r) => a + ((r.deferred ? r.namesTokens : r.listTokens) ?? 0), 0);
+    lines.push("", `${unused.length} server${unused.length === 1 ? " was" : "s were"} never used, but still send ${unused.length === 1 ? "its" : "their"} tool ${unused.every((r) => r.deferred) ? "names" : "list"} with every request${perReq ? ` (~${fmtTokens(perReq)} tokens each time)` : ""}. To turn ${unused.length === 1 ? "it" : "them"} off:`);
     for (const r of unused) lines.push(`  ${safeText(r.name, 40)}: ${disableHint(r)}`);
   } else lines.push("", "Every configured server was used. Nothing to turn off.");
   // What Snout saved on each server's results (trims and repeat skips), from this project's ledger.
@@ -742,20 +744,13 @@ function onSqueeze(input: HookInput, paths: Paths, cfg: Config): void {
       return emit({ hookSpecificOutput: { hookEventName: "PostToolUse", updatedToolOutput: { ...resp, stdout: note, stderr: "" } } });
     }
   }
-  const dir = join(paths.snoutDir, "squeeze");
-  const logName = `${new Date().toISOString().replace(/[:.]/g, "-")}-${createHash("sha256").update(command).digest("hex").slice(0, 8)}.log`;
+  const logName = squeezeLogName(command);
   const s = squeeze(kind, full, `.snout/squeeze/${logName}`);
   if (!s) {
     emit({});
     return;
   }
-  try {
-    mkdirSync(dir, { recursive: true });
-    writeAtomic(join(dir, logName), `$ ${command}\n\n${full}`);
-    const logs = readdirSync(dir).filter((f) => f.endsWith(".log")).sort();
-    for (const old of logs.slice(0, Math.max(0, logs.length - SQUEEZE_LOGS_KEPT))) rmSync(join(dir, old), { force: true });
-  } catch (err) {
-    recordError("squeeze log", err);
+  if (!saveSqueezeLog(paths, logName, command, full)) {
     emit({}); // without the saved full output, don't hide anything
     return;
   }
@@ -771,6 +766,23 @@ function onSqueeze(input: HookInput, paths: Paths, cfg: Config): void {
     ...(input.agent_id ? { agentId: input.agent_id, agentType: input.agent_type } : {}),
   });
   emit({ hookSpecificOutput: { hookEventName: "PostToolUse", updatedToolOutput: { ...resp, stdout: s.text, stderr: "" } } });
+}
+
+const squeezeLogName = (command: string) => `${new Date().toISOString().replace(/[:.]/g, "-")}-${createHash("sha256").update(command).digest("hex").slice(0, 8)}.log`;
+
+/** Saves a command's full output under .snout/squeeze/, keeping the newest few. False if it couldn't. */
+function saveSqueezeLog(paths: Paths, logName: string, command: string, full: string): boolean {
+  const dir = join(paths.snoutDir, "squeeze");
+  try {
+    mkdirSync(dir, { recursive: true });
+    writeAtomic(join(dir, logName), `$ ${command}\n\n${full}`);
+    const logs = readdirSync(dir).filter((f) => f.endsWith(".log")).sort();
+    for (const old of logs.slice(0, Math.max(0, logs.length - SQUEEZE_LOGS_KEPT))) rmSync(join(dir, old), { force: true });
+    return true;
+  } catch (err) {
+    recordError("squeeze log", err);
+    return false;
+  }
 }
 
 const mcpPath = (tool: string) => `mcp: ${tool.replace(/^mcp__/, "").replace(/__/g, " › ")}`;

@@ -101,6 +101,7 @@ var DEFAULTS = {
 };
 
 // src/config.ts
+var PINNED_MODEL = "jev-1.13.0";
 function resolvePaths(hookCwd) {
   const projectDir = projectRootOf(resolve(hookCwd || process.env.CLAUDE_PROJECT_DIR || process.cwd()));
   const snoutDir = process.env.SNOUT_DIR ? resolve(process.env.SNOUT_DIR) : join(projectDir, ".snout");
@@ -428,6 +429,7 @@ var GENERATED_FILENAME_SUFFIXES = [
   // GitHub Agentic Workflows compiles `x.md` to `x.lock.yml`; found by bench/label.mjs in dotnet/aspnetcore.
   ".lock.yml"
 ];
+var MIGRATION_SNAPSHOT = /(^|\/)(migrations?|drizzle)\/meta\/\d{4}_snapshot\.json$/i;
 var NO_COMMENT_SYNTAX_EXT = /* @__PURE__ */ new Set(["json", "yaml", "yml"]);
 var STRONG_MARKERS = [
   "@generated",
@@ -582,6 +584,9 @@ var RULES = [
           "generated",
           `${safePath(s.rel)} sits inside ${safeText(genDir, 40)}/, a directory convention for machine-generated ${safeText(ext.toUpperCase(), 6)} output that cannot carry a generator banner.`
         );
+      }
+      if (ext === "json" && MIGRATION_SNAPSHOT.test(s.rel)) {
+        return low("generated", `${safePath(s.rel)} is a schema snapshot the migration tool writes for every migration; the .sql migrations hold the changes.`);
       }
       const genSuffix = GENERATED_FILENAME_SUFFIXES.find((x) => name.endsWith(x));
       if (genSuffix) {
@@ -775,8 +780,11 @@ function generatedMarker(headBuf) {
   const bannerLines = head.split("\n", BANNER_LINES);
   const banner = bannerLines.join("\n");
   for (const marker of WEAK_MARKERS) {
-    const line = bannerLines.find((l) => l.includes(marker));
-    if (line && !insideDoubleQuotes(line, marker) && GENERATOR_HINT.test(banner)) return marker;
+    const line = bannerLines.find((l) => l.toLowerCase().includes(marker.toLowerCase()));
+    if (!line) continue;
+    const at = line.toLowerCase().indexOf(marker.toLowerCase());
+    const seen = line.slice(at, at + marker.length);
+    if (!insideDoubleQuotes(line, seen) && GENERATOR_HINT.test(banner)) return seen;
   }
   return null;
 }
@@ -2254,7 +2262,7 @@ function projectFiles(projectDir) {
       for (const f of all) set.add(f);
     }
   }
-  for (const f of [".cursorrules", ".windsurfrules", ".clinerules"]) {
+  for (const f of [".cursorrules", ".windsurfrules", ".clinerules", "CLAUDE.local.md"]) {
     const p = join7(projectDir, f);
     if (existsSync7(p) && statSync8(p).isFile()) set.add(p);
   }
@@ -2291,6 +2299,7 @@ function classifyContextPath(rel) {
   if (lower.startsWith(".github/instructions/") && MD.test(lower)) return { kind: "described", role: "rules", agents: ["copilot"] };
   if (lower === ".windsurfrules" || lower.startsWith(".windsurf/rules/") && MD.test(lower)) return { kind: "always", role: "rules", agents: ["windsurf"] };
   if (lower === ".clinerules" || lower.startsWith(".clinerules/") && MD.test(lower)) return { kind: "always", role: "rules", agents: ["cline"] };
+  if (/^\.claude\/rules\/.+\.md$/i.test(p)) return { kind: "always", role: "rules", agents: ["claude"] };
   if (/^\.claude\/skills\/[^/]+\/skill\.md$/i.test(p)) return { kind: "described", role: "skill", agents: ["claude"] };
   if (/^\.claude\/commands\/.+\.md$/i.test(p)) return { kind: "described", role: "command", agents: ["claude"] };
   if (/^\.claude\/agents\/.+\.md$/i.test(p)) return { kind: "described", role: "agent", agents: ["claude"] };
@@ -2303,6 +2312,53 @@ function classifyContextPath(rel) {
   const agent = AGENT_DIR[dirs[0]?.toLowerCase() ?? ""];
   return { kind: "on-demand", role: "doc", agents: [agent ?? "any"] };
 }
+function claudeImports(text, fileAbs, home) {
+  const prose = text.replace(/^(```|~~~)[\s\S]*?^\1/gm, "").replace(/`[^`\n]*`/g, "");
+  const out = /* @__PURE__ */ new Set();
+  for (const m of prose.matchAll(/(?:^|\s)@((?:~\/)?[^\s`'"()<>[\]]+)/g)) {
+    const p = m[1].replace(/[.,;:!?]+$/, "");
+    const abs = p.startsWith("~/") ? join7(home, p.slice(2)) : isAbsolute6(p) ? p : resolve4(dirname5(fileAbs), p);
+    try {
+      if (statSync8(abs).isFile()) out.add(abs);
+    } catch {
+    }
+  }
+  return [...out];
+}
+function addImports(found, projectDir, home) {
+  const byAbs = new Map(found.map((f) => [resolve4(f.abs), f]));
+  const name = (abs) => (abs.startsWith(projectDir + sep) ? relative3(projectDir, abs) : "~/" + relative3(home, abs)).split(sep).join("/");
+  let level = found.filter((f) => f.kind === "always" && f.role === "instructions" && f.agents.includes("claude")).map((f) => resolve4(f.abs));
+  const seen = new Set(level);
+  for (let hop = 0; hop < 5 && level.length; hop++) {
+    const next = [];
+    for (const from of level) {
+      let text;
+      try {
+        text = readFileSync5(from, "utf8");
+      } catch {
+        continue;
+      }
+      for (const abs of claudeImports(text, from, home)) {
+        if (seen.has(abs)) continue;
+        seen.add(abs);
+        next.push(abs);
+        const f = byAbs.get(abs);
+        if (f) {
+          if (f.kind === "always") continue;
+          f.kind = "always";
+          f.agents = [.../* @__PURE__ */ new Set([...f.agents.filter((a) => a !== "any"), "claude"])];
+          f.importedBy = name(from);
+        } else {
+          const nf = { abs, scope: abs.startsWith(projectDir + sep) ? "project" : "user", kind: "always", role: "import", agents: ["claude"], importedBy: name(from) };
+          found.push(nf);
+          byAbs.set(abs, nf);
+        }
+      }
+    }
+    level = next;
+  }
+}
 function userFiles(projectDir, home) {
   const claudeDir = process.env.CLAUDE_CONFIG_DIR || join7(home, ".claude");
   const out = [];
@@ -2313,12 +2369,13 @@ function userFiles(projectDir, home) {
   add(join7(claudeDir, "projects", resolve4(projectDir).replace(/[^A-Za-z0-9]/g, "-"), "memory", "MEMORY.md"), { kind: "always", role: "memory", agents: ["claude"] });
   add(join7(process.env.CODEX_HOME || join7(home, ".codex"), "AGENTS.md"), { kind: "always", role: "instructions", agents: ["codex"] });
   add(join7(home, ".gemini", "GEMINI.md"), { kind: "always", role: "instructions", agents: ["gemini"] });
-  const list = (dir, re, role) => {
+  const list = (dir, re, role, kind = "described") => {
     if (!existsSync7(dir)) return;
     const all = [];
     walk(dir, all, 9);
-    for (const f of all) if (re.test(relative3(dir, f).split(sep).join("/"))) out.push({ abs: f, scope: "user", kind: "described", role, agents: ["claude"] });
+    for (const f of all) if (re.test(relative3(dir, f).split(sep).join("/"))) out.push({ abs: f, scope: "user", kind, role, agents: ["claude"] });
   };
+  list(join7(claudeDir, "rules"), /\.md$/i, "rules", "always");
   list(join7(claudeDir, "skills"), /^[^/]+\/SKILL\.md$/i, "skill");
   list(join7(claudeDir, "commands"), /\.md$/i, "command");
   list(join7(claudeDir, "agents"), /\.md$/i, "agent");
@@ -2522,6 +2579,7 @@ function auditContext(projectDir, opts = {}) {
     if (c) found.push({ abs, scope: "project", ...c });
   }
   found.push(...userFiles(dir, home));
+  addImports(found, dir, home);
   const workspaceScripts = /* @__PURE__ */ new Set();
   for (const abs of projectFiles(dir)) {
     if (basename2(abs) !== "package.json") continue;
@@ -2559,6 +2617,7 @@ function auditContext(projectDir, opts = {}) {
     const fm = frontmatter(text);
     let kind = f.kind;
     if (f.role === "rules" && extname(f.abs) === ".mdc" && fm.alwaysapply !== "true") kind = "described";
+    if (f.role === "rules" && f.agents.includes("claude") && "paths" in fm && !f.importedBy) kind = "on-demand";
     const desc = (fm.name ?? "") + " " + (fm.description ?? text.replace(/^---[\s\S]*?---/, "").trim().split("\n")[0] ?? "");
     const perSession = kind === "always" ? tokens2 : kind === "described" ? estimateTokens(Buffer.byteLength(desc), "x.md") : 0;
     let use;
@@ -2588,7 +2647,8 @@ function auditContext(projectDir, opts = {}) {
       author: authorOf(g, usage.writes.has(f.abs)),
       created,
       flags: [],
-      savePerSession: 0
+      savePerSession: 0,
+      ...f.importedBy ? { importedBy: f.importedBy } : {}
     });
     texts.set(f.abs, text);
   }
@@ -2616,7 +2676,7 @@ function auditContext(projectDir, opts = {}) {
   for (const f of files) {
     const name = basename2(f.path);
     if (f.kind === "always" && f.tokens > maxTok && !f.linkTo)
-      flag(f, "oversized", `loaded into every session at ~${fmtTokens(f.tokens)} tokens; over ${fmtTokens(maxTok)}, move detail into skills or docs read on demand`, f.tokens - maxTok);
+      flag(f, "oversized", `loaded into every session at ~${fmtTokens(f.tokens)} tokens${f.importedBy ? ` (imported by ${f.importedBy})` : ""}; over ${fmtTokens(maxTok)}, move detail into skills or docs read on demand`, f.tokens - maxTok);
     if (f.kind === "described" && old(f) && f.uses === 0)
       flag(f, "unused", `not invoked in ${days} days; its description still costs ~${fmtTokens(f.perSession)} tokens every session`, f.perSession);
     const stem = name.replace(MD, "");
@@ -2762,7 +2822,7 @@ function renderMap(a) {
     "# path | kind | role | tokens | per-session | uses | last used | author | flags"
   ];
   for (const f of a.files) {
-    lines.push([f.linkTo ? `${f.path} -> ${f.linkTo}` : f.path, f.kind, f.role, f.tokens, f.perSession, f.uses === null ? "-" : f.uses, f.kind === "always" ? "-" : when(f.lastUsed), f.author, f.flags.map((x) => `${x.code}\u2192${x.action}(${x.reason})`).join("; ") || "-"].join(" | "));
+    lines.push([f.linkTo ? `${f.path} -> ${f.linkTo}` : f.importedBy ? `${f.path} <- @${f.importedBy}` : f.path, f.kind, f.role, f.tokens, f.perSession, f.uses === null ? "-" : f.uses, f.kind === "always" ? "-" : when(f.lastUsed), f.author, f.flags.map((x) => `${x.code}\u2192${x.action}(${x.reason})`).join("; ") || "-"].join(" | "));
   }
   if (a.conflictCandidates.length) {
     lines.push("", "# Pairs to check for contradicting instructions (topic overlap 0-1):");
@@ -5574,6 +5634,12 @@ import { existsSync as existsSync11, readdirSync as readdirSync4, readFileSync a
 import { homedir as homedir5 } from "node:os";
 import { join as join13, resolve as resolve7 } from "node:path";
 import { spawn } from "node:child_process";
+function claudeToolSearch(env = process.env) {
+  const v = env.ENABLE_TOOL_SEARCH?.trim().toLowerCase();
+  if (v === "false" || v === "0") return false;
+  if (v) return true;
+  return !env.ANTHROPIC_BASE_URL;
+}
 var readJson = (path) => {
   try {
     return JSON.parse(readFileSync11(path, "utf8"));
@@ -5686,7 +5752,8 @@ function measureServer(s, timeoutMs = MEASURE_TIMEOUT_MS) {
           child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} }) + "\n");
         } else if (msg.id === 2) {
           const tools = Array.isArray(msg.result?.tools) ? msg.result.tools : [];
-          finish2({ tools: tools.length, listTokens: Math.round(JSON.stringify(tools).length / 4) });
+          const names = tools.map((x) => `mcp__${toolPrefixName(s.name)}__${String(x?.name ?? "")}`).join("\n");
+          finish2({ tools: tools.length, listTokens: Math.round(JSON.stringify(tools).length / 4), namesTokens: Math.round(names.length / 4) });
         }
       }
     });
@@ -5694,6 +5761,7 @@ function measureServer(s, timeoutMs = MEASURE_TIMEOUT_MS) {
   });
 }
 async function auditServers(projectDir, opts = {}) {
+  const deferred = claudeToolSearch(opts.env);
   const servers = configuredServers(projectDir, opts.home);
   const usage = mcpUsage(projectDir, opts.days ?? 30, opts.home);
   const reports = servers.map((s) => ({ ...s, calls: s.agent === "claude" ? usage.get(toolPrefixName(s.name)) ?? 0 : null }));
@@ -5705,7 +5773,7 @@ async function auditServers(projectDir, opts = {}) {
     await Promise.all(reports.map(async (r) => {
       const m = await measureServer(r);
       if ("error" in m) r.measureError = m.error;
-      else Object.assign(r, m);
+      else Object.assign(r, m, r.agent === "claude" && deferred ? { deferred: true } : {});
     }));
   }
   return reports;
@@ -7367,7 +7435,7 @@ var QUESTIONS = {
 function scoreWithJev(prompt, rules, timeoutMs = 2500) {
   const key = process.env.TYPESAFE_API_KEY;
   if (!key || !rules.taskLike) return rules;
-  const body = JSON.stringify({ model: process.env.SNOUT_COACH_MODEL || "jev-latest", state: { prompt: prompt.slice(0, 4e3) }, questions: QUESTIONS });
+  const body = JSON.stringify({ model: process.env.SNOUT_COACH_MODEL || PINNED_MODEL, state: { prompt: prompt.slice(0, 4e3) }, questions: QUESTIONS });
   const url = `${(process.env.TYPESAFE_BASE_URL || "https://api.typesafe.ai").replace(/\/$/, "")}/v1/systemone`;
   const script = `fetch(process.argv[1],{method:"POST",headers:{authorization:"Bearer "+process.env.TYPESAFE_API_KEY,"content-type":"application/json"},body:require("fs").readFileSync(0,"utf8"),signal:AbortSignal.timeout(${timeoutMs - 300})}).then(r=>r.ok?r.text():Promise.reject(r.status)).then(t=>process.stdout.write(t),()=>process.exit(1))`;
   const r = spawnSync3(process.execPath, ["-e", script, url], { input: body, encoding: "utf8", timeout: timeoutMs });
@@ -8062,12 +8130,12 @@ async function cmdAudit(args) {
   const unused = reports.filter((r) => r.calls === 0);
   for (const r of reports) {
     const used = r.calls === null ? "usage not tracked" : r.calls === 0 ? "never used" : `${r.calls} call${r.calls === 1 ? "" : "s"}`;
-    const cost = r.listTokens !== void 0 ? ` \xB7 ${r.tools} tools, ~${fmtTokens(r.listTokens)} tokens per request` : r.measureError ? ` \xB7 ${r.measureError}` : "";
+    const cost = r.listTokens === void 0 ? r.measureError ? ` \xB7 ${r.measureError}` : "" : r.deferred ? ` \xB7 ${r.tools} tools, ~${fmtTokens(r.namesTokens ?? 0)} tokens per request (names only; ~${fmtTokens(r.listTokens)} once loaded)` : ` \xB7 ${r.tools} tools, ~${fmtTokens(r.listTokens)} tokens per request`;
     lines.push(`  ${r.calls === 0 ? "\u2717" : "\xB7"} ${safeText(r.name, 40).padEnd(22)} ${used.padEnd(18)} ${r.source}${cost}`);
   }
   if (unused.length) {
-    const perReq = unused.reduce((a, r) => a + (r.listTokens ?? 0), 0);
-    lines.push("", `${unused.length} server${unused.length === 1 ? " was" : "s were"} never used, but still send ${unused.length === 1 ? "its" : "their"} tool list with every request${perReq ? ` (~${fmtTokens(perReq)} tokens each time)` : ""}. To turn ${unused.length === 1 ? "it" : "them"} off:`);
+    const perReq = unused.reduce((a, r) => a + ((r.deferred ? r.namesTokens : r.listTokens) ?? 0), 0);
+    lines.push("", `${unused.length} server${unused.length === 1 ? " was" : "s were"} never used, but still send ${unused.length === 1 ? "its" : "their"} tool ${unused.every((r) => r.deferred) ? "names" : "list"} with every request${perReq ? ` (~${fmtTokens(perReq)} tokens each time)` : ""}. To turn ${unused.length === 1 ? "it" : "them"} off:`);
     for (const r of unused) lines.push(`  ${safeText(r.name, 40)}: ${disableHint(r)}`);
   } else lines.push("", "Every configured server was used. Nothing to turn off.");
   const saved = summarizeLedger(readDecisions(paths.ledger, 2e4)).byMcpServer.filter((m) => m.reads > 0);
@@ -8251,22 +8319,13 @@ ${stderr}` : resp.stdout;
       return emit({ hookSpecificOutput: { hookEventName: "PostToolUse", updatedToolOutput: { ...resp, stdout: note, stderr: "" } } });
     }
   }
-  const dir = join21(paths.snoutDir, "squeeze");
-  const logName = `${(/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-")}-${createHash4("sha256").update(command).digest("hex").slice(0, 8)}.log`;
+  const logName = squeezeLogName(command);
   const s = squeeze(kind, full, `.snout/squeeze/${logName}`);
   if (!s) {
     emit({});
     return;
   }
-  try {
-    mkdirSync10(dir, { recursive: true });
-    writeAtomic(join21(dir, logName), `$ ${command}
-
-${full}`);
-    const logs = readdirSync5(dir).filter((f) => f.endsWith(".log")).sort();
-    for (const old of logs.slice(0, Math.max(0, logs.length - SQUEEZE_LOGS_KEPT))) rmSync3(join21(dir, old), { force: true });
-  } catch (err) {
-    recordError("squeeze log", err);
+  if (!saveSqueezeLog(paths, logName, command, full)) {
     emit({});
     return;
   }
@@ -8297,6 +8356,22 @@ ${full}`);
     ...input.agent_id ? { agentId: input.agent_id, agentType: input.agent_type } : {}
   });
   emit({ hookSpecificOutput: { hookEventName: "PostToolUse", updatedToolOutput: { ...resp, stdout: s.text, stderr: "" } } });
+}
+var squeezeLogName = (command) => `${(/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-")}-${createHash4("sha256").update(command).digest("hex").slice(0, 8)}.log`;
+function saveSqueezeLog(paths, logName, command, full) {
+  const dir = join21(paths.snoutDir, "squeeze");
+  try {
+    mkdirSync10(dir, { recursive: true });
+    writeAtomic(join21(dir, logName), `$ ${command}
+
+${full}`);
+    const logs = readdirSync5(dir).filter((f) => f.endsWith(".log")).sort();
+    for (const old of logs.slice(0, Math.max(0, logs.length - SQUEEZE_LOGS_KEPT))) rmSync3(join21(dir, old), { force: true });
+    return true;
+  } catch (err) {
+    recordError("squeeze log", err);
+    return false;
+  }
 }
 var mcpPath = (tool) => `mcp: ${tool.replace(/^mcp__/, "").replace(/__/g, " \u203A ")}`;
 function recordRepeatOutput(input, paths, state, tool, path, beforeChars, afterChars, started, cfg) {

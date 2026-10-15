@@ -32,7 +32,23 @@ export interface ServerReport extends ServerConfig {
   /** Tool count and estimated tokens of the tool list, when measured. */
   tools?: number;
   listTokens?: number;
+  /** Claude Code with tool search: only the tool names go out with each request until a tool is used. */
+  deferred?: boolean;
+  /** Estimated tokens per request of the names alone (Claude's mcp__<server>__<tool> form). */
+  namesTokens?: number;
   measureError?: string;
+}
+
+/**
+ * Claude Code's MCP tool search is on by default: requests carry tool names, and a tool's schema
+ * loads when the agent looks it up. It is off with ENABLE_TOOL_SEARCH=false, and by default
+ * behind a custom ANTHROPIC_BASE_URL (code.claude.com/docs/en/mcp). Other agents send full lists.
+ */
+export function claudeToolSearch(env: NodeJS.ProcessEnv = process.env): boolean {
+  const v = env.ENABLE_TOOL_SEARCH?.trim().toLowerCase();
+  if (v === "false" || v === "0") return false;
+  if (v) return true;
+  return !env.ANTHROPIC_BASE_URL;
 }
 
 const readJson = (path: string): any => {
@@ -128,11 +144,13 @@ const toolPrefixName = (name: string) => name.replace(/[^A-Za-z0-9_-]/g, "_");
 /** How long a server gets to answer with its tool list. SNOUT_MCP_MEASURE_MS raises it on slow or loaded machines (CI). */
 const MEASURE_TIMEOUT_MS = Number(process.env.SNOUT_MCP_MEASURE_MS) || 10_000;
 
-export function measureServer(s: ServerConfig, timeoutMs = MEASURE_TIMEOUT_MS): Promise<{ tools: number; listTokens: number } | { error: string }> {
+type Measured = { tools: number; listTokens: number; namesTokens: number };
+
+export function measureServer(s: ServerConfig, timeoutMs = MEASURE_TIMEOUT_MS): Promise<Measured | { error: string }> {
   if (!s.command) return Promise.resolve({ error: s.url ? "remote server: not measured" : "no command to start" });
   return new Promise((done) => {
     let settled = false;
-    const finish = (r: { tools: number; listTokens: number } | { error: string }) => {
+    const finish = (r: Measured | { error: string }) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
@@ -162,7 +180,8 @@ export function measureServer(s: ServerConfig, timeoutMs = MEASURE_TIMEOUT_MS): 
           child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} }) + "\n");
         } else if (msg.id === 2) {
           const tools = Array.isArray(msg.result?.tools) ? msg.result.tools : [];
-          finish({ tools: tools.length, listTokens: Math.round(JSON.stringify(tools).length / 4) });
+          const names = tools.map((x: { name?: unknown }) => `mcp__${toolPrefixName(s.name)}__${String(x?.name ?? "")}`).join("\n");
+          finish({ tools: tools.length, listTokens: Math.round(JSON.stringify(tools).length / 4), namesTokens: Math.round(names.length / 4) });
         }
       }
     });
@@ -170,7 +189,8 @@ export function measureServer(s: ServerConfig, timeoutMs = MEASURE_TIMEOUT_MS): 
   });
 }
 
-export async function auditServers(projectDir: string, opts: { days?: number; measure?: boolean; home?: string } = {}): Promise<ServerReport[]> {
+export async function auditServers(projectDir: string, opts: { days?: number; measure?: boolean; home?: string; env?: NodeJS.ProcessEnv } = {}): Promise<ServerReport[]> {
+  const deferred = claudeToolSearch(opts.env);
   const servers = configuredServers(projectDir, opts.home);
   const usage = mcpUsage(projectDir, opts.days ?? 30, opts.home);
   const reports: ServerReport[] = servers.map((s) => ({ ...s, calls: s.agent === "claude" ? usage.get(toolPrefixName(s.name)) ?? 0 : null }));
@@ -183,7 +203,7 @@ export async function auditServers(projectDir: string, opts: { days?: number; me
     await Promise.all(reports.map(async (r) => {
       const m = await measureServer(r);
       if ("error" in m) r.measureError = m.error;
-      else Object.assign(r, m);
+      else Object.assign(r, m, r.agent === "claude" && deferred ? { deferred: true } : {});
     }));
   }
   return reports;

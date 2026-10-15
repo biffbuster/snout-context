@@ -70,6 +70,8 @@ export interface ContextFile {
   savePerSession: number;
   /** Set when this file is a symlink to another file in the audit: one file, two names. */
   linkTo?: string;
+  /** Set when a CLAUDE.md pulls this file in with `@path`: Claude Code loads it at start with that file. */
+  importedBy?: string;
 }
 
 export interface ContextAudit {
@@ -123,6 +125,7 @@ interface Found {
   kind: Kind;
   role: string;
   agents: string[];
+  importedBy?: string;
 }
 
 function walk(dir: string, out: string[], depth = 0): void {
@@ -161,7 +164,8 @@ function projectFiles(projectDir: string): string[] {
       for (const f of all) set.add(f);
     }
   }
-  for (const f of [".cursorrules", ".windsurfrules", ".clinerules"]) {
+  // CLAUDE.local.md is meant to be gitignored, and Claude Code loads it anyway.
+  for (const f of [".cursorrules", ".windsurfrules", ".clinerules", "CLAUDE.local.md"]) {
     const p = join(projectDir, f);
     if (existsSync(p) && statSync(p).isFile()) set.add(p);
   }
@@ -202,6 +206,8 @@ export function classifyContextPath(rel: string): Omit<Found, "abs" | "scope"> |
   if (lower.startsWith(".github/instructions/") && MD.test(lower)) return { kind: "described", role: "rules", agents: ["copilot"] };
   if (lower === ".windsurfrules" || (lower.startsWith(".windsurf/rules/") && MD.test(lower))) return { kind: "always", role: "rules", agents: ["windsurf"] };
   if (lower === ".clinerules" || (lower.startsWith(".clinerules/") && MD.test(lower))) return { kind: "always", role: "rules", agents: ["cline"] };
+  // Claude Code rules load every session, unless `paths:` frontmatter scopes them to matching files (see auditContext).
+  if (/^\.claude\/rules\/.+\.md$/i.test(p)) return { kind: "always", role: "rules", agents: ["claude"] };
   if (/^\.claude\/skills\/[^/]+\/skill\.md$/i.test(p)) return { kind: "described", role: "skill", agents: ["claude"] };
   if (/^\.claude\/commands\/.+\.md$/i.test(p)) return { kind: "described", role: "command", agents: ["claude"] };
   if (/^\.claude\/agents\/.+\.md$/i.test(p)) return { kind: "described", role: "agent", agents: ["claude"] };
@@ -215,6 +221,55 @@ export function classifyContextPath(rel: string): Omit<Found, "abs" | "scope"> |
   return { kind: "on-demand", role: "doc", agents: [agent ?? "any"] };
 }
 
+/**
+ * `@path` imports in a CLAUDE.md: Claude Code loads each imported file at session start along with
+ * the file that names it, so splitting instructions into imports moves tokens without saving any.
+ * Paths are relative to the importing file, or `~/`; code spans and fenced blocks are not imports.
+ * Only files that exist count, which also drops emails, npm scopes and @mentions.
+ */
+export function claudeImports(text: string, fileAbs: string, home: string): string[] {
+  const prose = text.replace(/^(```|~~~)[\s\S]*?^\1/gm, "").replace(/`[^`\n]*`/g, "");
+  const out = new Set<string>();
+  for (const m of prose.matchAll(/(?:^|\s)@((?:~\/)?[^\s`'"()<>[\]]+)/g)) {
+    const p = m[1]!.replace(/[.,;:!?]+$/, "");
+    const abs = p.startsWith("~/") ? join(home, p.slice(2)) : isAbsolute(p) ? p : resolve(dirname(fileAbs), p);
+    try { if (statSync(abs).isFile()) out.add(abs); } catch { /* not a file */ }
+  }
+  return [...out];
+}
+
+/** Follows `@path` imports from every always-loaded CLAUDE.md, five hops deep as Claude Code does, and marks what they pull in. */
+function addImports(found: Found[], projectDir: string, home: string): void {
+  const byAbs = new Map(found.map((f) => [resolve(f.abs), f]));
+  const name = (abs: string) => (abs.startsWith(projectDir + sep) ? relative(projectDir, abs) : "~/" + relative(home, abs)).split(sep).join("/");
+  let level = found.filter((f) => f.kind === "always" && f.role === "instructions" && f.agents.includes("claude")).map((f) => resolve(f.abs));
+  const seen = new Set(level);
+  for (let hop = 0; hop < 5 && level.length; hop++) {
+    const next: string[] = [];
+    for (const from of level) {
+      let text: string;
+      try { text = readFileSync(from, "utf8"); } catch { continue; }
+      for (const abs of claudeImports(text, from, home)) {
+        if (seen.has(abs)) continue;
+        seen.add(abs);
+        next.push(abs);
+        const f = byAbs.get(abs);
+        if (f) {
+          if (f.kind === "always") continue;
+          f.kind = "always";
+          f.agents = [...new Set([...f.agents.filter((a) => a !== "any"), "claude"])];
+          f.importedBy = name(from);
+        } else {
+          const nf: Found = { abs, scope: abs.startsWith(projectDir + sep) ? "project" : "user", kind: "always", role: "import", agents: ["claude"], importedBy: name(from) };
+          found.push(nf);
+          byAbs.set(abs, nf);
+        }
+      }
+    }
+    level = next;
+  }
+}
+
 function userFiles(projectDir: string, home: string): Found[] {
   const claudeDir = process.env.CLAUDE_CONFIG_DIR || join(home, ".claude");
   const out: Found[] = [];
@@ -223,12 +278,13 @@ function userFiles(projectDir: string, home: string): Found[] {
   add(join(claudeDir, "projects", resolve(projectDir).replace(/[^A-Za-z0-9]/g, "-"), "memory", "MEMORY.md"), { kind: "always", role: "memory", agents: ["claude"] });
   add(join(process.env.CODEX_HOME || join(home, ".codex"), "AGENTS.md"), { kind: "always", role: "instructions", agents: ["codex"] });
   add(join(home, ".gemini", "GEMINI.md"), { kind: "always", role: "instructions", agents: ["gemini"] });
-  const list = (dir: string, re: RegExp, role: string) => {
+  const list = (dir: string, re: RegExp, role: string, kind: Kind = "described") => {
     if (!existsSync(dir)) return;
     const all: string[] = [];
     walk(dir, all, 9);
-    for (const f of all) if (re.test(relative(dir, f).split(sep).join("/"))) out.push({ abs: f, scope: "user", kind: "described", role, agents: ["claude"] });
+    for (const f of all) if (re.test(relative(dir, f).split(sep).join("/"))) out.push({ abs: f, scope: "user", kind, role, agents: ["claude"] });
   };
+  list(join(claudeDir, "rules"), /\.md$/i, "rules", "always");
   list(join(claudeDir, "skills"), /^[^/]+\/SKILL\.md$/i, "skill");
   list(join(claudeDir, "commands"), /\.md$/i, "command");
   list(join(claudeDir, "agents"), /\.md$/i, "agent");
@@ -482,6 +538,7 @@ export function auditContext(projectDir: string, opts: AuditOptions = {}): Conte
     if (c) found.push({ abs, scope: "project", ...c });
   }
   found.push(...userFiles(dir, home));
+  addImports(found, dir, home);
 
   // Every script any package.json in the repo defines (monorepo workspaces).
   const workspaceScripts = new Set<string>();
@@ -523,6 +580,8 @@ export function auditContext(projectDir: string, opts: AuditOptions = {}): Conte
     let kind = f.kind;
     // Cursor rules apply to every request only when marked alwaysApply; otherwise they're picked by description or glob.
     if (f.role === "rules" && extname(f.abs) === ".mdc" && fm.alwaysapply !== "true") kind = "described";
+    // Claude Code rules scoped with `paths:` load only when the agent works on matching files.
+    if (f.role === "rules" && f.agents.includes("claude") && "paths" in fm && !f.importedBy) kind = "on-demand";
     const desc = (fm.name ?? "") + " " + (fm.description ?? text.replace(/^---[\s\S]*?---/, "").trim().split("\n")[0] ?? "");
     const perSession = kind === "always" ? tokens : kind === "described" ? estimateTokens(Buffer.byteLength(desc), "x.md") : 0;
 
@@ -544,6 +603,7 @@ export function auditContext(projectDir: string, opts: AuditOptions = {}): Conte
       path: rel, abs: f.abs, scope: f.scope, kind, role: f.role, agents: f.agents, bytes: st.size, tokens, perSession,
       uses: kind === "always" || opts.noUsage ? null : use?.[0] ?? 0, lastUsed: use?.[1] ?? null,
       author: authorOf(g, usage.writes.has(f.abs)), created, flags: [], savePerSession: 0,
+      ...(f.importedBy ? { importedBy: f.importedBy } : {}),
     });
     texts.set(f.abs, text);
   }
@@ -561,7 +621,7 @@ export function auditContext(projectDir: string, opts: AuditOptions = {}): Conte
   for (const f of files) {
     const name = basename(f.path);
     if (f.kind === "always" && f.tokens > maxTok && !f.linkTo)
-      flag(f, "oversized", `loaded into every session at ~${fmtTokens(f.tokens)} tokens; over ${fmtTokens(maxTok)}, move detail into skills or docs read on demand`, f.tokens - maxTok);
+      flag(f, "oversized", `loaded into every session at ~${fmtTokens(f.tokens)} tokens${f.importedBy ? ` (imported by ${f.importedBy})` : ""}; over ${fmtTokens(maxTok)}, move detail into skills or docs read on demand`, f.tokens - maxTok);
     if (f.kind === "described" && old(f) && f.uses === 0)
       flag(f, "unused", `not invoked in ${days} days; its description still costs ~${fmtTokens(f.perSession)} tokens every session`, f.perSession);
     // A one-off needs a report-like name AND a sign it was a one-time artifact: a date, or a reports/plans/archive folder,
@@ -725,7 +785,7 @@ export function renderMap(a: ContextAudit): string {
     "# path | kind | role | tokens | per-session | uses | last used | author | flags",
   ];
   for (const f of a.files) {
-    lines.push([f.linkTo ? `${f.path} -> ${f.linkTo}` : f.path, f.kind, f.role, f.tokens, f.perSession, f.uses === null ? "-" : f.uses, f.kind === "always" ? "-" : when(f.lastUsed), f.author, f.flags.map((x) => `${x.code}→${x.action}(${x.reason})`).join("; ") || "-"].join(" | "));
+    lines.push([f.linkTo ? `${f.path} -> ${f.linkTo}` : f.importedBy ? `${f.path} <- @${f.importedBy}` : f.path, f.kind, f.role, f.tokens, f.perSession, f.uses === null ? "-" : f.uses, f.kind === "always" ? "-" : when(f.lastUsed), f.author, f.flags.map((x) => `${x.code}→${x.action}(${x.reason})`).join("; ") || "-"].join(" | "));
   }
   if (a.conflictCandidates.length) {
     lines.push("", "# Pairs to check for contradicting instructions (topic overlap 0-1):");

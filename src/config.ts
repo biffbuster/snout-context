@@ -40,7 +40,11 @@ export interface Config {
 export { DEFAULTS } from "./defaults.js";
 import { DEFAULTS } from "./defaults.js";
 
-/** The model Phase 1 will pin. Declared here so the benchmark and docs cite one constant. */
+/**
+ * The Jev version Snout calls (`snout coach jev`) and its benchmarks cite. Pinned rather than
+ * `jev-latest`, which TypeSafe moves without notice: a new version is adopted only after it
+ * matches or beats this one on the labeled set (`bench/label.mjs --model`). jev-1.14.0 is pending.
+ */
 export const PINNED_MODEL = "jev-1.13.0";
 
 export interface Paths {

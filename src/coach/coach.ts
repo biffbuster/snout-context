@@ -17,6 +17,7 @@
  * prompt text is then sent to api.typesafe.ai, which is why that is opt-in.
  */
 import { spawnSync } from "node:child_process";
+import { PINNED_MODEL } from "../config.js";
 
 export type CoachMode = "off" | "tip" | "jev";
 export type Missing = "target" | "behavior" | "verify";
@@ -118,7 +119,7 @@ const QUESTIONS = {
 export function scoreWithJev(prompt: string, rules: Coaching, timeoutMs = 2500): Coaching {
   const key = process.env.TYPESAFE_API_KEY;
   if (!key || !rules.taskLike) return rules;
-  const body = JSON.stringify({ model: process.env.SNOUT_COACH_MODEL || "jev-latest", state: { prompt: prompt.slice(0, 4000) }, questions: QUESTIONS });
+  const body = JSON.stringify({ model: process.env.SNOUT_COACH_MODEL || PINNED_MODEL, state: { prompt: prompt.slice(0, 4000) }, questions: QUESTIONS });
   const url = `${(process.env.TYPESAFE_BASE_URL || "https://api.typesafe.ai").replace(/\/$/, "")}/v1/systemone`;
   const script = `fetch(process.argv[1],{method:"POST",headers:{authorization:"Bearer "+process.env.TYPESAFE_API_KEY,"content-type":"application/json"},body:require("fs").readFileSync(0,"utf8"),signal:AbortSignal.timeout(${timeoutMs - 300})}).then(r=>r.ok?r.text():Promise.reject(r.status)).then(t=>process.stdout.write(t),()=>process.exit(1))`;
   const r = spawnSync(process.execPath, ["-e", script, url], { input: body, encoding: "utf8", timeout: timeoutMs });

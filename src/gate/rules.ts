@@ -160,6 +160,12 @@ const GENERATED_FILENAME_SUFFIXES = [
   ".lock.yml",
 ];
 
+/**
+ * Drizzle Kit writes a full schema snapshot per migration to `<out>/meta/NNNN_snapshot.json`, often
+ * hundreds of KB each. Found by a local audit of paperclipai/paperclip (5 files near 0.8M tokens each).
+ */
+const MIGRATION_SNAPSHOT = /(^|\/)(migrations?|drizzle)\/meta\/\d{4}_snapshot\.json$/i;
+
 /** Extensions the two markers above apply to — formats with no comment syntax at all. */
 const NO_COMMENT_SYNTAX_EXT = new Set(["json", "yaml", "yml"]);
 
@@ -376,6 +382,9 @@ const RULES: readonly Rule[] = [
           "generated",
           `${safePath(s.rel)} sits inside ${safeText(genDir, 40)}/, a directory convention for machine-generated ${safeText(ext.toUpperCase(), 6)} output that cannot carry a generator banner.`,
         );
+      }
+      if (ext === "json" && MIGRATION_SNAPSHOT.test(s.rel)) {
+        return low("generated", `${safePath(s.rel)} is a schema snapshot the migration tool writes for every migration; the .sql migrations hold the changes.`);
       }
       const genSuffix = GENERATED_FILENAME_SUFFIXES.find((x) => name.endsWith(x));
       if (genSuffix) {
@@ -657,9 +666,13 @@ function generatedMarker(headBuf: Uint8Array | null): string | null {
   // (Track A: a CI script describing the "this is generated, do not edit" header it checks for).
   const bannerLines = head.split("\n", BANNER_LINES);
   const banner = bannerLines.join("\n");
+  // Case-insensitive: real banners write "Do not edit." (found by a local audit of paperclipai/paperclip).
   for (const marker of WEAK_MARKERS) {
-    const line = bannerLines.find((l) => l.includes(marker));
-    if (line && !insideDoubleQuotes(line, marker) && GENERATOR_HINT.test(banner)) return marker;
+    const line = bannerLines.find((l) => l.toLowerCase().includes(marker.toLowerCase()));
+    if (!line) continue;
+    const at = line.toLowerCase().indexOf(marker.toLowerCase());
+    const seen = line.slice(at, at + marker.length);
+    if (!insideDoubleQuotes(line, seen) && GENERATOR_HINT.test(banner)) return seen;
   }
   return null;
 }

@@ -33,9 +33,9 @@ createInterface({ input: process.stdin }).on("line", (l) => { const m = JSON.par
   return { home, project };
 }
 
-const run = (args, home, cwd, input = "") => spawnSync(process.execPath, [CLI, ...args], {
+const run = (args, home, cwd, input = "", extra = {}) => spawnSync(process.execPath, [CLI, ...args], {
   // The suite runs files in parallel; on a busy runner a test server can need more than the 10 s default to answer.
-  cwd, input, encoding: "utf8", env: { ...process.env, HOME: home, USERPROFILE: home, CLAUDE_CONFIG_DIR: "", CODEX_HOME: join(home, ".codex"), SNOUT_MCP_MEASURE_MS: "60000" },
+  cwd, input, encoding: "utf8", env: { ...process.env, HOME: home, USERPROFILE: home, CLAUDE_CONFIG_DIR: "", CODEX_HOME: join(home, ".codex"), SNOUT_MCP_MEASURE_MS: "60000", ENABLE_TOOL_SEARCH: "", ANTHROPIC_BASE_URL: "", ...extra },
 });
 
 test("audit lists configured servers with their usage and how to turn off the unused ones", () => {
@@ -54,9 +54,15 @@ test("audit lists configured servers with their usage and how to turn off the un
 
 test("--measure starts local servers once and counts what their tool list costs", () => {
   const { home, project } = setup();
+  // Claude Code tool search is on by default: requests carry names until a tool is loaded.
   const r = run(["audit", "--measure", project], home, project);
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /warehouse.*2 tools, ~\d+ tokens per request/);
+  const [, names, full] = /warehouse.*2 tools, ~(\d+) tokens per request \(names only; ~(\d+) once loaded\)/.exec(r.stdout) ?? [];
+  assert.ok(Number(names) > 0 && Number(names) < Number(full), r.stdout);
+  assert.match(r.stdout, /figma.*no-such-server|figma\s/, "other agents keep their own line");
+  // With tool search off, Claude Code sends the full list.
+  const off = run(["audit", "--measure", project], home, project, "", { ENABLE_TOOL_SEARCH: "false" });
+  assert.match(off.stdout, /warehouse.*2 tools, ~\d+ tokens per request\r?\n/);
   assert.match(r.stdout, /github.*remote server: not measured/);
   assert.match(r.stdout, /tokens each time/, "the unused total is stated");
 });
