@@ -32,7 +32,6 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, exist
 import { homedir, tmpdir } from "node:os";
 import { basename, delimiter, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { gateEntries, squeezeEntries } from "../dist/lib.mjs";
 import { bootstrap } from "./long.mjs";
 import { reliabilityLines, costLines, ledgerFacts, peakContext, mapFacts } from "./stats.mjs";
 
@@ -53,6 +52,13 @@ const API_REFUSED = /credit balance|billing|invalid.*api.key|authentication|rate
 const JOBS = Number(args.jobs ?? 2);
 const REPO = fileURLToPath(new URL("..", import.meta.url)).replace(/\/$/, "");
 const SNOUT_BIN = process.env.SNOUT_BIN || join(REPO, "dist/snout.mjs");
+/**
+ * SNOUT_COMMIT with SNOUT_BIN and SNOUT_LIB: a frozen copy of a committed build, so work can go on in
+ * the repo while a run is under way. Both files must be byte-identical to that commit's dist/.
+ */
+const SNOUT_LIB = process.env.SNOUT_LIB || join(REPO, "dist/lib.mjs");
+const FROZEN_COMMIT = process.env.SNOUT_COMMIT || "";
+const { gateEntries, squeezeEntries } = await import(pathToFileURL(SNOUT_LIB).href);
 /** Windows: Claude Code runs Bash through Git Bash and Docker runs Linux containers; see SHIM and sweArgs. */
 const WIN = process.platform === "win32";
 const SWE_PY = process.env.SWE_PY || (WIN ? join(REPO, ".snout/heldout/venv3/Scripts/python.exe") : join(homedir(), "opt/anaconda3/envs/swebench/bin/python"));
@@ -575,12 +581,18 @@ async function main() {
   const outFile = resumed ? args.resume : join(REPO, "bench/ab-results", `${runId}.json`);
   mkdirSync(join(REPO, "bench/ab-results"), { recursive: true });
   const frozen = {
-    snoutCommit: sh("git", ["rev-parse", "HEAD"], { cwd: REPO }).stdout.trim(),
-    snoutDirty: sh("git", ["status", "--porcelain", "src", "dist"], { cwd: REPO }).stdout.trim() !== "",
+    snoutCommit: FROZEN_COMMIT || sh("git", ["rev-parse", "HEAD"], { cwd: REPO }).stdout.trim(),
+    snoutDirty: FROZEN_COMMIT ? false : sh("git", ["status", "--porcelain", "src", "dist"], { cwd: REPO }).stdout.trim() !== "",
+    ...(FROZEN_COMMIT ? { frozenCopy: SNOUT_BIN } : {}),
     snoutDistSha256: createHash("sha256").update(readFileSync(SNOUT_BIN)).digest("hex"),
     claudeCode: sh(CLAUDE, ["--version"]).stdout.trim(),
     claudeConfig: CLEAN_HOME ? "isolated (empty CLAUDE_CONFIG_DIR, API key)" : "operator login",
   };
+  if (FROZEN_COMMIT) for (const [file, inRepo] of [[SNOUT_BIN, "dist/snout.mjs"], [SNOUT_LIB, "dist/lib.mjs"]]) {
+    const committed = spawnSync("git", ["show", `${FROZEN_COMMIT}:${inRepo}`], { cwd: REPO, maxBuffer: 256 << 20 });
+    if (committed.status !== 0 || !readFileSync(file).equals(committed.stdout)) throw new Error(`SNOUT_COMMIT: ${file} is not ${FROZEN_COMMIT}'s ${inRepo}`);
+  }
+  if (resumed && resumed.frozen.snoutCommit !== frozen.snoutCommit) throw new Error("--resume: a different Snout commit than the run started with");
   if (resumed && resumed.frozen.snoutDistSha256 !== frozen.snoutDistSha256) throw new Error("--resume: dist/snout.mjs changed since this run started; the arms would not be the same Snout");
   // A published number must name the exact build that ran: committed source, committed bundle.
   if (frozen.snoutDirty && !args["allow-dirty"]) throw new Error("src/ or dist/ has uncommitted changes: commit them so the recorded commit is the build under test (or pass --allow-dirty for a smoke run)");
