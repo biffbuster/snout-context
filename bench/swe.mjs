@@ -9,7 +9,9 @@
  * as a prediction; `--grade` hands each arm's predictions to `swebench.harness.run_evaluation`.
  * Snout plays no part in grading.
  *
- * Needs Docker and a Python 3.11 env with `swebench` (SWE_PY, default ~/opt/anaconda3/envs/swebench/bin/python).
+ * Needs Docker and a Python env with `swebench` (SWE_PY; macOS default ~/opt/anaconda3/envs/swebench/bin/python,
+ * Windows default .snout/heldout/venv3 with swebench 3.0.17). On Windows the agent's shell is Git Bash and
+ * session workspaces live under ~/.snout-bench/swe-work (see workBase).
  *
  * Usage:
  *   node bench/swe.mjs --select                     # seeded draw → bench/swe-tasks.json
@@ -26,9 +28,9 @@
  */
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, appendFileSync, chmodSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, appendFileSync, chmodSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, delimiter, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { gateEntries, squeezeEntries } from "../dist/lib.mjs";
 import { bootstrap } from "./long.mjs";
@@ -47,7 +49,38 @@ const BUDGET = String(args.budget ?? "2.00");
 const JOBS = Number(args.jobs ?? 2);
 const REPO = fileURLToPath(new URL("..", import.meta.url)).replace(/\/$/, "");
 const SNOUT_BIN = process.env.SNOUT_BIN || join(REPO, "dist/snout.mjs");
-const SWE_PY = process.env.SWE_PY || join(homedir(), "opt/anaconda3/envs/swebench/bin/python");
+/** Windows: Claude Code runs Bash through Git Bash and Docker runs Linux containers; see SHIM and sweArgs. */
+const WIN = process.platform === "win32";
+const SWE_PY = process.env.SWE_PY || (WIN ? join(REPO, ".snout/heldout/venv3/Scripts/python.exe") : join(homedir(), "opt/anaconda3/envs/swebench/bin/python"));
+/** Claude Code's own executable: on Windows the npm shim is a .cmd that spawn() can't start. */
+const CLAUDE = process.env.CLAUDE_BIN || (WIN ? join(process.env.APPDATA ?? "", "npm/node_modules/@anthropic-ai/claude-code/bin/claude.exe") : "claude");
+/**
+ * swebench 3.0.17 on Windows: it imports the POSIX-only `resource` module (unused when grading
+ * prebuilt images) and writes the Linux eval script with Path.write_text, which would add CRLF.
+ * `-m module args` becomes `-c <prelude + run module> args`.
+ */
+const WIN_PRELUDE = [
+  "import sys, types, runpy, pathlib",
+  "sys.modules.setdefault('resource', types.ModuleType('resource'))",
+  "_write = pathlib.Path.write_text",
+  "def _lf(self, data, *a, **k):",
+  "    k.setdefault('newline', chr(10))",
+  "    return _write(self, data, *a, **k)",
+  "pathlib.Path.write_text = _lf",
+  "",
+].join("\n");
+function sweArgs(argv) {
+  if (!WIN) return argv;
+  if (argv[0] === "-m") return ["-c", `${WIN_PRELUDE}sys.argv[0] = ${JSON.stringify(argv[1])}\nrunpy.run_module(${JSON.stringify(argv[1])}, run_name="__main__")\n`, ...argv.slice(2)];
+  if (argv[0] === "-c") return ["-c", WIN_PRELUDE + argv[1], ...argv.slice(2)];
+  return argv;
+}
+/**
+ * With --api, every session runs against an empty Claude Code config folder: none of the operator's
+ * own settings, plugins, skills, connectors, memory or history can reach either arm. (Plan login
+ * lives in the user's config, so without --api the sessions use it as is.)
+ */
+const CLEAN_HOME = API_KEY ? join(homedir(), ".snout-bench", "claude-home") : null;
 const DATASET = "SWE-bench/SWE-bench_Verified";
 const MIN_MEM_GB = Number(args["min-mem-gb"] ?? 5.5);
 const SESSION_LIMIT_MS = 30 * 60_000;
@@ -56,9 +89,31 @@ const TASKS_FILE = process.env.SWE_TASKS_FILE || join(REPO, "bench/swe-tasks.jso
 
 // ------------------------------------------------------------------ selection (protocol: seed, eligibility, cap)
 
-const SEED = 20261006;
-const COUNT = 15;
-const PER_REPO = 5;
+// --seed, --count and --per-repo change the draw (the 2026-10-14 confirmation: 20261014, 80, 20).
+const SEED = Number(args.seed ?? 20261006);
+const COUNT = Number(args.count ?? 15);
+const PER_REPO = Number(args["per-repo"] ?? 5);
+
+/**
+ * Every issue an earlier run touched, so a new draw is held out: the task manifests in bench/ and
+ * every task named in the results under bench/ab-results/ (published and local).
+ */
+function usedTasks() {
+  const used = new Set();
+  const scan = (v) => {
+    if (Array.isArray(v)) return v.forEach(scan);
+    if (!v || typeof v !== "object") return;
+    for (const [k, x] of Object.entries(v)) {
+      if ((k === "instance_id" || k === "task" || k === "instanceId") && typeof x === "string" && x.includes("__")) used.add(x);
+      else scan(x);
+    }
+  };
+  const files = [join(REPO, "bench/swe-tasks.json"), join(REPO, "bench/codex-heldout-tasks.json")];
+  const results = join(REPO, "bench/ab-results");
+  if (existsSync(results)) for (const f of readdirSync(results)) if (f.endsWith(".json")) files.push(join(results, f));
+  for (const f of files) { try { scan(JSON.parse(readFileSync(f, "utf8"))); } catch { /* not JSON */ } }
+  return used;
+}
 const ELIGIBLE = new Set(["django/django", "sympy/sympy", "sphinx-doc/sphinx", "pydata/xarray", "pytest-dev/pytest", "pylint-dev/pylint", "psf/requests", "mwaskom/seaborn", "pallets/flask"]);
 
 function rng(seed) {
@@ -67,16 +122,17 @@ function rng(seed) {
 }
 
 function select() {
-  const dump = spawnSync(SWE_PY, ["-c", `
+  const dump = spawnSync(SWE_PY, sweArgs(["-c", `
 import json
 from swebench.harness.utils import load_swebench_dataset
 ds = load_swebench_dataset(${JSON.stringify(DATASET)}, "test")
 keep = ("instance_id", "repo", "base_commit", "problem_statement", "difficulty", "image")
 print(json.dumps([{k: d[k] for k in keep} for d in ds]))
-`], { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+`]), { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
   if (dump.status !== 0) throw new Error(dump.stderr.slice(-2000));
   const all = JSON.parse(dump.stdout).sort((a, b) => a.instance_id.localeCompare(b.instance_id));
-  const pool = all.filter((t) => ELIGIBLE.has(t.repo) && t.difficulty !== ">4 hours");
+  const used = usedTasks();
+  const pool = all.filter((t) => ELIGIBLE.has(t.repo) && t.difficulty !== ">4 hours" && !used.has(t.instance_id));
   const rand = rng(SEED);
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(rand() * (i + 1));
@@ -90,7 +146,7 @@ print(json.dumps([{k: d[k] for k in keep} for d in ds]))
     perRepo[t.repo] = (perRepo[t.repo] ?? 0) + 1;
     picked.push(t);
   }
-  writeFileSync(TASKS_FILE, JSON.stringify({ dataset: DATASET, seed: SEED, eligible: pool.length, tasks: picked }, null, 2) + "\n");
+  writeFileSync(TASKS_FILE, JSON.stringify({ dataset: DATASET, seed: SEED, count: COUNT, perRepo: PER_REPO, excludedUsed: [...used].sort(), eligible: pool.length, tasks: picked }, null, 2) + "\n");
   console.log(`${picked.length} of ${pool.length} eligible (seed ${SEED}) → ${TASKS_FILE}`);
   for (const t of picked) console.log(`  ${t.instance_id.padEnd(34)} ${t.difficulty}`);
 }
@@ -138,7 +194,7 @@ function ensureImage(image) {
   for (let i = 0; i < 4; i++) {
     r = sh("docker", ["pull", "-q", image], { timeout: 30 * 60_000 });
     if (r.status === 0) return;
-    sh("sleep", [String(15 * (i + 1))]);
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 15_000 * (i + 1));
   }
   throw new Error(`pull ${image}: ${r.stderr}`);
 }
@@ -157,8 +213,18 @@ function ensureImage(image) {
 const CONDA = "source /opt/miniconda3/etc/profile.d/conda.sh && conda activate testbed && ";
 /** Repository files a command changed inside the container: tracked files that differ from the baseline. */
 const GIT_CHANGED = `docker exec "$c" sh -c 'cd /testbed && git -c core.quotepath=off diff --name-only --no-renames --diff-filter=ACMT HEAD'`;
+/** GNU tar (Git Bash) has no --no-mac-metadata; macOS bsdtar needs it to keep ._ files out. */
+const TAR_C = WIN ? "tar -cf -" : "COPYFILE_DISABLE=1 tar --no-mac-metadata -cf -";
+/**
+ * Under Git Bash, MSYS would rewrite /testbed in arguments to docker.exe into a Windows path, so that
+ * is turned off; and Windows-form paths the agent passes (C:/x, C:\x) become the POSIX form that the
+ * container links to /testbed.
+ */
+const WIN_ARGS = WIN ? String.raw`export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL="*"
+for a in "$@"; do shift; case "$a" in [A-Za-z]:[\\/]*) a="$(cygpath -u "$a" 2>/dev/null || printf %s "$a")" ;; esac; set -- "$@" "$a"; done
+` : "";
 const SHIM = (entry, { activate = CONDA, before = "", changed = GIT_CHANGED } = {}) => `#!/bin/sh
-here="$(pwd -P)"
+${WIN_ARGS}here="$(pwd -P)"
 # The task checkout: the nearest folder up from here with a .swe-task file (it names the container),
 # else the one .current points to (a chain of tasks in one session), else the folder above .bin.
 d="$here"; while [ "$d" != / ] && [ ! -f "$d/.swe-task" ]; do d="$(dirname "$d")"; done
@@ -167,7 +233,7 @@ if [ -f "$d/.swe-task" ]; then root="$d"; elif [ -f "$top/.current" ]; then root
 c="$(cat "$root/.swe-task")"
 # Copy a host file or small folder outside the repo to the same path in the container.
 put() { [ -e "$1" ] || return 0; d="$(dirname "$1")"; b="$(basename "$1")"; [ "$(du -sk "$1" | cut -f1)" -le 20000 ] || return 1
-  COPYFILE_DISABLE=1 tar --no-mac-metadata -cf - -C "$d" "$b" | docker exec -i "$c" sh -c 'mkdir -p "$1" && tar -xf - -C "$1" --warning=no-unknown-keyword' _ "$d"; }
+  ${TAR_C} -C "$d" "$b" | docker exec -i "$c" sh -c 'mkdir -p "$1" && tar -xf - -C "$1" --warning=no-unknown-keyword' _ "$d"; }
 case "$here" in
   "$root"|"$root"/*) wd="/testbed\${here#"$root"}" ;;
   *) case "$root" in
@@ -183,7 +249,7 @@ for a in "$@"; do case "$a" in -*) ;; *) [ -f "$a" ] || continue; f="$(cd "$(dir
   { cat "$list" 2>/dev/null; git -c core.quotepath=off diff --name-only --no-renames HEAD; git -c core.quotepath=off ls-files --others --exclude-standard; } | sort -u > "$list.$$" && mv "$list.$$" "$list"
   present="$(mktemp)"; gone="$(mktemp)"
   while IFS= read -r f; do if [ -e "$f" ]; then printf '%s\\n' "$f" >> "$present"; else printf '%s\\n' "$f" >> "$gone"; fi; done < "$list"
-  [ -s "$present" ] && COPYFILE_DISABLE=1 tar --no-mac-metadata -cf - -T "$present" | docker exec -i "$c" tar -xf - -C /testbed --warning=no-unknown-keyword
+  [ -s "$present" ] && ${TAR_C} -T "$present" | docker exec -i "$c" tar -xf - -C /testbed --warning=no-unknown-keyword
   [ -s "$gone" ] && tr '\\n' '\\0' < "$gone" | docker exec -i "$c" sh -c 'cd /testbed && xargs -0 rm -rf --'
   rm -f "$present" "$gone"
 )
@@ -197,12 +263,26 @@ exit $rc
 `;
 
 /** The session's container: the image's own /testbed, with the host workspace paths linked to it so absolute paths work. */
-function startContainer(image, dir, label = dir.split("/").pop()) {
-  const name = `snout-swe-${dir.split("/").slice(-2).join("-").replace(/[^\w.-]/g, "_")}`;
+/**
+ * Where session workspaces go. Not the Windows temp folder: Git Bash shows it as /tmp, so a path the
+ * agent writes as C:/... (converted to /c/...) would not match the /tmp/... form the container links.
+ */
+export function workBase() {
+  if (!WIN) return tmpdir();
+  const base = join(homedir(), ".snout-bench", "swe-work");
+  mkdirSync(base, { recursive: true });
+  return base;
+}
+
+/** A host path as Git Bash shows it (C:\Users\x is /c/Users/x): the form the agent's shell, and so the container's links, use. */
+const posixPath = (p) => (WIN ? p.replace(/^([A-Za-z]):/, (_, d) => `/${d.toLowerCase()}`).replace(/\\/g, "/") : p);
+
+function startContainer(image, dir, label = basename(dir)) {
+  const name = `snout-swe-${dir.split(/[\\/]/).slice(-2).join("-").replace(/[^\w.-]/g, "_")}`;
   const r = sh("docker", ["run", "-d", "--name", name, "--label", `snout-swe=${label}`, "--entrypoint", "sleep", image, "infinity"], { timeout: 120_000 });
   if (r.status !== 0) throw new Error(`start container: ${r.stderr}`);
-  const real = sh("realpath", [dir]).stdout.trim();
-  const links = [...new Set([dir, real])].map((p) => `mkdir -p "${p.replace(/\/[^/]+$/, "")}" && ln -s /testbed "${p}"`).join(" && ");
+  const real = WIN ? posixPath(dir) : sh("realpath", [dir]).stdout.trim();
+  const links = [...new Set(WIN ? [real] : [dir, real])].map((p) => `mkdir -p "${p.replace(/\/[^/]+$/, "")}" && ln -s /testbed "${p}"`).join(" && ");
   const l = sh("docker", ["exec", name, "sh", "-c", links], { timeout: 60_000 });
   if (l.status !== 0) throw new Error(`link workspace paths: ${l.stderr}`);
   writeFileSync(join(dir, ".swe-task"), name);
@@ -220,6 +300,8 @@ export function prepareCheckout(task, dir, label) {
   sh("docker", ["rm", cid]);
   if (cp.status !== 0) throw new Error(`copy /testbed: ${cp.stderr}`);
   const git = (...a) => sh("git", ["-c", "user.name=bench", "-c", "user.email=bench@localhost", ...a], { cwd: dir });
+  // Windows Git would rewrite line endings and see every file's mode as changed: the patch must be byte-exact.
+  if (WIN) for (const [k, v] of [["core.autocrlf", "false"], ["core.filemode", "false"], ["core.symlinks", "false"]]) git("config", k, v);
   // The images add one empty "SWE-bench" commit on top of base_commit.
   if (![git("rev-parse", "HEAD").stdout.trim(), git("rev-parse", "HEAD^").stdout.trim()].includes(task.base_commit)) throw new Error(`${task.instance_id}: /testbed is not at base_commit`);
   appendFileSync(join(dir, ".git/info/exclude"), "\n/.bin/\n/.claude/\n/.snout/\n/.mcp.json\n/.swe-task\n/.swe-synced*\n__pycache__/\n*.pyc\n.pytest_cache/\n");
@@ -243,6 +325,14 @@ export function writeShims(dir, tools = [["python", "python"], ["python3", "pyth
 
 /** Claude Code hooks and Snout config for an arm, in `dir` (the agent's working directory). */
 export function armSettings(dir, arm) {
+  // "plain": Claude Code with no Snout at all, not even observe-mode recording: the baseline a
+  // skeptic would set up themselves.
+  if (arm === "plain") {
+    mkdirSync(join(dir, ".claude"), { recursive: true });
+    writeFileSync(join(dir, ".claude/settings.json"), JSON.stringify({ hooks: {} }, null, 2));
+    writeFileSync(join(dir, ".mcp.json"), JSON.stringify({ mcpServers: {} }));
+    return;
+  }
   const post = { type: "command", command: `node "${SNOUT_BIN}" post-tool`, timeout: 10, async: true };
   const hooks = { PostToolUse: [{ matcher: "Read|NotebookRead|Bash|Grep|Glob|WebFetch|WebSearch|mcp__.*", hooks: [post] }] };
   if (arm === "enforce" || arm === "map") {
@@ -261,7 +351,7 @@ export function armSettings(dir, arm) {
 }
 
 function makeWorkspace(task, arm) {
-  const dir = mkdtempSync(join(tmpdir(), "snout-swe-"));
+  const dir = mkdtempSync(join(workBase(), "snout-swe-"));
   prepareCheckout(task, dir);
   writeShims(dir);
   armSettings(dir, arm);
@@ -291,7 +381,11 @@ function runClaude(dir, text) {
       "--allowedTools", "Read", "Edit", "Write", "Grep", "Glob", "Bash(python:*)", "Bash(python3:*)", "Bash(pytest:*)", "Bash(ls:*)", "Bash(cat:*)", "Bash(grep:*)", "Bash(rg:*)", "Bash(find:*)", "Bash(head:*)", "Bash(tail:*)", "Bash(wc:*)", "Bash(git diff:*)", "Bash(git status:*)", "Bash(git log:*)", "Bash(git show:*)",
       "--max-budget-usd", BUDGET,
     ];
-    const child = spawn("claude", argv, { cwd: dir, env: { ...process.env, SNOUT_MODE: "", PATH: `${join(dir, ".bin")}:${process.env.PATH}`, ...(API_KEY ? { ANTHROPIC_API_KEY: API_KEY } : {}) }, stdio: ["ignore", "pipe", "pipe"] });
+    // Windows spells it Path: keep one key, or the child may see the PATH without the shims.
+    const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => k.toUpperCase() !== "PATH"));
+    const path = Object.entries(process.env).find(([k]) => k.toUpperCase() === "PATH")?.[1] ?? "";
+    if (CLEAN_HOME) mkdirSync(CLEAN_HOME, { recursive: true });
+    const child = spawn(CLAUDE, argv, { cwd: dir, env: { ...env, SNOUT_MODE: "", DISABLE_AUTOUPDATER: "1", [WIN ? "Path" : "PATH"]: `${join(dir, ".bin")}${delimiter}${path}`, ...(API_KEY ? { ANTHROPIC_API_KEY: API_KEY } : {}), ...(CLEAN_HOME ? { CLAUDE_CONFIG_DIR: CLEAN_HOME } : {}) }, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "", stderr = "";
     child.stdout.on("data", (d) => (stdout += d));
     child.stderr.on("data", (d) => (stderr += d));
@@ -310,7 +404,7 @@ async function runOne(task, arm, rep) {
   try { out = JSON.parse(r.stdout); } catch { out = { is_error: true, result: (r.stderr || r.stdout || "").slice(0, 300) }; }
   const u = out.usage ?? {};
   const facts = ledgerFacts(join(dir, ".snout/ledger.jsonl"));
-  const peak = peakContext(out.session_id);
+  const peak = peakContext(out.session_id, CLEAN_HOME ? join(CLEAN_HOME, "projects") : undefined);
   const mf = mapFacts(join(dir, ".snout"));
   sh("git", ["add", "-A"], { cwd: dir });
   const patch = sh("git", ["diff", "--cached", "HEAD"], { cwd: dir }).stdout;
@@ -331,10 +425,10 @@ async function runOne(task, arm, rep) {
     patch,
     seconds: Math.round((Date.now() - started) / 1000),
   };
-  const left = leftovers(`snout-swe=${dir.split("/").pop()}`);
+  const left = leftovers(`snout-swe=${basename(dir)}`);
   removeContainers(left);
   if (r.timedOut) row.infra = `session hit the ${SESSION_LIMIT_MS / 60_000}-minute limit`;
-  else if (leftovers(`snout-swe=${dir.split("/").pop()}`).length) row.infra = "session container could not be removed (Docker hang)";
+  else if (leftovers(`snout-swe=${basename(dir)}`).length) row.infra = "session container could not be removed (Docker hang)";
   if (!dockerHealthy(task.image)) { row.infra = `Docker unhealthy after the session${row.infra ? `; ${row.infra}` : ""}`; row.dockerDown = true; }
   if (!args.keep) rmSync(dir, { recursive: true, force: true });
   else row.dir = dir;
@@ -356,7 +450,7 @@ function grade(file) {
     const ids = rows.filter((r) => r.patch.trim()).map((r) => r.task);
     if (ids.length) {
       console.error(`grading ${model}: ${ids.length} patch(es)`);
-      const g = sh(SWE_PY, ["-m", "swebench.harness.run_evaluation", "-d", DATASET, "-p", preds, "-i", ...ids, "--max_workers", String(JOBS), "-id", saved.runId, "--report_dir", work], { cwd: work, stdio: ["ignore", "inherit", "inherit"], timeout: 4 * 3600_000 });
+      const g = sh(SWE_PY, sweArgs(["-m", "swebench.harness.run_evaluation", "--dataset_name", DATASET, "--predictions_path", preds, "--instance_ids", ...ids, "--max_workers", String(JOBS), "--run_id", saved.runId, "--report_dir", work]), { cwd: work, stdio: ["ignore", "inherit", "inherit"], timeout: 4 * 3600_000 });
       if (g.status !== 0) throw new Error(`grader exited ${g.status} for ${model}`);
     }
     const reportFile = join(work, `${model}.${saved.runId}.json`);
@@ -364,7 +458,7 @@ function grade(file) {
     const resolved = new Set(report.resolved_ids ?? []);
     for (const r of rows) r.resolved = resolved.has(r.task);
   }
-  saved.graded = { at: new Date().toISOString(), dataset: DATASET, swebench: sh(SWE_PY, ["-c", "import swebench;print(swebench.__version__)"]).stdout.trim() };
+  saved.graded = { at: new Date().toISOString(), dataset: DATASET, swebench: sh(SWE_PY, sweArgs(["-c", "import swebench;print(swebench.__version__)"])).stdout.trim() };
   writeFileSync(file, JSON.stringify(saved, null, 2));
 }
 
@@ -377,14 +471,14 @@ function summarize(saved) {
   const tasks = [...new Set(rows.map((r) => r.task))];
   console.log(`\nSWE-bench Verified A/B, claude ${saved.model}, n=${saved.n}, ${tasks.length} tasks\n`);
   console.log("  task                                arm       resolved   input tok   output   turns     cost   kept out");
-  for (const t of tasks) for (const a of ["off", "enforce", "map"]) {
+  for (const t of tasks) for (const a of ["plain", "off", "enforce", "map"]) {
     const rs = rows.filter((r) => r.task === t && r.arm === a);
     if (!rs.length) continue;
     const avg = (k) => sum(rs, k) / rs.length;
     const res = rs.some((r) => r.resolved !== undefined) ? `${rs.filter((r) => r.resolved).length}/${rs.length}` : "?";
     console.log(`  ${t.padEnd(35)} ${a.padEnd(9)} ${res.padStart(8)} ${String(Math.round(avg("inputTokens"))).padStart(11)} ${String(Math.round(avg("outputTokens"))).padStart(8)} ${avg("turns").toFixed(1).padStart(7)}   $${avg("costUsd").toFixed(3)} ${String(Math.round(avg("withheld"))).padStart(9)}`);
   }
-  for (const [base, arm] of [["off", "enforce"], ["off", "map"], ["enforce", "map"]]) compareArms(rows, tasks, base, arm, sum, pct);
+  for (const [base, arm] of [["plain", "enforce"], ["off", "enforce"], ["off", "map"], ["enforce", "map"]]) compareArms(rows, tasks, base, arm, sum, pct);
   const infra = saved.rows.filter((r) => r.infra);
   if (infra.length) console.log(`  infrastructure failures (excluded): ${infra.map((r) => `${r.task}/${r.arm}/${r.rep}`).join(", ")}`);
 }
@@ -444,9 +538,12 @@ async function main() {
     snoutCommit: sh("git", ["rev-parse", "HEAD"], { cwd: REPO }).stdout.trim(),
     snoutDirty: sh("git", ["status", "--porcelain", "src", "dist"], { cwd: REPO }).stdout.trim() !== "",
     snoutDistSha256: createHash("sha256").update(readFileSync(SNOUT_BIN)).digest("hex"),
-    claudeCode: sh("claude", ["--version"]).stdout.trim(),
+    claudeCode: sh(CLAUDE, ["--version"]).stdout.trim(),
+    claudeConfig: CLEAN_HOME ? "isolated (empty CLAUDE_CONFIG_DIR, API key)" : "operator login",
   };
   if (resumed && resumed.frozen.snoutDistSha256 !== frozen.snoutDistSha256) throw new Error("--resume: dist/snout.mjs changed since this run started; the arms would not be the same Snout");
+  // A published number must name the exact build that ran: committed source, committed bundle.
+  if (frozen.snoutDirty && !args["allow-dirty"]) throw new Error("src/ or dist/ has uncommitted changes: commit them so the recorded commit is the build under test (or pass --allow-dirty for a smoke run)");
   const save = () => writeFileSync(outFile, JSON.stringify({ runId, model: MODEL, n: N, measuredAt: resumed?.measuredAt ?? new Date().toISOString(), ...(resumed ? { resumedAt: [...(resumed.resumedAt ?? []), new Date().toISOString()] } : {}), frozen, rows, ...(excluded.length ? { excluded } : {}) }, null, 2));
   console.error(`${plan.length} session(s): ${tasks.length} task(s) × ${ARMS.length} arm(s) × ${N}, model ${MODEL}, cap $${BUDGET}, ${JOBS} at a time → ${outFile}`);
   let next = 0, done = 0, halted = null;

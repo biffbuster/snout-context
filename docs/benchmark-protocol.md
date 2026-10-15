@@ -577,21 +577,28 @@ against it in [claims.md](claims.md).
 (enforce) cost less per resolved issue than plain Claude Code, with no loss in resolved issues?
 The target is a narrow interval: the headline is the point estimate with its 95% interval.
 
-- **Tasks.** 80 issues drawn with seed 20261014 from SWE-bench Verified, excluding every issue used
-  by any earlier run in this file, `bench/swe-tasks.json`, `bench/codex-heldout-tasks.json` and the
-  long-session chains. The draw is written to a new manifest and hashed before any attempt.
+- **Tasks.** 80 issues drawn by `node bench/swe.mjs --select --seed 20261014 --count 80 --per-repo 20`
+  (written to `bench/swe-draw-20261014.json` via `SWE_TASKS_FILE`, then split into
+  `bench/swe-tune-tasks.json` and `bench/swe-confirm-tasks.json`), with the pilot's eligibility rule:
+  the nine repositories in `bench/swe.mjs`, no issue rated over 4 hours, at most 20 per repository.
+  Every issue named in `bench/swe-tasks.json`, `bench/codex-heldout-tasks.json` or any results file
+  under `bench/ab-results/` is excluded (18 issues). The three files are committed before any attempt;
+  that commit is the record of the draw.
   - **Tuning set:** the first 20 in draw order. Used to tune Snout and run the pilot; never reported
     as a result.
   - **Confirmation set:** the other 60. No tuning, inspection of transcripts or rerun selection
     happens on them before the confirmation run is complete.
-- **Arms.** `off` (plain Claude Code, Snout observe-only) and `enforce` (Snout on). Internal-only
+- **Arms.** `plain` (Claude Code with no Snout installed at all) and `enforce` (Snout on). Internal-only
   arms may add other Claude Code context tools under the same conditions; they are reported only
   in internal notes unless the owner decides otherwise before the run.
-- **Agent and model.** Claude Code headless, version pinned at freeze and recorded, auto-update
-  off; Claude Sonnet 5.5, default effort; API key billing; same prompt, tools, budget ($2.00 per
+- **Agent and model.** Claude Code headless (2.1.280 unless amended before the run), version recorded,
+  auto-update off; `--model claude-sonnet-5-5`, default effort; API key billing; every session in an
+  empty Claude Code config folder, so no operator settings, plugins, skills, connectors or memory
+  reach either arm; same prompt, tools, budget ($2.00 per
   attempt) and 30-minute limit in every arm. Arms run interleaved, so time-of-day effects fall on
   both.
-- **Build.** One `npm pack` of the commit under test, sha256 recorded in every result file. Any
+- **Build.** The committed `dist/snout.mjs` of the commit under test, its sha256 and the commit
+  recorded in every result file; the runner refuses to start with uncommitted `src/` or `dist/`. Any
   change after the confirmation run starts makes a new study.
 - **Pilot (not a result).** Tuning set × 1 attempt per arm. It checks the harness on this machine
   and measures cost per attempt for the quote. Stop and fix if 2+ attempts fail for infrastructure

@@ -59,9 +59,9 @@ export function reliabilityLines(off, on, ok, names = ["off", "enforce"]) {
  * cache-read and cache-write tokens of the call that carried the most. Null when the
  * transcript can't be found.
  */
-export function peakContext(sessionId) {
+export function peakContext(sessionId, root = join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"), "projects")) {
   if (!sessionId) return null;
-  const root = join(homedir(), ".claude/projects");
+
   if (!existsSync(root)) return null;
   for (const dir of readdirSync(root)) {
     const file = join(root, dir, `${sessionId}.jsonl`);
