@@ -2379,6 +2379,38 @@ function userFiles(projectDir, home) {
   list(join7(claudeDir, "skills"), /^[^/]+\/SKILL\.md$/i, "skill");
   list(join7(claudeDir, "commands"), /\.md$/i, "command");
   list(join7(claudeDir, "agents"), /\.md$/i, "agent");
+  out.push(...pluginFiles(projectDir, claudeDir));
+  return out;
+}
+function pluginFiles(projectDir, claudeDir) {
+  const json = (p) => {
+    try {
+      return JSON.parse(readFileSync5(p, "utf8"));
+    } catch {
+      return null;
+    }
+  };
+  const enabled = {};
+  for (const p of [join7(claudeDir, "settings.json"), join7(projectDir, ".claude", "settings.json"), join7(projectDir, ".claude", "settings.local.json")])
+    Object.assign(enabled, json(p)?.enabledPlugins ?? {});
+  const installed = json(join7(claudeDir, "plugins", "installed_plugins.json"))?.plugins ?? {};
+  const here = resolve4(projectDir).toLowerCase();
+  const out = [];
+  for (const [id, on] of Object.entries(enabled)) {
+    if (on !== true || !Array.isArray(installed[id])) continue;
+    const entries = installed[id];
+    const entry = entries.find((e) => e.projectPath && resolve4(e.projectPath).toLowerCase() === here) ?? entries.find((e) => e.scope === "user") ?? entries[0];
+    const root = entry?.installPath;
+    if (!root || !existsSync7(root)) continue;
+    const plugin = id.split("@")[0];
+    for (const [sub, re, role] of [["skills", /^[^/]+\/SKILL\.md$/i, "skill"], ["commands", /\.md$/i, "command"], ["agents", /\.md$/i, "agent"]]) {
+      const dir = join7(root, sub);
+      if (!existsSync7(dir)) continue;
+      const all = [];
+      walk(dir, all, 9);
+      for (const f of all) if (re.test(relative3(dir, f).split(sep).join("/"))) out.push({ abs: f, scope: "user", kind: "described", role, agents: ["claude"], plugin });
+    }
+  }
   return out;
 }
 var bump = (m, key, ts) => {
@@ -2612,7 +2644,7 @@ function auditContext(projectDir, opts = {}) {
     } catch {
       continue;
     }
-    const rel = f.scope === "project" ? relative3(dir, f.abs).split(sep).join("/") : "~/" + relative3(home, f.abs).split(sep).join("/");
+    const rel = f.scope === "project" ? relative3(dir, f.abs).split(sep).join("/") : f.plugin ? `plugin:${f.plugin}/${f.abs.split(sep).join("/").split("/").slice(f.role === "skill" ? -3 : -2).join("/")}` : "~/" + relative3(home, f.abs).split(sep).join("/");
     const tokens2 = estimateTokens(st.size, f.abs);
     const fm = frontmatter(text);
     let kind = f.kind;
@@ -2625,6 +2657,7 @@ function auditContext(projectDir, opts = {}) {
     if (f.role === "skill") use = usage.skills.get(id) ?? usage.skills.get(basename2(dirname5(f.abs)).toLowerCase());
     else if (f.role === "command") use = usage.commands.get(relative3(join7(dirname5(f.abs).split(`${sep}commands`)[0], "commands"), f.abs).replace(MD, "").split(sep).join(":").toLowerCase()) ?? usage.commands.get(id);
     else if (f.role === "agent") use = usage.agents.get(id);
+    if (f.plugin && !use && f.role !== "agent") use = usage.commands.get(`${f.plugin.toLowerCase()}:${id}`) ?? (f.role === "skill" ? usage.commands.get(id) : void 0);
     const read3 = usage.reads.get(f.abs);
     if (read3) use = use ? [use[0] + read3[0], read3[1] > use[1] ? read3[1] : use[1]] : read3;
     if (f.scope === "project" && usage.codex.length) {
@@ -2678,7 +2711,7 @@ function auditContext(projectDir, opts = {}) {
     if (f.kind === "always" && f.tokens > maxTok && !f.linkTo)
       flag(f, "oversized", `loaded into every session at ~${fmtTokens(f.tokens)} tokens${f.importedBy ? ` (imported by ${f.importedBy})` : ""}; over ${fmtTokens(maxTok)}, move detail into skills or docs read on demand`, f.tokens - maxTok);
     if (f.kind === "described" && old(f) && f.uses === 0)
-      flag(f, "unused", `not invoked in ${days} days; its description still costs ~${fmtTokens(f.perSession)} tokens every session`, f.perSession);
+      flag(f, "unused", `not invoked in ${days} days; its description still costs ~${fmtTokens(f.perSession)} tokens every session${f.path.startsWith("plugin:") ? `; disable the ${f.path.slice(7).split("/")[0]} plugin if you don't use it` : ""}`, f.perSession);
     const stem = name.replace(MD, "");
     const oneTime = DATED.test(f.path) || ONE_OFF_DIR.test(f.path) || !f.path.includes("/") && /^[A-Z0-9_-]+$/.test(stem);
     const report = f.kind === "on-demand" && f.role === "doc" && !HUMAN_DOCS.test(name) && !LIVING_DIR.test(f.path) && oneTime && (REPORT_NAME.test(stem) || DATED.test(stem) || ONE_OFF_DIR.test(f.path));
@@ -2694,7 +2727,7 @@ function auditContext(projectDir, opts = {}) {
     if (stale.length)
       flag(f, "stale", `mentions ${stale.length} thing${stale.length === 1 ? "" : "s"} that no longer exist${stale.length === 1 ? "s" : ""}: ${stale.slice(0, 4).join(", ")}${stale.length > 4 ? ", \u2026" : ""}`);
   }
-  const comparable = files.filter((f) => !f.linkTo && (texts.get(f.abs) ?? "").length > 80).sort((a, b) => b.tokens - a.tokens).slice(0, 1500);
+  const comparable = files.filter((f) => !f.linkTo && !f.path.startsWith("plugin:") && (texts.get(f.abs) ?? "").length > 80).sort((a, b) => b.tokens - a.tokens).slice(0, 1500);
   const shared = (a, b) => a.agents.some((x) => b.agents.includes(x));
   const agentContext = (f) => f.kind !== "on-demand" || f.role !== "doc" || f.agents[0] !== "any" || REPORT_NAME.test(basename2(f.path).replace(MD, "")) || !f.path.includes("/");
   const tail2 = (p) => p.replace(/^\.[a-z]+\//i, "");

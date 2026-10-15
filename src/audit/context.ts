@@ -126,6 +126,8 @@ interface Found {
   role: string;
   agents: string[];
   importedBy?: string;
+  /** Set for files an installed Claude Code plugin brings: the plugin's name. */
+  plugin?: string;
 }
 
 function walk(dir: string, out: string[], depth = 0): void {
@@ -289,6 +291,38 @@ function userFiles(projectDir: string, home: string): Found[] {
   list(join(claudeDir, "skills"), /^[^/]+\/SKILL\.md$/i, "skill");
   list(join(claudeDir, "commands"), /\.md$/i, "command");
   list(join(claudeDir, "agents"), /\.md$/i, "agent");
+  out.push(...pluginFiles(projectDir, claudeDir));
+  return out;
+}
+
+/**
+ * Skills, commands and agents of the Claude Code plugins enabled for this project. Each one's
+ * description is in every request, like the user's own; a plugin pack of 50 skills adds a few
+ * thousand tokens to every call whether or not they are used.
+ */
+function pluginFiles(projectDir: string, claudeDir: string): Found[] {
+  const json = (p: string): any => { try { return JSON.parse(readFileSync(p, "utf8")); } catch { return null; } };
+  const enabled: Record<string, boolean> = {};
+  for (const p of [join(claudeDir, "settings.json"), join(projectDir, ".claude", "settings.json"), join(projectDir, ".claude", "settings.local.json")])
+    Object.assign(enabled, json(p)?.enabledPlugins ?? {});
+  const installed = json(join(claudeDir, "plugins", "installed_plugins.json"))?.plugins ?? {};
+  const here = resolve(projectDir).toLowerCase();
+  const out: Found[] = [];
+  for (const [id, on] of Object.entries(enabled)) {
+    if (on !== true || !Array.isArray(installed[id])) continue;
+    const entries = installed[id] as { scope?: string; installPath?: string; projectPath?: string }[];
+    const entry = entries.find((e) => e.projectPath && resolve(e.projectPath).toLowerCase() === here) ?? entries.find((e) => e.scope === "user") ?? entries[0];
+    const root = entry?.installPath;
+    if (!root || !existsSync(root)) continue;
+    const plugin = id.split("@")[0]!;
+    for (const [sub, re, role] of [["skills", /^[^/]+\/SKILL\.md$/i, "skill"], ["commands", /\.md$/i, "command"], ["agents", /\.md$/i, "agent"]] as const) {
+      const dir = join(root, sub);
+      if (!existsSync(dir)) continue;
+      const all: string[] = [];
+      walk(dir, all, 9);
+      for (const f of all) if (re.test(relative(dir, f).split(sep).join("/"))) out.push({ abs: f, scope: "user", kind: "described", role, agents: ["claude"], plugin });
+    }
+  }
   return out;
 }
 
@@ -575,7 +609,9 @@ export function auditContext(projectDir: string, opts: AuditOptions = {}): Conte
     } catch {
       continue;
     }
-    const rel = f.scope === "project" ? relative(dir, f.abs).split(sep).join("/") : "~/" + relative(home, f.abs).split(sep).join("/");
+    const rel = f.scope === "project" ? relative(dir, f.abs).split(sep).join("/")
+      : f.plugin ? `plugin:${f.plugin}/${f.abs.split(sep).join("/").split("/").slice(f.role === "skill" ? -3 : -2).join("/")}`
+      : "~/" + relative(home, f.abs).split(sep).join("/");
     const tokens = estimateTokens(st.size, f.abs);
     const fm = frontmatter(text);
     let kind = f.kind;
@@ -592,6 +628,8 @@ export function auditContext(projectDir: string, opts: AuditOptions = {}): Conte
     if (f.role === "skill") use = usage.skills.get(id) ?? usage.skills.get(basename(dirname(f.abs)).toLowerCase());
     else if (f.role === "command") use = usage.commands.get(relative(join(dirname(f.abs).split(`${sep}commands`)[0]!, "commands"), f.abs).replace(MD, "").split(sep).join(":").toLowerCase()) ?? usage.commands.get(id);
     else if (f.role === "agent") use = usage.agents.get(id);
+    // A plugin's skills and commands are typed as /plugin:name.
+    if (f.plugin && !use && f.role !== "agent") use = usage.commands.get(`${f.plugin.toLowerCase()}:${id}`) ?? (f.role === "skill" ? usage.commands.get(id) : undefined);
     const read = usage.reads.get(f.abs);
     if (read) use = use ? [use[0] + read[0], read[1] > use[1] ? read[1] : use[1]] : read;
     if (f.scope === "project" && usage.codex.length) {
@@ -624,7 +662,7 @@ export function auditContext(projectDir: string, opts: AuditOptions = {}): Conte
     if (f.kind === "always" && f.tokens > maxTok && !f.linkTo)
       flag(f, "oversized", `loaded into every session at ~${fmtTokens(f.tokens)} tokens${f.importedBy ? ` (imported by ${f.importedBy})` : ""}; over ${fmtTokens(maxTok)}, move detail into skills or docs read on demand`, f.tokens - maxTok);
     if (f.kind === "described" && old(f) && f.uses === 0)
-      flag(f, "unused", `not invoked in ${days} days; its description still costs ~${fmtTokens(f.perSession)} tokens every session`, f.perSession);
+      flag(f, "unused", `not invoked in ${days} days; its description still costs ~${fmtTokens(f.perSession)} tokens every session${f.path.startsWith("plugin:") ? `; disable the ${f.path.slice(7).split("/")[0]} plugin if you don't use it` : ""}`, f.perSession);
     // A one-off needs a report-like name AND a sign it was a one-time artifact: a date, or a reports/plans/archive folder,
     // or an all-caps root-level report (IMPLEMENTATION_SUMMARY.md). Living docs (ADRs, skills, specs) never qualify.
     const stem = name.replace(MD, "");
@@ -643,7 +681,8 @@ export function auditContext(projectDir: string, opts: AuditOptions = {}): Conte
   }
 
   // Duplicates and overlap, across every pair (largest files first; bounded for huge repos).
-  const comparable = files.filter((f) => !f.linkTo && (texts.get(f.abs) ?? "").length > 80).sort((a, b) => b.tokens - a.tokens).slice(0, 1500);
+  // A plugin's files are not the user's to merge or edit: only "disable the plugin" applies to them.
+  const comparable = files.filter((f) => !f.linkTo && !f.path.startsWith("plugin:") && (texts.get(f.abs) ?? "").length > 80).sort((a, b) => b.tokens - a.tokens).slice(0, 1500);
   // Two copies only cost twice when one agent loads both; across agents they are a maintenance risk.
   const shared = (a: ContextFile, b: ContextFile) => a.agents.some((x) => b.agents.includes(x));
   // Overlap is judged only where agent context is involved; two ordinary docs repeating each other are out of scope.

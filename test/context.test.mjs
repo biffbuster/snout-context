@@ -443,3 +443,26 @@ test("a gitignored CLAUDE.local.md still counts: Claude Code loads it", () => {
   const f = byPath(auditContext(root, { home, noUsage: true, noGit: true }));
   assert.equal(f["CLAUDE.local.md"].kind, "always");
 });
+
+test("skills, commands and agents of enabled plugins count; disabled plugins do not", () => {
+  const root = mkdtempSync(join(tmpdir(), "snout-plug-"));
+  const home = mkdtempSync(join(tmpdir(), "snout-plug-home-"));
+  git(root, ["init", "-q"]);
+  const pack = join(home, ".claude/plugins/cache/mk/pack/1.0.0");
+  const off = join(home, ".claude/plugins/cache/mk/off/1.0.0");
+  put(pack, "skills/review/SKILL.md", "---\nname: review\ndescription: Review a diff for bugs before merging.\n---\nBody " + words(500, "body"));
+  put(pack, "commands/ship.md", "---\ndescription: Ship it.\n---\nSteps.\n");
+  put(pack, "agents/critic.md", "---\nname: critic\ndescription: Reads code and finds problems.\n---\nPrompt.\n");
+  put(off, "skills/other/SKILL.md", "---\nname: other\ndescription: Not enabled.\n---\n");
+  put(home, ".claude/plugins/installed_plugins.json", JSON.stringify({ version: 2, plugins: {
+    "pack@mk": [{ scope: "user", installPath: pack }], "off@mk": [{ scope: "user", installPath: off }],
+  } }));
+  put(home, ".claude/settings.json", JSON.stringify({ enabledPlugins: { "pack@mk": true, "off@mk": true } }));
+  put(root, ".claude/settings.local.json", JSON.stringify({ enabledPlugins: { "off@mk": false } }));
+  const f = byPath(auditContext(root, { home, noUsage: true, noGit: true }));
+  assert.equal(f["plugin:pack/skills/review/SKILL.md"].kind, "described");
+  assert.ok(f["plugin:pack/skills/review/SKILL.md"].perSession > 0 && f["plugin:pack/skills/review/SKILL.md"].perSession < 50);
+  assert.equal(f["plugin:pack/commands/ship.md"].role, "command");
+  assert.equal(f["plugin:pack/agents/critic.md"].role, "agent");
+  assert.ok(!Object.keys(f).some((p) => p.startsWith("plugin:off/")));
+});
