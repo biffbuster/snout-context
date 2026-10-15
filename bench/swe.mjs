@@ -47,6 +47,8 @@ if (args.api && !API_KEY) throw new Error("--api: no ANTHROPIC_API_KEY in .env.l
 const ARMS = (typeof args.arms === "string" ? args.arms : "off,enforce").split(",");
 const BUDGET = String(args.budget ?? "2.00");
 const MAX_SPEND = args["max-spend"] ? Number(args["max-spend"]) : 0; // total for the run; halts, resumable
+// SWE_FAKE_AGENT=1: bench/fake-claude.mjs stands in for Claude Code (free dry run of everything around the agent).
+const FAKE = process.env.SWE_FAKE_AGENT === "1";
 const API_REFUSED = /credit balance|billing|invalid.*api.key|authentication|rate.limit|overloaded|\b(401|403|429|529)\b/i;
 const JOBS = Number(args.jobs ?? 2);
 const REPO = fileURLToPath(new URL("..", import.meta.url)).replace(/\/$/, "");
@@ -123,6 +125,21 @@ function rng(seed) {
   return () => ((s = (s * 16807) % 2147483647) / 2147483647);
 }
 
+/** Gold patches for a dry run with the stand-in agent; never written into task files the agent could see. */
+let GOLD = null;
+function goldPatch(id) {
+  if (!GOLD) {
+    const r = spawnSync(SWE_PY, sweArgs(["-c", `
+import json
+from swebench.harness.utils import load_swebench_dataset
+print(json.dumps({d["instance_id"]: d["patch"] for d in load_swebench_dataset(${JSON.stringify(DATASET)}, "test")}))
+`]), { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+    if (r.status !== 0) throw new Error(r.stderr.slice(-2000));
+    GOLD = JSON.parse(r.stdout);
+  }
+  return GOLD[id] ?? "";
+}
+
 function select() {
   const dump = spawnSync(SWE_PY, sweArgs(["-c", `
 import json
@@ -187,6 +204,7 @@ function preflight(images) {
 
 // ------------------------------------------------------------------ workspace
 
+const GIT_BASH = process.env.CLAUDE_CODE_GIT_BASH_PATH || "C:/Program Files/Git/bin/bash.exe";
 const sh = (cmd, argv, opts = {}) => spawnSync(cmd, argv, { encoding: "utf8", maxBuffer: 256 * 1024 * 1024, ...opts });
 
 function ensureImage(image) {
@@ -298,12 +316,21 @@ export function prepareCheckout(task, dir, label) {
   ensureImage(task.image);
   mkdirSync(dir, { recursive: true });
   const cid = sh("docker", ["create", task.image]).stdout.trim();
-  const cp = sh("docker", ["cp", `${cid}:/testbed/.`, dir]);
+  // Windows can't create symlinks without Developer Mode, and `docker cp` stops at the first one (Django's
+  // docs have several). There the tree comes over as a tar stream; whatever symlinks it could not make,
+  // git then writes in its own symlinks=false form (a small file holding the target), as a checkout would.
+  const cp = WIN
+    ? sh(GIT_BASH, ["-c", `docker cp "${cid}:/testbed" - | tar -xf - -C "${posixPath(dir)}" --strip-components=1 2>/dev/null; test -d "${posixPath(dir)}/.git"`], { env: { ...process.env, MSYS_NO_PATHCONV: "1" } })
+    : sh("docker", ["cp", `${cid}:/testbed/.`, dir]);
   sh("docker", ["rm", cid]);
   if (cp.status !== 0) throw new Error(`copy /testbed: ${cp.stderr}`);
   const git = (...a) => sh("git", ["-c", "user.name=bench", "-c", "user.email=bench@localhost", ...a], { cwd: dir });
   // Windows Git would rewrite line endings and see every file's mode as changed: the patch must be byte-exact.
   if (WIN) for (const [k, v] of [["core.autocrlf", "false"], ["core.filemode", "false"], ["core.symlinks", "false"]]) git("config", k, v);
+  if (WIN) {
+    const links = git("ls-files", "-s").stdout.split("\n").filter((l) => l.startsWith("120000 ")).map((l) => l.split("\t")[1]);
+    for (let i = 0; i < links.length; i += 200) git("checkout", "--", ...links.slice(i, i + 200));
+  }
   // The images add one empty "SWE-bench" commit on top of base_commit.
   if (![git("rev-parse", "HEAD").stdout.trim(), git("rev-parse", "HEAD^").stdout.trim()].includes(task.base_commit)) throw new Error(`${task.instance_id}: /testbed is not at base_commit`);
   appendFileSync(join(dir, ".git/info/exclude"), "\n/.bin/\n/.claude/\n/.snout/\n/.mcp.json\n/.swe-task\n/.swe-synced*\n__pycache__/\n*.pyc\n.pytest_cache/\n");
@@ -370,7 +397,7 @@ ${task.problem_statement}
 
 // ------------------------------------------------------------------ run
 
-function runClaude(dir, text) {
+function runClaude(dir, text, goldPatch) {
   return new Promise((resolve) => {
     const argv = [
       "-p", text,
@@ -387,7 +414,8 @@ function runClaude(dir, text) {
     const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => k.toUpperCase() !== "PATH"));
     const path = Object.entries(process.env).find(([k]) => k.toUpperCase() === "PATH")?.[1] ?? "";
     if (CLEAN_HOME) mkdirSync(CLEAN_HOME, { recursive: true });
-    const child = spawn(CLAUDE, argv, { cwd: dir, env: { ...env, SNOUT_MODE: "", DISABLE_AUTOUPDATER: "1", [WIN ? "Path" : "PATH"]: `${join(dir, ".bin")}${delimiter}${path}`, ...(API_KEY ? { ANTHROPIC_API_KEY: API_KEY } : {}), ...(CLEAN_HOME ? { CLAUDE_CONFIG_DIR: CLEAN_HOME } : {}) }, stdio: ["ignore", "pipe", "pipe"] });
+    const [bin, args] = FAKE ? [process.execPath, [join(REPO, "bench/fake-claude.mjs"), ...argv]] : [CLAUDE, argv];
+    const child = spawn(bin, args, { cwd: dir, env: { ...env, ...(FAKE ? { SWE_FAKE_PATCH: goldPatch } : {}), SNOUT_MODE: "", DISABLE_AUTOUPDATER: "1", [WIN ? "Path" : "PATH"]: `${join(dir, ".bin")}${delimiter}${path}`, ...(API_KEY ? { ANTHROPIC_API_KEY: API_KEY } : {}), ...(CLEAN_HOME ? { CLAUDE_CONFIG_DIR: CLEAN_HOME } : {}) }, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "", stderr = "";
     child.stdout.on("data", (d) => (stdout += d));
     child.stderr.on("data", (d) => (stderr += d));
@@ -401,7 +429,10 @@ async function runOne(task, arm, rep) {
   const started = Date.now();
   let dir;
   try { dir = makeWorkspace(task, arm); } catch (e) { return { task: task.instance_id, arm, rep, infra: String(e.message).slice(0, 300) }; }
-  const r = await runClaude(dir, prompt(task));
+  const gold = `${dir}.gold.patch`;
+  if (FAKE) writeFileSync(gold, goldPatch(task.instance_id));
+  const r = await runClaude(dir, prompt(task), gold);
+  if (FAKE) { process.stderr.write(r.stderr); rmSync(gold, { force: true }); }
   let out = {};
   try { out = JSON.parse(r.stdout); } catch { out = { is_error: true, result: (r.stderr || r.stdout || "").slice(0, 300) }; }
   const u = out.usage ?? {};
@@ -430,6 +461,8 @@ async function runOne(task, arm, rep) {
   const left = leftovers(`snout-swe=${basename(dir)}`);
   removeContainers(left);
   if (r.timedOut) row.infra = `session hit the ${SESSION_LIMIT_MS / 60_000}-minute limit`;
+  // Did it even happen: a Snout arm whose session ran but left no ledger rows had no Snout in it.
+  else if (arm !== "plain" && !row.error && facts.rows === 0) { row.infra = "Snout recorded nothing: its hooks did not run"; row.snoutMissing = true; }
   else if (leftovers(`snout-swe=${basename(dir)}`).length) row.infra = "session container could not be removed (Docker hang)";
   if (!dockerHealthy(task.image)) { row.infra = `Docker unhealthy after the session${row.infra ? `; ${row.infra}` : ""}`; row.dockerDown = true; }
   if (!args.keep) rmSync(dir, { recursive: true, force: true });
@@ -559,6 +592,7 @@ async function main() {
       const [t, a, rep] = plan[next++];
       let row = await runOne(t, a, rep);
       if (row.infra && !row.dockerDown) row = { ...(await runOne(t, a, rep)), retried: true }; // protocol: one rerun
+      if (row.snoutMissing) halted ??= `Snout recorded nothing in ${t.instance_id} · ${a} · rep ${rep}: the hooks are not running, so the Snout arm would be plain Claude Code. Fix the install, then --resume ${outFile}`;
       if (row.dockerDown) halted = `Docker became unhealthy after ${t.instance_id} · ${a} · rep ${rep}; restart Docker Desktop, then --resume ${outFile}`;
       rows.push(row);
       // Money guards: a total cap, and a stop when the API refuses work (no credit, bad key, limits).

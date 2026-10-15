@@ -87,13 +87,14 @@ export function peakContext(sessionId, root = join(process.env.CLAUDE_CONFIG_DIR
  * (Min et al. call it interaction burden). Jev is Snout's own model spend, added to the arm's cost.
  */
 export function ledgerFacts(ledgerFile) {
-  const facts = { withheld: 0, byRule: {}, followUps: 0, followUpTokens: 0, jevUsd: 0 };
+  const facts = { rows: 0, withheld: 0, byRule: {}, followUps: 0, followUpTokens: 0, jevUsd: 0 };
   if (!existsSync(ledgerFile)) return facts;
   const cut = new Set();
   for (const l of readFileSync(ledgerFile, "utf8").split("\n")) {
     if (!l.trim()) continue;
     let d;
     try { d = JSON.parse(l); } catch { continue; }
+    facts.rows++;
     facts.jevUsd += ((d.jevInputTokens ?? 0) / 1e6) * 0.042;
     const isFile = d.path && !String(d.path).includes(": ");
     if (isFile && cut.has(d.path) && d.decision !== "deny") {
