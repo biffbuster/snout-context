@@ -591,7 +591,8 @@ The target is a narrow interval: the headline is the point estimate with its 95%
 - **Arms.** `plain` (Claude Code with no Snout installed at all) and `enforce` (Snout on). Internal-only
   arms may add other Claude Code context tools under the same conditions; they are reported only
   in internal notes unless the owner decides otherwise before the run.
-- **Agent and model.** Claude Code headless (2.1.280 unless amended before the run), version recorded,
+- **Agent and model.** Claude Code headless 2.1.301 (the latest release on 2026-10-15, installed
+  apart from the operator's own copy and passed as `CLAUDE_BIN`), version recorded,
   auto-update off; `--model claude-sonnet-5-5`, default effort; API key billing; every session in an
   empty Claude Code config folder, so no operator settings, plugins, skills, connectors or memory
   reach either arm; same prompt, tools, budget ($2.00 per
@@ -600,17 +601,25 @@ The target is a narrow interval: the headline is the point estimate with its 95%
 - **Build.** The committed `dist/snout.mjs` of the commit under test, its sha256 and the commit
   recorded in every result file; the runner refuses to start with uncommitted `src/` or `dist/`. Any
   change after the confirmation run starts makes a new study.
-- **Pilot (not a result).** Tuning set × 1 attempt per arm. It checks the harness on this machine
-  and measures cost per attempt for the quote. Stop and fix if 2+ attempts fail for infrastructure
-  reasons or Snout's records are missing.
-- **Confirmation.** 60 tasks × 3 attempts per arm (180 paired attempts per arm), run only after its
-  cost is quoted to and approved by the owner, with the cap recorded here before it starts.
+- **Pilot (not a result).** Tuning set × 2 attempts per arm, arms `plain`, `enforce` and `map`
+  (enforce plus the repo map, to decide whether the map ships on). It checks the harness on this
+  machine, measures cost per attempt and run-to-run variance, and is where Snout is tuned. Stop and
+  fix if 2+ attempts fail for infrastructure reasons or Snout's records are missing.
+- **Confirmation size, set from the pilot before the confirmation starts.** From the pilot's
+  `plain` and `enforce` rows: the spread of the per-task log cost ratio across tasks and the
+  attempt-to-attempt spread within a task. The number of attempts per task (3 unless this rule
+  gives more) is the smallest that gives an expected 95% half-width of ±8 points on the cost change
+  over the 60 confirmation tasks, capped by the owner's budget. The calculation, the chosen size
+  and the cap are recorded here and committed before the first confirmation attempt; the size is
+  never changed after any confirmation result is seen.
+- **Confirmation.** 60 tasks × the size above, arms `plain` and `enforce` (with the map if the pilot
+  decided it ships), run only after its cost is quoted to and approved by the owner.
 - **Primary metric.** Billed cost per resolved attempt (total cost / total resolved), `enforce` vs
-  `off`, tasks paired, 95% bootstrap over tasks (seed 20261014, `bench/report.mjs`). Resolved =
+  `plain`, tasks paired, 95% bootstrap over tasks (seed 20261014, `bench/report.mjs`). Resolved =
   the official SWE-bench grader on the final diff.
 - **Rules.** Margin 5 points: no quality loss only if the interval for the change in resolved
-  attempts lies above −5 points. Saving only if the cost interval lies below zero. The planned
-  precision is about ±5 points on the cost change; if the interval is wider, it is published as
+  attempts lies above −5 points. Saving only if the cost interval lies below zero. Earlier runs of
+  this size gave about ±10 points; if the interval is wider than planned, it is published as
   measured, not narrowed by adding runs after looking.
 - **Secondary, reported whatever they show.** Turns per attempt, cache-write and cache-read tokens,
   output tokens, wall time, Snout interventions and regrets (a held-back file or trimmed output

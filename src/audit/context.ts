@@ -255,10 +255,11 @@ function addImports(found: Found[], projectDir: string, home: string): void {
         next.push(abs);
         const f = byAbs.get(abs);
         if (f) {
-          if (f.kind === "always") continue;
+          // Already loaded by other agents (a CLAUDE.md that is just `@AGENTS.md`): Claude Code loads it too.
+          if (f.kind === "always" && f.agents.includes("claude")) continue;
           f.kind = "always";
           f.agents = [...new Set([...f.agents.filter((a) => a !== "any"), "claude"])];
-          f.importedBy = name(from);
+          f.importedBy ??= name(from);
         } else {
           const nf: Found = { abs, scope: abs.startsWith(projectDir + sep) ? "project" : "user", kind: "always", role: "import", agents: ["claude"], importedBy: name(from) };
           found.push(nf);
@@ -713,10 +714,24 @@ const when = (iso: string | null) => (iso ? iso.slice(0, 10) : "never");
 
 const AGENT_NAMES: Record<string, string> = { claude: "Claude Code", codex: "Codex", cursor: "Cursor", copilot: "Copilot", gemini: "Gemini CLI", windsurf: "Windsurf", cline: "Cline" };
 
-/** Always-loaded tokens per agent: each agent loads only its own files, so the sum over agents overstates any one session. */
+/**
+ * Always-loaded tokens per agent, for a session started at the project root: each agent loads only its
+ * own files, and an AGENTS.md or CLAUDE.md in a subfolder loads only when the agent works there, so
+ * summing every folder's copy overstates any one session. User-level files, root files, agent-folder
+ * rules and whatever those @import count.
+ */
+const AGENT_FOLDER = /^\.(claude|github|cursor|windsurf|clinerules|gemini|codex|agents)\//;
 function perAgent(always: ContextFile[]): { max: number; by: Record<string, number> } {
+  const byPath = new Map(always.map((f) => [f.path, f]));
+  const atRoot = (f: ContextFile, seen = new Set<string>()): boolean => {
+    if (f.scope === "user" || !f.path.includes("/") || AGENT_FOLDER.test(f.path)) return true;
+    const from = f.importedBy && byPath.get(f.importedBy);
+    if (!from || seen.has(f.path)) return false;
+    seen.add(f.path);
+    return atRoot(from, seen);
+  };
   const by: Record<string, number> = {};
-  for (const f of always) for (const ag of f.agents) if (ag !== "any") by[ag] = (by[ag] ?? 0) + f.tokens;
+  for (const f of always) if (atRoot(f)) for (const ag of f.agents) if (ag !== "any") by[ag] = (by[ag] ?? 0) + f.tokens;
   return { max: Math.max(0, ...Object.values(by)), by };
 }
 

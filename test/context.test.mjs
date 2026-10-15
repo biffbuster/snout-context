@@ -393,6 +393,32 @@ test("@imports in CLAUDE.md count as loaded every session; code spans, emails an
   assert.match(renderMap(a), /docs\/style\.md <- @CLAUDE\.md/);
 });
 
+test("a root session pays for root instructions, not every subfolder's AGENTS.md", () => {
+  const root = mkdtempSync(join(tmpdir(), "snout-nested-"));
+  const home = mkdtempSync(join(tmpdir(), "snout-nested-home-"));
+  git(root, ["init", "-q"]);
+  put(root, "AGENTS.md", "# Root\n" + words(500, "root"));
+  for (const d of ["api", "web", "cli"]) put(root, `packages/${d}/AGENTS.md`, `# ${d}\n` + words(800, d));
+  const a = auditContext(root, { home, noUsage: true, noGit: true });
+  const f = byPath(a);
+  assert.equal(f["packages/api/AGENTS.md"].kind, "always", "still listed: it loads in that folder");
+  assert.equal(totals(a).always.byAgent.codex, f["AGENTS.md"].tokens);
+});
+
+test("a CLAUDE.md that only imports AGENTS.md: Claude Code is charged for AGENTS.md", () => {
+  const root = mkdtempSync(join(tmpdir(), "snout-imp2-"));
+  const home = mkdtempSync(join(tmpdir(), "snout-imp2-home-"));
+  git(root, ["init", "-q"]);
+  put(root, "CLAUDE.md", "@AGENTS.md\n");
+  put(root, "AGENTS.md", "# Shared rules\n" + words(1000, "rule"));
+  const a = auditContext(root, { home, noUsage: true, noGit: true });
+  const f = byPath(a);
+  assert.ok(f["AGENTS.md"].agents.includes("claude"));
+  assert.ok(f["AGENTS.md"].agents.includes("codex"), "still Codex's too");
+  assert.equal(f["AGENTS.md"].importedBy, "CLAUDE.md");
+  assert.ok(totals(a).always.byAgent.claude >= f["AGENTS.md"].tokens);
+});
+
 test(".claude/rules load every session unless scoped with paths:", () => {
   const root = mkdtempSync(join(tmpdir(), "snout-rules-"));
   const home = mkdtempSync(join(tmpdir(), "snout-rules-home-"));

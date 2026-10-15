@@ -2968,10 +2968,10 @@ function addImports(found, projectDir, home) {
         next.push(abs);
         const f = byAbs.get(abs);
         if (f) {
-          if (f.kind === "always") continue;
+          if (f.kind === "always" && f.agents.includes("claude")) continue;
           f.kind = "always";
           f.agents = [.../* @__PURE__ */ new Set([...f.agents.filter((a) => a !== "any"), "claude"])];
-          f.importedBy = name(from);
+          f.importedBy ??= name(from);
         } else {
           const nf = { abs, scope: abs.startsWith(projectDir + sep2) ? "project" : "user", kind: "always", role: "import", agents: ["claude"], importedBy: name(from) };
           found.push(nf);
@@ -3378,9 +3378,20 @@ function auditContext(projectDir, opts = {}) {
 }
 var when = (iso) => iso ? iso.slice(0, 10) : "never";
 var AGENT_NAMES = { claude: "Claude Code", codex: "Codex", cursor: "Cursor", copilot: "Copilot", gemini: "Gemini CLI", windsurf: "Windsurf", cline: "Cline" };
+var AGENT_FOLDER = /^\.(claude|github|cursor|windsurf|clinerules|gemini|codex|agents)\//;
 function perAgent(always) {
+  const byPath = new Map(always.map((f) => [f.path, f]));
+  const atRoot = (f, seen = /* @__PURE__ */ new Set()) => {
+    if (f.scope === "user" || !f.path.includes("/") || AGENT_FOLDER.test(f.path)) return true;
+    const from = f.importedBy && byPath.get(f.importedBy);
+    if (!from || seen.has(f.path)) return false;
+    seen.add(f.path);
+    return atRoot(from, seen);
+  };
   const by = {};
-  for (const f of always) for (const ag of f.agents) if (ag !== "any") by[ag] = (by[ag] ?? 0) + f.tokens;
+  for (const f of always) if (atRoot(f)) {
+    for (const ag of f.agents) if (ag !== "any") by[ag] = (by[ag] ?? 0) + f.tokens;
+  }
   return { max: Math.max(0, ...Object.values(by)), by };
 }
 function byAgentNote(by) {
