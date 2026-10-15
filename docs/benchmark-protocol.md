@@ -597,7 +597,8 @@ The target is a narrow interval: the headline is the point estimate with its 95%
   empty Claude Code config folder, so no operator settings, plugins, skills, connectors or memory
   reach either arm; same prompt, tools, budget ($2.00 per
   attempt) and 30-minute limit in every arm. Arms run interleaved, so time-of-day effects fall on
-  both.
+  both, and which arm runs first rotates by task and attempt, so the prompt-cache discount a second
+  session can get from the first falls on both arms equally.
 - **Build.** The committed `dist/snout.mjs` of the commit under test, its sha256 and the commit
   recorded in every result file; the runner refuses to start with uncommitted `src/` or `dist/`. Any
   change after the confirmation run starts makes a new study.

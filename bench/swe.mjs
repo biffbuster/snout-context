@@ -21,7 +21,7 @@
  *   node bench/swe.mjs --summarize bench/ab-results/swe-<ts>.json
  *   node bench/swe.mjs --n 1 --arms off,enforce,map --tasks a,b   # repo map on its own (arm "map")
  *   node bench/swe.mjs --resume bench/ab-results/swe-<ts>.json --n 2 --arms off,map   # rerun infra rows, finish the plan
- *   options: --jobs 2  --budget 2.00  --keep  --api (bill ANTHROPIC_API_KEY from .env.local)  --min-mem-gb 5.5
+ *   options: --jobs 2  --budget 2.00 (per session)  --max-spend 40 (whole run)  --keep  --api (bill ANTHROPIC_API_KEY from .env.local)  --min-mem-gb 5.5
  *
  * Docker is checked before the run and after every session: a starved Docker VM (2 GB) wedges
  * the engine, so `python` hangs and sessions measure the hang instead of the agent.
@@ -46,6 +46,8 @@ const API_KEY = args.api ? (readFileSync(join(fileURLToPath(new URL("..", import
 if (args.api && !API_KEY) throw new Error("--api: no ANTHROPIC_API_KEY in .env.local");
 const ARMS = (typeof args.arms === "string" ? args.arms : "off,enforce").split(",");
 const BUDGET = String(args.budget ?? "2.00");
+const MAX_SPEND = args["max-spend"] ? Number(args["max-spend"]) : 0; // total for the run; halts, resumable
+const API_REFUSED = /credit balance|billing|invalid.*api.key|authentication|rate.limit|overloaded|\b(401|403|429|529)\b/i;
 const JOBS = Number(args.jobs ?? 2);
 const REPO = fileURLToPath(new URL("..", import.meta.url)).replace(/\/$/, "");
 const SNOUT_BIN = process.env.SNOUT_BIN || join(REPO, "dist/snout.mjs");
@@ -530,7 +532,12 @@ async function main() {
   const rows = (resumed?.rows ?? []).filter((r) => !r.infra);
   const have = new Set(rows.map((r) => `${r.task}|${r.arm}|${r.rep}`));
   const plan = [];
-  for (let rep = 0; rep < N; rep++) for (const t of tasks) for (const a of ARMS) if (!have.has(`${t.instance_id}|${a}|${rep}`)) plan.push([t, a, rep]);
+  // Arm order rotates by task and rep: the session that runs second can read the first one's cached
+  // system prompt, so a fixed order would hand that discount to the same arm every time.
+  for (let rep = 0; rep < N; rep++) tasks.forEach((t, i) => {
+    const k = (i + rep) % ARMS.length;
+    for (const a of [...ARMS.slice(k), ...ARMS.slice(0, k)]) if (!have.has(`${t.instance_id}|${a}|${rep}`)) plan.push([t, a, rep]);
+  });
   const runId = resumed?.runId ?? `swe-${Date.now()}`;
   const outFile = resumed ? args.resume : join(REPO, "bench/ab-results", `${runId}.json`);
   mkdirSync(join(REPO, "bench/ab-results"), { recursive: true });
@@ -554,6 +561,11 @@ async function main() {
       if (row.infra && !row.dockerDown) row = { ...(await runOne(t, a, rep)), retried: true }; // protocol: one rerun
       if (row.dockerDown) halted = `Docker became unhealthy after ${t.instance_id} · ${a} · rep ${rep}; restart Docker Desktop, then --resume ${outFile}`;
       rows.push(row);
+      // Money guards: a total cap, and a stop when the API refuses work (no credit, bad key, limits).
+      const spent = rows.reduce((s, r) => s + (r.costUsd ?? 0), 0);
+      if (MAX_SPEND && spent >= MAX_SPEND) halted ??= `spent $${spent.toFixed(2)}, at the --max-spend cap of $${MAX_SPEND}; raise it and --resume ${outFile}`;
+      const last = rows.slice(-3);
+      if (last.length === 3 && last.every((r) => API_REFUSED.test(r.error ?? ""))) halted ??= `the API refused 3 sessions in a row (${last[2].error}); fix it, then --resume ${outFile}`;
       save(); // after every session, so an interrupted run keeps what it measured
       done++;
       process.stderr.write(`[${done}/${plan.length}] ${t.instance_id} · ${a} · rep ${rep}: ${row.infra ? `INFRA ${row.infra}` : `${Math.round(row.inputTokens / 1000)}k in · ${row.turns} turns · $${row.costUsd.toFixed(3)}${row.withheld ? ` · ~${Math.round(row.withheld / 1000)}k kept out` : ""}${row.patch.trim() ? "" : " · NO PATCH"}${row.error ? ` · ${row.error}` : ""}`}\n`);
