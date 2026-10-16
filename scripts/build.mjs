@@ -17,8 +17,14 @@ const common = {
   minify: false, // a user should be able to read the code that gates their files
   legalComments: "none",
   logLevel: "warning",
-  // The dashboard page is authored as HTML and bundled as a string.
-  loader: { ".html": "text" },
+  // The dashboard page is authored as HTML and bundled as a string, with LF endings so a
+  // Windows checkout builds the same bytes CI does.
+  plugins: [{
+    name: "html-lf",
+    setup(b) {
+      b.onLoad({ filter: /\.html$/ }, (args) => ({ contents: readFileSync(args.path, "utf8").replace(/\r\n/g, "\n"), loader: "text" }));
+    },
+  }],
 };
 
 await build({ ...common, entryPoints: ["src/cli.ts"], outfile: "dist/snout.mjs", banner: { js: "#!/usr/bin/env node" } });
