@@ -14,28 +14,6 @@ only the result (a score and which of target, behavior and verify were present) 
 tasks are sent to `api.typesafe.ai` so TypeSafe's Jev model can judge them; `snout coach tip`
 turns that off.
 
-## Snout Cloud (opt-in)
-
-Only after `snout login` does anything leave, and only this, per project, when a session ends:
-
-```jsonc
-{
-  "v": 1,
-  "project": { "key": "155e8e727c0bff5e16289158", "name": "my-app" }, // hash of the git remote; folder name
-  "days": [
-    { "day": "2026-09-28", "client": "claude", "label": "lockfile",
-      "reads": 13, "gated": 5, "inContext": 19694, "heldBack": 40820, "couldHoldBack": 0 }
-  ],
-  "spend": [ // read from the agents' own usage logs, priced at API list prices
-    { "day": "2026-09-28", "client": "claude", "model": "claude-opus-5-5", "requests": 120,
-      "input": 900, "cacheWrite": 150000, "cacheRead": 4200000, "output": 60000, "costUsd": 3.24 }
-  ]
-}
-```
-
-No file contents, paths, reasons or prompts. `snout spend` reads usage from Claude Code's and Codex's session logs on your machine; only the per-day totals above are sent. `snout sync --dry-run` prints the exact payload,
-`snout logout` stops it, and the token lives in `~/.config/snout/cloud.json` (mode 600).
-
 ## Planned: semantic classification
 
 A planned opt-in tier will call `api.typesafe.ai`. What goes in the request is a **digest**, not the
@@ -90,9 +68,12 @@ semantic tier.
 | `config.json` | Only what you changed. |
 | `state.json` | Turn counter and a hash of the current prompt. |
 | `errors.jsonl` | Anything that went wrong. |
+| `memory/<session>.json` | One card per session: the start of your first and last request, files changed, commits (sha, subject, files), test command, last error, instructions you gave, branch and git user name. `snout memory off` stops it. |
+| `recall.jsonl` | Which cards were recalled into which prompt, and their size. No prompt text. |
 
-**File paths are recorded. File contents are not.** Add `.snout/` to your `.gitignore` —
-paths alone can reveal more about a private codebase than you would want in a commit.
+**File paths are recorded. File contents are not**, except the request text a memory card keeps.
+Add `.snout/` to your `.gitignore` — paths alone can reveal more about a private codebase than you
+would want in a commit. To share memory with a team, commit only `.snout/memory/`, after reading it.
 
 Nothing is uploaded, and there is no telemetry. `telemetry: "local-only"` is the only
 permitted value.

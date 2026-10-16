@@ -16,7 +16,7 @@ import { createHash } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { homedir, tmpdir } from "node:os";
-import { attach, ensureDir, loadConfig, isValidMode, readLayer, resolvePaths, userConfigPath, configSource, DEFAULTS, type Config, type Paths } from "./config.js";
+import { attach, configDir, ensureDir, loadConfig, isValidMode, readLayer, resolvePaths, userConfigPath, configSource, DEFAULTS, type Config, type Paths } from "./config.js";
 import { applyMode, bandOf, decide, searchHint, withOverride, worthGating, THRESHOLDS, type Band } from "./gate/decide.js";
 import { fingerprintOf, scoreFile, sizeOf, tier0, toRel } from "./gate/tier0.js";
 import { labelOf } from "./gate/rules.js";
@@ -44,7 +44,6 @@ import { createRequire } from "node:module";
 import { compactionWhatIf, COMPACTION_COSTS, renderReplay, replaySession, totals, type HookRunner } from "./replay/replay.js";
 import { codexSessionFacts, memoryText, PROGRESS_FILE, readPins, readProgress, sessionFacts, sessionStartMs } from "./compact/memory.js";
 import { installGate, refreshGate, removeGate, HOOK_PORT, isSnoutUrl } from "./gate/install.js";
-import { AGENT_SYNC_MS, AUTO_SYNC_MS, buildPayload, cloudUrl, configDir, forgetCredentials, lastSync, loadCredentials, login, sync } from "./cloud/client.js";
 import { readSpend } from "./spend/usage.js";
 import { summarizeSpend } from "./spend/summary.js";
 import { PRICES_AS_OF } from "./spend/prices.js";
@@ -54,7 +53,9 @@ import { kindOf, squeeze } from "./squeeze/squeeze.js";
 import { trimMcp } from "./squeeze/mcp.js";
 import { auditServers, disableHint } from "./audit/mcp-servers.js";
 import { archiveFiles, auditContext, listArchives, renderAudit, renderMap, restoreArchive, toJson } from "./audit/context.js";
+import { auditCi, renderCi } from "./audit/ci.js";
 import { docWindow, type DocWindow } from "./gate/longdoc.js";
+import { captureSession, COMMITS, forgetCard, linkCommit, listCards, readCards, recall, renderRecall } from "./memory/memory.js";
 import { buildMap, candidates, renderCandidates, shouldSuggest, type RepoMap } from "./map/map.js";
 import { forgetReads, rememberRead, repeatOf, repeatOutput, requestedWindow, returnedWindow } from "./gate/repeat.js";
 
@@ -92,10 +93,6 @@ function main(): void {
     void cmdAudit(process.argv.slice(3)).catch((err) => recordError("audit", err)).finally(() => process.exit(0));
     return;
   }
-  if (command === "login" || command === "logout" || command === "sync") {
-    void cmdCloud(command, process.argv.slice(3)).catch((err) => recordError(command, err)).finally(() => process.exit(0));
-    return;
-  }
   const input = readHookInput();
   if (command === "hook") return onAgentHook(process.argv[3], process.argv[4] ?? "", input as Record<string, unknown>);
   if (command === "init") return cmdInit(process.argv[3], input.cwd);
@@ -126,42 +123,6 @@ function onAgentHook(agent: string | undefined, event: string, raw: Record<strin
   }
   const text = fromInternal(agent, event, out);
   if (text) writeOut(text);
-}
-
-/**
- * After a turn, a logged-in user's totals go to Snout Cloud, at most every AUTO_SYNC_MS.
- * The upload runs in a detached process so the hook returns at once, online or not.
- */
-function maybeAutoSync(paths: Paths): void {
-  if (replayDir) return; // replay is offline
-  try {
-    if (!loadCredentials()) return;
-    const last = lastSync(paths);
-    if (last && Date.now() - Date.parse(last.at) < (process.env.SNOUT_TOKEN ? AGENT_SYNC_MS : AUTO_SYNC_MS)) return;
-    const script = process.argv[1];
-    if (!script) return;
-    spawn(process.execPath, [script, "sync", "--quiet", paths.projectDir], { stdio: "ignore", detached: true, windowsHide: true }).on("error", () => {}).unref();
-  } catch (err) {
-    recordError("autoSync", err);
-  }
-}
-
-async function cmdCloud(command: string, args: string[]): Promise<void> {
-  const flag = (name: string) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
-  const dir = args.find((a, i) => !a.startsWith("-") && !["--url"].includes(args[i - 1] ?? ""));
-  if (command === "logout") {
-    return say(forgetCredentials() ? "Logged out. Nothing more is sent; the local ledger is untouched." : "Not logged in.");
-  }
-  if (command === "login") {
-    await login(cloudUrl(flag("--url")), say, args.includes("--no-open") ? () => {} : openBrowser);
-    return;
-  }
-  const paths = resolvePaths(dir);
-  if (args.includes("--dry-run")) {
-    return say(JSON.stringify(buildPayload(paths, VERSION), null, 2));
-  }
-  const r = await sync(paths, VERSION);
-  if (!args.includes("--quiet") || !r.ok) say(r.message);
 }
 
 /** Where parsed spend is cached: inside `.snout/` only if Snout already keeps state here. */
@@ -329,6 +290,7 @@ function dispatch(command: string, input: HookInput): void {
   const cfg: Config = replayDir ? { ...loadConfig(paths), mode: "enforce" } : loadConfig(paths);
 
   if (HOOK_EVENTS.has(command)) recordHeartbeat(paths, command, input);
+  pluginNotice = !client && !replayDir && (command === "pre-tool" || command === "squeeze") ? pluginMissingNotice(paths, input) : null;
 
   switch (command) {
     case "session-start": return onSessionStart(input, paths, cfg);
@@ -353,6 +315,8 @@ function dispatch(command: string, input: HookInput): void {
     case "coach": return cmdCoach(paths, cfg, process.argv.slice(3));
     case "output": return cmdOutput(paths, cfg, process.argv.slice(3));
     case "map": return cmdMap(paths, cfg, process.argv.slice(3));
+    case "memory": return cmdMemory(paths, cfg, process.argv.slice(3));
+    case "recall": return cmdRecall(paths, process.argv.slice(3));
     case "fast": return cmdFast(paths, cfg, process.argv[3]);
     case "version": return say(`snout ${VERSION}`);
     case "status": return cmdStatus(paths, cfg);
@@ -431,6 +395,64 @@ function lastSeenByEvent(paths: Paths): Map<string, string> {
   return out;
 }
 
+/**
+ * The newest session in the log if it ran only the settings-file hooks (pre-tool, squeeze).
+ * The project-wide "last seen" view hides this: one fresh session makes every event look
+ * alive while the long-running session the user works in has never loaded the plugin.
+ */
+function sessionWithoutPlugin(paths: Paths): string | null {
+  const events = new Map<string, { last: string; recording: boolean }>();
+  for (const r of readRows<HeartbeatRow>(paths.hooks, 5000)) {
+    if (!r || typeof r.event !== "string" || typeof r.session !== "string") continue;
+    const s = events.get(r.session) ?? { last: "", recording: false };
+    if (r.ts > s.last) s.last = r.ts;
+    if (RECORDING_HOOKS.includes(r.event)) s.recording = true;
+    events.set(r.session, s);
+  }
+  let newest: [string, { last: string; recording: boolean }] | null = null;
+  for (const e of events) if (!newest || e[1].last > newest[1].last) newest = e;
+  return newest && !newest[1].recording && newest[0] !== "unknown" ? newest[0] : null;
+}
+
+/** Set by dispatch when this hook call should tell the user the plugin is not running; emit attaches it. */
+let pluginNotice: string | null = null;
+
+const sessionsDir = (paths: Paths) => join(paths.snoutDir, "sessions");
+const markerOf = (paths: Paths, session: string) => join(sessionsDir(paths), session.replace(/[^\w.-]/g, "_").slice(0, 80));
+
+/** The plugin's session-start leaves a marker; the gate in .claude/settings looks for it. Keeps the newest 50. */
+function markPluginStarted(paths: Paths, session: string): void {
+  try {
+    mkdirSync(sessionsDir(paths), { recursive: true });
+    writeFileSync(markerOf(paths, session), "");
+    const all = readdirSync(sessionsDir(paths)).map((f) => ({ f, t: statSync(join(sessionsDir(paths), f)).mtimeMs })).sort((a, b) => b.t - a.t);
+    for (const { f } of all.slice(50)) rmSync(join(sessionsDir(paths), f), { force: true });
+  } catch (err) {
+    recordError("markPluginStarted", err);
+  }
+}
+
+/**
+ * The gate lives in .claude/settings and runs in any session; the plugin's hooks only run in a
+ * Claude Code process started after the plugin was installed or updated. Without them nothing
+ * records prompts, turns or compactions, and nothing said so. Warns the user once per session.
+ * One marker per session, so two Claude Code windows open on the same project don't confuse it.
+ */
+function pluginMissingNotice(paths: Paths, input: HookInput): string | null {
+  const session = input.session_id;
+  // Only once the plugin has started here at least once: a gate-only setup is not a fault.
+  if (!session || !existsSync(sessionsDir(paths))) return null;
+  const marker = markerOf(paths, session);
+  if (existsSync(marker) || existsSync(marker + ".warned")) return null;
+  try {
+    writeFileSync(marker + ".warned", "");
+  } catch (err) {
+    recordError("pluginMissingNotice", err);
+    return null;
+  }
+  return "Snout's plugin is not running in this session, only its read gate: this Claude Code started before Snout was installed or updated. Restart Claude Code to turn on memory and reporting.";
+}
+
 /** "12s ago", "4m ago", "3h ago" — precision the user can act on, and no more. */
 function ago(iso: string): string {
   const ms = Date.now() - Date.parse(iso);
@@ -452,6 +474,7 @@ function onSessionStart(input: HookInput, paths: Paths, cfg: Config): void {
   state.session = session;
   if (typeof input.model === "string" && input.model) state.model = input.model.slice(0, 64);
   saveState(paths.state, state);
+  if (!client) markPluginStarted(paths, session);
 
   // Only Claude's plugin owns its .claude gate and fast-path server. Other agents
   // must not repair or start Claude hooks when their own session begins.
@@ -512,6 +535,7 @@ function withOutputStyle(cfg: Config, out: Record<string, unknown>): Record<stri
  */
 async function cmdAudit(args: string[]): Promise<void> {
   if (args[0] === "context") return cmdAuditContext(args.slice(1));
+  if (args[0] === "ci") return cmdAuditCi(args.slice(1));
   const flag = (name: string) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
   const days = Math.max(1, Number(flag("--days")) || 30);
   const dir = args.find((a, i) => !a.startsWith("-") && args[i - 1] !== "--days");
@@ -544,6 +568,13 @@ async function cmdAudit(args: string[]): Promise<void> {
   if (!measure) lines.push("", "Add --measure to start each local server once and count what its tool list costs.");
   if (reports.some((r) => r.source === "Claude account connector")) lines.push("Connectors from your Claude account can't be listed from local files, so unused ones don't show here. Claude Code loads large tool sets on demand, which limits their cost; review them at claude.ai → Settings → Connectors.");
   say(lines.join("\n"));
+}
+
+/** `snout audit ci [dir] [--json]`: AI agents in GitHub Actions, what triggers them, and what makes them run more than intended. */
+function cmdAuditCi(args: string[]): void {
+  const dir = args.find((a) => !a.startsWith("-"));
+  const a = auditCi(resolvePaths(dir).projectDir);
+  say(args.includes("--json") ? JSON.stringify(a, null, 2) : renderCi(a));
 }
 
 /**
@@ -677,14 +708,6 @@ function dashboardActions(paths: Paths): DashboardActions {
       if (v !== "off" && v !== "tip" && v !== "jev") throw new Error("unknown coach mode");
       setConfigKey(paths.config, "coach", v);
       return v === "off" ? "Prompt coach off." : "Prompt coach on.";
-    },
-    cloud: () => {
-      const c = loadCredentials();
-      return c ? { loggedIn: true, team: c.team } : { loggedIn: false };
-    },
-    login: () => {
-      spawn(process.execPath, [BIN, "login", paths.projectDir], { stdio: "ignore", detached: true, windowsHide: true }).on("error", () => {}).unref();
-      return "Opening the sign-in page in your browser.";
     },
   };
 }
@@ -850,11 +873,80 @@ function onPromptSubmit(input: HookInput, paths: Paths, cfg: Config): void {
   state.goalHash = createHash("sha256").update(input.prompt ?? "").digest("hex").slice(0, 12);
   const tip = coachPrompt(input.prompt ?? "", paths, cfg, state);
   const files = cfg.repoMap ? suggestFiles(input.prompt ?? "", paths, cfg, state) : "";
+  const brief = cfg.memory !== false && cfg.mode !== "observe" ? recallBrief(input.prompt ?? "", paths, state) : "";
   saveState(paths.state, state);
+  const context = [brief, files].filter(Boolean).join("\n\n");
   emit({
     ...(tip ? { systemMessage: tip } : {}),
-    ...(files ? { hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: files } } : {}),
+    ...(context ? { hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: context } } : {}),
   });
+}
+
+const agentName = (): "claude" | "codex" => (client === "codex" ? "codex" : "claude");
+
+/**
+ * Earlier sessions that bear on this prompt (memory/memory.ts), each offered once per session, or "".
+ * Logged with its size like map suggestions, so its cost is counted.
+ */
+function recallBrief(prompt: string, paths: Paths, state: SessionState): string {
+  if (!prompt.trim()) return "";
+  try {
+    const seen = new Set(state.recalled ?? []);
+    const hits = recall(readCards(paths.snoutDir), prompt, { session: state.session, projectDir: paths.projectDir }).filter((h) => !seen.has(h.card.id));
+    const text = renderRecall(hits, paths.projectDir);
+    if (!text) return "";
+    state.recalled = [...seen, ...hits.map((h) => h.card.id)].slice(-50);
+    appendRow(join(paths.snoutDir, "recall.jsonl"), {
+      ts: new Date().toISOString(), session: state.session, turn: state.turn,
+      cards: hits.map((h) => h.card.id), scores: hits.map((h) => Math.round(h.score * 100) / 100),
+      tokensEst: estimateTokens(Buffer.byteLength(text), "x.txt"),
+    });
+    return text;
+  } catch (err) {
+    recordError("recall", err);
+    return "";
+  }
+}
+
+/** This session's memory card, refreshed from its transcript at each Stop. */
+function captureCard(input: HookInput, paths: Paths, cfg: Config, session: string): void {
+  if (cfg.memory === false || !input.transcript_path || replayDir) return;
+  try {
+    const facts = client === "codex" ? codexSessionFacts(input.transcript_path, paths.projectDir) : sessionFacts(input.transcript_path, paths.projectDir);
+    captureSession(paths.snoutDir, paths.projectDir, session, agentName(), facts);
+  } catch (err) {
+    recordError("memoryCapture", err);
+  }
+}
+
+/** `snout memory [on|off|forget <session>]`: list the cards, toggle memory, or drop one card. */
+function cmdMemory(paths: Paths, cfg: Config, args: string[]): void {
+  const v = args[0];
+  if (v === "on" || v === "off") {
+    setConfigKey(paths.config, "memory", v === "on");
+    return say(v === "on"
+      ? "Memory on. Each session leaves a card in .snout/memory (task, files changed, commits, test command, what failed), and a later prompt that bears on one gets a short brief. Local only; commit .snout/memory to share it with your team."
+      : "Memory off. No new cards, and nothing is recalled. Existing cards stay in .snout/memory.");
+  }
+  if (v === "forget") {
+    const id = args[1];
+    if (!id) return say("Usage: snout memory forget <session>");
+    return say(forgetCard(paths.snoutDir, id) ? `Forgot ${safeText(id, 80)}.` : `No card for ${safeText(id, 80)}.`);
+  }
+  const cards = listCards(paths.snoutDir);
+  const head = `Memory is ${cfg.memory === false ? "off" : "on"} · ${cards.length} card${cards.length === 1 ? "" : "s"} in ${toRel(join(paths.snoutDir, "memory"), paths.projectDir)}`;
+  const rows = cards.slice(0, 20).map((c) => `  ${c.updated.slice(0, 10)}  ${c.agent.padEnd(6)} ${safeText(c.session, 36)}  ${safeText(c.task ?? c.commits[0]?.subject ?? "", 70)}${c.commits.length ? `  [${c.commits.map((k) => k.sha.slice(0, 7)).join(" ")}]` : ""}`);
+  say([head, ...rows, "", 'Usage: snout memory on|off · snout memory forget <session> · snout recall "<request>"'].join("\n"));
+}
+
+/** `snout recall "<request>" [--as-of <date>]`: what a prompt would get from memory. */
+function cmdRecall(paths: Paths, args: string[]): void {
+  const i = args.indexOf("--as-of");
+  const asOf = i >= 0 ? args[i + 1] : undefined;
+  const request = args.filter((_, j) => i < 0 || (j !== i && j !== i + 1)).join(" ").trim();
+  if (!request) return say('Usage: snout recall "<request>" [--as-of 2026-10-01]');
+  const text = renderRecall(recall(readCards(paths.snoutDir), request, { asOf, projectDir: paths.projectDir }), paths.projectDir);
+  say(text || "No earlier session bears on that request.");
 }
 
 /**
@@ -1426,6 +1518,9 @@ function repeatResponse(input: HookInput, paths: Paths, state: SessionState, abs
 
 interface Gated { absPath: string; rel: string; d: Decision; estimated: number; row: DecisionRow }
 
+/** File types Claude Code's Read renders for the model instead of returning raw bytes. */
+const READ_VIEWABLE = /\.(png|jpe?g|gif|webp|pdf)$/i;
+
 function classifyForGate(input: HookInput, paths: Paths, cfg: Config, state: SessionState, absPath: string, windowBytes?: number): Gated {
   const rel = toRel(absPath, paths.projectDir);
   // A ranged Read is judged by the lines it asks for, not the whole file: reading 40 lines
@@ -1451,6 +1546,11 @@ function classifyForGate(input: HookInput, paths: Paths, cfg: Config, state: Ses
   // (PointFive C1: a 400-line read of a 1.4 MB log was asked about, which headless runs treat
   // as a refusal, and the agent spent 34 turns working around it).
   if (d.rule === "oversized" && windowBytes !== undefined && windowBytes <= cfg.sizeCapBytes) {
+    d = { ...d, verdict: "allow", suppressedByMode: true };
+  }
+  // Claude Code's Read shows images and PDFs to the model (a screenshot, a spec): useful input,
+  // unlike the same bytes printed by `cat`. Codex has no such Read, so the rule stands there.
+  if (d.rule === "binary" && !client && input.tool_name === "Read" && READ_VIEWABLE.test(absPath)) {
     d = { ...d, verdict: "allow", suppressedByMode: true };
   }
   // Too small to be worth the turn a deny costs, or not a file at all: record, don't block.
@@ -1529,7 +1629,6 @@ function agentSearchHint(rule: string, rel: string, oneLine: boolean): string {
  * so `tokensReadEst` here is derived from the actual result rather than from a `stat`.
  */
 function onPostTool(input: HookInput, paths: Paths, cfg: Config): void {
-  maybeAutoSync(paths); // the team dashboard stays about a minute behind, mid-turn included
   const state = loadState(paths.state, input.session_id ?? "unknown");
   const pending = state as SessionState & { pending?: Record<string, { path: string; decision: Verdict }> };
   const id = input.tool_use_id;
@@ -1547,6 +1646,9 @@ function onPostTool(input: HookInput, paths: Paths, cfg: Config): void {
   } else if (input.tool_name === "Bash") {
     const resp = input.tool_response as Record<string, unknown> | undefined;
     const command = stringField(input.tool_input, "command");
+    if (command && COMMITS.test(command) && cfg.memory !== false && !replayDir) {
+      try { linkCommit(paths.snoutDir, paths.projectDir, state.session, agentName()); } catch (err) { recordError("memoryCommit", err); }
+    }
     if (command && resp && typeof resp.stdout === "string" && resp.interrupted !== true) {
       for (const abs of shellDumpTargets(command, paths.projectDir)) {
         rememberRead(paths.snoutDir, state.session, agentOf(input).agentId, abs, toRel(abs, paths.projectDir), "full", state.turn);
@@ -1624,8 +1726,8 @@ function onPreCompact(input: HookInput, paths: Paths): void {
 }
 
 function onStop(input: HookInput, paths: Paths, cfg: Config): void {
-  maybeAutoSync(paths);
   const state = loadState(paths.state, input.session_id ?? "unknown");
+  captureCard(input, paths, cfg, input.session_id ?? state.session);
   const rows = readDecisions(paths.ledger, 2000).filter(
     (r) => r.session === state.session && r.turn === state.turn && r.rule !== "reversal",
   );
@@ -2282,6 +2384,16 @@ function cmdDoctor(paths: Paths, cfg: Config): void {
       const ts = seen.get(event);
       lines.push(`    ${event.padEnd(14)} ${ts ? ago(ts) : "never"}`);
     }
+    const orphan = sessionWithoutPlugin(paths);
+    if (orphan) {
+      lines.push(
+        "",
+        `    Session ${safeText(orphan.slice(0, 8), 8)} ran the gate in .claude/settings but none of the plugin's`,
+        "    hooks, so its prompts, turns and compactions go unrecorded. Its Claude Code process",
+        "    started before the plugin was enabled: plugins load at process start, and /clear",
+        "    does not reload them. Quit that Claude Code and start it again.",
+      );
+    }
     if (!seen.has("post-tool")) {
       // A missing post-tool has two causes that look identical in the log: the session is
       // too young to have read anything, or it reads through Bash. A stop heartbeat newer
@@ -2356,7 +2468,7 @@ const HELP = `snout ${VERSION} · the context gate for coding agents
   snout dashboard            live savings in the browser
   snout mode observe|enforce record only, or trim low-value reads
   snout explain <file>       why a file was trimmed        snout allow <file>   never trim it
-  snout login                team dashboard (syncs daily totals, never code)
+  snout memory               what earlier sessions left     snout recall "<q>"   what a prompt would get
 
   Docs and advanced commands: https://github.com/biffbuster/snout-context#cli`;
 
@@ -2513,6 +2625,10 @@ function cmdReplay(paths: Paths, args: string[]): void {
 }
 
 function emit(payload: Record<string, unknown>): void {
+  if (pluginNotice) {
+    if (!payload.systemMessage) payload = { ...payload, systemMessage: pluginNotice };
+    pluginNotice = null;
+  }
   if (Object.keys(payload).length === 0) return; // silence is a valid hook response
   if (capturing) {
     captured = payload;
@@ -2664,5 +2780,4 @@ try {
 }
 // The MCP server keeps running until its client closes stdin; everything else is one-shot.
 // So does the dashboard, until Ctrl-C.
-// So do the cloud commands, which exit when their request finishes.
-if (!["mcp", "dashboard", "login", "logout", "sync", "audit", "serve"].includes(process.argv[2] ?? "")) process.exit(0);
+if (!["mcp", "dashboard", "audit", "serve"].includes(process.argv[2] ?? "")) process.exit(0);

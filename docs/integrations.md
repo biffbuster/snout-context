@@ -95,5 +95,5 @@ snout audit             # each server: calls, tokens that reached context, token
                         # plus servers that are configured but never used
 ```
 
-The dashboard (`snout dashboard`) and Snout Cloud show the same per-server table.
+The dashboard (`snout dashboard`) shows the same per-server table.
 

@@ -355,7 +355,7 @@ stopped during its first session (nothing kept) and replaced by three runners in
 run index (`--reps 0|1|2`), each capped at $5 (same $15 total). Each run index keeps the fixed
 order chain → arm. Results are merged into one file before analysis. Nothing else changes.
 
-**Memory run result (2026-10-09, `bench/ab-results/swelong-memory-merged.json`, ~$3.7).** Strict
+**Memory run result (2026-10-09, `bench/ab-results/swelong-memory-merged.json` (not in the repo yet), ~$3.7).** Strict
 view (primary): resolved −2.3 points (95% CI −7.3 to +2.3), lower bound below −7 → **not met**;
 timeouts `snout-c100k` 1, `c100k` 0 → **not met**. Cost per resolved −12.2% (CI −19.4% to −3.1%).
 Default view: resolved +0.0 points (CI −5.1 to +5.1), cost per resolved −12.8%. The memory was
@@ -376,7 +376,7 @@ followed the agent's own change making the polys tests hang.
   2.1.295 (Claude Code auto-updated during the memory run), so the versions do not match exactly. The
   baseline was measured hours earlier.
 
-**Memory fix rerun result (2026-10-09, `bench/ab-results/swelong-memfix-vs-c100k.json`, ~$2).** Strict
+**Memory fix rerun result (2026-10-09, `bench/ab-results/swelong-memfix-vs-c100k.json` (not in the repo yet), ~$2).** Strict
 view (primary): resolved −5.6 points (95% CI −10.7 to −0.6) → **not met**; timeouts 2 (`snout-c100k`)
 vs 0 → **not met**. Cost per resolved −3.6% (CI −26.3% to +19.3%), not met. Default view: resolved
 −1.5 points (CI −6.6 to +3.6). Both timeouts, like the memory run's, were sympyB issue 16
@@ -396,7 +396,7 @@ both runs, `snout-c100k` timed out on that issue in 3 of 6 runs, `c100k` in 0 of
 - Read: sessions that hit the 30-minute limit per arm, resolved per arm, minutes per session. Too
   small for a claim; it decides whether the chain confirmation is worth running.
 
-**Issue-16 hang-guard result (2026-10-09, `bench/ab-results/swe-1791600532320.json`, ~$1.10).** Resolved
+**Issue-16 hang-guard result (2026-10-09, `bench/ab-results/swe-1791600532320.json` (not in the repo yet), ~$1.10).** Resolved
 `off` 10/10, `enforce` 8/10 (not significant); no session hit the 30-minute limit in either arm; slow
 sessions about 4 per arm. The note fired in 5 enforce sessions and the agent stopped the run in 1. The
 hang note was removed from Snout: it did not change what the agent did.

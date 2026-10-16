@@ -261,7 +261,7 @@ function thin<T>(xs: T[], max: number): T[] {
   return out;
 }
 
-/** One day of one project's usage for one coding agent and label: what `snout sync` sends. */
+/** One day of one project's usage for one coding agent and label. */
 export interface DayRow {
   day: string;
   client: string;

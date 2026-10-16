@@ -34,6 +34,26 @@ test("a request naming a function gets the file that declares it first, then its
   assert.ok(!cs.some((c) => c.path === "src/cart.js"));
 });
 
+test("a traceback's innermost project frame and a dotted module path locate their files", () => {
+  const { map } = buildMap(project({
+    "pkg/db/query.py": "def filter(x):\n    return x\n",
+    "pkg/db/lookups.py": "class Exact:\n    pass\n",
+    "pkg/views.py": "def index(r):\n    return r\n",
+    "pkg/__init__.py": "",
+  }));
+  const tb = [
+    "Traceback (most recent call last):",
+    '  File "/srv/app/site-packages/pkg/views.py", line 3, in index',
+    '  File "/srv/app/site-packages/pkg/db/query.py", line 2, in filter',
+    "ValueError: bad",
+  ].join("\n");
+  const cs = candidates(map, `Saving fails:\n${tb}`);
+  assert.equal(cs[0].path, "pkg/db/query.py", "the frame nearest the error ranks first");
+  assert.ok(cs.findIndex((c) => c.path === "pkg/views.py") > 0);
+  assert.equal(candidates(map, "pkg.db.lookups.Exact is wrong for None")[0]?.path, "pkg/db/lookups.py");
+  assert.ok(!candidates(map, "from pkg import views").some((c) => c.path === "pkg/__init__.py"), "a package is not a location");
+});
+
 test("plain words in a request reach camelCase and snake_case names", () => {
   assert.ok(requestNames("the tax rate is wrong").has("taxRate"));
   assert.ok(requestNames("the tax rate is wrong").has("tax_rate"));

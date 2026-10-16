@@ -14,7 +14,8 @@ stores only the keys you set, so upgrades can move the defaults under you.
   "repeatReads": true,            // what the agent already has, unchanged, is not sent again
   "longDocs": true,               // long docs: opening + section map; long logs: the tail
   "output": "normal",             // "concise" adds one short output-style instruction (opt-in)
-  "repoMap": false                // true: suggest the files linked to names in each prompt (opt-in)
+  "repoMap": false,               // true: suggest the files linked to names in each prompt (opt-in)
+  "memory": true                  // a card per session in .snout/memory, recalled when a prompt bears on it
 }
 ```
 
@@ -41,6 +42,21 @@ in the top 10 for 66% of issues, against 44% for full-text BM25 search and 28% f
 (`bench/mapeval.mjs --confirm`).
 Whether that lowers agent spend is not measured yet, which is why it is off by default.
 
+`memory` (default on; `snout memory on|off`, or `SNOUT_MEMORY=0|1`): at the end of each turn Snout
+writes one card per session to `.snout/memory/<session>.json` from the session's own transcript, with
+no model call: the task as the user first stated it, the files it changed, the test command that
+worked, an error left unresolved, standing instructions the user gave, and the branch. A `git
+commit` the agent runs is linked to the card with its subject and files. When a later prompt bears
+on a card (two or more of its words match, or it names a file the session changed), the agent gets
+a short brief of up to three earlier sessions, each offered once per session and at most ~600
+tokens in all; prompts that match nothing get nothing. Recall is active in enforce and advise
+mode; observe mode only writes cards. Cards older than 90 days are not recalled, and files that no
+longer exist are left out. `snout memory` lists the cards, `snout memory forget <session>` drops one,
+and `snout recall "<request>" [--as-of <date>]` shows what a prompt would get. One file per card,
+so committing `.snout/memory/` shares it with a team without merge conflicts. Cards hold the
+start of your prompts: read them before you commit them. Whether recall lowers spend per task is
+not measured yet.
+
 That is every key the shipped code reads. Keys for later phases — a model name, a tier-2
 budget, context-injection limits — are deliberately **absent** rather than present and
 inert: a configuration key that silently does nothing is worse than a missing one, because
@@ -55,7 +71,6 @@ you believe you have turned something on. An earlier version shipped six of them
 | `snout apply` | Suggested changes from your own history, previewed, applied with `--yes`, undoable with `--undo` |
 | `snout statusline` | A one-line counter for your terminal status bar |
 | `snout doctor` | Checks that Snout is installed and its hooks are firing |
-| `snout sync [--dry-run]` / `snout logout` | Sync to Snout Cloud now, or print exactly what would be sent / stop syncing |
 | `snout init <agent>` | Hook setup for Codex, Cursor or Gemini CLI in this project |
 | `snout mcp` | MCP server (`snout_read`, `snout_classify`) for agents without read hooks |
 | `snout reset` | Clear this project's local records |
@@ -63,8 +78,6 @@ you believe you have turned something on. An earlier version shipped six of them
 | `snout audit [--measure] [--days N]` | MCP servers your agents load, how often each was used, and the unused ones that still add their tool list to every request (with how to turn them off). `--measure` starts each local server once to count its tool-list tokens. Claude Code sends only tool names until a tool is used (tool search, on by default), so its servers show both numbers |
 | `snout map on\|off` · `snout map "<request>"` | Opt-in repo map: candidate file paths for each prompt that names code in the repo. Off by default |
 | `snout output concise\|normal` | Opt-in concise output: one short instruction at session start to skip recaps and restated code. Off by default |
-
-Cloud agents use `SNOUT_TOKEN` (a workspace key from the team dashboard) instead of `snout login`.
 
 ## User defaults and precedence
 

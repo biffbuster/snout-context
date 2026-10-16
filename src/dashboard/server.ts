@@ -20,7 +20,7 @@ import { PAGE } from "./page.js";
 import { readSpend } from "../spend/usage.js";
 import { summarizeSpend, type SpendSummary } from "../spend/summary.js";
 import { PRICES_AS_OF } from "../spend/prices.js";
-import { configDir } from "../cloud/client.js";
+import { configDir } from "../config.js";
 import { listFiles, type RepoMap } from "../map/map.js";
 import { tier0 } from "../gate/tier0.js";
 import { auditContext, totals as contextTotals } from "../audit/context.js";
@@ -35,8 +35,6 @@ export interface DashboardActions {
   allow(path: string): string;
   coach(): string;
   setCoach(value: string): string;
-  cloud(): { loggedIn: boolean; team?: string };
-  login(): string;
 }
 
 export interface DashboardOptions {
@@ -223,7 +221,6 @@ export function startDashboard(paths: Paths, opts: DashboardOptions): { close: (
         version: opts.version,
         session,
         coach: opts.actions?.coach() ?? null,
-        cloud: opts.actions?.cloud() ?? null,
         controls: !!opts.actions,
       },
       spend: spend && spend.requests ? { ...spend, days: SPEND_DAYS, pricesAsOf: PRICES_AS_OF } : null,
@@ -324,7 +321,6 @@ export function startDashboard(paths: Paths, opts: DashboardOptions): { close: (
         a.type === "mode" ? act.setMode(String(a.value)) :
         a.type === "allow" ? act.allow(String(a.path)) :
         a.type === "coach" ? act.setCoach(String(a.value)) :
-        a.type === "login" ? act.login() :
         null;
       if (message === null) return reply(400, { error: "unknown action" });
       cache = new Map(); // settings changed: the next summary is recomputed

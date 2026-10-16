@@ -10,16 +10,14 @@ For contributors: how the repo is laid out, how accuracy is gated, and what Snou
 | `src/ledger/` | Local records (`.snout/*.jsonl`), token estimates, reports |
 | `src/spend/` | Measured spend from Claude Code and Codex logs, list prices per model |
 | `src/dashboard/` | `snout dashboard`: local server and page |
-| `src/cloud/` | `snout login` / `sync`: device login and the daily-totals payload |
 | `src/agents/`, `src/mcp.ts` | Codex, Gemini and Cursor adapters; the MCP server |
 | `src/cli.ts` | Every hook event and command |
 | `.claude-plugin/`, `hooks/`, `commands/`, `skills/` | The Claude Code plugin |
 | `eval/` | Hand-labelled accuracy gate (runs in CI) |
 | `bench/` | A/B benchmark on real agent sessions, and the 500-file labelling run |
 | `dist/` | The bundled CLI, committed so the plugin works on install |
-| `cloud/` | Snout Cloud: the hosted team dashboard (Node, Postgres, GitHub sign-in), deployed on Railway. Its own package; see [cloud/README.md](../cloud/README.md) |
 
-The npm package ships only `dist/` and the plugin files; `cloud/` is never published.
+The npm package ships only `dist/` and the plugin files.
 
 ## Eval
 

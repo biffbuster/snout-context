@@ -21,6 +21,8 @@ export interface Config {
   output?: "normal" | "concise";
   /** Suggest the files linked to names in each prompt, from a local repo map (opt-in). Default off. */
   repoMap?: boolean;
+  /** Cross-session memory: a card per session in .snout/memory, recalled when a prompt bears on it. Default on; false turns both off. */
+  memory?: boolean;
   /** Blocking hooks call a long-running `snout serve` over HTTP instead of starting Node each time. Default on; false keeps command hooks. */
   fastHooks?: boolean;
   /**
@@ -189,6 +191,7 @@ export function loadConfig(paths: Paths): Config {
   const envMode = process.env.SNOUT_MODE;
   if (envMode === "observe" || envMode === "advise" || envMode === "enforce") cfg.mode = envMode;
   if (process.env.SNOUT_DISABLE) cfg.mode = "observe";
+  if (process.env.SNOUT_MEMORY === "1" || process.env.SNOUT_MEMORY === "0") cfg.memory = process.env.SNOUT_MEMORY === "1";
   if (process.env.SNOUT_REPO_MAP === "1" || process.env.SNOUT_REPO_MAP === "0") cfg.repoMap = process.env.SNOUT_REPO_MAP === "1";
 
   return cfg;
@@ -196,4 +199,11 @@ export function loadConfig(paths: Paths): Config {
 
 export function isValidMode(v: string): v is Mode {
   return v === "observe" || v === "advise" || v === "enforce";
+}
+
+/** Per-user settings that are not about one project: prices, dashboards, the spend cache. */
+export function configDir(): string {
+  if (process.env.SNOUT_CONFIG_DIR) return process.env.SNOUT_CONFIG_DIR;
+  if (process.platform === "win32" && process.env.APPDATA) return join(process.env.APPDATA, "snout");
+  return join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "snout");
 }

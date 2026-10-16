@@ -48,6 +48,6 @@ bench/gold/
 docs/memory-for-codex.md
 bench/frozen/
 
-# Python caches (bench/harbor)
+# Python caches
 __pycache__/
 *.pyc

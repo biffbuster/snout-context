@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
 // src/cli.ts
-import { copyFileSync, existsSync as existsSync17, mkdirSync as mkdirSync10, mkdtempSync as mkdtempSync2, readdirSync as readdirSync5, readFileSync as readFileSync19, readSync as readSync4, rmSync as rmSync3, statSync as statSync17, writeFileSync as writeFileSync6, writeSync } from "node:fs";
-import { createHash as createHash4 } from "node:crypto";
+import { copyFileSync, existsSync as existsSync18, mkdirSync as mkdirSync10, mkdtempSync as mkdtempSync2, readdirSync as readdirSync7, readFileSync as readFileSync20, readSync as readSync4, rmSync as rmSync2, statSync as statSync17, writeFileSync as writeFileSync5, writeSync } from "node:fs";
+import { createHash as createHash3 } from "node:crypto";
 import { spawn as spawn2, spawnSync as spawnSync4 } from "node:child_process";
-import { basename as basename6, dirname as dirname10, isAbsolute as isAbsolute13, join as join21, resolve as resolve12 } from "node:path";
-import { homedir as homedir6, tmpdir as tmpdir2 } from "node:os";
+import { basename as basename5, dirname as dirname9, isAbsolute as isAbsolute13, join as join22, resolve as resolve13 } from "node:path";
+import { homedir as homedir5, tmpdir as tmpdir2 } from "node:os";
 
 // src/config.ts
 import { existsSync as existsSync2, readFileSync, mkdirSync, renameSync } from "node:fs";
@@ -182,11 +182,17 @@ function loadConfig(paths) {
   const envMode = process.env.SNOUT_MODE;
   if (envMode === "observe" || envMode === "advise" || envMode === "enforce") cfg.mode = envMode;
   if (process.env.SNOUT_DISABLE) cfg.mode = "observe";
+  if (process.env.SNOUT_MEMORY === "1" || process.env.SNOUT_MEMORY === "0") cfg.memory = process.env.SNOUT_MEMORY === "1";
   if (process.env.SNOUT_REPO_MAP === "1" || process.env.SNOUT_REPO_MAP === "0") cfg.repoMap = process.env.SNOUT_REPO_MAP === "1";
   return cfg;
 }
 function isValidMode(v) {
   return v === "observe" || v === "advise" || v === "enforce";
+}
+function configDir() {
+  if (process.env.SNOUT_CONFIG_DIR) return process.env.SNOUT_CONFIG_DIR;
+  if (process.platform === "win32" && process.env.APPDATA) return join(process.env.APPDATA, "snout");
+  return join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "snout");
 }
 
 // src/gate/tier0.ts
@@ -1434,8 +1440,8 @@ function splitGrepOutput(text, cwd, searchPath) {
     isFileCache.set(p, ok);
     return ok;
   };
-  const resolve13 = (p) => isAbsolute5(p) ? p : join4(cwd, p);
-  const single = searchPath && isFile(resolve13(searchPath)) ? resolve13(searchPath) : null;
+  const resolve14 = (p) => isAbsolute5(p) ? p : join4(cwd, p);
+  const single = searchPath && isFile(resolve14(searchPath)) ? resolve14(searchPath) : null;
   const lines = text.split("\n");
   lines.forEach((line, i) => {
     const bytes = Buffer.byteLength(line) + 1;
@@ -1443,17 +1449,17 @@ function splitGrepOutput(text, cwd, searchPath) {
       rest += bytes;
       return;
     }
-    const owner = ownerOf(line, resolve13, isFile) ?? single;
+    const owner = ownerOf(line, resolve14, isFile) ?? single;
     if (owner) files.set(owner, (files.get(owner) ?? 0) + bytes);
     else rest += bytes;
   });
   return { files, rest };
 }
-function ownerOf(line, resolve13, isFile) {
+function ownerOf(line, resolve14, isFile) {
   for (let i = 1; i < line.length && i < 1024; i++) {
     const c = line[i];
     if (c !== ":" && c !== "-") continue;
-    const abs = resolve13(line.slice(0, i));
+    const abs = resolve14(line.slice(0, i));
     if (isFile(abs)) return abs;
   }
   return null;
@@ -2526,9 +2532,9 @@ function gitAuthorship(projectDir, maxCommits = 3e3) {
   }
   return { files: out, ever: out.size ? new Set(out.keys()) : void 0 };
 }
-function authorOf(git, agentWrote) {
-  const ai = (git?.ai ?? 0) + (agentWrote ? 1 : 0);
-  const human = git?.human ?? 0;
+function authorOf(git2, agentWrote) {
+  const ai = (git2?.ai ?? 0) + (agentWrote ? 1 : 0);
+  const human = git2?.human ?? 0;
   if (!ai && !human) return "unknown";
   if (ai && human) return "mixed";
   return ai ? "ai" : "human";
@@ -2630,7 +2636,7 @@ function auditContext(projectDir, opts = {}) {
   };
   const usage = opts.noUsage ? { reads: /* @__PURE__ */ new Map(), skills: /* @__PURE__ */ new Map(), commands: /* @__PURE__ */ new Map(), agents: /* @__PURE__ */ new Map(), writes: /* @__PURE__ */ new Set(), codex: [], sources: [] } : collectUsage(dir, days, home, opts.ledger);
   const history = opts.noGit ? { files: /* @__PURE__ */ new Map(), ever: void 0 } : gitAuthorship(dir);
-  const git = history.files;
+  const git2 = history.files;
   const now = Date.now();
   const files = [];
   const texts = /* @__PURE__ */ new Map();
@@ -2663,7 +2669,7 @@ function auditContext(projectDir, opts = {}) {
     if (f.scope === "project" && usage.codex.length) {
       for (const [t, ts] of usage.codex) if (t.includes(rel)) use = use ? [use[0] + 1, ts > use[1] ? ts : use[1]] : [1, ts];
     }
-    const g = f.scope === "project" ? git.get(rel) : void 0;
+    const g = f.scope === "project" ? git2.get(rel) : void 0;
     const created = new Date(g?.first ?? st.mtimeMs).toISOString();
     files.push({
       path: rel,
@@ -2769,13 +2775,13 @@ function auditContext(projectDir, opts = {}) {
     }
   }
   const instr = files.filter((f) => f.kind !== "on-demand" && (f.role === "instructions" || f.role === "rules" || f.role === "memory") && (texts.get(f.abs) ?? "").length > 200);
-  const terms = new Map(instr.map((f) => [f.abs, topTerms(normalize(texts.get(f.abs)))]));
+  const terms2 = new Map(instr.map((f) => [f.abs, topTerms(normalize(texts.get(f.abs)))]));
   const conflictCandidates = [];
   for (let i = 0; i < instr.length; i++) {
     for (let j = i + 1; j < instr.length; j++) {
       const a = instr[i], b = instr[j];
       if (a.flags.some((x) => /duplicate/.test(x.code)) || b.flags.some((x) => /duplicate/.test(x.code))) continue;
-      const ta = terms.get(a.abs), tb = terms.get(b.abs);
+      const ta = terms2.get(a.abs), tb = terms2.get(b.abs);
       let inter = 0;
       for (const t of ta) if (tb.has(t)) inter++;
       const o = inter / Math.max(1, Math.min(ta.size, tb.size));
@@ -3114,8 +3120,8 @@ function cap(s) {
 // src/dashboard/server.ts
 import { createRequire } from "node:module";
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import { readFileSync as readFileSync13, statSync as statSync14, unwatchFile, watchFile } from "node:fs";
-import { basename as basename5, isAbsolute as isAbsolute9, join as join15 } from "node:path";
+import { readFileSync as readFileSync12, statSync as statSync14, unwatchFile, watchFile } from "node:fs";
+import { basename as basename4, isAbsolute as isAbsolute9, join as join14 } from "node:path";
 
 // src/dashboard/summary.ts
 var TIMELINE_POINTS = 240;
@@ -3317,1698 +3323,1685 @@ function dailyAggregates(rows, sinceDay = "") {
 var mcpLabel = (server) => `mcp-${server.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 28) || "server"}`;
 
 // src/dashboard/page.html
-var page_default = `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Snout Dashboard</title>
-<link rel="icon" href="data:image/png;base64,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">
-<style>
-/* An app dashboard: white cards on a warm off-white, one accent (Snout pink) that always means
-   "kept out of context", and provider colors only where they encode a model.
-   Shape scale: cards 14px, tiles and inputs 10px, buttons 8px, badges 6px. */
-:root {
-  --bg: #f2f1ed; --card: #ffffff; --tile: #f6f5f1; --ink: #1a1418; --ink-2: #3b3d37; --muted: #6b6d65; --faint: #9c9e96;
-  --line: #e9e8e2; --seg: #e2e3dc; --bar-in: #dcdcd5; --without: #e4e3dc; --accent: #e653ba; --accent-ink: #b0307f; --accent-soft: #fbe6f3; --accent-hi: #ee8fcf;
-  --ok: #15803d; --ok-soft: #e7f5ec; --info: #1d4ed8; --info-soft: #eaf0fe; --warn: #b45309; --warn-soft: #fdf1e1; --up: #15803d; --down: #b91c1c;
-  --shadow: 0 1px 2px rgba(60, 20, 45, 0.04), 0 8px 24px -12px rgba(120, 40, 90, 0.14);
-  --shadow-lg: 0 1px 2px rgba(60, 20, 45, 0.05), 0 24px 48px -24px rgba(120, 40, 90, 0.28);
-  --sans: "Inter", ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
-  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  color-scheme: light;
-}
-:root[data-theme="dark"] {
-  --bg: #0c0c0e; --card: #16161a; --tile: #1d1d22; --ink: #f4f4f5; --ink-2: #d4d4d8; --muted: #a1a1aa; --faint: #71717a;
-  --line: #26262c; --seg: #2a2a31; --bar-in: #4a4a52; --accent: #ec5fb0; --accent-ink: #f37fc2; --accent-soft: #3a1a2d;
-  --ok: #4ade80; --ok-soft: #13291c; --info: #7aa2ff; --info-soft: #172241; --warn: #fbbf24; --warn-soft: #2e2310; --up: #4ade80; --down: #f87171; --shadow: none; color-scheme: dark;
-}
-* { box-sizing: border-box; }
-html, body { margin: 0; }
-body { background: var(--bg); color: var(--ink); font: 14px/1.45 var(--sans); -webkit-font-smoothing: antialiased; }
-button, select { font: inherit; color: inherit; }
-.num { font-variant-numeric: tabular-nums; }
-
-/* Top navigation */
-.nav { background: var(--card); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
-.nav-in { max-width: 1320px; margin: 0 auto; height: 60px; padding: 0 24px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; }
-.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 17px; letter-spacing: -0.02em; }
-.brand i { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); }
-.tabs { display: flex; gap: 4px; height: 60px; }
-.tab { border: 0; background: none; padding: 0 14px; color: var(--muted); font-weight: 500; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.15s; }
-.tab:hover { color: var(--ink); }
-.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
-.nav-r { display: flex; justify-content: flex-end; align-items: center; gap: 10px; min-width: 0; }
-.live { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted); white-space: nowrap; }
-.live i { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
-.live.on i { background: var(--ok); box-shadow: 0 0 0 0 rgba(21, 128, 61, 0.45); animation: ping 2.4s ease-out infinite; }
-@keyframes ping { 0% { box-shadow: 0 0 0 0 rgba(21, 128, 61, 0.45); } 70%, 100% { box-shadow: 0 0 0 7px rgba(21, 128, 61, 0); } }
-.proj { font: 12.5px var(--mono); color: var(--ink-2); background: var(--tile); border: 1px solid var(--line); border-radius: 8px; padding: 5px 9px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.wrap { max-width: 1320px; margin: 0 auto; padding: 24px 24px 56px; }
-.head { display: flex; align-items: flex-end; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
-.head h1 { font-size: 24px; line-height: 1.2; letter-spacing: -0.02em; margin: 0 0 4px; font-weight: 650; }
-.head .sub { color: var(--muted); font-size: 13.5px; }
-.head .sub b { color: var(--ink); font-weight: 600; }
-.head .sub span + span::before { content: "\xB7"; margin: 0 8px; color: var(--faint); }
-.head-r { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-select { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font-size: 13px; max-width: 220px; }
-.seg-switch { display: inline-flex; background: var(--tile); border: 1px solid var(--line); border-radius: 8px; padding: 2px; }
-.seg-switch button { border: 0; background: none; padding: 5px 12px; border-radius: 6px; font-size: 13px; font-weight: 500; color: var(--muted); cursor: pointer; }
-.seg-switch button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgba(17, 17, 19, 0.08); }
-.seg-switch button.on[data-mode="enforce"] { color: var(--accent-ink); }
-.btn { border: 1px solid var(--line); background: var(--card); padding: 7px 13px; border-radius: 8px; font-size: 13px; font-weight: 550; cursor: pointer; white-space: nowrap; transition: transform 0.1s, background 0.15s; }
-.btn:hover { background: var(--tile); }
-.btn:active { transform: translateY(1px); }
-.btn.dark { background: var(--ink); color: var(--card); border-color: var(--ink); }
-.btn.dark:hover { opacity: 0.9; }
-.btn.accent { background: var(--accent); color: #fff; border-color: var(--accent); }
-.btn[disabled] { cursor: default; opacity: 1; }
-.btn.done { color: var(--ok); }
-.link { color: var(--info); font-size: 13px; font-weight: 550; background: none; border: 0; cursor: pointer; padding: 0; display: inline-flex; gap: 6px; align-items: center; }
-.link:hover { text-decoration: underline; }
-
-.banner { display: flex; align-items: center; gap: 14px; background: var(--accent-soft); color: var(--ink); border-radius: 10px; padding: 11px 14px; margin-bottom: 16px; font-size: 13.5px; }
-.banner b { color: var(--accent-ink); }
-.banner .btn { margin-left: auto; }
-
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 18px 20px; min-width: 0; position: relative; }
-.card-h { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
-.card-h h2 { font-size: 14.5px; font-weight: 600; margin: 0; letter-spacing: -0.005em; }
-.card-h p { margin: 2px 0 0; color: var(--muted); font-size: 12.5px; }
-.card-h .r { margin-left: auto; }
-.grid { display: grid; gap: 16px; margin-bottom: 16px; }
-.g-row2 { grid-template-columns: minmax(250px, 0.8fr) minmax(0, 1.15fr) minmax(0, 1.35fr); }
-.g-row3 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-.g-2 { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
-
-/* Model strip: one card, columns split by hairlines, a segmented meter per model */
-.models { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); padding: 18px 0; margin-bottom: 16px; }
-.model { padding: 0 22px; border-left: 1px solid var(--line); min-width: 0; }
-.model:first-child { border-left: 0; }
-.m-id { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; min-width: 0; }
-.logo { width: 32px; height: 32px; border-radius: 8px; background: var(--tile); border: 1px solid var(--line); display: grid; place-items: center; flex: none; color: var(--ink); }
-.logo svg { width: 18px; height: 18px; display: block; }
-.logo.sm { width: 20px; height: 20px; border-radius: 6px; border: 0; background: transparent; }
-.logo.sm svg { width: 15px; height: 15px; }
-.logo b { font-size: 12px; font-weight: 700; color: var(--muted); }
-.m-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.m-sub { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.m-row { display: flex; align-items: flex-end; gap: 16px; }
-.m-val { font-size: 27px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.1; }
-.m-note { font-size: 12.5px; margin-top: 3px; color: var(--muted); white-space: nowrap; }
-.m-note b { font-weight: 600; color: var(--c, var(--ink)); }
-.meter { flex: 1; display: flex; gap: 3px; height: 28px; align-items: stretch; min-width: 90px; max-width: 150px; margin-left: auto; margin-bottom: 4px; }
-.meter i { flex: 1; min-width: 2px; border-radius: 1.5px; background: var(--seg); transition: background 0.3s ease; }
-.meter i.f { background: var(--c); }
-.models-empty { grid-column: 1 / -1; padding: 4px 22px; color: var(--muted); font-size: 13.5px; }
-
-/* Today tiles */
-.band { display: grid; grid-template-columns: minmax(0, 1.25fr) repeat(3, minmax(0, 1fr)); padding: 18px 0; margin-bottom: 16px; }
-.band > div { padding: 0 22px; border-left: 1px solid var(--line); min-width: 0; }
-.band > div:first-child { border-left: 0; }
-.band .k { font-size: 12.5px; color: var(--muted); }
-.band .v { font-size: 27px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.15; margin-top: 4px; }
-.band .hero .v { color: var(--accent-ink); font-size: 32px; }
-.band .s { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
-.band .spark { display: flex; align-items: flex-end; gap: 2px; height: 26px; margin-top: 10px; max-width: 260px; }
-.band .spark i { flex: 1; min-width: 2px; background: var(--accent); opacity: 0.75; border-radius: 1.5px 1.5px 0 0; }
-.band .spark i.now { opacity: 1; }
-.tiles { display: grid; gap: 10px; }
-.tile { background: var(--tile); border-radius: 10px; padding: 12px 14px; }
-.tile .k { font-size: 12.5px; color: var(--muted); }
-.tile .v { font-size: 22px; font-weight: 650; letter-spacing: -0.02em; margin-top: 2px; }
-.tile .s { font-size: 12px; color: var(--muted); margin-top: 1px; }
-.tile.hl .v { color: var(--accent-ink); }
-
-/* Live feed */
-.feed { display: grid; }
-.frow { display: grid; grid-template-columns: 62px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 13px; }
-.frow:first-child { border-top: 0; }
-.frow .when { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
-.frow .what { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.frow .path { font: 12.5px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.frow.fresh { animation: fresh 2.2s ease-out; }
-@keyframes fresh { from { background: var(--accent-soft); } to { background: transparent; } }
-.badge { display: inline-block; font-size: 11.5px; font-weight: 600; padding: 3px 8px; border-radius: 6px; white-space: nowrap; background: var(--tile); color: var(--ink-2); }
-.badge.full { background: var(--ok-soft); color: var(--ok); }
-.badge.cut { background: var(--accent-soft); color: var(--accent-ink); }
-.badge.ask { background: var(--warn-soft); color: var(--warn); }
-.badge.would { background: transparent; color: var(--accent-ink); box-shadow: inset 0 0 0 1px var(--accent); }
-.badge.run { background: var(--info-soft); color: var(--info); }
-
-/* Charts */
-.chart-box { position: relative; }
-svg.trend { width: 100%; height: 250px; display: block; overflow: visible; }
-svg text { fill: var(--muted); font: 11px var(--sans); }
-.legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
-.legend span { display: inline-flex; align-items: center; gap: 6px; }
-.legend i { width: 9px; height: 9px; border-radius: 2px; background: var(--c); }
-.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--card); font-size: 12px; padding: 7px 9px; border-radius: 8px; white-space: nowrap; transform: translate(-50%, -100%); opacity: 0; transition: opacity 0.12s; z-index: 2; }
-.tip b { font-weight: 600; }
-
-/* Cost table */
-.total { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
-.total .v { font-size: 30px; font-weight: 650; letter-spacing: -0.02em; }
-.total .d { font-size: 12.5px; font-weight: 600; }
-.total .d.up { color: var(--down); }
-.total .d.down { color: var(--up); }
-.total .s { font-size: 12.5px; color: var(--muted); }
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-th { text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; padding: 0 10px 8px 0; white-space: nowrap; }
-td { padding: 9px 10px 9px 0; border-top: 1px solid var(--line); vertical-align: middle; }
-th.n, td.n { text-align: right; padding-right: 0; padding-left: 10px; }
-td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
-td.strong { font-weight: 600; }
-.who { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.who .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--c); flex: none; }
-.who span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-td.path { font: 12.5px var(--mono); word-break: break-all; }
-.reason { color: var(--muted); font: 12px var(--sans); margin-top: 2px; word-break: normal; }
-.scroll { overflow-x: auto; }
-
-/* Context mix: one column per file type, split by dashed rules like a timeline */
-.mix { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); height: 264px; }
-.mcol { display: flex; flex-direction: column; border-left: 1px dashed var(--line); padding: 0 0 0 0; min-width: 0; }
-.mcol .top { padding: 0 10px 0 12px; }
-.mcol .k { font-size: 13px; font-weight: 600; line-height: 1.25; min-height: 2.5em; }
-.mcol .v { font-size: 19px; font-weight: 650; letter-spacing: -0.02em; margin-top: 2px; }
-.mcol .s { font-size: 12px; color: var(--muted); line-height: 1.3; }
-.mcol .s.cut { color: var(--accent-ink); font-weight: 600; }
-.mcol .bar { margin-top: auto; display: flex; flex-direction: column; justify-content: flex-end; }
-.mcol .pct { font-size: 13px; font-weight: 600; padding: 0 0 6px 12px; }
-.mcol .stack { display: flex; flex-direction: column; justify-content: flex-end; transition: height 0.6s cubic-bezier(0.2, 0.7, 0.2, 1); min-height: 3px; }
-.mcol .stack i { display: block; transition: height 0.6s cubic-bezier(0.2, 0.7, 0.2, 1); }
-.mcol .in { background: var(--bar-in); }
-.mcol .out { background: var(--accent); }
-.mix-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; gap: 12px; flex-wrap: wrap; }
-
-/* Spend bars */
-svg.bars { width: 100%; height: 160px; display: block; }
-svg.bars rect.b { fill: var(--ink); opacity: 0.85; }
-svg.bars rect.b.today { fill: var(--accent); opacity: 1; }
-.split { display: flex; height: 12px; border-radius: 6px; overflow: hidden; gap: 2px; margin: 6px 0 14px; }
-.split i { display: block; background: var(--c); min-width: 2px; }
-.kv { display: grid; grid-template-columns: 1fr auto; gap: 8px 16px; font-size: 13px; }
-.kv dt { color: var(--muted); display: flex; align-items: center; gap: 8px; }
-.kv dt i { width: 9px; height: 9px; border-radius: 2px; background: var(--c); }
-.kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
-
-/* Settings */
-.set { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 14px 0; border-top: 1px solid var(--line); }
-.set:first-of-type { border-top: 0; padding-top: 0; }
-.set h3 { font-size: 14px; margin: 0 0 3px; font-weight: 600; }
-.set p { margin: 0; font-size: 13px; color: var(--muted); max-width: 62ch; }
-code { font: 12.5px var(--mono); background: var(--tile); border-radius: 5px; padding: 1px 5px; }
-
-.empty { padding: 36px 20px; text-align: center; color: var(--muted); }
-.empty h3 { color: var(--ink); font-size: 17px; margin: 0 0 6px; font-weight: 600; }
-.empty ol { text-align: left; display: inline-block; margin: 12px 0 0; padding-left: 20px; line-height: 1.9; }
-.none { color: var(--muted); font-size: 13px; padding: 8px 0; }
-.sk { background: linear-gradient(90deg, var(--tile), var(--line), var(--tile)); background-size: 200% 100%; animation: sk 1.4s ease-in-out infinite; border-radius: 10px; }
-@keyframes sk { from { background-position: 100% 0; } to { background-position: -100% 0; } }
-footer { color: var(--faint); font-size: 12px; text-align: center; margin-top: 24px; }
-.toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 16px); opacity: 0; background: var(--ink); color: var(--card); font-size: 13px; padding: 10px 14px; border-radius: 10px; transition: opacity 0.2s, transform 0.2s; pointer-events: none; z-index: 10; max-width: calc(100% - 32px); }
-.toast.show { opacity: 1; transform: translate(-50%, 0); }
-[hidden] { display: none !important; }
-
-/* The landing page's look, the same as Snout Cloud: a warm off-white fading into pink over a fine
-   white grid, glassy navigation, and the pink that means "kept out of context". */
-body {
-  background-color: var(--bg);
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.75) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.75) 1px, transparent 1px),
-    radial-gradient(1200px 520px at 12% 108%, rgba(255, 255, 255, 0.9), transparent 60%),
-    linear-gradient(180deg, #f2f3ef 0%, #f1ebee 38%, #f3e0ec 72%, #f4d9ea 100%);
-  background-size: 56px 56px, 56px 56px, 100% 100%, 100% 100%;
-  background-attachment: fixed;
-  min-height: 100dvh;
-}
-.nav { background: rgba(255, 255, 255, 0.72); backdrop-filter: saturate(1.4) blur(14px); -webkit-backdrop-filter: saturate(1.4) blur(14px); border-bottom: 1px solid rgba(26, 20, 24, 0.06); }
-.nav-in { height: 62px; }
-.brand { gap: 9px; font-size: 18px; letter-spacing: -0.03em; }
-.brand img { width: 30px; height: 25px; object-fit: contain; display: block; }
-.brand small { font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent-ink); background: var(--accent-soft); border-radius: 6px; padding: 3px 7px; }
-.tabs { height: auto; gap: 2px; background: rgba(26, 20, 24, 0.04); border-radius: 11px; padding: 3px; }
-.tab { padding: 7px 14px; border-radius: 8px; border-bottom: 0; margin: 0; font-weight: 550; }
-.tab[aria-selected="true"] { background: var(--card); box-shadow: 0 1px 2px rgba(26, 20, 24, 0.08); }
-.head h1 { font-size: 34px; line-height: 1.1; letter-spacing: -0.035em; font-weight: 750; margin-bottom: 6px; }
-.card { border-color: rgba(26, 20, 24, 0.06); }
-code { font: 12px var(--mono); background: var(--tile); border-radius: 5px; padding: 1px 5px; }
-
-/* Logo motion: a model or MCP server that is working today moves; everything else moves on hover. */
-.logo svg { transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1); transform-origin: 50% 50%; }
-.logo.live[data-k="claude"] svg { animation: spin 14s linear infinite; }
-.logo.live[data-k="openai"] svg { animation: spin 22s linear infinite; }
-.logo.live[data-k="gemini"] svg { animation: twinkle 2.6s ease-in-out infinite; }
-.logo.live[data-k="cursor"] svg, .logo.live[data-k="copilot"] svg { animation: bob 2.8s ease-in-out infinite; }
-:is(.mchip, tr, .mrow, .stat):hover .logo[data-k="claude"] svg, .logo[data-k="claude"]:hover svg { animation: spin 2.4s linear infinite; }
-:is(.mchip, tr, .mrow, .stat):hover .logo[data-k="openai"] svg, .logo[data-k="openai"]:hover svg { animation: spin 3s linear infinite; }
-:is(.mchip, tr, .mrow, .stat):hover .logo[data-k="gemini"] svg, .logo[data-k="gemini"]:hover svg { animation: twinkle 1.2s ease-in-out infinite; }
-:is(.mchip, tr, .mrow, .stat):hover .logo:is([data-k="cursor"], [data-k="copilot"]) svg { animation: bob 1s ease-in-out infinite; }
-.logo.live { position: relative; }
-.logo.live::after { content: ""; position: absolute; inset: -3px; border-radius: inherit; border: 1.5px solid var(--accent); opacity: 0; animation: halo 2.6s ease-out infinite; pointer-events: none; }
-.logo.sm.live::after { border-radius: 50%; inset: -2px; }
-@keyframes spin { to { transform: rotate(360deg); } }
-@keyframes twinkle { 0%, 100% { transform: scale(1) rotate(0deg); } 50% { transform: scale(0.72) rotate(45deg); } }
-@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2.5px); } }
-@keyframes halo { 0% { opacity: 0.7; transform: scale(0.9); } 80%, 100% { opacity: 0; transform: scale(1.35); } }
-.pop { animation: pop 0.55s cubic-bezier(0.2, 1.5, 0.4, 1) both; animation-delay: var(--d, 0s); }
-@keyframes pop { from { opacity: 0; transform: translateY(6px) scale(0.92); } }
-
-/* Context flow: repo (or folder) cards on the left, the report for the one you point at on the right */
-.flow-card { padding: 26px 26px 22px; border-radius: 18px; box-shadow: var(--shadow-lg); margin-bottom: 16px; overflow: hidden; }
-.flow-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 400px); gap: 24px; align-items: end; margin-bottom: 22px; }
-.eyebrow { font: 600 11.5px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-ink); margin-bottom: 10px; }
-.flow-top h2 { font-size: 40px; line-height: 1.04; letter-spacing: -0.045em; margin: 0; font-weight: 750; max-width: 620px; }
-.flow-info { color: var(--ink-2); font-size: 14px; line-height: 1.55; min-height: 66px; }
-.flow-info b { color: var(--ink); }
-.flow-info .mono { font-family: var(--mono); font-size: 12.5px; }
-.ents { display: grid; gap: 12px; align-content: start; position: relative; z-index: 1; }
-.ent { background: #faf9f6; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px 8px; box-shadow: 0 1px 2px rgba(60, 20, 45, 0.05), 0 10px 22px -16px rgba(60, 20, 45, 0.3); transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s; }
-.ent.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), 0 12px 26px -16px rgba(176, 48, 127, 0.45); transform: translateX(4px); }
-.ent-h { display: flex; align-items: baseline; gap: 8px; margin-bottom: 7px; cursor: pointer; min-width: 0; }
-.ent-h i { width: 7px; height: 7px; background: var(--ink); border-radius: 1.5px; flex: none; transform: translateY(-1px); }
-.ent-h b { font-size: 14px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ent-h .mono, .ent-r .mono { font: 11px var(--mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--faint); white-space: nowrap; }
-.ent-h .r { margin-left: auto; }
-.ent-r { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 7px; margin: 0 -7px; border-radius: 6px; font: 12.5px var(--mono); color: var(--ink-2); cursor: pointer; transition: background 0.15s, color 0.15s; }
-.ent-r .src { display: inline-flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ent-r .v { white-space: nowrap; font-variant-numeric: tabular-nums; }
-.ent-r .v em { font-style: normal; color: var(--accent-ink); margin-left: 6px; }
-.ent-r:hover { background: var(--tile); }
-.ent-r.on { background: var(--accent); color: #fff; }
-.ent-r.on .v em { color: #fff; }
-.ent-r .mlogo { width: 16px; height: 16px; border-radius: 4px; }
-.ent-r .mlogo svg { width: 10px; height: 10px; }
-.ents .more { font-size: 12.5px; padding: 2px 4px; }
-
-/* MCP servers */
-.mcp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
-.mtile { background: #faf9f6; border: 1px solid var(--line); border-radius: 12px; padding: 14px 15px; display: grid; gap: 10px; min-width: 0; transition: transform 0.2s, box-shadow 0.2s; }
-.mtile:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
-.mtile-h { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.mtile-h .nm { font-weight: 650; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mtile-h .sub { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mtile-h .live-tag { margin-left: auto; font: 600 10.5px var(--mono); color: var(--ok); background: var(--ok-soft); padding: 2px 6px; border-radius: 5px; letter-spacing: 0.04em; }
-.mtile .big { font-size: 24px; font-weight: 700; letter-spacing: -0.03em; color: var(--accent-ink); line-height: 1.1; }
-.mtile .big small { font-size: 12.5px; color: var(--muted); font-weight: 500; letter-spacing: 0; margin-left: 4px; }
-.wbars { display: grid; grid-template-columns: 58px minmax(0, 1fr) 48px; gap: 4px 8px; align-items: center; font-size: 11.5px; color: var(--muted); }
-.wbars i { display: block; height: 8px; border-radius: 2px; transform-origin: left; animation: grow 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-.wbars .n { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); }
-.rec { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; line-height: 1.4; color: var(--ink-2); padding-top: 9px; border-top: 1px dashed var(--line); }
-.rec i { width: 16px; height: 16px; border-radius: 50%; flex: none; display: grid; place-items: center; font: 700 10px var(--sans); font-style: normal; background: var(--tile); color: var(--muted); margin-top: 1px; }
-.rec.ok i { background: var(--ok-soft); color: var(--ok); }
-.rec.warn i { background: var(--warn-soft); color: var(--warn); }
-.mlogo { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; flex: none; background: color-mix(in srgb, var(--b) 13%, white); color: var(--b); position: relative; }
-.mlogo svg { width: 20px; height: 20px; display: block; transition: transform 0.4s cubic-bezier(0.2, 0.7, 0.2, 1); }
-.mlogo b { font: 700 13px var(--sans); }
-.mlogo.live::after { content: ""; position: absolute; inset: -3px; border-radius: 12px; border: 1.5px solid var(--b); opacity: 0; animation: halo 2.6s ease-out infinite; }
-.mlogo.live svg, .mlogo.live b { animation: bob 3.2s ease-in-out infinite; }
-.mtile:hover .mlogo svg, .gal-i:hover .mlogo svg { animation: wiggle 0.9s ease-in-out; }
-@keyframes wiggle { 0%, 100% { transform: rotate(0) scale(1); } 30% { transform: rotate(-10deg) scale(1.12); } 60% { transform: rotate(8deg) scale(1.08); } }
-.gallery { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-.gal-i { display: inline-flex; align-items: center; gap: 8px; padding: 5px 11px 5px 5px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); font-size: 12.5px; color: var(--muted); }
-.gal-i .mlogo { width: 26px; height: 26px; border-radius: 50%; filter: grayscale(1); opacity: 0.65; transition: filter 0.25s, opacity 0.25s; }
-.gal-i .mlogo svg { width: 14px; height: 14px; }
-.gal-i:hover { color: var(--ink); }
-.gal-i:hover .mlogo { filter: none; opacity: 1; }
-.gal-i.seen { color: var(--ink); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
-.gal-i.seen .mlogo { filter: none; opacity: 1; }
-
-.mrow .logo { width: 28px; height: 28px; border-radius: 8px; }
-.mrow .logo svg { width: 16px; height: 16px; }
-
-@media (max-width: 1100px) {
-  .flow-top { grid-template-columns: minmax(0, 1fr); }
-  .flow-top h2 { font-size: 32px; }
-}
-@media (max-width: 860px) {
-  .ent.on { transform: none; }
-}
-@media (max-width: 560px) {
-  .flow-card { padding: 18px 16px; }
-  .flow-top h2 { font-size: 27px; }
-}
-
-/* Repo map: relationship lines between folders, file badges */
-.ents.erd-gutter { padding-left: 58px; }
-.ents .erd { position: absolute; left: 0; top: 0; overflow: visible; }
-.erd .lk { cursor: pointer; }
-.erd .lk path { fill: none; stroke: #d3cdc6; transition: stroke 0.2s, opacity 0.2s; }
-.erd .lk .hit { stroke: transparent; stroke-width: 12; }
-.erd .lk circle { fill: var(--card); stroke: #d3cdc6; stroke-width: 1.2; }
-.erd .lk text { font: 700 9px var(--mono); fill: var(--muted); }
-.erd .lk.on path:not(.hit) { stroke: var(--accent); }
-.erd .lk.on circle { stroke: var(--accent); fill: var(--accent-soft); }
-.erd .lk.on text { fill: var(--accent-ink); }
-.ents.has-on .erd .lk:not(.on) { opacity: 0.35; }
-.ent-r .lab { font: 10px var(--mono); text-transform: uppercase; letter-spacing: 0.04em; color: var(--accent-ink); background: var(--accent-soft); border-radius: 4px; padding: 1px 5px; margin-left: 6px; }
-.ent-r.on .lab { background: rgba(255, 255, 255, 0.25); color: #fff; }
-.fb { font-style: normal; margin-left: 8px; font-size: 11.5px; }
-.ent-r .fb.cut { color: var(--accent-ink); font-weight: 600; }
-.ent-r .fb.would { color: var(--accent-ink); border: 1px dashed currentColor; border-radius: 4px; padding: 0 4px; }
-.ent-r .fb.full { color: var(--ink-2); }
-.ent-r .fb.none { color: var(--faint); }
-.ent-r.on .fb.fb { color: #fff; border-color: #fff; }
-.repo-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: -6px 0 20px; }
-.repo-stats > div { background: var(--tile); border-radius: 10px; padding: 11px 14px; }
-.repo-stats .k { font-size: 12px; color: var(--muted); }
-.repo-stats .v { font-size: 22px; font-weight: 700; letter-spacing: -0.03em; margin-top: 2px; }
-.repo-stats .v.pink { color: var(--accent-ink); }
-.repo-stats .s { font-size: 11.5px; color: var(--muted); }
-
-
-.checks { display: flex; flex-wrap: wrap; gap: 10px 22px; margin-bottom: 20px; }
-.check { display: inline-flex; align-items: center; gap: 9px; color: var(--ink-2); font-size: 14.5px; }
-.check i { width: 17px; height: 17px; border-radius: 4px; background: var(--ink); display: grid; place-items: center; flex: none; }
-.check i::after { content: ""; width: 8px; height: 4.5px; border: solid #fff; border-width: 0 0 2px 2px; transform: translateY(-1px) rotate(-45deg); }
-.check.off { color: var(--faint); }
-.check.off i { background: var(--seg); }
-.statement { margin: 0; color: var(--ink); }
-.dotted { text-decoration: underline dotted var(--ink-2); text-underline-offset: 5px; text-decoration-thickness: 1.5px; }
-.chip { font: 12.5px var(--mono); background: var(--tile); border-radius: 6px; padding: 4px 9px; color: var(--ink-2); white-space: nowrap; }
-.hlt { background: var(--accent-hi); border-radius: 3px; }
-/* The landing page's session report, per folder or repo: panel, held-back callout, glowing bars */
-.rp { background: var(--card); border: 1px solid rgba(26, 20, 24, 0.07); border-radius: 18px; box-shadow: var(--shadow-lg); min-width: 0; overflow: hidden; }
-.rp-bar { display: flex; align-items: center; gap: 10px; height: 60px; padding: 0 22px 0 26px; border-bottom: 1px solid var(--line); }
-.rp-bar > svg { width: 20px; height: 20px; flex: none; }
-.rp-bar select { border: 0; box-shadow: none; background: transparent; font: 650 17px var(--sans); letter-spacing: -0.01em; padding: 4px 2px; max-width: 280px; cursor: pointer; }
-.rp-bar .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); animation: ping 2.4s ease-out infinite; }
-.rp-bar .mode { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; background: var(--tile); color: var(--ink-2); border-radius: 9px; padding: 7px 12px; font-size: 14px; white-space: nowrap; flex: none; }
-.rp-bar .mode svg { width: 15px; height: 15px; }
-.rp-body { padding: 26px 30px 24px; }
-.rp h3 { font-size: 24px; letter-spacing: -0.025em; font-weight: 700; margin: 0 0 16px; }
-.rp .checks { margin-bottom: 22px; }
-.rp .statement { font-size: 21px; line-height: 1.45; letter-spacing: -0.01em; margin: 0 0 22px; max-width: 760px; }
-.rp hr { border: 0; border-top: 1px solid var(--line); margin: 0 0 18px; }
-.rp-ch { display: flex; align-items: center; gap: 14px; color: var(--ink-2); font-size: 14.5px; margin-bottom: 10px; flex-wrap: wrap; }
-.rp-ch .legend { margin-left: auto; font-size: 14px; }
-.rp-ch .legend i { width: 12px; height: 12px; border-radius: 3px; }
-.rp-ch small { color: var(--muted); font-size: 12.5px; }
-.rp-rows { display: grid; grid-template-columns: minmax(120px, 0.95fr) minmax(0, 3fr) auto auto; align-items: center; column-gap: 16px; margin-bottom: 18px; }
-.rp-rows .nm { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 10px 0; cursor: pointer; position: relative; }
-.rp-rows .nm span { padding: 2px 6px; border-radius: 4px; transition: background 0.2s, color 0.2s; }
-.rp-rows .nm small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 1px; padding-left: 6px; }
-.rp-rows .bb { display: grid; gap: 4px; cursor: pointer; }
-.rp-rows .bb i { display: block; height: 11px; border-radius: 2px; transform-origin: left; animation: grow 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-.rp-rows .bb .w { background: var(--ink); min-width: 4px; }
-.rp-rows .bb .wo { background: var(--without); animation-delay: 0.06s; }
-.rp-rows .bb .w.proj { background: repeating-linear-gradient(135deg, var(--ink) 0 3px, #4a4048 3px 6px); }
-.rp-rows .val { font-size: 17px; font-weight: 650; text-align: right; font-variant-numeric: tabular-nums; }
-.rp-rows .val span { padding: 3px 7px; border-radius: 5px; transition: background 0.2s; }
-.rp-rows .pc { font-size: 16px; text-align: right; color: var(--ink-2); font-variant-numeric: tabular-nums; min-width: 66px; }
-.rp-rows .sel .nm span, .rp-rows .val.sel span { background: var(--accent-hi); color: var(--ink); }
-.rp-rows .nm.sel span { background: var(--accent-hi); }
-.rp-rows .flash span { animation: flash 2s ease-out; }
-@keyframes flash { from { background: var(--accent); color: #fff; } }
-.rp-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 18px; border-top: 1px solid var(--line); }
-.rp-foot .k { color: var(--ink-2); font-size: 14.5px; margin-right: 6px; }
-.rp-foot .chip { font-size: 13.5px; padding: 6px 11px; }
-.rp-foot .sp { flex: 1; }
-.rp-foot .acts { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
-.rp-foot .btn { font-size: 14.5px; padding: 9px 15px; border-radius: 10px; }
-.rp-foot .btn.outline { border: 2px solid var(--ink); }
-.rp-explain { margin-top: 14px; background: var(--tile); border-radius: 12px; padding: 12px 14px; font-size: 13.5px; color: var(--ink-2); line-height: 1.5; }
-.rp-explain b { color: var(--ink); }
-.rp-empty { color: var(--muted); padding: 10px 0 18px; }
-
-.callout { background: var(--card); border: 1px solid rgba(26, 20, 24, 0.07); border-radius: 16px; box-shadow: var(--shadow-lg); padding: 24px 26px 18px; position: relative; z-index: 2; }
-.callout h4 { font-size: 22px; letter-spacing: -0.02em; margin: 0; font-weight: 700; }
-.callout h4 .hlt { background: var(--accent-hi); border-radius: 4px; padding: 0 5px; margin-left: -5px; }
-.callout .sub { color: var(--ink-2); font-size: 16px; margin: 6px 0 16px; }
-.callout .grep { font: 15px var(--mono); background: var(--tile); border-radius: 10px; padding: 14px 16px; overflow-x: auto; white-space: nowrap; margin-bottom: 14px; }
-.callout .grep.wrap { white-space: normal; font: 14.5px/1.5 var(--sans); }
-.callout table { font-size: 15.5px; }
-.callout th { font-size: 14px; color: var(--muted); font-weight: 500; padding-bottom: 10px; }
-.callout td { padding: 11px 10px 11px 0; }
-.callout th:last-child, .callout td:last-child { text-align: right; padding-right: 0; }
-.callout .cf { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 15px; color: var(--ink-2); flex-wrap: wrap; }
-.callout .cf .link { font-size: 15px; text-decoration-color: var(--ink); text-decoration-thickness: 1.5px; }
-.callout .loading { height: 140px; }
-
-.gbar { background: color-mix(in srgb, var(--card) 92%, transparent); border: 1px solid rgba(26, 20, 24, 0.07); border-radius: 14px; padding: 18px 20px; box-shadow: 0 1px 2px rgba(60, 20, 45, 0.04); }
-.gbar-h { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
-.gbar-h b { font-size: 15px; font-weight: 650; }
-.gbar-h span { font-size: 13px; color: var(--muted); }
-.gbar p { margin: 8px 0 14px; font-size: 15px; }
-.gbar p .hlt { background: var(--accent-hi); padding: 0 3px; }
-.gb-rows { display: grid; grid-template-columns: minmax(90px, 0.6fr) minmax(0, 2fr) auto; gap: 10px 14px; align-items: center; font-size: 13.5px; }
-.gb-rows .t { font-variant-numeric: tabular-nums; color: var(--ink-2); text-align: right; white-space: nowrap; }
-.gb-rows .track { height: 9px; }
-.gb-rows .track i { display: block; height: 100%; background: var(--ink); border-radius: 1px; transform-origin: left; animation: grow 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both; animation-delay: var(--d, 0s); }
-.gb-rows .track i.pink { background: var(--accent); box-shadow: 0 0 0 1.5px var(--ink), 0 0 16px 2px rgba(230, 83, 186, 0.55); animation: grow 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both, glow 2.8s ease-in-out 1s infinite; animation-delay: var(--d, 0s), 1s; }
-@keyframes glow { 0%, 100% { box-shadow: 0 0 0 1.5px var(--ink), 0 0 10px 1px rgba(230, 83, 186, 0.4); } 50% { box-shadow: 0 0 0 1.5px var(--ink), 0 0 22px 5px rgba(230, 83, 186, 0.7); } }
-
-/* Repo section on the dashboard: folder cards and the report panel side by side */
-.rmap { display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); gap: 26px; align-items: start; }
-.rmap > .ents { min-width: 0; }
-.rmap .ent { min-width: 0; overflow: hidden; }
-.rmap .ent-h b { min-width: 0; }
-.rmap .rp { position: sticky; top: 80px; }
-.ent { cursor: pointer; }
-.ent.sel { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), 0 12px 26px -16px rgba(176, 48, 127, 0.45); }
-.ent .open { font: 600 11px var(--mono); color: var(--accent-ink); opacity: 0; transition: opacity 0.2s; margin-left: 8px; }
-.ent:hover .open, .ent.sel .open { opacity: 1; }
-
-/* The pop-up report page: the landing page's composition for one folder */
-.sheet { position: fixed; inset: 0; z-index: 50; overflow-y: auto; background-color: #f2f1ed;
-  background-image: linear-gradient(rgba(255, 255, 255, 0.75) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.75) 1px, transparent 1px), linear-gradient(180deg, #f2f3ef 0%, #f1e6ee 45%, #f3d9ea 100%);
-  background-size: 56px 56px, 56px 56px, 100% 100%; animation: sheetin 0.35s cubic-bezier(0.2, 0.7, 0.2, 1); }
-@keyframes sheetin { from { opacity: 0; transform: translateY(14px); } }
-.sheet-in { max-width: 1360px; margin: 0 auto; padding: 22px 32px 64px; position: relative; }
-.sheet-top { display: flex; align-items: center; gap: 12px; margin-bottom: 26px; }
-.sheet-top .x { margin-left: auto; }
-.sheet-grid { display: grid; grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr); gap: 56px; align-items: start; position: relative; }
-.sheet h1 { font-size: 54px; line-height: 1.04; letter-spacing: -0.045em; font-weight: 800; margin: 18px 0 18px; }
-.sheet .lede { font-size: 19px; line-height: 1.45; color: var(--ink-2); margin: 0 0 40px; max-width: 470px; }
-.sheet .stack { display: grid; gap: 14px; margin-top: 18px; }
-.sheet .wire { position: absolute; inset: 0; pointer-events: none; overflow: visible; width: 100%; height: 100%; }
-.sheet .wire path { fill: none; stroke: var(--accent); stroke-width: 2; }
-.sheet .wire circle { fill: var(--accent); }
-.stairs { position: absolute; display: grid; gap: 5px; pointer-events: none; }
-.stairs i { display: block; height: 4px; background: var(--ink); }
-.stairs i.p { background: var(--accent); }
-.stairs.l { left: 0; top: 340px; justify-items: start; }
-.stairs.r { right: 0; top: 120px; justify-items: end; }
-
-@media (max-width: 1100px) {
-  .sheet-grid { grid-template-columns: minmax(0, 1fr); gap: 24px; }
-  .sheet .wire { display: none; }
-  .rmap { grid-template-columns: minmax(0, 1fr); }
-  .rmap .rp { position: static; }
-}
-@media (max-width: 640px) {
-  .sheet-in { padding: 16px 16px 48px; }
-  .sheet h1 { font-size: 36px; }
-  .rp-body { padding: 20px 18px; }
-  .rp h3 { font-size: 20px; }
-  .rp .statement { font-size: 17px; }
-  .rp-rows { grid-template-columns: minmax(90px, 1fr) minmax(0, 1.4fr) auto; }
-  .rp-rows .pc { display: none; }
-  .stairs { display: none; }
-}
-
-/* Agent context files */
-.af-sum { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 10px; }
-.af-sum > div { background: var(--tile); border-radius: 10px; padding: 11px 14px; }
-.af-sum .k { font-size: 12px; color: var(--muted); }
-.af-sum .v { font-size: 22px; font-weight: 700; letter-spacing: -0.03em; margin-top: 2px; }
-.af-sum .v.pink { color: var(--accent-ink); }
-.af { display: grid; grid-template-columns: minmax(0, 1.7fr) 128px minmax(110px, 1fr) 92px; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
-.af .p { min-width: 0; }
-.af .p b { display: block; font: 600 12.5px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.af .p small { color: var(--muted); font-size: 11.5px; }
-.af .kind { font-size: 12px; color: var(--muted); }
-.af .kind b { color: var(--ink); font-weight: 600; display: block; }
-.af .bar { height: 8px; border-radius: 3px; background: var(--seg); overflow: hidden; }
-.af .bar i { display: block; height: 100%; background: var(--ink); transform-origin: left; animation: grow 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-.af .bar i.always { background: var(--accent); }
-.af .bar i.od { background: var(--bar-in); }
-.af .n { text-align: right; font-variant-numeric: tabular-nums; font-weight: 650; font-size: 13px; }
-.af .n small { display: block; color: var(--muted); font-weight: 400; font-size: 11px; }
-.flag { display: inline-block; font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 6px; border-radius: 5px; background: var(--warn-soft); color: var(--warn); margin: 4px 4px 0 0; cursor: help; }
-@keyframes grow { from { transform: scaleX(0); } }
-@media (max-width: 800px) {
-  .tabs { justify-self: start; max-width: 100%; overflow-x: auto; }
-  .repo-stats, .af-sum { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .af { grid-template-columns: minmax(0, 1fr) 84px; }
-  .af .kind, .af .bar { display: none; }
-  .ents.erd-gutter { padding-left: 0; }
-  .ents .erd { display: none; }
-}
-
-@media (max-width: 1100px) {
-  .g-row2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .g-row2 > :last-child { grid-column: 1 / -1; }
-  .models { --n: 2 !important; row-gap: 22px; }
-  .band { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); row-gap: 22px; }
-  .band > div:nth-child(odd) { border-left: 0; }
-  .model:nth-child(odd) { border-left: 0; }
-}
-@media (max-width: 800px) {
-  .nav-in { grid-template-columns: auto 1fr; height: auto; padding: 10px 16px 0; row-gap: 0; }
-  .tabs { grid-column: 1 / -1; grid-row: 2; height: 44px; overflow-x: auto; }
-  .proj { display: none; }
-  .wrap { padding: 18px 16px 48px; }
-  .g-row2, .g-row3, .g-2 { grid-template-columns: minmax(0, 1fr); }
-  .head-r { margin-left: 0; width: 100%; }
-  .mix { height: 240px; }
-}
-@media (max-width: 560px) {
-  .models { --n: 1 !important; }
-  .band { grid-template-columns: minmax(0, 1fr); }
-  .band > div { border-left: 0; }
-  .model { border-left: 0; }
-  .frow { grid-template-columns: 52px minmax(0, 1fr) auto; }
-  .hide-sm { display: none; }
-  .mix { --n: 3 !important; }
-  .mix .mcol:nth-child(n+4) { display: none; }
-}
-@media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
-</style>
-</head>
-<body data-key="__SNOUT_KEY__">
-<header class="nav">
-  <div class="nav-in">
-    <div class="brand"><img src="data:image/png;base64,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" alt="">Snout<small>Local</small></div>
-    <nav class="tabs" role="tablist" aria-label="Sections">
-      <button class="tab" role="tab" data-tab="overview" aria-selected="true">Dashboard</button>
-      <button class="tab" role="tab" data-tab="context" aria-selected="false">Context</button>
-      <button class="tab" role="tab" data-tab="spend" aria-selected="false">Spend</button>
-      <button class="tab" role="tab" data-tab="settings" aria-selected="false">Settings</button>
-    </nav>
-    <div class="nav-r">
-      <span class="live" id="live"><i></i><span id="live-t">Connecting</span></span>
-      <span class="proj" id="proj" title="Project"></span>
-    </div>
-  </div>
-</header>
-<div class="toast" id="toast" role="status" aria-live="polite"></div>
-
-<main class="wrap">
-  <div class="head">
-    <div>
-      <h1 id="title">Dashboard</h1>
-      <div class="sub" id="headline"><span>Loading</span></div>
-    </div>
-    <div class="head-r">
-      <select id="session" aria-label="Session"><option value="">All sessions</option></select>
-      <div class="seg-switch" id="modeSwitch" role="group" aria-label="Mode" hidden>
-        <button type="button" data-mode="observe">Observe</button>
-        <button type="button" data-mode="enforce">Enforce</button>
-      </div>
-      <button type="button" class="btn dark" id="connect" hidden>Connect team</button>
-    </div>
-  </div>
-  <div id="banner"></div>
-
-  <!-- Dashboard -->
-  <section data-view="overview">
-    <div class="card band" id="band"><div class="sk" style="height:96px;grid-column:1/-1;margin:0 22px"></div></div>
-    <div id="repo"></div>
-    <div class="card models" id="models"><div class="models-empty"><div class="sk" style="height:74px"></div></div></div>
-
-    <div class="grid g-row2">
-      <div class="card">
-        <div class="card-h"><div><h2>Snout today</h2><p>What stayed out of your agents' context</p></div></div>
-        <div class="tiles">
-          <div class="tile hl"><div class="k">Kept out of context</div><div class="v num" id="t-held">0</div><div class="s" id="t-held-s">tokens</div></div>
-          <div class="tile"><div class="k">Saved</div><div class="v num" id="t-saved">$0.00</div><div class="s" id="t-saved-s">at your models' input price</div></div>
-          <div class="tile"><div class="k">Reads trimmed</div><div class="v num" id="t-cut">0</div><div class="s" id="t-cut-s">of today's reads</div></div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-h"><div><h2>Live context</h2><p>Each file and tool result, as your agents read it</p></div><button class="link r" type="button" data-go="context">View all</button></div>
-        <div class="feed" id="feed"><div class="sk" style="height:220px"></div></div>
-      </div>
-      <div class="card">
-        <div class="card-h"><div><h2>Context over time</h2><p>Last 7 days, tokens per day</p></div>
-          <div class="legend r"><span style="--c: var(--ink)"><i></i>Into context</span><span style="--c: var(--accent)"><i></i>Kept out</span></div></div>
-        <div class="chart-box" id="trend-box"><svg class="trend" id="trend" role="img" aria-label="Tokens into context and kept out, per day"></svg><div class="tip" id="trend-tip"></div></div>
-      </div>
-    </div>
-
-    <div class="grid g-2">
-      <div class="card">
-        <div class="card-h"><div><h2>Savings by feature</h2><p>Tokens your agents asked for, and what each Snout feature kept out</p></div></div>
-        <div id="mix"><div class="sk" style="height:264px"></div></div>
-      </div>
-      <div class="card">
-        <div class="card-h"><div><h2>Cost breakdown</h2><p id="cost-p">API-equivalent, from your agents' own usage logs</p></div><button class="link r" type="button" data-go="spend">View spend</button></div>
-        <div id="cost"><div class="sk" style="height:200px"></div></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Context -->
-  <section data-view="context" hidden>
-    <div class="grid"><div id="agentfiles-box"></div></div>
-    <div class="grid"><div id="mcp-box"></div></div>
-    <div class="grid g-2">
-      <div class="card">
-        <div class="card-h"><div><h2>Live context</h2><p id="feed-all-p">Newest first</p></div></div>
-        <div class="scroll"><table id="feed-all"></table></div>
-      </div>
-      <div class="card">
-        <div class="card-h"><div><h2>Files that cost the most context</h2><p>Kept out by Snout first, then the largest full reads</p></div></div>
-        <div class="scroll"><table id="files"></table></div>
-      </div>
-    </div>
-    <div class="grid g-row3">
-      <div class="card"><div class="card-h"><div><h2>By coding agent</h2><p>Reads and tokens per agent</p></div></div><div class="scroll"><table id="clients"></table></div></div>
-      <div class="card"><div class="card-h"><div><h2>Sessions</h2><p>Most recent first</p></div></div><div class="scroll"><table id="sessions"></table></div></div>
-    </div>
-  </section>
-
-  <!-- Spend -->
-  <section data-view="spend" hidden>
-    <div class="grid g-2">
-      <div class="card">
-        <div class="card-h"><div><h2>Daily spend</h2><p id="bars-p">Last 30 days</p></div></div>
-        <div class="total"><span class="v num" id="sp-total">$0</span><span class="s" id="sp-meta"></span></div>
-        <div class="chart-box"><svg class="bars" id="bars" role="img" aria-label="Spend per day"></svg><div class="tip" id="bars-tip"></div></div>
-      </div>
-      <div class="card">
-        <div class="card-h"><div><h2>Where the tokens went</h2><p>Every billed token, by kind</p></div></div>
-        <div id="kinds"></div>
-      </div>
-    </div>
-    <div class="card"><div class="card-h"><div><h2>By model</h2><p id="sp-models-p"></p></div></div><div class="scroll"><table id="sp-models"></table></div></div>
-  </section>
-
-  <!-- Settings -->
-  <section data-view="settings" hidden>
-    <div class="card" style="max-width:860px">
-      <div class="set"><div><h3>Mode</h3><p><b>Observe</b> records what your agents read and what Snout would keep out. <b>Enforce</b> trims lockfiles, generated code, noisy command output and large MCP results before they reach the agent. Your own code is always read in full.</p></div>
-        <div class="seg-switch" id="modeSwitch2" role="group" aria-label="Mode"><button type="button" data-mode="observe">Observe</button><button type="button" data-mode="enforce">Enforce</button></div></div>
-      <div class="set"><div><h3>Prompt tips</h3><p>A short tip, shown only to you, when a task prompt doesn't say which file, what should happen or how to check it.</p></div>
-        <div class="seg-switch" id="coachSwitch" role="group" aria-label="Prompt tips"><button type="button" data-coach="off">Off</button><button type="button" data-coach="tip">On</button></div></div>
-      <div class="set"><div><h3>Snout Cloud</h3><p id="cloud-p">One dashboard for your team: spend and savings by person, project and model. Only daily totals are sent, never code or file paths.</p></div>
-        <button type="button" class="btn dark" id="connect2">Connect team</button></div>
-      <div class="set"><div><h3>A file Snout trims that you need</h3><p>Open the Context tab and choose <b>Always read in full</b> next to it, or run <code>snout allow &lt;file&gt;</code>.</p></div><button type="button" class="btn" data-go="context">Open Context</button></div>
-      <div class="set"><div><h3>About</h3><p id="about"></p></div></div>
-    </div>
-  </section>
-
-  <footer>Runs on your machine. This page makes no requests beyond this local server.</footer>
-</main>
-
-<script>
-(function () {
-  "use strict";
-  var $ = function (id) { return document.getElementById(id); };
-  var KEY = document.body.getAttribute("data-key");
-  var state = { data: null, session: "", tab: "overview", seen: null, shown: {}, first: true };
-  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  // Brand marks from Simple Icons (CC0), inlined so the page loads nothing from the network.
-  // They identify which provider ran a model, nothing more.
-  var LOGO_PATHS = {
-    "claude":"m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z",
-    "openai":"M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z",
-    "gemini":"M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81",
-    "cursor":"M11.503.131 1.891 5.678a.84.84 0 0 0-.42.726v11.188c0 .3.162.575.42.724l9.609 5.55a1 1 0 0 0 .998 0l9.61-5.55a.84.84 0 0 0 .42-.724V6.404a.84.84 0 0 0-.42-.726L12.497.131a1.01 1.01 0 0 0-.996 0M2.657 6.338h18.55c.263 0 .43.287.297.515L12.23 22.918c-.062.107-.229.064-.229-.06V12.335a.59.59 0 0 0-.295-.51l-9.11-5.257c-.109-.063-.064-.23.061-.23",
-    "copilot":"M23.922 16.997C23.061 18.492 18.063 22.02 12 22.02 5.937 22.02.939 18.492.078 16.997A.641.641 0 0 1 0 16.741v-2.869a.883.883 0 0 1 .053-.22c.372-.935 1.347-2.292 2.605-2.656.167-.429.414-1.055.644-1.517a10.098 10.098 0 0 1-.052-1.086c0-1.331.282-2.499 1.132-3.368.397-.406.89-.717 1.474-.952C7.255 2.937 9.248 1.98 11.978 1.98c2.731 0 4.767.957 6.166 2.093.584.235 1.077.546 1.474.952.85.869 1.132 2.037 1.132 3.368 0 .368-.014.733-.052 1.086.23.462.477 1.088.644 1.517 1.258.364 2.233 1.721 2.605 2.656a.841.841 0 0 1 .053.22v2.869a.641.641 0 0 1-.078.256Zm-11.75-5.992h-.344a4.359 4.359 0 0 1-.355.508c-.77.947-1.918 1.492-3.508 1.492-1.725 0-2.989-.359-3.782-1.259a2.137 2.137 0 0 1-.085-.104L4 11.746v6.585c1.435.779 4.514 2.179 8 2.179 3.486 0 6.565-1.4 8-2.179v-6.585l-.098-.104s-.033.045-.085.104c-.793.9-2.057 1.259-3.782 1.259-1.59 0-2.738-.545-3.508-1.492a4.359 4.359 0 0 1-.355-.508Zm2.328 3.25c.549 0 1 .451 1 1v2c0 .549-.451 1-1 1-.549 0-1-.451-1-1v-2c0-.549.451-1 1-1Zm-5 0c.549 0 1 .451 1 1v2c0 .549-.451 1-1 1-.549 0-1-.451-1-1v-2c0-.549.451-1 1-1Zm3.313-6.185c.136 1.057.403 1.913.878 2.497.442.544 1.134.938 2.344.938 1.573 0 2.292-.337 2.657-.751.384-.435.558-1.15.558-2.361 0-1.14-.243-1.847-.705-2.319-.477-.488-1.319-.862-2.824-1.025-1.487-.161-2.192.138-2.533.529-.269.307-.437.808-.438 1.578v.021c0 .265.021.562.063.893Zm-1.626 0c.042-.331.063-.628.063-.894v-.02c-.001-.77-.169-1.271-.438-1.578-.341-.391-1.046-.69-2.533-.529-1.505.163-2.347.537-2.824 1.025-.462.472-.705 1.179-.705 2.319 0 1.211.175 1.926.558 2.361.365.414 1.084.751 2.657.751 1.21 0 1.902-.394 2.344-.938.475-.584.742-1.44.878-2.497Z"};
-  var LOGO_FILL = { claude: "#D97757", openai: "currentColor", cursor: "currentColor", copilot: "currentColor", gemini: "url(#snout-gemini)" };
-  var CLIENT = { claude: "Claude Code", codex: "Codex", gemini: "Gemini CLI", cursor: "Cursor", copilot: "Copilot" };
-  var CLIENT_LOGO = { claude: "claude", codex: "openai", gemini: "gemini", cursor: "cursor", copilot: "copilot" };
-
-  function h(tag, attrs) {
-    var el = typeof tag === "string" ? document.createElement(tag) : tag;
-    if (attrs) for (var k in attrs) {
-      if (attrs[k] == null) continue;
-      if (k === "text") el.textContent = attrs[k];
-      else if (k === "cls") el.className = attrs[k];
-      else if (k === "on") for (var ev in attrs.on) el.addEventListener(ev, attrs.on[ev]);
-      else el.setAttribute(k, attrs[k]);
-    }
-    for (var i = 2; i < arguments.length; i++) {
-      var c = arguments[i];
-      if (c == null || c === false) continue;
-      if (Array.isArray(c)) { h.apply(null, [el, null].concat(c)); continue; }
-      el.appendChild(typeof c === "string" || typeof c === "number" ? document.createTextNode(String(c)) : c);
-    }
-    return el;
-  }
-  var NS = "http://www.w3.org/2000/svg";
-  function s(tag, a) { var e = document.createElementNS(NS, tag); for (var k in a) e.setAttribute(k, a[k]); return e; }
-
-  function fmt(n) {
-    n = Math.round(n || 0);
-    if (n < 1000) return String(n);
-    if (n < 1e6) return (n / 1e3).toFixed(n < 1e4 ? 1 : 0).replace(/\\.0$/, "") + "K";
-    return (n / 1e6).toFixed(n < 1e7 ? 2 : 1).replace(/\\.?0+$/, "") + "M";
-  }
-  function usd(n) { n = n || 0; return n > 0 && n < 0.01 ? "<$0.01" : "$" + (n < 1000 ? n.toFixed(2) : Math.round(n).toLocaleString()); }
-  function ago(ts) {
-    var x = Math.max(0, (Date.now() - Date.parse(ts)) / 1000);
-    if (x < 45) return "just now";
-    if (x < 3600) return Math.round(x / 60) + " min ago";
-    if (x < 86400) return Math.round(x / 3600) + " h ago";
-    return Math.round(x / 86400) + " d ago";
-  }
-  var pct = function (a, b) { return b ? Math.round((a / b) * 100) : 0; };
-  var shortPath = function (p) { var i = p.lastIndexOf("/"); return p.length > 44 && i > 0 ? "\u2026" + p.slice(i) : p; };
-
-  function tween(key, to, el, show) {
-    var from = state.shown[key] || 0, t0 = performance.now();
-    state.shown[key] = to;
-    if (from === to || reduced) { el.textContent = show(to); return; }
-    (function step(t) {
-      var k = Math.min(1, (t - t0) / 650), e = 1 - Math.pow(1 - k, 3);
-      el.textContent = show(from + (to - from) * e);
-      if (k < 1) requestAnimationFrame(step);
-    })(t0);
-  }
-
-  var toastTimer = 0;
-  function toast(text) {
-    var t = $("toast"); t.textContent = text; t.classList.add("show");
-    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove("show"); }, 3200);
-  }
-  /** Presses a button on the local server: the same code path as the matching CLI command. */
-  function act(body) {
-    return fetch("/api/action", { method: "POST", headers: { "content-type": "application/json", "x-snout-key": KEY }, body: JSON.stringify(body) })
-      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); })
-      .then(function (j) { toast(j.message); return j; }, function (e) { toast("Couldn't do that: " + e.message); throw e; });
-  }
-
-  // --- models and providers -----------------------------------------------------------
-
-  function providerOf(model) {
-    var m = String(model || "").toLowerCase();
-    if (/claude|opus|sonnet|haiku|fable|mythos/.test(m)) return "claude";
-    if (/gpt|codex|^o\\d/.test(m)) return "openai";
-    if (/gemini/.test(m)) return "gemini";
-    return null;
-  }
-  /** A shade per model inside its provider's family, so two Claude models still read apart. */
-  var SHADES = [
-    [/fable|mythos/, "#8B6CE0"], [/opus/, "#D97757"], [/sonnet/, "#E0A04C"], [/haiku/, "#C9B27A"],
-    [/codex/, "#0E8C6D"], [/gpt|^o\\d/, "#10A37F"], [/gemini.*flash/, "#6FA8FF"], [/gemini/, "#4285F4"],
-  ];
-  function modelColor(model) {
-    var m = String(model || "").toLowerCase();
-    for (var i = 0; i < SHADES.length; i++) if (SHADES[i][0].test(m)) return SHADES[i][1];
-    return "#8a8a93";
-  }
-  /** "claude-opus-5-5" \u2192 "Claude Opus 5.5", "gpt-5.5-codex" \u2192 "GPT-5.5 Codex". */
-  function modelLabel(model) {
-    var m = String(model || "");
-    if (!m || m === "unknown") return "Model not recorded";
-    var c = /^claude-([a-z]+)-(\\d+)(?:-(\\d{1,2}))?(?!\\d)/.exec(m);
-    if (c) return "Claude " + c[1][0].toUpperCase() + c[1].slice(1) + " " + c[2] + (c[3] ? "." + c[3] : "");
-    return m.replace(/^gpt/i, "GPT").replace(/^gemini/i, "Gemini").replace(/-(\\w)/g, function (_, x) { return " " + x.toUpperCase(); }).replace(/^GPT (\\d)/, "GPT-$1");
-  }
-  function logo(kind, small, fallback, live) {
-    var box = h("span", { cls: "logo" + (small ? " sm" : "") + (live && kind ? " live" : ""), "data-k": kind || null, "aria-hidden": "true" });
-    var d = kind && LOGO_PATHS[kind];
-    if (!d) { box.appendChild(h("b", { text: (fallback || "?").slice(0, 1).toUpperCase() })); return box; }
-    var svg = s("svg", { viewBox: "0 0 24 24" });
-    if (kind === "gemini") {
-      var defs = s("defs", {}), g = s("linearGradient", { id: "snout-gemini", x1: "0", y1: "0", x2: "1", y2: "1" });
-      [["0", "#4285F4"], ["0.55", "#9B72CB"], ["1", "#D96570"]].forEach(function (st) { g.appendChild(s("stop", { offset: st[0], "stop-color": st[1] })); });
-      defs.appendChild(g); svg.appendChild(defs);
-    }
-    svg.appendChild(s("path", { d: d, fill: LOGO_FILL[kind] }));
-    box.appendChild(svg);
-    return box;
-  }
-  var modelLogo = function (model, small, live) { return logo(providerOf(model), small, model, live); };
-  var clientLogo = function (client, small, live) { return logo(CLIENT_LOGO[client], small, client, live); };
-
-  /** What a rule means to someone who never saw the classifier. */
-  var LABELS = {
-    source: "Your code", lockfile: "Lockfiles", generated: "Generated", vendored: "Vendored", minified: "Minified",
-    binary: "Binary files", snapshot: "Snapshots", "command-output": "Command output", "mcp-output": "MCP results", "repeat-read": "Repeat reads", "repeat-output": "Repeat results", "long-doc": "Long docs", "long-log": "Long logs",
-    "tool-output": "Tool output", "always-allow": "Always read", secret: "Secrets", "size-hint": "Large files",
-    "generated-hint": "Generated", "minified-hint": "Minified", "fixture-hint": "Test fixtures", reversal: "Re-read in full",
-  };
-  var labelOf = function (k) { return LABELS[k] || k.replace(/-/g, " ").replace(/^./, function (c) { return c.toUpperCase(); }); };
-
-  var OUTCOME = { "read": ["Full read", "full"], trimmed: ["Trimmed", "cut"], "held back": ["Kept out", "cut"], asked: ["Asked you", "ask"], "would hold back": ["Would trim", "would"] };
-  function outcomeBadge(o) { var x = OUTCOME[o] || [o, ""]; return h("span", { cls: "badge " + x[1], text: x[0] }); }
-
-  // --- the view model: one shape for this machine's data (and, later, the cloud's) ---------
-
-  function view(d) {
-    var sp = d.spend;
-    var rate = sp && sp.inputRate ? sp.inputRate : 3;
-    var today = d.today || { reads: 0, inContext: 0, heldBack: 0, day: "" };
-    var spentToday = 0;
-    if (sp) sp.series.forEach(function (r) { if (r.day === today.day) spentToday = r.costUsd; });
-    var cutToday = 0;
-    (d.recent || []).forEach(function (r) { if (r.ts.slice(0, 10) === today.day && r.outcome !== "read") cutToday += 1; });
-
-    var models;
-    if (sp && sp.byModel && sp.byModel.length) {
-      var costAll = 0, tokAll = 0;
-      sp.byModel.forEach(function (m) { costAll += m.costUsd; tokAll += m.tokens; });
-      models = sp.byModel.map(function (m) {
-        return { key: m.key, label: modelLabel(m.key), client: m.client, color: modelColor(m.key),
-          value: m.today && m.today.tokens ? m.today.tokens : m.tokens, today: !!(m.today && m.today.tokens),
-          requests: m.today ? m.today.requests : 0, costToday: m.today ? m.today.costUsd : 0, cost7: m.weekCostUsd || 0, cost30: m.costUsd,
-          share: costAll ? m.costUsd / costAll : tokAll ? m.tokens / tokAll : 0 };
-      });
-    } else {
-      var all = 0;
-      (d.byModel || []).forEach(function (m) { all += m.inContext + m.heldBack; });
-      models = (d.byModel || []).filter(function (m) { return m.key !== "unknown"; }).map(function (m) {
-        return { key: m.key, label: modelLabel(m.key), client: null, color: modelColor(m.key), value: m.inContext, today: false,
-          requests: m.reads, costToday: 0, cost7: 0, cost30: 0, share: all ? (m.inContext + m.heldBack) / all : 0, fromLedger: true };
-      });
-    }
-    var activeClients = {};
-    (d.recent || []).forEach(function (r) { if (r.ts.slice(0, 10) === today.day) activeClients[r.client] = 1; });
-    return { d: d, sp: sp, rate: rate, today: today, spentToday: spentToday, saved: (today.heldBack * rate) / 1e6, cutToday: cutToday, models: models, agentsToday: Object.keys(activeClients).length };
-  }
-
-  // --- Dashboard ------------------------------------------------------------------------
-
-  function renderHead(v) {
-    var d = v.d, m = d.meta || {};
-    $("proj").textContent = m.project || "";
-    $("proj").title = "Project: " + (m.project || "");
-    var parts = [
-      h("span", null, h("b", { text: String(v.agentsToday) }), v.agentsToday === 1 ? " agent active today" : " agents active today"),
-      h("span", null, h("b", { text: fmt(v.today.inContext + v.today.heldBack) }), " tokens read"),
-      h("span", null, h("b", { text: "~" + fmt(v.today.heldBack) }), " kept out"),
-    ];
-    if (v.sp) parts.push(h("span", null, h("b", { text: usd(v.spentToday) }), " spent"));
-    $("headline").replaceChildren.apply($("headline"), parts);
-    document.title = v.today.heldBack ? "~" + fmt(v.today.heldBack) + " kept out \xB7 Snout" : "Snout Dashboard";
-
-    if (m.controls) {
-      $("modeSwitch").hidden = false;
-      ["modeSwitch", "modeSwitch2"].forEach(function (id) {
-        [].forEach.call($(id).querySelectorAll("button"), function (b) {
-          var on = b.getAttribute("data-mode") === (m.mode === "advise" ? "enforce" : m.mode);
-          b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on));
-        });
-      });
-      [].forEach.call($("coachSwitch").querySelectorAll("button"), function (b) {
-        var on = b.getAttribute("data-coach") === (m.coach === "off" ? "off" : "tip");
-        b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on));
-      });
-      var connected = m.cloud && m.cloud.loggedIn;
-      ["connect", "connect2"].forEach(function (id) {
-        var c = $(id); c.hidden = false;
-        c.textContent = connected ? "Team: " + (m.cloud.team || "connected") : "Connect team";
-        c.disabled = !!connected; c.className = connected ? "btn done" : "btn dark";
-      });
-      $("cloud-p").textContent = connected
-        ? "Syncing daily totals to " + (m.cloud.team || "your team") + " after each session. Never code or file paths."
-        : "One dashboard for your team: spend and savings by person, project and model. Only daily totals are sent, never code or file paths.";
-    } else {
-      $("coachSwitch").hidden = true; $("modeSwitch2").hidden = true; $("connect2").hidden = true;
-    }
-
-    var sel = $("session"), cur = state.session;
-    sel.replaceChildren(h("option", { value: "", text: "All sessions" }));
-    (d.sessions || []).forEach(function (x) {
-      sel.appendChild(h("option", { value: x.key, text: x.clients.map(function (c) { return CLIENT[c] || c; }).join(", ") + " \xB7 " + ago(x.last) + " \xB7 ~" + fmt(x.heldBack) + " kept out" }));
-    });
-    if (cur && !(d.sessions || []).some(function (x) { return x.key === cur; })) sel.appendChild(h("option", { value: cur, text: "This session" }));
-    sel.value = cur;
-
-    var banner = $("banner"); banner.replaceChildren();
-    if (m.mode === "observe" && d.couldHoldBack > 0) {
-      banner.appendChild(h("div", { cls: "banner" },
-        h("span", null, "Snout is only watching. Turned on, it would have kept ", h("b", { text: "~" + fmt(d.couldHoldBack) + " tokens" }), " out of context so far."),
-        m.controls ? h("button", { cls: "btn accent", type: "button", text: "Turn on", on: { click: function () { act({ type: "mode", value: "enforce" }); } } }) : h("code", { text: "snout mode enforce" })));
-    }
-  }
-
-  function renderModels(v) {
-    var box = $("models");
-    var list = v.models.slice(0, 4);
-    box.style.setProperty("--n", Math.max(1, list.length));
-    box.replaceChildren();
-    if (!list.length) {
-      box.style.setProperty("--n", 1);
-      box.appendChild(h("div", { cls: "models-empty" }, "Your models show up here after the first Claude Code or Codex session in this project, with tokens and spend from their own usage logs."));
-      return;
-    }
-    var SEGS = 24;
-    list.forEach(function (m, idx) {
-      var filled = Math.max(m.share > 0 ? 1 : 0, Math.round(m.share * SEGS));
-      var meter = h("div", { cls: "meter", style: "--c:" + m.color, title: Math.round(m.share * 100) + "% of " + (m.fromLedger ? "tokens read" : "spend") + (v.sp ? ", last " + v.sp.days + " days" : "") });
-      for (var i = 0; i < SEGS; i++) meter.appendChild(h("i"));
-      var note = m.fromLedger
-        ? h("div", { cls: "m-note" }, h("b", { style: "--c:" + m.color, text: String(m.requests) }), " reads")
-        : m.today
-          ? h("div", { cls: "m-note" }, h("b", { style: "--c:" + m.color, text: m.requests.toLocaleString() }), " requests today \xB7 " + usd(m.costToday))
-          : h("div", { cls: "m-note" }, "last " + (v.sp ? v.sp.days : 30) + " days \xB7 " + usd(m.cost30));
-      box.appendChild(h("div", { cls: "model" },
-        h("div", { cls: "m-id" }, modelLogo(m.key, false, m.today), h("div", { style: "min-width:0" }, h("div", { cls: "m-name", text: m.label }), h("div", { cls: "m-sub", text: m.client ? CLIENT[m.client] || m.client : "Model" }))),
-        h("div", { cls: "m-row" }, h("div", null, h("div", { cls: "m-val num", text: fmt(m.value) }), note), meter)));
-      // Segments fill left to right on first paint: the eye lands on relative size before the number.
-      var segs = meter.children;
-      for (var j = 0; j < filled; j++) {
-        (function (el, delay) {
-          if (reduced || !state.first) el.classList.add("f");
-          else setTimeout(function () { el.classList.add("f"); }, 120 + idx * 90 + delay);
-        })(segs[j], j * 14);
-      }
-    });
-  }
-
-  /** The headline: what Snout saved over the days the ledger covers, against what was spent then. */
-  function renderBand(v) {
-    var box = $("band"); box.replaceChildren();
-    var daily = v.d.daily || [], spendBy = {};
-    if (v.sp) v.sp.series.forEach(function (r) { spendBy[r.day] = r.costUsd; });
-    var held = 0, asked = 0, reads = 0, spent = 0, top = 0;
-    daily.forEach(function (r) { held += r.heldBack; asked += r.inContext + r.heldBack; reads += r.reads; spent += spendBy[r.day] || 0; top = Math.max(top, r.heldBack); });
-    var saved = (held * v.rate) / 1e6, n = daily.length || 0;
-    var observe = v.d.meta && v.d.meta.mode === "observe";
-    var spark = h("div", { cls: "spark", "aria-hidden": "true" });
-    daily.forEach(function (r, i) { spark.appendChild(h("i", { cls: i === daily.length - 1 ? "now" : "", style: "height:" + (top ? Math.max(4, (r.heldBack / top) * 100) : 4) + "%", title: r.day + ": " + usd((r.heldBack * v.rate) / 1e6) + " saved" })); });
-    var savedEl = h("div", { cls: "v num" }), heldEl = h("div", { cls: "v num" });
-    box.appendChild(h("div", { cls: "hero" }, h("div", { cls: "k", text: "Saved by Snout, last " + n + " days" }), savedEl,
-      h("div", { cls: "s", text: "Kept-out tokens at $" + v.rate.toFixed(2) + "/M input" + (v.sp && v.sp.inputRate ? ", your model mix" : "") }), spark));
-    box.appendChild(h("div", null, h("div", { cls: "k", text: "Share of spend" }), h("div", { cls: "v num", text: spent ? pct(saved, spent + saved) + "%" : "\u2014" }),
-      h("div", { cls: "s", text: spent ? "less than without Snout, on " + usd(spent) + " spent" : "appears after the first Claude Code or Codex session" })));
-    box.appendChild(h("div", null, h("div", { cls: "k", text: "Kept out of context" }), heldEl,
-      h("div", { cls: "s", text: asked ? pct(held, asked) + "% of " + fmt(asked) + " tokens agents asked for" : "nothing read yet" })));
-    box.appendChild(observe && v.d.couldHoldBack > 0
-      ? h("div", null, h("div", { cls: "k", text: "Waiting in observe mode" }), h("div", { cls: "v num", text: "~" + fmt(v.d.couldHoldBack) }), h("div", { cls: "s", text: "tokens enforce mode would also keep out" }))
-      : h("div", null, h("div", { cls: "k", text: "Reads trimmed" }), h("div", { cls: "v num", text: (v.d.gated || 0).toLocaleString() }), h("div", { cls: "s", text: "of " + (v.d.reads || reads).toLocaleString() + " reads" })));
-    tween("b-saved", saved, savedEl, usd);
-    tween("b-held", held, heldEl, function (x) { return "~" + fmt(x); });
-  }
-
-  function renderToday(v) {
-    tween("t-held", v.today.heldBack, $("t-held"), function (x) { return "~" + fmt(x); });
-    $("t-held-s").textContent = "tokens, " + (v.today.inContext + v.today.heldBack ? pct(v.today.heldBack, v.today.inContext + v.today.heldBack) + "% of what agents asked for" : "nothing read yet today");
-    tween("t-saved", v.saved, $("t-saved"), usd);
-    $("t-saved-s").textContent = "at $" + v.rate.toFixed(2) + " per million input tokens" + (v.sp && v.sp.inputRate ? ", your model mix" : "");
-    $("t-cut").textContent = String(v.cutToday);
-    $("t-cut-s").textContent = "of " + v.today.reads + " read" + (v.today.reads === 1 ? "" : "s") + " today";
-  }
-
-  function feedRow(r, fresh) {
-    return h("div", { cls: "frow" + (fresh ? " fresh" : ""), title: (CLIENT[r.client] || r.client) + (r.agent !== "main" ? " \xB7 " + r.agent : "") + " \xB7 " + labelOf(r.rule) + (r.reason && r.outcome !== "read" ? "\\n" + r.reason : "") },
-      h("span", { cls: "when", "data-ts": r.ts, text: ago(r.ts) }),
-      h("span", { cls: "what" }, clientLogo(r.client, true), h("span", { cls: "path", text: shortPath(r.path) })),
-      outcomeBadge(r.outcome));
-  }
-  function renderFeed(v) {
-    var rows = v.d.recent || [];
-    var box = $("feed"); box.replaceChildren();
-    var firstPaint = state.seen === null;
-    if (firstPaint) state.seen = new Set();
-    var fresh = {};
-    rows.forEach(function (r) { var id = r.ts + r.path + r.tool; if (!state.seen.has(id)) { if (!firstPaint) fresh[id] = 1; state.seen.add(id); } });
-    if (!rows.length) { box.appendChild(h("div", { cls: "none", text: "Waiting for the first read. Start your coding agent in this project." })); return; }
-    rows.slice(0, 7).forEach(function (r) { box.appendChild(feedRow(r, fresh[r.ts + r.path + r.tool])); });
-  }
-
-  function lastDays(n, byDay, empty) {
-    var out = [], now = Date.now();
-    for (var i = n - 1; i >= 0; i--) { var k = new Date(now - i * 86400000).toISOString().slice(0, 10); out.push(byDay[k] || empty(k)); }
-    return out;
-  }
-  var dayName = function (k) { return new Date(k + "T12:00:00Z").toLocaleDateString([], { month: "short", day: "numeric" }); };
-  function niceMax(x) { if (x <= 0) return 1; var p = Math.pow(10, Math.floor(Math.log10(x))); var f = x / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p; }
-
-  function renderTrend(v) {
-    var svg = $("trend"), box = $("trend-box"), tip = $("trend-tip");
-    var byDay = {}; (v.d.daily || []).forEach(function (r) { byDay[r.day] = r; });
-    var pts = lastDays(7, byDay, function (k) { return { day: k, inContext: 0, heldBack: 0, reads: 0 }; });
-    var W = Math.max(280, svg.clientWidth || 520), H = 250, L = 40, R = 8, T = 10, B = 26;
-    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
-    svg.replaceChildren();
-    var top = 0; pts.forEach(function (p) { top = Math.max(top, p.inContext, p.heldBack); });
-    top = niceMax(top);
-    var x = function (i) { return L + (i / (pts.length - 1)) * (W - L - R); };
-    var y = function (val) { return T + (1 - val / top) * (H - T - B); };
-    var defs = s("defs", {}), grad = s("linearGradient", { id: "g-held", x1: 0, y1: 0, x2: 0, y2: 1 });
-    grad.appendChild(s("stop", { offset: "0", "stop-color": "var(--accent)", "stop-opacity": "0.18" }));
-    grad.appendChild(s("stop", { offset: "1", "stop-color": "var(--accent)", "stop-opacity": "0" }));
-    defs.appendChild(grad); svg.appendChild(defs);
-    [0, 0.5, 1].forEach(function (f) {
-      var t = s("text", { x: L - 8, y: y(top * f) + 4, "text-anchor": "end" }); t.textContent = f ? fmt(top * f) : "0"; svg.appendChild(t);
-    });
-    pts.forEach(function (p, i) {
-      svg.appendChild(s("line", { x1: x(i), x2: x(i), y1: T, y2: H - B, stroke: "var(--line)", "stroke-dasharray": "3 4" }));
-      var t = s("text", { x: x(i), y: H - 6, "text-anchor": i === 0 ? "start" : i === pts.length - 1 ? "end" : "middle" }); t.textContent = dayName(p.day); svg.appendChild(t);
-    });
-    svg.appendChild(s("line", { x1: L, x2: W - R, y1: y(0), y2: y(0), stroke: "var(--line)" }));
-    function line(key) { return pts.map(function (p, i) { return (i ? "L" : "M") + x(i).toFixed(1) + "," + y(p[key]).toFixed(1); }).join(""); }
-    svg.appendChild(s("path", { d: line("heldBack") + "L" + x(pts.length - 1) + "," + y(0) + "L" + x(0) + "," + y(0) + "Z", fill: "url(#g-held)" }));
-    var held = s("path", { d: line("heldBack"), fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-linejoin": "round" });
-    var ctx = s("path", { d: line("inContext"), fill: "none", stroke: "var(--ink)", "stroke-width": 1.75, "stroke-linejoin": "round" });
-    svg.appendChild(ctx); svg.appendChild(held);
-    if (state.first && !reduced) [ctx, held].forEach(function (p) {
-      var len = p.getTotalLength(); p.style.strokeDasharray = len; p.style.strokeDashoffset = len;
-      p.getBoundingClientRect(); p.style.transition = "stroke-dashoffset 0.9s cubic-bezier(0.2,0.7,0.2,1)"; p.style.strokeDashoffset = 0;
-    });
-    var guide = s("line", { y1: T, y2: H - B, stroke: "var(--faint)", opacity: 0 }), dotA = s("circle", { r: 3.5, fill: "var(--ink)", opacity: 0 }), dotB = s("circle", { r: 3.5, fill: "var(--accent)", opacity: 0 });
-    svg.appendChild(guide); svg.appendChild(dotA); svg.appendChild(dotB);
-    svg.onmousemove = function (e) {
-      var rect = svg.getBoundingClientRect(), mx = ((e.clientX - rect.left) / rect.width) * W;
-      var i = Math.max(0, Math.min(pts.length - 1, Math.round(((mx - L) / (W - L - R)) * (pts.length - 1)))), p = pts[i];
-      [guide, dotA, dotB].forEach(function (el) { el.setAttribute("opacity", 1); });
-      guide.setAttribute("x1", x(i)); guide.setAttribute("x2", x(i));
-      dotA.setAttribute("cx", x(i)); dotA.setAttribute("cy", y(p.inContext)); dotB.setAttribute("cx", x(i)); dotB.setAttribute("cy", y(p.heldBack));
-      tip.replaceChildren(h("b", { text: dayName(p.day) }), h("br"), fmt(p.inContext) + " into context", h("br"), "~" + fmt(p.heldBack) + " kept out \xB7 " + p.reads + " reads");
-      tip.style.left = (x(i) / W) * rect.width + "px"; tip.style.top = (y(Math.max(p.inContext, p.heldBack)) / H) * rect.height - 8 + "px"; tip.style.opacity = 1;
-    };
-    svg.onmouseleave = function () { tip.style.opacity = 0; [guide, dotA, dotB].forEach(function (el) { el.setAttribute("opacity", 0); }); };
-    box.title = "";
-  }
-
-  function renderCost(v) {
-    var box = $("cost"); box.replaceChildren();
-    var sp = v.sp;
-    if (!sp) {
-      $("cost-p").textContent = "API-equivalent, from your agents' own usage logs";
-      box.appendChild(h("div", { cls: "none", text: "No Claude Code or Codex usage found for this project yet. Spend appears here after the first session." }));
-      return;
-    }
-    var byDay = {}; sp.series.forEach(function (r) { byDay[r.day] = r; });
-    var days = lastDays(14, byDay, function (k) { return { day: k, costUsd: 0 }; });
-    var thisWeek = 0, lastWeek = 0;
-    days.forEach(function (r, i) { if (i >= 7) thisWeek += r.costUsd; else lastWeek += r.costUsd; });
-    var change = lastWeek ? ((thisWeek - lastWeek) / lastWeek) * 100 : null;
-    $("cost-p").textContent = "API-equivalent at list prices of " + sp.pricesAsOf + ", from your agents' own usage logs";
-    box.appendChild(h("div", { cls: "total" },
-      h("span", { cls: "v num", text: usd(sp.costUsd) }),
-      change === null ? null : h("span", { cls: "d " + (change > 0 ? "up" : "down"), text: (change > 0 ? "+" : "\u2212") + Math.abs(change).toFixed(1) + "%" }),
-      h("span", { cls: "s", text: change === null ? "last " + sp.days + " days" : "last 7 days vs the 7 before \xB7 " + sp.days + "-day total" })));
-    var t = h("table");
-    t.appendChild(h("tr", null, h("th", { text: "Model" }), h("th", { cls: "n", text: "Today" }), h("th", { cls: "n hide-sm", text: "7 days" }), h("th", { cls: "n", text: sp.days + " days" }), h("th", { cls: "n", text: "Share" })));
-    v.models.slice(0, 6).forEach(function (m) {
-      t.appendChild(h("tr", null,
-        h("td", null, h("span", { cls: "who", style: "--c:" + m.color }, modelLogo(m.key, true), h("i", { cls: "dot" }), h("span", { text: m.label }))),
-        h("td", { cls: "n", text: usd(m.costToday) }), h("td", { cls: "n hide-sm", text: usd(m.cost7) }), h("td", { cls: "n", text: usd(m.cost30) }),
-        h("td", { cls: "n strong", text: (m.share * 100).toFixed(1) + "%" })));
-    });
-    box.appendChild(t);
-  }
-
-  // Each label belongs to the Snout feature that trims it (same grouping as Snout Cloud).
-  var FEATURES = [
-    { key: "source", name: "Your code", how: "always read in full", labels: /^(source|always-allow|secret|reversal|unclassified)$/ },
-    { key: "squeeze", name: "Command output", how: "Squeeze: problems and summary kept", labels: /^(command-output|tool-output)$/ },
-    { key: "sections", name: "Long docs & logs", how: "Section reads: head and a map", labels: /^long-/ },
-    { key: "repeat", name: "Repeats", how: "Repeat skip: pointer to the copy", labels: /^repeat-/ },
-    { key: "mcp", name: "MCP results", how: "MCP trimming, per server", labels: /^mcp/ },
-    { key: "bulk", name: "Bulk files", how: "Read gate: head and outline", labels: /./ },
-  ];
-  function featureOf(label) { for (var i = 0; i < FEATURES.length; i++) if (FEATURES[i].labels.test(label)) return FEATURES[i]; return FEATURES[FEATURES.length - 1]; }
-
-  function renderMix(v) {
-    var box = $("mix"); box.replaceChildren();
-    var groups = {};
-    (v.d.byLabel || []).forEach(function (l) {
-      var f = featureOf(l.key), g = groups[f.key] || (groups[f.key] = { key: f.key, name: f.name, how: f.how, inContext: 0, heldBack: 0, reads: 0 });
-      g.inContext += l.inContext; g.heldBack += l.heldBack; g.reads += l.reads;
-    });
-    var cols = FEATURES.map(function (f) { return groups[f.key]; }).filter(function (g) { return g && g.inContext + g.heldBack > 0; });
-    var all = 0; cols.forEach(function (c) { all += c.inContext + c.heldBack; });
-    if (!all) { box.appendChild(h("div", { cls: "none", text: "Fills in as your agents read files." })); return; }
-    var maxShare = 0; cols.forEach(function (c) { maxShare = Math.max(maxShare, (c.inContext + c.heldBack) / all); });
-    var grid = h("div", { cls: "mix", style: "--n:" + cols.length });
-    var BAR = 150;
-    cols.forEach(function (c) {
-      var tot = c.inContext + c.heldBack, share = tot / all;
-      var hgt = Math.max(3, (share / maxShare) * BAR);
-      var outH = tot ? (c.heldBack / tot) * hgt : 0;
-      var cut = c.heldBack > 0;
-      grid.appendChild(h("div", { cls: "mcol", title: c.name + " (" + c.how + "): " + c.reads + " reads, " + fmt(c.inContext) + " into context, ~" + fmt(c.heldBack) + " kept out" },
-        h("div", { cls: "top" },
-          h("div", { cls: "k", text: c.name }),
-          h("div", { cls: "v num", text: fmt(tot) }),
-          h("div", { cls: "s" + (cut ? " cut" : ""), text: cut ? "\u2212" + pct(c.heldBack, tot) + "% kept out" : c.key === "source" ? "always read in full" : "read in full" })),
-        h("div", { cls: "bar" },
-          h("div", { cls: "pct", text: Math.round(share * 100) + "%" }),
-          h("div", { cls: "stack", style: "height:" + hgt + "px" }, h("i", { cls: "in", style: "height:" + (hgt - outH) + "px" }), h("i", { cls: "out", style: "height:" + outH + "px" })))));
-    });
-    box.appendChild(grid);
-    box.appendChild(h("div", { cls: "mix-foot" },
-      h("div", { cls: "legend" }, h("span", { style: "--c: var(--bar-in)" }, h("i"), "Into context"), h("span", { style: "--c: var(--accent)" }, h("i"), "Kept out by Snout")),
-      h("span", { cls: "legend", text: "p50 " + v.d.latency.p50 + " ms per decision" })));
-  }
-
-  // --- Context tab ------------------------------------------------------------------------
-
-  function tableOf(el, head, rows, empty) {
-    el.replaceChildren();
-    if (!rows.length) { el.appendChild(h("tr", null, h("td", { cls: "none", text: empty, style: "border:0" }))); return; }
-    var tr = h("tr"); head.forEach(function (c) { tr.appendChild(h("th", { cls: c[1] || "", text: c[0] })); }); el.appendChild(tr);
-    rows.forEach(function (r) { el.appendChild(r); });
-  }
-  function renderContext(v) {
-    var d = v.d, controls = d.meta && d.meta.controls;
-    $("feed-all-p").textContent = "Newest first \xB7 p50 " + d.latency.p50 + " ms, p95 " + d.latency.p95 + " ms per decision";
-    tableOf($("feed-all"), [["When"], ["File or tool"], ["Result"], ["Tokens", "n"]], (d.recent || []).map(function (r) {
-      return h("tr", null,
-        h("td", { cls: "when", style: "white-space:nowrap;color:var(--muted)", "data-ts": r.ts, text: ago(r.ts) }),
-        h("td", { cls: "path" }, h("span", { cls: "who" }, clientLogo(r.client, true), h("span", { text: r.path })), h("div", { cls: "reason", text: labelOf(r.rule) + (r.outcome !== "read" && r.reason ? " \xB7 " + r.reason : "") })),
-        h("td", null, outcomeBadge(r.outcome)),
-        h("td", { cls: "n", text: r.heldBack ? "\u2212" + fmt(r.heldBack) : fmt(r.inContext) }));
-    }), "No reads yet.");
-    tableOf($("files"), [["File"], ["Kept out", "n"], ["In context", "n"], [""]], (d.files || []).map(function (f) {
-      var btn = f.heldBack > 0 && controls ? h("button", { cls: "btn", type: "button", text: "Always read in full", on: { click: function () { act({ type: "allow", path: f.key }); } } }) : null;
-      return h("tr", null,
-        h("td", { cls: "path" }, f.key, h("div", { cls: "reason", text: labelOf(f.label) + " \xB7 " + f.reads + (f.reads === 1 ? " read" : " reads") + " \xB7 last " + ago(f.last) })),
-        h("td", { cls: "n", style: f.heldBack ? "color:var(--accent-ink);font-weight:600" : "", text: f.heldBack ? "~" + fmt(f.heldBack) : "\u2014" }),
-        h("td", { cls: "n", text: fmt(f.inContext) }),
-        h("td", { cls: "n" }, btn));
-    }), "No files yet.");
-    tableOf($("clients"), [["Agent"], ["Reads", "n"], ["In context", "n"], ["Kept out", "n"]], (d.byClient || []).map(function (c) {
-      return h("tr", null, h("td", null, h("span", { cls: "who" }, clientLogo(c.key, true), h("span", { text: CLIENT[c.key] || c.key }))),
-        h("td", { cls: "n", text: c.reads.toLocaleString() }), h("td", { cls: "n", text: fmt(c.inContext) }), h("td", { cls: "n", text: "~" + fmt(c.heldBack) }));
-    }), "No agents yet.");
-    tableOf($("sessions"), [["Last active"], ["Agents"], ["Reads", "n"], ["Kept out", "n"]], (d.sessions || []).map(function (x) {
-      var agents = h("span", { cls: "who" }); x.clients.forEach(function (c) { agents.appendChild(clientLogo(c, true)); }); agents.appendChild(h("span", { text: x.clients.map(function (c) { return CLIENT[c] || c; }).join(", ") }));
-      return h("tr", null, h("td", { style: "white-space:nowrap", "data-ts": x.last, text: ago(x.last) }), h("td", null, agents),
-        h("td", { cls: "n", text: x.reads.toLocaleString() }), h("td", { cls: "n", text: "~" + fmt(x.heldBack) }));
-    }), "No sessions yet.");
-  }
-
-  // --- Repo map: folders as entities, and the landing page's report for the one you point at ---------
-
-  var shortName = function (p) { var i = p.lastIndexOf("/"); return i >= 0 ? p.slice(i + 1) : p; };
-  var groupName = function (k) { return k === "/" ? "(root)" : k + "/"; };
-  var inGroup = function (g, p) { return g.key === "/" ? p : p.slice(g.key.length + 1); };
-  var hlt = function (t) { return h("span", { cls: "hlt", text: t }); };
-  // Labels Snout reads whole or asks about first: never bulk (the same set as the server's).
-  var WHOLE = { source: 1, "always-allow": 1, secret: 1, reversal: 1 };
-  var bulk = function (label) { return !WHOLE[label]; };
-  function icon(d) {
-    var svg = s("svg", { class: "ic", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "2", "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" });
-    svg.appendChild(s("path", { d: d }));
-    return svg;
-  }
-  var IC_REPO = "M3 3v18h18M7 16h2M7 12h6M7 8h10", IC_LOCK = "M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z", IC_EYE = "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z";
-  function check(on, text) { return h("span", { cls: "check" + (on ? "" : " off") }, h("i"), text); }
-  function fileBadge(f) {
-    if (f.heldBack > 0) return h("em", { cls: "fb cut", text: "\u2212" + pct(f.heldBack, f.heldBack + f.inContext) + "%" });
-    if (f.reads > 0) return h("em", { cls: "fb full", text: "in full" });
-    if (bulk(f.label)) return h("em", { cls: "fb would", text: "would trim" });
-    return h("em", { cls: "fb none", text: "not read" });
-  }
-  function repoStat(k, v, s2, pink) { return h("div", null, h("div", { cls: "k", text: k }), h("div", { cls: "v num" + (pink ? " pink" : ""), text: v }), h("div", { cls: "s", text: s2 })); }
-
-  /** Tokens one read costs with Snout and without: measured from the ledger, or projected for a file nobody read yet. */
-  function perRead(f) {
-    if (f.reads) return { w: f.inContext / f.reads, wo: (f.inContext + f.heldBack) / f.reads, proj: false };
-    return { w: f.sendTokens, wo: f.tokens, proj: bulk(f.label) };
-  }
-  /** The chart's rows: what Snout kept out, then what it would trim, then source read whole, as on the landing page. */
-  function reportRows(g) {
-    var by = function (k) { return function (a, b) { return k(b) - k(a); }; };
-    var cut = g.top.filter(function (f) { return f.reads && f.heldBack > 0; }).sort(by(function (f) { return f.heldBack; }));
-    var would = g.top.filter(function (f) { return !f.reads && bulk(f.label); }).sort(by(function (f) { return f.tokens - f.sendTokens; }));
-    var whole = g.top.filter(function (f) { return !bulk(f.label) || (f.reads && !f.heldBack); }).sort(by(function (f) { return f.tokens; }));
-    var rows = cut.concat(would).slice(0, 5);
-    return rows.concat(whole.slice(0, Math.max(1, 6 - rows.length))).slice(0, 6);
-  }
-  function fileReport(path, done) {
-    state.reports = state.reports || {};
-    if (state.reports[path]) return done(state.reports[path]);
-    fetch("/api/file?path=" + encodeURIComponent(path)).then(function (r) { return r.ok ? r.json() : null; }).then(function (rep) { if (rep) state.reports[path] = rep; done(rep); }, function () { done(null); });
-  }
-
-  /** The landing page's session panel for one folder. \`o.sheet\` is the pop-up page's larger version. */
-  function reportPanel(r, g, o) {
-    var d = state.data, mode = (d.meta && d.meta.mode) || "observe";
-    var rows = reportRows(g), sel = o.file && rows.some(function (f) { return f.path === o.file; }) ? o.file : rows[0] && rows[0].path;
-    var pick = h("select", { "aria-label": "Folder" });
-    r.groups.forEach(function (x) { pick.appendChild(h("option", { value: x.key, text: groupName(x.key) })); });
-    pick.value = g.key;
-    pick.addEventListener("change", function () { o.onGroup(this.value); });
-    var live = g.top.some(function (f) { return f.last && Date.now() - Date.parse(f.last) < 10 * 60 * 1000; });
-    var bar = h("div", { cls: "rp-bar" }, icon(IC_REPO), pick, live ? h("i", { cls: "live-dot", title: "An agent read from this folder in the last few minutes" }) : null,
-      h("span", { cls: "mode", title: "Snout's mode in this project" }, icon(mode === "observe" ? IC_EYE : IC_LOCK), mode.charAt(0).toUpperCase() + mode.slice(1)));
-    var srcCut = g.top.some(function (f) { return f.label === "source" && f.heldBack > 0; });
-    var name = groupName(g.key), statement = h("p", { cls: "statement" });
-    if (g.heldBack) statement.append(h("span", { cls: "dotted", text: "~" + fmt(g.heldBack) + " tokens" }), " stayed out of context from " + name + ". ", srcCut ? "Some source was trimmed too." : "Every source file agents needed was read in full.");
-    else if (g.reads) statement.append("Agents read ", h("span", { cls: "dotted", text: fmt(g.inContext) + " tokens" }), " from " + name + ", all of it in full." + (g.bulk ? " ~" + fmt(g.bulk) + " of the folder is bulk Snout would trim." : ""));
-    else if (g.bulk) statement.append("No agent has read " + name + " yet. ", h("span", { cls: "dotted", text: "~" + fmt(g.bulk) + " tokens" }), " of its ~" + fmt(g.tokens) + " is bulk Snout would trim to a short head.");
-    else statement.append("No agent has read " + name + " yet. It is all source: ~" + fmt(g.tokens) + " tokens, read in full when they do.");
-
-    var max = 0; rows.forEach(function (f) { max = Math.max(max, perRead(f).wo); });
-    var grid = h("div", { cls: "rp-rows" }), anyProj = false;
-    rows.forEach(function (f) {
-      var v = perRead(f), cut = v.wo ? ((v.w - v.wo) / v.wo) * 100 : 0, on = f.path === sel;
-      if (v.proj) anyProj = true;
-      var go = function () { o.onFile(f.path); };
-      grid.append(
-        h("div", { cls: "nm" + (on ? " sel" : "") + (f.path === state.flashPath ? " flash" : ""), "data-path": f.path, title: f.path, on: { click: go } }, h("span", { text: inGroup(g, f.path) }),
-          h("small", { text: (f.reads ? f.reads + (f.reads === 1 ? " read" : " reads") : "not read yet") + (f.label !== "source" ? " \xB7 " + f.label : "") })),
-        h("div", { cls: "bb", on: { click: go } }, h("i", { cls: "w" + (v.proj ? " proj" : ""), style: "width:" + (max ? Math.max(0.6, (v.w / max) * 100) : 0) + "%" }), h("i", { cls: "wo", style: "width:" + (max ? (v.wo / max) * 100 : 0) + "%" })),
-        h("div", { cls: "val" + (on ? " sel" : "") }, h("span", { text: (v.proj ? "~" : "") + Math.round(v.w).toLocaleString() })),
-        h("div", { cls: "pc", text: (cut > -0.05 ? "+" : "\u2212") + Math.abs(cut).toFixed(1) + "%" }));
-    });
-    var labels = []; rows.forEach(function (f) { if (bulk(f.label) && labels.indexOf(f.label) < 0) labels.push(f.label); });
-    var explain = h("div", { cls: "rp-explain", hidden: "" });
-    var showExplain = function () {
-      if (!explain.hidden) { explain.hidden = true; return; }
-      explain.hidden = false; explain.textContent = "Reading the file\u2026";
-      fileReport(sel, function (rep) {
-        if (!rep) { explain.textContent = "This file is no longer in the project."; return; }
-        explain.replaceChildren(h("b", { text: rep.path }), " \xB7 " + (rep.label === "source" ? "no rule flags it, so it is read in full" : rep.label + " \xB7 confidence " + rep.confidence.toFixed(2) + " \xB7 band " + rep.band) + ". ", rep.reason || "");
-      });
-    };
-    var controls = d.meta && d.meta.controls, selFile = rows.filter(function (f) { return f.path === sel; })[0];
-    var foot = h("div", { cls: "rp-foot" }, h("span", { cls: "k", text: "Classified as" }),
-      labels.length ? labels.slice(0, 3).map(function (l) { return h("span", { cls: "chip", text: l }); }) : h("span", { cls: "chip", text: "source" }), h("span", { cls: "sp" }),
-      h("span", { cls: "acts" }, h("button", { cls: "btn", type: "button", text: "Explain", on: { click: showExplain } }),
-      o.sheet ? h("button", { cls: "btn outline", type: "button", text: "View report", on: { click: function () { closeSheet(); showTab("context"); window.scrollTo(0, 0); } } }) : null,
-      o.sheet && controls && selFile && bulk(selFile.label) ? h("button", { cls: "btn", type: "button", text: "Allow file", title: "Always read " + sel + " in full", on: { click: function () { act({ type: "allow", path: sel }); } } }) : null,
-      h("button", { cls: "btn dark", type: "button", text: "Open report", on: { click: o.sheet ? function () { closeSheet(); showTab("context"); window.scrollTo(0, 0); } : function () { openSheet(g.key, sel); } } })));
-    var body = h("div", { cls: "rp-body" }, h("h3", { text: "What reaches your agent from " + name }),
-      h("div", { cls: "checks" }, check(d.reads > 0, "Classifying each read"), check(g.heldBack > 0 || mode === "enforce", "Trimming bulk files"), check(!srcCut, "Reading source in full"), check(d.reads > 0, "Recording the savings")),
-      statement, h("hr"),
-      h("div", { cls: "rp-ch" }, "Tokens per read, with Snout vs. without", anyProj ? h("small", { text: "striped: projected, not read yet" }) : null,
-        h("div", { cls: "legend" }, h("span", { style: "--c: var(--ink)" }, h("i"), "With Snout"), h("span", { style: "--c: var(--without)" }, h("i"), "Without"))),
-      rows.length ? grid : h("div", { cls: "rp-empty", text: "No files to show." }), foot, explain);
-    return h("div", { cls: "rp" }, bar, body);
-  }
-
-  function renderRepo(v) {
-    var box = $("repo"), r = v.d.repo;
-    if (!r || !r.groups.length) { box.replaceChildren(); return; }
-    if (!r.groups.some(function (g) { return g.key === state.repoSel; })) state.repoSel = r.groups[0].key;
-    // A read newer than the last render flashes its row in the report.
-    var newest = (v.d.recent || [])[0];
-    state.flashPath = newest && state.repoNewest && newest.ts > state.repoNewest ? newest.path : null;
-    if (newest) state.repoNewest = newest.ts;
-    var info = h("div", { cls: "flow-info" });
-    var intro = function () { info.replaceChildren("Each card is a folder and its heaviest files. Point at one to see its report the way the landing page shows it; click to open the full page. ", r.links.length ? "Lines on the left join folders that share names." : ""); };
-    intro();
-    var card = h("div", { cls: "card flow-card" }, h("div", { cls: "flow-top" },
-      h("div", null, h("div", { cls: "eyebrow", text: "Repo map \xB7 live" }), h("h2", { text: "Your whole codebase, as your agents see it." })), info));
-    card.appendChild(h("div", { cls: "repo-stats" },
-      repoStat("Files", r.files.toLocaleString(), "in " + (r.groups.length + r.more) + " folders"),
-      repoStat("To read all of it", "~" + fmt(r.tokens), "tokens"),
-      repoStat("Bulk Snout trims", "~" + fmt(r.bulk), pct(r.bulk, r.tokens) + "% of the repo: lockfiles, generated, logs\u2026", true),
-      repoStat("Kept out so far", "~" + fmt(v.d.heldBack), v.d.reads.toLocaleString() + " reads classified", true)));
-    var ents = h("div", { cls: "ents erd-gutter" }), entEls = {}, slot = h("div");
-    var showPanel = function () {
-      var g = r.groups.filter(function (x) { return x.key === state.repoSel; })[0];
-      slot.replaceChildren(reportPanel(r, g, { file: state.repoFile, onFile: function (p) { openSheet(g.key, p); }, onGroup: function (k) { state.repoSel = k; state.repoFile = null; mark(); showPanel(); } }));
-    };
-    var mark = function () { Object.keys(entEls).forEach(function (k) { entEls[k].classList.toggle("sel", k === state.repoSel); }); };
-    r.groups.forEach(function (g, i) {
-      var e = h("div", { cls: "ent" + (state.first ? " pop" : ""), style: "--d:" + (i * 0.05).toFixed(2) + "s", tabindex: "0", role: "button", "aria-label": "Open the report for " + groupName(g.key),
-        on: { mouseenter: function () { if (state.repoSel !== g.key) { state.repoSel = g.key; state.repoFile = null; mark(); showPanel(); } }, click: function () { openSheet(g.key, state.repoFile); },
-          focus: function () { state.repoSel = g.key; mark(); showPanel(); }, keydown: function (ev) { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); openSheet(g.key, null); } } } });
-      e.appendChild(h("div", { cls: "ent-h", title: g.files + " files \xB7 ~" + fmt(g.tokens) + " tokens to read them all" },
-        h("i"), h("b", { text: groupName(g.key) }), h("span", { cls: "mono", text: g.files + (g.files === 1 ? " file" : " files") }), h("span", { cls: "open", text: "OPEN \u2197" }), h("span", { cls: "mono r", text: fmt(g.tokens) + " tok" })));
-      g.top.slice(0, 4).forEach(function (f) {
-        e.appendChild(h("div", { cls: "ent-r", title: f.path + " \xB7 " + labelOf(f.label) + " \xB7 ~" + fmt(f.tokens) + " tokens" + (f.reads ? " \xB7 " + f.reads + (f.reads === 1 ? " read" : " reads") : ""),
-          on: { mouseenter: function () { state.repoSel = g.key; state.repoFile = f.path; mark(); showPanel(); }, click: function (ev) { ev.stopPropagation(); openSheet(g.key, f.path); } } },
-          h("span", { cls: "src" }, shortName(f.path), f.label !== "source" ? h("span", { cls: "lab", text: f.label }) : null),
-          h("span", { cls: "v" }, fmt(f.tokens), fileBadge(f))));
-      });
-      entEls[g.key] = e;
-      ents.appendChild(e);
-    });
-    if (r.more) ents.appendChild(h("div", { cls: "note", style: "margin:0", text: "+" + r.more + " smaller folders" }));
-    card.appendChild(h("div", { cls: "rmap" }, ents, slot));
-    mark(); showPanel();
-    box.replaceChildren(card);
-    requestAnimationFrame(function () { drawLinks(ents, entEls, r, info, intro); });
-    if (state.sheet) renderSheet();
-  }
-
-  /** Relationship lines between folders, in the gutter left of the cards: an ERD's joins. */
-  function drawLinks(ents, entEls, r, info, intro) {
-    if (window.innerWidth <= 800 || !r.links.length) return;
-    var er = ents.getBoundingClientRect(), gut = 56, order = r.groups.map(function (g) { return g.key; });
-    var links = r.links.filter(function (l) { return entEls[l.a] && entEls[l.b]; }).slice(0, 7)
-      .sort(function (a, b) { return Math.abs(order.indexOf(a.a) - order.indexOf(a.b)) - Math.abs(order.indexOf(b.a) - order.indexOf(b.b)); });
-    var esvg = s("svg", { class: "erd", width: gut, height: er.height, viewBox: "0 0 " + gut + " " + er.height });
-    var maxN = 1; links.forEach(function (l) { maxN = Math.max(maxN, l.names); });
-    links.forEach(function (l, i) {
-      var A = entEls[l.a].getBoundingClientRect(), B = entEls[l.b].getBoundingClientRect();
-      var ya = A.top - er.top + 17, yb = B.top - er.top + 17, x0 = gut - 1, depth = Math.min(gut - 8, 12 + i * 6), ym = (ya + yb) / 2;
-      var d = "M" + x0 + "," + ya.toFixed(1) + " C" + (x0 - depth) + "," + ya.toFixed(1) + " " + (x0 - depth) + "," + yb.toFixed(1) + " " + x0 + "," + yb.toFixed(1);
-      var g = s("g", { class: "lk" });
-      g.appendChild(s("path", { d: d, "stroke-width": (1 + 3 * Math.sqrt(l.names / maxN)).toFixed(2) }));
-      g.appendChild(s("path", { class: "hit", d: d }));
-      var ax = x0 - depth * 0.75;
-      g.appendChild(s("circle", { cx: ax.toFixed(1), cy: ym.toFixed(1), r: 9 }));
-      var tx = s("text", { x: ax.toFixed(1), y: (ym + 3).toFixed(1), "text-anchor": "middle" }); tx.textContent = l.names > 99 ? "99+" : String(l.names); g.appendChild(tx);
-      g.addEventListener("mouseenter", function () {
-        ents.classList.add("has-on"); g.classList.add("on"); entEls[l.a].classList.add("on"); entEls[l.b].classList.add("on");
-        info.replaceChildren(h("b", { text: groupName(l.a) }), " and ", h("b", { text: groupName(l.b) }), " share " + l.names + " names, one declaring what the other uses, such as ", h("code", { text: l.sample.join(", ") }), ".");
-      });
-      g.addEventListener("mouseleave", function () { ents.classList.remove("has-on"); g.classList.remove("on"); entEls[l.a].classList.remove("on"); entEls[l.b].classList.remove("on"); intro(); });
-      esvg.appendChild(g);
-    });
-    ents.style.position = "relative";
-    ents.appendChild(esvg);
-  }
-
-  // --- The pop-up report page --------------------------------------------------------------------
-
-  function openSheet(key, file) {
-    state.sheet = { key: key, file: file || null, full: false };
-    state.sheetFocus = document.activeElement;
-    renderSheet();
-    document.body.style.overflow = "hidden";
-  }
-  function closeSheet() {
-    var el = $("sheet");
-    if (el) el.remove();
-    state.sheet = null;
-    document.body.style.overflow = "";
-    if (state.sheetFocus && state.sheetFocus.focus) state.sheetFocus.focus();
-  }
-  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && state.sheet) closeSheet(); });
-
-  function stairs(side, widths, pink) {
-    return h("div", { cls: "stairs " + side, "aria-hidden": "true" }, widths.map(function (w, i) { return h("i", { cls: i === pink ? "p" : "", style: "width:" + w + "px" }); }));
-  }
-  function gbar(title, meta, lede, rows, pinkIdx) {
-    var max = 0; rows.forEach(function (x) { max = Math.max(max, x[1]); });
-    return h("div", { cls: "gbar" }, h("div", { cls: "gbar-h" }, h("b", { text: title }), h("span", { text: meta })), h("p", null, lede),
-      h("div", { cls: "gb-rows" }, rows.map(function (x, i) {
-        return [h("span", { text: x[0] }), h("div", { cls: "track" }, h("i", { cls: i === pinkIdx ? "pink" : "", style: "width:" + (max ? Math.max(1, (x[1] / max) * 100) : 0) + "%;--d:" + (0.1 + i * 0.08).toFixed(2) + "s" })), h("span", { cls: "t", text: x[2] })];
-      })));
-  }
-
-  function renderSheet() {
-    var d = state.data, r = d && d.repo;
-    if (!state.sheet || !r || !r.groups.length) return;
-    var g = r.groups.filter(function (x) { return x.key === state.sheet.key; })[0] || r.groups[0];
-    var rows = reportRows(g), file = state.sheet.file && rows.some(function (f) { return f.path === state.sheet.file; }) ? state.sheet.file : rows[0] && rows[0].path;
-    var f = rows.filter(function (x) { return x.path === file; })[0];
-    var el = $("sheet"), fresh = !el;
-    if (fresh) { el = h("div", { cls: "sheet", id: "sheet", role: "dialog", "aria-modal": "true", "aria-label": "Report for " + groupName(g.key) }); document.body.appendChild(el); }
-    var keep = el.scrollTop;
-    var name = groupName(g.key), asked = g.inContext + g.heldBack, labels = [];
-    // What Snout kept out (measured), or else what it would trim.
-    g.kinds.forEach(function (k) { if (bulk(k.label) && (k.heldBack > 0 || !g.heldBack) && labels.length < 3) labels.push(labelOf(k.label).toLowerCase()); });
-    var headline = g.heldBack && asked ? "In " + name + ", " + pct(g.heldBack, asked) + "% less to read. Same code."
-      : g.bulk ? "In " + name + ", " + pct(g.bulk, g.tokens) + "% is bulk your agent never needs."
-      : "In " + name + ", all source. Read in full.";
-    var lede = g.heldBack ? "Snout kept " + (labels.join(", ") || "bulk") + " out of the agent's context. Every source file it needed went in, in full."
-      : labels.length ? "When an agent opens it, Snout sends " + labels.join(", ") + " as a short head and an outline, and your own code in full."
-      : "Nothing here for Snout to trim: your agents get every file whole.";
-
-    // The callout: Snout's real report for the selected file, filled in once the server has read it.
-    var call = h("div", { cls: "callout" }, h("div", { cls: "sk loading" }));
-    var fill = function (rep) {
-      if (!rep || !f) { call.replaceChildren(h("div", { cls: "none", text: "This file is no longer in the project." })); return; }
-      var held = f.heldBack ? f.heldBack : rep.head ? Math.max(0, rep.tokens - rep.head.tokens) : 0;
-      var shown = state.sheet.full ? rep.outline : rep.outline.slice(0, 3);
-      // replaceChildren would print a null as text, so absent parts are dropped first.
-      call.replaceChildren.apply(call, [
-        h("h4", null, held ? [h("span", { cls: "hlt num", text: Math.round(held).toLocaleString() }), f.heldBack ? " tokens held back" : " tokens it would hold back"] : [h("span", { cls: "hlt num", text: Math.round(rep.tokens).toLocaleString() }), " tokens, read in full"]),
-        h("div", { cls: "sub", text: rep.head ? "Trimmed to lines 1\u2013" + rep.head.lines + " \xB7 " + rep.label + " \xB7 confidence " + rep.confidence.toFixed(2) : rep.label === "source" ? inGroup(g, rep.path) + " \xB7 your code, always read whole" : rep.label + " \xB7 one long line, searched instead of read" }),
-        rep.hint ? h("div", { cls: "grep", text: rep.hint }) : null,
-        shown.length ? h("table", null, h("tr", null, h("th", { text: "Name" }), h("th", { text: "Detail" }), h("th", { text: "Line" }), h("th", { text: "Kind" })),
-          shown.map(function (x) { return h("tr", null, h("td", { text: x.name }), h("td", { text: x.detail || "\u2014" }), h("td", { text: x.line ? "L" + x.line : "\u2014" }), h("td", { text: x.kind === "dependency" ? "dependency" : "match" })); })) : null,
-        h("div", { cls: "cf" }, rep.outline.length > 3 ? h("button", { cls: "link", type: "button", text: state.sheet.full ? "Show less" : "Open full outline", on: { click: function () { state.sheet.full = !state.sheet.full; fill(rep); wire(); } } }) : h("span"),
-          h("span", { text: rep.outline.length ? "Showing " + shown.length + " from the outline" + (rep.more ? " (+" + rep.more + " more)" : "") : "No exported names to outline in this file" }))].filter(Boolean));
-      wire();
-    };
-    if (f) fileReport(f.path, fill); else fill(null);
-
-    // Glowing bars, as in the landing page's lower sections.
-    var kindRows = g.kinds.map(function (k) { return [labelOf(k.label), k.tokens, fmt(k.tokens) + " tok"]; });
-    var bulkIdx = -1; g.kinds.forEach(function (k, i) { if (bulkIdx < 0 && bulk(k.label)) bulkIdx = i; });
-    var big = bulkIdx >= 0 ? g.kinds[bulkIdx] : null;
-    var cards = [gbar(name + " by kind", "tokens", big ? [h("span", { cls: "hlt", text: labelOf(big.label) + " is " + pct(big.tokens, g.tokens) + "% of it." }), " Snout trims it; your code goes in whole."] : "All of it is your own code, read whole.", kindRows, bulkIdx)];
-    if (f) {
-      var v = perRead(f);
-      cards.push(gbar("What one read of " + shortName(f.path) + " costs", "tokens re-sent", [h("span", { cls: "hlt", text: "Read once, paid for on every message." }), v.w < v.wo ? " Unless Snout keeps it out." : " Your code is worth it."],
-        [["Read once", v.wo, fmt(v.wo)], ["After 10 messages", v.wo * 10, fmt(v.wo * 10)], ["After 20 messages", v.wo * 20, fmt(v.wo * 20)], ["With Snout, 20 messages", v.w * 20, fmt(v.w * 20)]], 3));
-    }
-
-    var panel = reportPanel(r, g, { sheet: true, file: file, onFile: function (p) { state.sheet.file = p; state.sheet.full = false; renderSheet(); }, onGroup: function (k) { state.sheet = { key: k, file: null, full: false }; renderSheet(); } });
-    var wireSvg = s("svg", { class: "wire", "aria-hidden": "true" });
-    var grid = h("div", { cls: "sheet-grid" }, h("div", null, h("div", { cls: "eyebrow", text: "Repo map \xB7 " + name }), h("h1", { text: headline }), h("p", { cls: "lede", text: lede }), call, h("div", { cls: "stack" }, cards)), panel, wireSvg);
-    var close = h("button", { cls: "btn x", type: "button", text: "Close  esc", on: { click: closeSheet } });
-    el.replaceChildren(stairs("l", [56, 44, 30, 18, 42, 50], 2), stairs("r", [14, 26, 38, 54], 2),
-      h("div", { cls: "sheet-in" }, h("div", { cls: "sheet-top" }, h("div", { cls: "brand" }, h("img", { src: document.querySelector(".brand img").src, alt: "" }), "Snout", h("small", { text: "Local" })), close), grid));
-    el.scrollTop = keep;
-    if (fresh) close.focus();
-
-    // A pink line from the callout to the file it describes, like the landing page's.
-    function wire() {
-      requestAnimationFrame(function () {
-        var row = panel.querySelector(".nm.sel");
-        wireSvg.replaceChildren();
-        if (!row || window.innerWidth <= 1100) return;
-        var G = grid.getBoundingClientRect(), C = call.getBoundingClientRect(), R = row.getBoundingClientRect();
-        var x0 = C.right - G.left, y0 = C.top - G.top + 34, x1 = R.left - G.left - 18, y1 = R.top - G.top + R.height / 2, xm = x0 + Math.max(16, (x1 - x0) * 0.5);
-        wireSvg.appendChild(s("path", { d: "M" + x0 + "," + y0 + " H" + xm + " V" + y1 + " H" + x1 }));
-        wireSvg.appendChild(s("circle", { cx: x1, cy: y1, r: 4.5 }));
-      });
-    }
-    wire();
-  }
-  window.addEventListener("resize", function () { if (state.sheet) renderSheet(); });
-
-  // --- Agent context files ------------------------------------------------------------------
-
-  var KIND = { always: ["Every session", "loaded in full"], described: ["Every session", "its description"], "on-demand": ["When used", "read on demand"] };
-  function renderAgentFiles(v) {
-    var a = v.d.agentFiles, box = $("agentfiles-box");
-    var c = h("div", { cls: "card" }, h("div", { cls: "card-h" }, h("div", null, h("h2", { text: "Agent context files" }), h("p", { text: "Instructions, memory, skills and commands your agents load, and what each one costs" }))));
-    if (!a) { c.appendChild(h("div", { cls: "none", text: "Reading your agent files\u2026" })); box.replaceChildren(c); return; }
-    c.appendChild(h("div", { cls: "af-sum" },
-      h("div", null, h("div", { cls: "k", text: "Files" }), h("div", { cls: "v num", text: String(a.count) })),
-      h("div", null, h("div", { cls: "k", text: "Loaded every session" }), h("div", { cls: "v num pink", text: "~" + fmt(a.alwaysPerSession) })),
-      h("div", null, h("div", { cls: "k", text: "Flagged" }), h("div", { cls: "v num", text: String(a.flagged) })),
-      h("div", null, h("div", { cls: "k", text: "Could save per session" }), h("div", { cls: "v num", text: a.savePerSession ? "~" + fmt(a.savePerSession) : "\u2014" }))));
-    var max = 1; a.files.forEach(function (f) { max = Math.max(max, f.perSession || f.tokens); });
-    a.files.slice(0, 12).forEach(function (f) {
-      var k = KIND[f.kind] || [f.kind, ""], w = ((f.perSession || f.tokens) / max) * 100;
-      c.appendChild(h("div", { cls: "af" },
-        h("div", { cls: "p" }, h("b", { text: f.path, title: f.path }), h("small", { text: f.role + " \xB7 " + (f.agents || []).map(function (x) { return CLIENT[x] || x; }).join(", ") + (f.uses !== null && f.uses !== undefined ? " \xB7 " + (f.uses ? f.uses + (f.uses === 1 ? " use" : " uses") : "never used") : "") }),
-          f.flags.length ? h("div", null, f.flags.map(function (x) { return h("span", { cls: "flag", title: x.reason + " Suggested: " + x.action + ".", text: x.code }); })) : null),
-        h("div", { cls: "kind" }, h("b", { text: k[0] }), k[1]),
-        h("div", { cls: "bar" }, h("i", { cls: f.kind === "always" ? "always" : f.kind === "on-demand" ? "od" : "", style: "width:" + Math.max(1.5, w).toFixed(1) + "%" })),
-        h("div", { cls: "n" }, f.perSession ? "~" + fmt(f.perSession) : "~" + fmt(f.tokens), h("small", { text: f.perSession ? "per session" : "when read" }))));
-    });
-    c.appendChild(h("p", { cls: "note" }, "From ", h("code", { text: "snout audit context" }), ", refreshed every few minutes. It archives a file only after you confirm, and every archive can be restored."));
-    box.replaceChildren(c);
-  }
-
-  // --- MCP servers ----------------------------------------------------------------------------
-
-  // MCP servers people connect, with Simple Icons marks (CC0) where one exists. They only identify the server.
-  var MCP_ICONS = {
-    "github": ["GitHub", "#181717", "M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"],
-    "linear": ["Linear", "#5E6AD2", "M2.886 4.18A11.982 11.982 0 0 1 11.99 0C18.624 0 24 5.376 24 12.009c0 3.64-1.62 6.903-4.18 9.105L2.887 4.18ZM1.817 5.626l16.556 16.556c-.524.33-1.075.62-1.65.866L.951 7.277c.247-.575.537-1.126.866-1.65ZM.322 9.163l14.515 14.515c-.71.172-1.443.282-2.195.322L0 11.358a12 12 0 0 1 .322-2.195Zm-.17 4.862 9.823 9.824a12.02 12.02 0 0 1-9.824-9.824Z"],
-    "sentry": ["Sentry", "#362D59", "M13.91 2.505c-.873-1.448-2.972-1.448-3.844 0L6.904 7.92a15.478 15.478 0 0 1 8.53 12.811h-2.221A13.301 13.301 0 0 0 5.784 9.814l-2.926 5.06a7.65 7.65 0 0 1 4.435 5.848H2.194a.365.365 0 0 1-.298-.534l1.413-2.402a5.16 5.16 0 0 0-1.614-.913L.296 19.275a2.182 2.182 0 0 0 .812 2.999 2.24 2.24 0 0 0 1.086.288h6.983a9.322 9.322 0 0 0-3.845-8.318l1.11-1.922a11.47 11.47 0 0 1 4.95 10.24h5.915a17.242 17.242 0 0 0-7.885-15.28l2.244-3.845a.37.37 0 0 1 .504-.13c.255.14 9.75 16.708 9.928 16.9a.365.365 0 0 1-.327.543h-2.287c.029.612.029 1.223 0 1.831h2.297a2.206 2.206 0 0 0 1.922-3.31z"],
-    "notion": ["Notion", "#000000", "M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z"],
-    "figma": ["Figma", "#F24E1E", "M15.852 8.981h-4.588V0h4.588c2.476 0 4.49 2.014 4.49 4.49s-2.014 4.491-4.49 4.491zM12.735 7.51h3.117c1.665 0 3.019-1.355 3.019-3.019s-1.355-3.019-3.019-3.019h-3.117V7.51zm0 1.471H8.148c-2.476 0-4.49-2.014-4.49-4.49S5.672 0 8.148 0h4.588v8.981zm-4.587-7.51c-1.665 0-3.019 1.355-3.019 3.019s1.354 3.02 3.019 3.02h3.117V1.471H8.148zm4.587 15.019H8.148c-2.476 0-4.49-2.014-4.49-4.49s2.014-4.49 4.49-4.49h4.588v8.98zM8.148 8.981c-1.665 0-3.019 1.355-3.019 3.019s1.355 3.019 3.019 3.019h3.117V8.981H8.148zM8.172 24c-2.489 0-4.515-2.014-4.515-4.49s2.014-4.49 4.49-4.49h4.588v4.441c0 2.503-2.047 4.539-4.563 4.539zm-.024-7.51a3.023 3.023 0 0 0-3.019 3.019c0 1.665 1.365 3.019 3.044 3.019 1.705 0 3.093-1.376 3.093-3.068v-2.97H8.148zm7.704 0h-.098c-2.476 0-4.49-2.014-4.49-4.49s2.014-4.49 4.49-4.49h.098c2.476 0 4.49 2.014 4.49 4.49s-2.014 4.49-4.49 4.49zm-.097-7.509c-1.665 0-3.019 1.355-3.019 3.019s1.355 3.019 3.019 3.019h.098c1.665 0 3.019-1.355 3.019-3.019s-1.355-3.019-3.019-3.019h-.098z"],
-    "supabase": ["Supabase", "#3FCF8E", "M11.9 1.036c-.015-.986-1.26-1.41-1.874-.637L.764 12.05C-.33 13.427.65 15.455 2.409 15.455h9.579l.113 7.51c.014.985 1.259 1.408 1.873.636l9.262-11.653c1.093-1.375.113-3.403-1.645-3.403h-9.642z"],
-    "stripe": ["Stripe", "#635BFF", "M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.594-7.305h.003z"],
-    "atlassian": ["Atlassian", "#0052CC", "M7.12 11.084a.683.683 0 00-1.16.126L.075 22.974a.703.703 0 00.63 1.018h8.19a.678.678 0 00.63-.39c1.767-3.65.696-9.203-2.406-12.52zM11.434.386a15.515 15.515 0 00-.906 15.317l3.95 7.9a.703.703 0 00.628.388h8.19a.703.703 0 00.63-1.017L12.63.38a.664.664 0 00-1.196.006z"],
-    "postgresql": ["PostgreSQL", "#4169E1", "M23.5594 14.7228a.5269.5269 0 0 0-.0563-.1191c-.139-.2632-.4768-.3418-1.0074-.2321-1.6533.3411-2.2935.1312-2.5256-.0191 1.342-2.0482 2.445-4.522 3.0411-6.8297.2714-1.0507.7982-3.5237.1222-4.7316a1.5641 1.5641 0 0 0-.1509-.235C21.6931.9086 19.8007.0248 17.5099.0005c-1.4947-.0158-2.7705.3461-3.1161.4794a9.449 9.449 0 0 0-.5159-.0816 8.044 8.044 0 0 0-1.3114-.1278c-1.1822-.0184-2.2038.2642-3.0498.8406-.8573-.3211-4.7888-1.645-7.2219.0788C.9359 2.1526.3086 3.8733.4302 6.3043c.0409.818.5069 3.334 1.2423 5.7436.4598 1.5065.9387 2.7019 1.4334 3.582.553.9942 1.1259 1.5933 1.7143 1.7895.4474.1491 1.1327.1441 1.8581-.7279.8012-.9635 1.5903-1.8258 1.9446-2.2069.4351.2355.9064.3625 1.39.3772a.0569.0569 0 0 0 .0004.0041 11.0312 11.0312 0 0 0-.2472.3054c-.3389.4302-.4094.5197-1.5002.7443-.3102.064-1.1344.2339-1.1464.8115-.0025.1224.0329.2309.0919.3268.2269.4231.9216.6097 1.015.6331 1.3345.3335 2.5044.092 3.3714-.6787-.017 2.231.0775 4.4174.3454 5.0874.2212.5529.7618 1.9045 2.4692 1.9043.2505 0 .5263-.0291.8296-.0941 1.7819-.3821 2.5557-1.1696 2.855-2.9059.1503-.8707.4016-2.8753.5388-4.1012.0169-.0703.0357-.1207.057-.1362.0007-.0005.0697-.0471.4272.0307a.3673.3673 0 0 0 .0443.0068l.2539.0223.0149.001c.8468.0384 1.9114-.1426 2.5312-.4308.6438-.2988 1.8057-1.0323 1.5951-1.6698zM2.371 11.8765c-.7435-2.4358-1.1779-4.8851-1.2123-5.5719-.1086-2.1714.4171-3.6829 1.5623-4.4927 1.8367-1.2986 4.8398-.5408 6.108-.13-.0032.0032-.0066.0061-.0098.0094-2.0238 2.044-1.9758 5.536-1.9708 5.7495-.0002.0823.0066.1989.0162.3593.0348.5873.0996 1.6804-.0735 2.9184-.1609 1.1504.1937 2.2764.9728 3.0892.0806.0841.1648.1631.2518.2374-.3468.3714-1.1004 1.1926-1.9025 2.1576-.5677.6825-.9597.5517-1.0886.5087-.3919-.1307-.813-.5871-1.2381-1.3223-.4796-.839-.9635-2.0317-1.4155-3.5126zm6.0072 5.0871c-.1711-.0428-.3271-.1132-.4322-.1772.0889-.0394.2374-.0902.4833-.1409 1.2833-.2641 1.4815-.4506 1.9143-1.0002.0992-.126.2116-.2687.3673-.4426a.3549.3549 0 0 0 .0737-.1298c.1708-.1513.2724-.1099.4369-.0417.156.0646.3078.26.3695.4752.0291.1016.0619.2945-.0452.4444-.9043 1.2658-2.2216 1.2494-3.1676 1.0128zm2.094-3.988-.0525.141c-.133.3566-.2567.6881-.3334 1.003-.6674-.0021-1.3168-.2872-1.8105-.8024-.6279-.6551-.9131-1.5664-.7825-2.5004.1828-1.3079.1153-2.4468.079-3.0586-.005-.0857-.0095-.1607-.0122-.2199.2957-.2621 1.6659-.9962 2.6429-.7724.4459.1022.7176.4057.8305.928.5846 2.7038.0774 3.8307-.3302 4.7363-.084.1866-.1633.3629-.2311.5454zm7.3637 4.5725c-.0169.1768-.0358.376-.0618.5959l-.146.4383a.3547.3547 0 0 0-.0182.1077c-.0059.4747-.054.6489-.115.8693-.0634.2292-.1353.4891-.1794 1.0575-.11 1.4143-.8782 2.2267-2.4172 2.5565-1.5155.3251-1.7843-.4968-2.0212-1.2217a6.5824 6.5824 0 0 0-.0769-.2266c-.2154-.5858-.1911-1.4119-.1574-2.5551.0165-.5612-.0249-1.9013-.3302-2.6462.0044-.2932.0106-.5909.019-.8918a.3529.3529 0 0 0-.0153-.1126 1.4927 1.4927 0 0 0-.0439-.208c-.1226-.4283-.4213-.7866-.7797-.9351-.1424-.059-.4038-.1672-.7178-.0869.067-.276.1831-.5875.309-.9249l.0529-.142c.0595-.16.134-.3257.213-.5012.4265-.9476 1.0106-2.2453.3766-5.1772-.2374-1.0981-1.0304-1.6343-2.2324-1.5098-.7207.0746-1.3799.3654-1.7088.5321a5.6716 5.6716 0 0 0-.1958.1041c.0918-1.1064.4386-3.1741 1.7357-4.4823a4.0306 4.0306 0 0 1 .3033-.276.3532.3532 0 0 0 .1447-.0644c.7524-.5706 1.6945-.8506 2.802-.8325.4091.0067.8017.0339 1.1742.081 1.939.3544 3.2439 1.4468 4.0359 2.3827.8143.9623 1.2552 1.9315 1.4312 2.4543-1.3232-.1346-2.2234.1268-2.6797.779-.9926 1.4189.543 4.1729 1.2811 5.4964.1353.2426.2522.4522.2889.5413.2403.5825.5515.9713.7787 1.2552.0696.087.1372.1714.1885.245-.4008.1155-1.1208.3825-1.0552 1.717-.0123.1563-.0423.4469-.0834.8148-.0461.2077-.0702.4603-.0994.7662zm.8905-1.6211c-.0405-.8316.2691-.9185.5967-1.0105a2.8566 2.8566 0 0 0 .135-.0406 1.202 1.202 0 0 0 .1342.103c.5703.3765 1.5823.4213 3.0068.1344-.2016.1769-.5189.3994-.9533.6011-.4098.1903-1.0957.333-1.7473.3636-.7197.0336-1.0859-.0807-1.1721-.151zm.5695-9.2712c-.0059.3508-.0542.6692-.1054 1.0017-.055.3576-.112.7274-.1264 1.1762-.0142.4368.0404.8909.0932 1.3301.1066.887.216 1.8003-.2075 2.7014a3.5272 3.5272 0 0 1-.1876-.3856c-.0527-.1276-.1669-.3326-.3251-.6162-.6156-1.1041-2.0574-3.6896-1.3193-4.7446.3795-.5427 1.3408-.5661 2.1781-.463zm.2284 7.0137a12.3762 12.3762 0 0 0-.0853-.1074l-.0355-.0444c.7262-1.1995.5842-2.3862.4578-3.4385-.0519-.4318-.1009-.8396-.0885-1.2226.0129-.4061.0666-.7543.1185-1.0911.0639-.415.1288-.8443.1109-1.3505.0134-.0531.0188-.1158.0118-.1902-.0457-.4855-.5999-1.938-1.7294-3.253-.6076-.7073-1.4896-1.4972-2.6889-2.0395.5251-.1066 1.2328-.2035 2.0244-.1859 2.0515.0456 3.6746.8135 4.8242 2.2824a.908.908 0 0 1 .0667.1002c.7231 1.3556-.2762 6.2751-2.9867 10.5405zm-8.8166-6.1162c-.025.1794-.3089.4225-.6211.4225a.5821.5821 0 0 1-.0809-.0056c-.1873-.026-.3765-.144-.5059-.3156-.0458-.0605-.1203-.178-.1055-.2844.0055-.0401.0261-.0985.0925-.1488.1182-.0894.3518-.1226.6096-.0867.3163.0441.6426.1938.6113.4186zm7.9305-.4114c.0111.0792-.049.201-.1531.3102-.0683.0717-.212.1961-.4079.2232a.5456.5456 0 0 1-.075.0052c-.2935 0-.5414-.2344-.5607-.3717-.024-.1765.2641-.3106.5611-.352.297-.0414.6111.0088.6356.1851z"],
-    "vercel": ["Vercel", "#000000", "m12 1.608 12 20.784H0Z"],
-    "cloudflare": ["Cloudflare", "#F38020", "M16.5088 16.8447c.1475-.5068.0908-.9707-.1553-1.3154-.2246-.3164-.6045-.499-1.0615-.5205l-8.6592-.1123a.1559.1559 0 0 1-.1333-.0713c-.0283-.042-.0351-.0986-.021-.1553.0278-.084.1123-.1484.2036-.1562l8.7359-.1123c1.0351-.0489 2.1601-.8868 2.5537-1.9136l.499-1.3013c.0215-.0561.0293-.1128.0147-.168-.5625-2.5463-2.835-4.4453-5.5499-4.4453-2.5039 0-4.6284 1.6177-5.3876 3.8614-.4927-.3658-1.1187-.5625-1.794-.499-1.2026.119-2.1665 1.083-2.2861 2.2856-.0283.31-.0069.6128.0635.894C1.5683 13.171 0 14.7754 0 16.752c0 .1748.0142.3515.0352.5273.0141.083.0844.1475.1689.1475h15.9814c.0909 0 .1758-.0645.2032-.1553l.12-.4268zm2.7568-5.5634c-.0771 0-.1611 0-.2383.0112-.0566 0-.1054.0415-.127.0976l-.3378 1.1744c-.1475.5068-.0918.9707.1543 1.3164.2256.3164.6055.498 1.0625.5195l1.8437.1133c.0557 0 .1055.0263.1329.0703.0283.043.0351.1074.0214.1562-.0283.084-.1132.1485-.204.1553l-1.921.1123c-1.041.0488-2.1582.8867-2.5527 1.914l-.1406.3585c-.0283.0713.0215.1416.0986.1416h6.5977c.0771 0 .1474-.0489.169-.126.1122-.4082.1757-.837.1757-1.2803 0-2.6025-2.125-4.727-4.7344-4.727"],
-    "googledrive": ["Google Drive", "#4285F4", "M12.01 1.485c-2.082 0-3.754.02-3.743.047.01.02 1.708 3.001 3.774 6.62l3.76 6.574h3.76c2.081 0 3.753-.02 3.742-.047-.005-.02-1.708-3.001-3.775-6.62l-3.76-6.574zm-4.76 1.73a789.828 789.861 0 0 0-3.63 6.319L0 15.868l1.89 3.298 1.885 3.297 3.62-6.335 3.618-6.33-1.88-3.287C8.1 4.704 7.255 3.22 7.25 3.214zm2.259 12.653-.203.348c-.114.198-.96 1.672-1.88 3.287a423.93 423.948 0 0 1-1.698 2.97c-.01.026 3.24.042 7.222.042h7.244l1.796-3.157c.992-1.734 1.85-3.23 1.906-3.323l.104-.167h-7.249z"],
-    "mongodb": ["MongoDB", "#47A248", "M17.193 9.555c-1.264-5.58-4.252-7.414-4.573-8.115-.28-.394-.53-.954-.735-1.44-.036.495-.055.685-.523 1.184-.723.566-4.438 3.682-4.74 10.02-.282 5.912 4.27 9.435 4.888 9.884l.07.05A73.49 73.49 0 0111.91 24h.481c.114-1.032.284-2.056.51-3.07.417-.296.604-.463.85-.693a11.342 11.342 0 003.639-8.464c.01-.814-.103-1.662-.197-2.218zm-5.336 8.195s0-8.291.275-8.29c.213 0 .49 10.695.49 10.695-.381-.045-.765-1.76-.765-2.405z"],
-    "gitlab": ["GitLab", "#FC6D26", "m23.6004 9.5927-.0337-.0862L20.3.9814a.851.851 0 0 0-.3362-.405.8748.8748 0 0 0-.9997.0539.8748.8748 0 0 0-.29.4399l-2.2055 6.748H7.5375l-2.2057-6.748a.8573.8573 0 0 0-.29-.4412.8748.8748 0 0 0-.9997-.0537.8585.8585 0 0 0-.3362.4049L.4332 9.5015l-.0325.0862a6.0657 6.0657 0 0 0 2.0119 7.0105l.0113.0087.03.0213 4.976 3.7264 2.462 1.8633 1.4995 1.1321a1.0085 1.0085 0 0 0 1.2197 0l1.4995-1.1321 2.4619-1.8633 5.006-3.7489.0125-.01a6.0682 6.0682 0 0 0 2.0094-7.003z"],
-    "asana": ["Asana", "#F06A6A", "M18.78 12.653c-2.882 0-5.22 2.336-5.22 5.22s2.338 5.22 5.22 5.22 5.22-2.34 5.22-5.22-2.336-5.22-5.22-5.22zm-13.56 0c-2.88 0-5.22 2.337-5.22 5.22s2.338 5.22 5.22 5.22 5.22-2.338 5.22-5.22-2.336-5.22-5.22-5.22zm12-6.525c0 2.883-2.337 5.22-5.22 5.22-2.882 0-5.22-2.337-5.22-5.22 0-2.88 2.338-5.22 5.22-5.22 2.883 0 5.22 2.34 5.22 5.22z"],
-    "airtable": ["Airtable", "#18BFFF", "M11.992 1.966c-.434 0-.87.086-1.28.257L1.779 5.917c-.503.208-.49.908.012 1.116l8.982 3.558a3.266 3.266 0 0 0 2.454 0l8.982-3.558c.503-.196.503-.908.012-1.116l-8.957-3.694a3.255 3.255 0 0 0-1.272-.257zM23.4 8.056a.589.589 0 0 0-.222.045l-10.012 3.877a.612.612 0 0 0-.38.564v8.896a.6.6 0 0 0 .821.552L23.62 18.1a.583.583 0 0 0 .38-.551V8.653a.6.6 0 0 0-.6-.596zM.676 8.095a.644.644 0 0 0-.48.19C.086 8.396 0 8.53 0 8.69v8.355c0 .442.515.737.908.54l6.27-3.006.307-.147 2.969-1.436c.466-.22.43-.908-.061-1.092L.883 8.138a.57.57 0 0 0-.207-.044z"],
-    "hubspot": ["HubSpot", "#FF7A59", "M18.164 7.93V5.084a2.198 2.198 0 001.267-1.978v-.067A2.2 2.2 0 0017.238.845h-.067a2.2 2.2 0 00-2.193 2.193v.067a2.196 2.196 0 001.252 1.973l.013.006v2.852a6.22 6.22 0 00-2.969 1.31l.012-.01-7.828-6.095A2.497 2.497 0 104.3 4.656l-.012.006 7.697 5.991a6.176 6.176 0 00-1.038 3.446c0 1.343.425 2.588 1.147 3.607l-.013-.02-2.342 2.343a1.968 1.968 0 00-.58-.095h-.002a2.033 2.033 0 102.033 2.033 1.978 1.978 0 00-.1-.595l.005.014 2.317-2.317a6.247 6.247 0 104.782-11.134l-.036-.005zm-.964 9.378a3.206 3.206 0 113.215-3.207v.002a3.206 3.206 0 01-3.207 3.207z"],
-    "shopify": ["Shopify", "#7AB55C", "M15.337 23.979l7.216-1.561s-2.604-17.613-2.625-17.73c-.018-.116-.114-.192-.211-.192s-1.929-.136-1.929-.136-1.275-1.274-1.439-1.411c-.045-.037-.075-.057-.121-.074l-.914 21.104h.023zM11.71 11.305s-.81-.424-1.774-.424c-1.447 0-1.504.906-1.504 1.141 0 1.232 3.24 1.715 3.24 4.629 0 2.295-1.44 3.76-3.406 3.76-2.354 0-3.54-1.465-3.54-1.465l.646-2.086s1.245 1.066 2.28 1.066c.675 0 .975-.545.975-.932 0-1.619-2.654-1.694-2.654-4.359-.034-2.237 1.571-4.416 4.827-4.416 1.257 0 1.875.361 1.875.361l-.945 2.715-.02.01zM11.17.83c.136 0 .271.038.405.135-.984.465-2.064 1.639-2.508 3.992-.656.213-1.293.405-1.889.578C7.697 3.75 8.951.84 11.17.84V.83zm1.235 2.949v.135c-.754.232-1.583.484-2.394.736.466-1.777 1.333-2.645 2.085-2.971.193.501.309 1.176.309 2.1zm.539-2.234c.694.074 1.141.867 1.429 1.755-.349.114-.735.231-1.158.366v-.252c0-.752-.096-1.371-.271-1.871v.002zm2.992 1.289c-.02 0-.06.021-.078.021s-.289.075-.714.21c-.423-1.233-1.176-2.37-2.508-2.37h-.115C12.135.209 11.669 0 11.265 0 8.159 0 6.675 3.877 6.21 5.846c-1.194.365-2.063.636-2.16.674-.675.213-.694.232-.772.87-.075.462-1.83 14.063-1.83 14.063L15.009 24l.927-21.166z"],
-    "playwright": ["Playwright", "#2EAD33", null],
-    "slack": ["Slack", "#4A154B", null],
-    "context7": ["Context7", "#0F766E", null],
-    "puppeteer": ["Puppeteer", "#40B5A4", null],
-    "filesystem": ["Filesystem", "#57534E", null],
-  };
-  var MCP_ALIAS = { postgres: "postgresql", gdrive: "googledrive", googledocs: "googledrive", jira: "atlassian", confluence: "atlassian", ctx7: "context7" };
-  var MCP_BLOAT = { github: "PR diffs, issue and file lists", linear: "issue lists and comments", sentry: "events and stack traces", notion: "pages and database rows", figma: "design node trees",
-    supabase: "query results and logs", stripe: "API objects", atlassian: "Jira issues, Confluence pages", postgresql: "query results", vercel: "build and deploy logs", cloudflare: "logs and configs",
-    googledrive: "documents", mongodb: "query results", gitlab: "MR diffs and pipelines", asana: "task lists", airtable: "records", hubspot: "CRM records", shopify: "store data",
-    playwright: "page snapshots", slack: "channel history", context7: "library docs", puppeteer: "page content", filesystem: "file listings" };
-  var MCP_GALLERY = ["github", "linear", "sentry", "playwright", "notion", "figma", "supabase", "atlassian", "slack", "stripe", "postgresql", "vercel", "cloudflare", "gitlab", "googledrive", "mongodb", "context7", "asana", "airtable", "hubspot", "shopify"];
-  function mcpKey(name) {
-    var n = String(name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (MCP_ICONS[n]) return n;
-    if (MCP_ALIAS[n]) return MCP_ALIAS[n];
-    for (var k in MCP_ICONS) if (n.indexOf(k) >= 0) return k;
-    for (var a in MCP_ALIAS) if (n.indexOf(a) >= 0) return MCP_ALIAS[a];
-    return null;
-  }
-  function mcpTitle(name) { var k = mcpKey(name); return k ? MCP_ICONS[k][0] : String(name || "MCP").replace(/[-_]+/g, " ").replace(/^./, function (c) { return c.toUpperCase(); }); }
-  function mcpLogo(name, live) {
-    var k = mcpKey(name), info = k && MCP_ICONS[k];
-    var color = info ? info[1] : "#6b6d65";
-    if (color === "#000000" || color === "#181717") color = "#1a1418";
-    var box = h("span", { cls: "mlogo" + (live ? " live" : ""), style: "--b:" + color, "aria-hidden": "true" });
-    if (info && info[2]) { var svg = s("svg", { viewBox: "0 0 24 24" }); svg.appendChild(s("path", { d: info[2], fill: "currentColor" })); box.appendChild(svg); }
-    else box.appendChild(h("b", { text: k === "context7" ? "C7" : (info ? info[0] : String(name || "?")).slice(0, 1).toUpperCase() }));
-    return box;
-  }
-  function recOf(x) {
-    var share = x.asked ? x.heldBack / x.asked : 0;
-    if (x.after > 8000) return { tone: "warn", text: "~" + fmt(x.after) + " tokens a call still reach the agent. Ask it for fewer fields or smaller pages." };
-    if (share >= 0.4) return { tone: "ok", text: "Snout trims " + Math.round(share * 100) + "% of every result. Nothing to change." };
-    if (x.per < 1500) return { tone: "", text: "Results are small (~" + fmt(x.per) + " a call), so Snout leaves them whole." };
-    return { tone: "warn", text: "Mostly read whole (" + Math.round(share * 100) + "% trimmed). Narrower queries would save more." };
-  }
-  function renderMcp(v) {
-    var d = v.d, box = $("mcp-box");
-    var live = {};
-    (d.recent || []).forEach(function (r) { if (r.tool && r.tool.indexOf("mcp__") === 0 && Date.now() - Date.parse(r.ts) < 10 * 60 * 1000) live[r.tool.split("__")[1]] = 1; });
-    var list = (d.byMcpServer || []).map(function (x) {
-      var asked = x.inContext + x.heldBack;
-      return { key: x.key, name: mcpTitle(x.key), calls: x.reads, inContext: x.inContext, heldBack: x.heldBack, asked: asked, per: x.reads ? asked / x.reads : 0, after: x.reads ? x.inContext / x.reads : 0, live: !!live[x.key] };
-    }).sort(function (a, b) { return b.asked - a.asked; });
-    var used = {}; list.forEach(function (x) { used[x.key] = 1; });
-    var idle = (d.mcpConfig || []).filter(function (c) { return c.calls === 0 && !used[c.name]; });
-    var held = 0, asked = 0; list.forEach(function (x) { held += x.heldBack; asked += x.asked; });
-    var c = h("div", { cls: "card" }, h("div", { cls: "card-h" }, h("div", null, h("h2", { text: "MCP servers" }),
-      h("p", { text: list.length ? list.length + (list.length === 1 ? " server" : " servers") + " sent results \xB7 ~" + fmt(held) + " tokens kept out, " + pct(held, asked) + "% of what they returned" : "Results from every MCP server your agents use, and what Snout trimmed" }))));
-    var grid = h("div", { cls: "mcp-grid" });
-    list.forEach(function (x, i) {
-      var r = recOf(x), max = x.per || 1;
-      grid.appendChild(h("div", { cls: "mtile" + (state.first ? " pop" : ""), style: "--d:" + (i * 0.05).toFixed(2) + "s" },
-        h("div", { cls: "mtile-h" }, mcpLogo(x.key, x.live), h("div", { style: "min-width:0" }, h("div", { cls: "nm", text: x.name }), h("div", { cls: "sub", text: x.calls.toLocaleString() + (x.calls === 1 ? " call \xB7 " : " calls \xB7 ") + (MCP_BLOAT[mcpKey(x.key)] || "tool results") })), x.live ? h("span", { cls: "live-tag", text: "LIVE" }) : null),
-        h("div", { cls: "big num" }, x.heldBack ? "~" + fmt(x.heldBack) : "0", h("small", { text: x.heldBack ? "kept out \xB7 \u2212" + pct(x.heldBack, x.asked) + "%" : "kept out" })),
-        h("div", { cls: "wbars", title: "Tokens per call" }, h("span", { text: "Without" }), h("i", { style: "width:100%;background:var(--without)" }), h("span", { cls: "n", text: fmt(x.per) }),
-          h("span", { text: "With Snout" }), h("i", { style: "width:" + Math.max(2, (x.after / max) * 100) + "%;background:var(--ink)" }), h("span", { cls: "n", text: fmt(x.after) })),
-        h("div", { cls: "rec " + r.tone }, h("i", { text: r.tone === "ok" ? "\u2713" : r.tone === "warn" ? "!" : "i" }), h("span", { text: r.text }))));
-    });
-    idle.forEach(function (x) {
-      grid.appendChild(h("div", { cls: "mtile" }, h("div", { cls: "mtile-h" }, mcpLogo(x.name), h("div", { style: "min-width:0" }, h("div", { cls: "nm", text: mcpTitle(x.name) }), h("div", { cls: "sub", text: x.source }))),
-        h("div", { cls: "big num", style: "color:var(--ink)" }, "0", h("small", { text: "calls in 30 days" })),
-        h("div", { cls: "rec warn" }, h("i", { text: "!" }), h("span", null, "Never called, but its tool list rides along on every request. ", h("code", { text: "snout audit" }), " shows how to turn it off."))));
-    });
-    if (!list.length && !idle.length) c.appendChild(h("div", { cls: "none", text: "No MCP calls yet. Results from every MCP server your agents use show up here." }));
-    else c.appendChild(grid);
-    var seen = {}; list.forEach(function (x) { var k = mcpKey(x.key); if (k) seen[k] = 1; }); (d.mcpConfig || []).forEach(function (x) { var k = mcpKey(x.name); if (k) seen[k] = 1; });
-    c.appendChild(h("h3", { style: "margin:22px 0 0", text: "Works with any MCP server" }));
-    c.appendChild(h("div", { cls: "gallery" }, MCP_GALLERY.map(function (k) {
-      return h("span", { cls: "gal-i" + (seen[k] ? " seen" : ""), title: (seen[k] ? "Connected here" : "Not connected") + " \xB7 typical bloat: " + MCP_BLOAT[k] }, mcpLogo(k), MCP_ICONS[k][0]);
-    })));
-    box.replaceChildren(c);
-  }
-
-  // --- Spend tab --------------------------------------------------------------------------
-
-  function renderSpend(v) {
-    var sp = v.sp;
-    var svg = $("bars"), tip = $("bars-tip");
-    svg.replaceChildren();
-    if (!sp) {
-      $("sp-total").textContent = "\u2014"; $("sp-meta").textContent = "No Claude Code or Codex usage found for this project yet.";
-      $("kinds").replaceChildren(h("div", { cls: "none", text: "Appears after the first session." }));
-      tableOf($("sp-models"), [], [], "No spend yet.");
-      return;
-    }
-    $("bars-p").textContent = "Last " + sp.days + " days \xB7 API list prices of " + sp.pricesAsOf;
-    $("sp-total").textContent = usd(sp.costUsd);
-    $("sp-meta").textContent = sp.requests.toLocaleString() + " requests \xB7 " + fmt(sp.tokens) + " tokens";
-    var byDay = {}; sp.series.forEach(function (r) { byDay[r.day] = r; });
-    var list = lastDays(sp.days, byDay, function (k) { return { day: k, costUsd: 0, tokens: 0 }; });
-    var W = Math.max(280, svg.clientWidth || 600), H = 160, B = 18;
-    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
-    var top = 0; list.forEach(function (r) { top = Math.max(top, r.costUsd); });
-    var bw = W / list.length;
-    list.forEach(function (r, i) {
-      var hgt = top ? (r.costUsd / top) * (H - B - 6) : 0;
-      var rect = s("rect", { cls: "b", class: "b" + (i === list.length - 1 ? " today" : ""), x: i * bw + 1.5, y: H - B - hgt, width: Math.max(1, bw - 3), height: Math.max(hgt, r.costUsd ? 1.5 : 0), rx: 2 });
-      rect.addEventListener("mousemove", function () {
-        var rb = svg.getBoundingClientRect();
-        tip.replaceChildren(h("b", { text: dayName(r.day) }), h("br"), usd(r.costUsd) + " \xB7 " + fmt(r.tokens) + " tokens");
-        tip.style.left = ((i + 0.5) * bw / W) * rb.width + "px"; tip.style.top = ((H - B - hgt) / H) * rb.height - 6 + "px"; tip.style.opacity = 1;
-      });
-      rect.addEventListener("mouseleave", function () { tip.style.opacity = 0; });
-      svg.appendChild(rect);
-    });
-    [0, Math.floor(list.length / 2), list.length - 1].forEach(function (i) {
-      var t = s("text", { x: i === 0 ? 0 : i === list.length - 1 ? W : (i + 0.5) * bw, y: H - 3, "text-anchor": i === 0 ? "start" : i === list.length - 1 ? "end" : "middle" });
-      t.textContent = i === list.length - 1 ? "Today" : dayName(list[i].day); svg.appendChild(t);
-    });
-
-    var uncached = Math.max(0, sp.input), kinds = [
-      ["Input", uncached, "var(--ink)"], ["Cache writes", sp.cacheWrite, "#8a8a93"], ["Cache reads", sp.cacheRead, "var(--bar-in)"], ["Output", sp.output, "var(--accent)"],
-    ];
-    var total = kinds.reduce(function (a, k) { return a + k[1]; }, 0) || 1;
-    var split = h("div", { cls: "split" }); kinds.forEach(function (k) { if (k[1]) split.appendChild(h("i", { style: "--c:" + k[2] + ";flex:" + k[1] })); });
-    var kv = h("dl", { cls: "kv" });
-    kinds.forEach(function (k) { kv.appendChild(h("dt", { style: "--c:" + k[2] }, h("i"), k[0])); kv.appendChild(h("dd", { text: fmt(k[1]) + " \xB7 " + pct(k[1], total) + "%" })); });
-    var notes = [];
-    if (sp.cacheRead) notes.push("Cache reads bill at about a tenth of the input price, so most of the volume costs little.");
-    if (sp.unpriced.length) notes.push("No list price for " + sp.unpriced.join(", ") + ", so it isn't in the totals.");
-    notes.push("On a Claude or ChatGPT subscription, this is what the same work would cost on the API.");
-    $("kinds").replaceChildren(split, kv, h("p", { cls: "none", style: "margin-top:10px", text: notes.join(" ") }));
-
-    $("sp-models-p").textContent = "Last " + sp.days + " days";
-    tableOf($("sp-models"), [["Model"], ["Agent", "hide-sm"], ["Requests", "n"], ["Tokens", "n hide-sm"], ["Cost", "n"], ["Share", "n"]], v.models.map(function (m) {
-      return h("tr", null,
-        h("td", null, h("span", { cls: "who", style: "--c:" + m.color }, modelLogo(m.key, true), h("i", { cls: "dot" }), h("span", { text: m.label }))),
-        h("td", { cls: "hide-sm", text: m.client ? CLIENT[m.client] || m.client : "" }),
-        h("td", { cls: "n", text: (sp.byModel.filter(function (x) { return x.key === m.key; })[0] || { requests: 0 }).requests.toLocaleString() }),
-        h("td", { cls: "n hide-sm", text: fmt((sp.byModel.filter(function (x) { return x.key === m.key; })[0] || { tokens: 0 }).tokens) }),
-        h("td", { cls: "n", text: usd(m.cost30) }), h("td", { cls: "n strong", text: (m.share * 100).toFixed(1) + "%" }));
-    }), "No spend yet.");
-  }
-
-  function renderAbout(v) {
-    var m = v.d.meta || {};
-    $("about").textContent = "Snout " + (m.version || "") + " \xB7 project " + (m.project || "") + " \xB7 " + v.d.reads.toLocaleString() + " reads classified, p50 " + v.d.latency.p50 + " ms, p95 " + v.d.latency.p95 + " ms per decision. Everything on this page is computed on your machine.";
-  }
-
-  function render(d) {
-    state.data = d;
-    var v = view(d);
-    renderHead(v);
-    renderBand(v);
-    renderModels(v);
-    renderToday(v);
-    renderFeed(v);
-    renderTrend(v);
-    renderCost(v);
-    renderMix(v);
-    renderContext(v);
-    renderAgentFiles(v);
-    renderMcp(v);
-    if (state.tab === "overview") renderRepo(v);
-    if (state.tab === "spend" || state.first) renderSpend(v);
-    renderAbout(v);
-    state.first = false;
-  }
-
-  // --- tabs, live connection ----------------------------------------------------------------
-
-  function showTab(tab) {
-    state.tab = tab;
-    [].forEach.call(document.querySelectorAll(".tab"), function (b) { b.setAttribute("aria-selected", String(b.getAttribute("data-tab") === tab)); });
-    [].forEach.call(document.querySelectorAll("[data-view]"), function (sec) { sec.hidden = sec.getAttribute("data-view") !== tab; });
-    $("title").textContent = { overview: "Dashboard", context: "Context", spend: "Spend", settings: "Settings" }[tab];
-    if (history.replaceState) history.replaceState(null, "", tab === "overview" ? location.pathname + location.search : "#" + tab);
-    if (state.data) { var v = view(state.data); if (tab === "spend") renderSpend(v); if (tab === "overview") { renderTrend(v); renderRepo(v); } }
-  }
-  [].forEach.call(document.querySelectorAll(".tab"), function (b) { b.addEventListener("click", function () { showTab(b.getAttribute("data-tab")); window.scrollTo(0, 0); }); });
-  [].forEach.call(document.querySelectorAll("[data-go]"), function (b) { b.addEventListener("click", function () { showTab(b.getAttribute("data-go")); window.scrollTo(0, 0); }); });
-  ["modeSwitch", "modeSwitch2"].forEach(function (id) {
-    [].forEach.call($(id).querySelectorAll("button"), function (b) {
-      b.addEventListener("click", function () { if (!b.classList.contains("on")) act({ type: "mode", value: b.getAttribute("data-mode") }); });
-    });
-  });
-  [].forEach.call($("coachSwitch").querySelectorAll("button"), function (b) {
-    b.addEventListener("click", function () { if (!b.classList.contains("on")) act({ type: "coach", value: b.getAttribute("data-coach") }); });
-  });
-  ["connect", "connect2"].forEach(function (id) { $(id).addEventListener("click", function () { act({ type: "login" }); }); });
-
-  var es = null, poll = null;
-  function setLive(ok, text) { $("live").className = "live" + (ok ? " on" : ""); $("live-t").textContent = text; }
-  function query() { return state.session ? "?session=" + encodeURIComponent(state.session) : ""; }
-  function open() {
-    if (es) es.close();
-    if (poll) { clearInterval(poll); poll = null; }
-    state.seen = null;
-    if (!window.EventSource) return startPolling();
-    es = new EventSource("/events" + query());
-    es.addEventListener("summary", function (ev) { setLive(true, "Live"); render(JSON.parse(ev.data)); });
-    es.onopen = function () { setLive(true, "Live"); };
-    es.onerror = function () { setLive(false, "Reconnecting"); };
-  }
-  function startPolling() {
-    function tick() { fetch("/api/summary" + query()).then(function (r) { return r.json(); }).then(function (d) { setLive(true, "Live"); render(d); }, function () { setLive(false, "Offline"); }); }
-    tick(); poll = setInterval(tick, 3000);
-  }
-  $("session").addEventListener("change", function () { state.session = this.value; open(); });
-  var rt = 0;
-  window.addEventListener("resize", function () { clearTimeout(rt); rt = setTimeout(function () { if (state.data) { var v = view(state.data); renderTrend(v); if (state.tab === "overview") renderRepo(v); if (state.tab === "spend") renderSpend(v); } }, 120); });
-  setInterval(function () { document.querySelectorAll("[data-ts]").forEach(function (el) { el.textContent = ago(el.getAttribute("data-ts")); }); }, 15000);
-  var start = (location.hash || "").slice(1);
-  if (["context", "spend", "settings"].indexOf(start) >= 0) showTab(start);
-  open();
-})();
-</script>
-</body>
-</html>
+var page_default = `<!doctype html>\r
+<html lang="en">\r
+<head>\r
+<meta charset="utf-8">\r
+<meta name="viewport" content="width=device-width, initial-scale=1">\r
+<title>Snout Dashboard</title>\r
+<link rel="icon" href="data:image/png;base64,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">\r
+<style>\r
+/* An app dashboard: white cards on a warm off-white, one accent (Snout pink) that always means\r
+   "kept out of context", and provider colors only where they encode a model.\r
+   Shape scale: cards 14px, tiles and inputs 10px, buttons 8px, badges 6px. */\r
+:root {\r
+  --bg: #f2f1ed; --card: #ffffff; --tile: #f6f5f1; --ink: #1a1418; --ink-2: #3b3d37; --muted: #6b6d65; --faint: #9c9e96;\r
+  --line: #e9e8e2; --seg: #e2e3dc; --bar-in: #dcdcd5; --without: #e4e3dc; --accent: #e653ba; --accent-ink: #b0307f; --accent-soft: #fbe6f3; --accent-hi: #ee8fcf;\r
+  --ok: #15803d; --ok-soft: #e7f5ec; --info: #1d4ed8; --info-soft: #eaf0fe; --warn: #b45309; --warn-soft: #fdf1e1; --up: #15803d; --down: #b91c1c;\r
+  --shadow: 0 1px 2px rgba(60, 20, 45, 0.04), 0 8px 24px -12px rgba(120, 40, 90, 0.14);\r
+  --shadow-lg: 0 1px 2px rgba(60, 20, 45, 0.05), 0 24px 48px -24px rgba(120, 40, 90, 0.28);\r
+  --sans: "Inter", ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;\r
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;\r
+  color-scheme: light;\r
+}\r
+:root[data-theme="dark"] {\r
+  --bg: #0c0c0e; --card: #16161a; --tile: #1d1d22; --ink: #f4f4f5; --ink-2: #d4d4d8; --muted: #a1a1aa; --faint: #71717a;\r
+  --line: #26262c; --seg: #2a2a31; --bar-in: #4a4a52; --accent: #ec5fb0; --accent-ink: #f37fc2; --accent-soft: #3a1a2d;\r
+  --ok: #4ade80; --ok-soft: #13291c; --info: #7aa2ff; --info-soft: #172241; --warn: #fbbf24; --warn-soft: #2e2310; --up: #4ade80; --down: #f87171; --shadow: none; color-scheme: dark;\r
+}\r
+* { box-sizing: border-box; }\r
+html, body { margin: 0; }\r
+body { background: var(--bg); color: var(--ink); font: 14px/1.45 var(--sans); -webkit-font-smoothing: antialiased; }\r
+button, select { font: inherit; color: inherit; }\r
+.num { font-variant-numeric: tabular-nums; }\r
+\r
+/* Top navigation */\r
+.nav { background: var(--card); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }\r
+.nav-in { max-width: 1320px; margin: 0 auto; height: 60px; padding: 0 24px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; }\r
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 17px; letter-spacing: -0.02em; }\r
+.brand i { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); }\r
+.tabs { display: flex; gap: 4px; height: 60px; }\r
+.tab { border: 0; background: none; padding: 0 14px; color: var(--muted); font-weight: 500; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.15s; }\r
+.tab:hover { color: var(--ink); }\r
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }\r
+.nav-r { display: flex; justify-content: flex-end; align-items: center; gap: 10px; min-width: 0; }\r
+.live { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted); white-space: nowrap; }\r
+.live i { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }\r
+.live.on i { background: var(--ok); box-shadow: 0 0 0 0 rgba(21, 128, 61, 0.45); animation: ping 2.4s ease-out infinite; }\r
+@keyframes ping { 0% { box-shadow: 0 0 0 0 rgba(21, 128, 61, 0.45); } 70%, 100% { box-shadow: 0 0 0 7px rgba(21, 128, 61, 0); } }\r
+.proj { font: 12.5px var(--mono); color: var(--ink-2); background: var(--tile); border: 1px solid var(--line); border-radius: 8px; padding: 5px 9px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\r
+\r
+.wrap { max-width: 1320px; margin: 0 auto; padding: 24px 24px 56px; }\r
+.head { display: flex; align-items: flex-end; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }\r
+.head h1 { font-size: 24px; line-height: 1.2; letter-spacing: -0.02em; margin: 0 0 4px; font-weight: 650; }\r
+.head .sub { color: var(--muted); font-size: 13.5px; }\r
+.head .sub b { color: var(--ink); font-weight: 600; }\r
+.head .sub span + span::before { content: "\xB7"; margin: 0 8px; color: var(--faint); }\r
+.head-r { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }\r
+select { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font-size: 13px; max-width: 220px; }\r
+.seg-switch { display: inline-flex; background: var(--tile); border: 1px solid var(--line); border-radius: 8px; padding: 2px; }\r
+.seg-switch button { border: 0; background: none; padding: 5px 12px; border-radius: 6px; font-size: 13px; font-weight: 500; color: var(--muted); cursor: pointer; }\r
+.seg-switch button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgba(17, 17, 19, 0.08); }\r
+.seg-switch button.on[data-mode="enforce"] { color: var(--accent-ink); }\r
+.btn { border: 1px solid var(--line); background: var(--card); padding: 7px 13px; border-radius: 8px; font-size: 13px; font-weight: 550; cursor: pointer; white-space: nowrap; transition: transform 0.1s, background 0.15s; }\r
+.btn:hover { background: var(--tile); }\r
+.btn:active { transform: translateY(1px); }\r
+.btn.dark { background: var(--ink); color: var(--card); border-color: var(--ink); }\r
+.btn.dark:hover { opacity: 0.9; }\r
+.btn.accent { background: var(--accent); color: #fff; border-color: var(--accent); }\r
+.btn[disabled] { cursor: default; opacity: 1; }\r
+.btn.done { color: var(--ok); }\r
+.link { color: var(--info); font-size: 13px; font-weight: 550; background: none; border: 0; cursor: pointer; padding: 0; display: inline-flex; gap: 6px; align-items: center; }\r
+.link:hover { text-decoration: underline; }\r
+\r
+.banner { display: flex; align-items: center; gap: 14px; background: var(--accent-soft); color: var(--ink); border-radius: 10px; padding: 11px 14px; margin-bottom: 16px; font-size: 13.5px; }\r
+.banner b { color: var(--accent-ink); }\r
+.banner .btn { margin-left: auto; }\r
+\r
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 18px 20px; min-width: 0; position: relative; }\r
+.card-h { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }\r
+.card-h h2 { font-size: 14.5px; font-weight: 600; margin: 0; letter-spacing: -0.005em; }\r
+.card-h p { margin: 2px 0 0; color: var(--muted); font-size: 12.5px; }\r
+.card-h .r { margin-left: auto; }\r
+.grid { display: grid; gap: 16px; margin-bottom: 16px; }\r
+.g-row2 { grid-template-columns: minmax(250px, 0.8fr) minmax(0, 1.15fr) minmax(0, 1.35fr); }\r
+.g-row3 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }\r
+.g-2 { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }\r
+\r
+/* Model strip: one card, columns split by hairlines, a segmented meter per model */\r
+.models { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); padding: 18px 0; margin-bottom: 16px; }\r
+.model { padding: 0 22px; border-left: 1px solid var(--line); min-width: 0; }\r
+.model:first-child { border-left: 0; }\r
+.m-id { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; min-width: 0; }\r
+.logo { width: 32px; height: 32px; border-radius: 8px; background: var(--tile); border: 1px solid var(--line); display: grid; place-items: center; flex: none; color: var(--ink); }\r
+.logo svg { width: 18px; height: 18px; display: block; }\r
+.logo.sm { width: 20px; height: 20px; border-radius: 6px; border: 0; background: transparent; }\r
+.logo.sm svg { width: 15px; height: 15px; }\r
+.logo b { font-size: 12px; font-weight: 700; color: var(--muted); }\r
+.m-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\r
+.m-sub { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\r
+.m-row { display: flex; align-items: flex-end; gap: 16px; }\r
+.m-val { font-size: 27px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.1; }\r
+.m-note { font-size: 12.5px; margin-top: 3px; color: var(--muted); white-space: nowrap; }\r
+.m-note b { font-weight: 600; color: var(--c, var(--ink)); }\r
+.meter { flex: 1; display: flex; gap: 3px; height: 28px; align-items: stretch; min-width: 90px; max-width: 150px; margin-left: auto; margin-bottom: 4px; }\r
+.meter i { flex: 1; min-width: 2px; border-radius: 1.5px; background: var(--seg); transition: background 0.3s ease; }\r
+.meter i.f { background: var(--c); }\r
+.models-empty { grid-column: 1 / -1; padding: 4px 22px; color: var(--muted); font-size: 13.5px; }\r
+\r
+/* Today tiles */\r
+.band { display: grid; grid-template-columns: minmax(0, 1.25fr) repeat(3, minmax(0, 1fr)); padding: 18px 0; margin-bottom: 16px; }\r
+.band > div { padding: 0 22px; border-left: 1px solid var(--line); min-width: 0; }\r
+.band > div:first-child { border-left: 0; }\r
+.band .k { font-size: 12.5px; color: var(--muted); }\r
+.band .v { font-size: 27px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.15; margin-top: 4px; }\r
+.band .hero .v { color: var(--accent-ink); font-size: 32px; }\r
+.band .s { font-size: 12.5px; color: var(--muted); margin-top: 3px; }\r
+.band .spark { display: flex; align-items: flex-end; gap: 2px; height: 26px; margin-top: 10px; max-width: 260px; }\r
+.band .spark i { flex: 1; min-width: 2px; background: var(--accent); opacity: 0.75; border-radius: 1.5px 1.5px 0 0; }\r
+.band .spark i.now { opacity: 1; }\r
+.tiles { display: grid; gap: 10px; }\r
+.tile { background: var(--tile); border-radius: 10px; padding: 12px 14px; }\r
+.tile .k { font-size: 12.5px; color: var(--muted); }\r
+.tile .v { font-size: 22px; font-weight: 650; letter-spacing: -0.02em; margin-top: 2px; }\r
+.tile .s { font-size: 12px; color: var(--muted); margin-top: 1px; }\r
+.tile.hl .v { color: var(--accent-ink); }\r
+\r
+/* Live feed */\r
+.feed { display: grid; }\r
+.frow { display: grid; grid-template-columns: 62px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 13px; }\r
+.frow:first-child { border-top: 0; }\r
+.frow .when { color: var(--muted); font-size: 12.5px; white-space: nowrap; }\r
+.frow .what { display: flex; align-items: center; gap: 8px; min-width: 0; }\r
+.frow .path { font: 12.5px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }\r
+.frow.fresh { animation: fresh 2.2s ease-out; }\r
+@keyframes fresh { from { background: var(--accent-soft); } to { background: transparent; } }\r
+.badge { display: inline-block; font-size: 11.5px; font-weight: 600; padding: 3px 8px; border-radius: 6px; white-space: nowrap; background: var(--tile); color: var(--ink-2); }\r
+.badge.full { background: var(--ok-soft); color: var(--ok); }\r
+.badge.cut { background: var(--accent-soft); color: var(--accent-ink); }\r
+.badge.ask { background: var(--warn-soft); color: var(--warn); }\r
+.badge.would { background: transparent; color: var(--accent-ink); box-shadow: inset 0 0 0 1px var(--accent); }\r
+.badge.run { background: var(--info-soft); color: var(--info); }\r
+\r
+/* Charts */\r
+.chart-box { position: relative; }\r
+svg.trend { width: 100%; height: 250px; display: block; overflow: visible; }\r
+svg text { fill: var(--muted); font: 11px var(--sans); }\r
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }\r
+.legend span { display: inline-flex; align-items: center; gap: 6px; }\r
+.legend i { width: 9px; height: 9px; border-radius: 2px; background: var(--c); }\r
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--card); font-size: 12px; padding: 7px 9px; border-radius: 8px; white-space: nowrap; transform: translate(-50%, -100%); opacity: 0; transition: opacity 0.12s; z-index: 2; }\r
+.tip b { font-weight: 600; }\r
+\r
+/* Cost table */\r
+.total { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }\r
+.total .v { font-size: 30px; font-weight: 650; letter-spacing: -0.02em; }\r
+.total .d { font-size: 12.5px; font-weight: 600; }\r
+.total .d.up { color: var(--down); }\r
+.total .d.down { color: var(--up); }\r
+.total .s { font-size: 12.5px; color: var(--muted); }\r
+table { width: 100%; border-collapse: collapse; font-size: 13px; }\r
+th { text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; padding: 0 10px 8px 0; white-space: nowrap; }\r
+td { padding: 9px 10px 9px 0; border-top: 1px solid var(--line); vertical-align: middle; }\r
+th.n, td.n { text-align: right; padding-right: 0; padding-left: 10px; }\r
+td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }\r
+td.strong { font-weight: 600; }\r
+.who { display: flex; align-items: center; gap: 8px; min-width: 0; }\r
+.who .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--c); flex: none; }\r
+.who span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\r
+td.path { font: 12.5px var(--mono); word-break: break-all; }\r
+.reason { color: var(--muted); font: 12px var(--sans); margin-top: 2px; word-break: normal; }\r
+.scroll { overflow-x: auto; }\r
+\r
+/* Context mix: one column per file type, split by dashed rules like a timeline */\r
+.mix { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); height: 264px; }\r
+.mcol { display: flex; flex-direction: column; border-left: 1px dashed var(--line); padding: 0 0 0 0; min-width: 0; }\r
+.mcol .top { padding: 0 10px 0 12px; }\r
+.mcol .k { font-size: 13px; font-weight: 600; line-height: 1.25; min-height: 2.5em; }\r
+.mcol .v { font-size: 19px; font-weight: 650; letter-spacing: -0.02em; margin-top: 2px; }\r
+.mcol .s { font-size: 12px; color: var(--muted); line-height: 1.3; }\r
+.mcol .s.cut { color: var(--accent-ink); font-weight: 600; }\r
+.mcol .bar { margin-top: auto; display: flex; flex-direction: column; justify-content: flex-end; }\r
+.mcol .pct { font-size: 13px; font-weight: 600; padding: 0 0 6px 12px; }\r
+.mcol .stack { display: flex; flex-direction: column; justify-content: flex-end; transition: height 0.6s cubic-bezier(0.2, 0.7, 0.2, 1); min-height: 3px; }\r
+.mcol .stack i { display: block; transition: height 0.6s cubic-bezier(0.2, 0.7, 0.2, 1); }\r
+.mcol .in { background: var(--bar-in); }\r
+.mcol .out { background: var(--accent); }\r
+.mix-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; gap: 12px; flex-wrap: wrap; }\r
+\r
+/* Spend bars */\r
+svg.bars { width: 100%; height: 160px; display: block; }\r
+svg.bars rect.b { fill: var(--ink); opacity: 0.85; }\r
+svg.bars rect.b.today { fill: var(--accent); opacity: 1; }\r
+.split { display: flex; height: 12px; border-radius: 6px; overflow: hidden; gap: 2px; margin: 6px 0 14px; }\r
+.split i { display: block; background: var(--c); min-width: 2px; }\r
+.kv { display: grid; grid-template-columns: 1fr auto; gap: 8px 16px; font-size: 13px; }\r
+.kv dt { color: var(--muted); display: flex; align-items: center; gap: 8px; }\r
+.kv dt i { width: 9px; height: 9px; border-radius: 2px; background: var(--c); }\r
+.kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }\r
+\r
+/* Settings */\r
+.set { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 14px 0; border-top: 1px solid var(--line); }\r
+.set:first-of-type { border-top: 0; padding-top: 0; }\r
+.set h3 { font-size: 14px; margin: 0 0 3px; font-weight: 600; }\r
+.set p { margin: 0; font-size: 13px; color: var(--muted); max-width: 62ch; }\r
+code { font: 12.5px var(--mono); background: var(--tile); border-radius: 5px; padding: 1px 5px; }\r
+\r
+.empty { padding: 36px 20px; text-align: center; color: var(--muted); }\r
+.empty h3 { color: var(--ink); font-size: 17px; margin: 0 0 6px; font-weight: 600; }\r
+.empty ol { text-align: left; display: inline-block; margin: 12px 0 0; padding-left: 20px; line-height: 1.9; }\r
+.none { color: var(--muted); font-size: 13px; padding: 8px 0; }\r
+.sk { background: linear-gradient(90deg, var(--tile), var(--line), var(--tile)); background-size: 200% 100%; animation: sk 1.4s ease-in-out infinite; border-radius: 10px; }\r
+@keyframes sk { from { background-position: 100% 0; } to { background-position: -100% 0; } }\r
+footer { color: var(--faint); font-size: 12px; text-align: center; margin-top: 24px; }\r
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 16px); opacity: 0; background: var(--ink); color: var(--card); font-size: 13px; padding: 10px 14px; border-radius: 10px; transition: opacity 0.2s, transform 0.2s; pointer-events: none; z-index: 10; max-width: calc(100% - 32px); }\r
+.toast.show { opacity: 1; transform: translate(-50%, 0); }\r
+[hidden] { display: none !important; }\r
+\r
+/* The landing page's look: a warm off-white fading into pink over a fine\r
+   white grid, glassy navigation, and the pink that means "kept out of context". */\r
+body {\r
+  background-color: var(--bg);\r
+  background-image:\r
+    linear-gradient(rgba(255, 255, 255, 0.75) 1px, transparent 1px),\r
+    linear-gradient(90deg, rgba(255, 255, 255, 0.75) 1px, transparent 1px),\r
+    radial-gradient(1200px 520px at 12% 108%, rgba(255, 255, 255, 0.9), transparent 60%),\r
+    linear-gradient(180deg, #f2f3ef 0%, #f1ebee 38%, #f3e0ec 72%, #f4d9ea 100%);\r
+  background-size: 56px 56px, 56px 56px, 100% 100%, 100% 100%;\r
+  background-attachment: fixed;\r
+  min-height: 100dvh;\r
+}\r
+.nav { background: rgba(255, 255, 255, 0.72); backdrop-filter: saturate(1.4) blur(14px); -webkit-backdrop-filter: saturate(1.4) blur(14px); border-bottom: 1px solid rgba(26, 20, 24, 0.06); }\r
+.nav-in { height: 62px; }\r
+.brand { gap: 9px; font-size: 18px; letter-spacing: -0.03em; }\r
+.brand img { width: 30px; height: 25px; object-fit: contain; display: block; }\r
+.brand small { font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent-ink); background: var(--accent-soft); border-radius: 6px; padding: 3px 7px; }\r
+.tabs { height: auto; gap: 2px; background: rgba(26, 20, 24, 0.04); border-radius: 11px; padding: 3px; }\r
+.tab { padding: 7px 14px; border-radius: 8px; border-bottom: 0; margin: 0; font-weight: 550; }\r
+.tab[aria-selected="true"] { background: var(--card); box-shadow: 0 1px 2px rgba(26, 20, 24, 0.08); }\r
+.head h1 { font-size: 34px; line-height: 1.1; letter-spacing: -0.035em; font-weight: 750; margin-bottom: 6px; }\r
+.card { border-color: rgba(26, 20, 24, 0.06); }\r
+code { font: 12px var(--mono); background: var(--tile); border-radius: 5px; padding: 1px 5px; }\r
+\r
+/* Logo motion: a model or MCP server that is working today moves; everything else moves on hover. */\r
+.logo svg { transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1); transform-origin: 50% 50%; }\r
+.logo.live[data-k="claude"] svg { animation: spin 14s linear infinite; }\r
+.logo.live[data-k="openai"] svg { animation: spin 22s linear infinite; }\r
+.logo.live[data-k="gemini"] svg { animation: twinkle 2.6s ease-in-out infinite; }\r
+.logo.live[data-k="cursor"] svg, .logo.live[data-k="copilot"] svg { animation: bob 2.8s ease-in-out infinite; }\r
+:is(.mchip, tr, .mrow, .stat):hover .logo[data-k="claude"] svg, .logo[data-k="claude"]:hover svg { animation: spin 2.4s linear infinite; }\r
+:is(.mchip, tr, .mrow, .stat):hover .logo[data-k="openai"] svg, .logo[data-k="openai"]:hover svg { animation: spin 3s linear infinite; }\r
+:is(.mchip, tr, .mrow, .stat):hover .logo[data-k="gemini"] svg, .logo[data-k="gemini"]:hover svg { animation: twinkle 1.2s ease-in-out infinite; }\r
+:is(.mchip, tr, .mrow, .stat):hover .logo:is([data-k="cursor"], [data-k="copilot"]) svg { animation: bob 1s ease-in-out infinite; }\r
+.logo.live { position: relative; }\r
+.logo.live::after { content: ""; position: absolute; inset: -3px; border-radius: inherit; border: 1.5px solid var(--accent); opacity: 0; animation: halo 2.6s ease-out infinite; pointer-events: none; }\r
+.logo.sm.live::after { border-radius: 50%; inset: -2px; }\r
+@keyframes spin { to { transform: rotate(360deg); } }\r
+@keyframes twinkle { 0%, 100% { transform: scale(1) rotate(0deg); } 50% { transform: scale(0.72) rotate(45deg); } }\r
+@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2.5px); } }\r
+@keyframes halo { 0% { opacity: 0.7; transform: scale(0.9); } 80%, 100% { opacity: 0; transform: scale(1.35); } }\r
+.pop { animation: pop 0.55s cubic-bezier(0.2, 1.5, 0.4, 1) both; animation-delay: var(--d, 0s); }\r
+@keyframes pop { from { opacity: 0; transform: translateY(6px) scale(0.92); } }\r
+\r
+/* Context flow: repo (or folder) cards on the left, the report for the one you point at on the right */\r
+.flow-card { padding: 26px 26px 22px; border-radius: 18px; box-shadow: var(--shadow-lg); margin-bottom: 16px; overflow: hidden; }\r
+.flow-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 400px); gap: 24px; align-items: end; margin-bottom: 22px; }\r
+.eyebrow { font: 600 11.5px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-ink); margin-bottom: 10px; }\r
+.flow-top h2 { font-size: 40px; line-height: 1.04; letter-spacing: -0.045em; margin: 0; font-weight: 750; max-width: 620px; }\r
+.flow-info { color: var(--ink-2); font-size: 14px; line-height: 1.55; min-height: 66px; }\r
+.flow-info b { color: var(--ink); }\r
+.flow-info .mono { font-family: var(--mono); font-size: 12.5px; }\r
+.ents { display: grid; gap: 12px; align-content: start; position: relative; z-index: 1; }\r
+.ent { background: #faf9f6; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px 8px; box-shadow: 0 1px 2px rgba(60, 20, 45, 0.05), 0 10px 22px -16px rgba(60, 20, 45, 0.3); transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s; }\r
+.ent.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), 0 12px 26px -16px rgba(176, 48, 127, 0.45); transform: translateX(4px); }\r
+.ent-h { display: flex; align-items: baseline; gap: 8px; margin-bottom: 7px; cursor: pointer; min-width: 0; }\r
+.ent-h i { width: 7px; height: 7px; background: var(--ink); border-radius: 1.5px; flex: none; transform: translateY(-1px); }\r
+.ent-h b { font-size: 14px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\r
+.ent-h .mono, .ent-r .mono { font: 11px var(--mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--faint); white-space: nowrap; }\r
+.ent-h .r { margin-left: auto; }\r
+.ent-r { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 7px; margin: 0 -7px; border-radius: 6px; font: 12.5px var(--mono); color: var(--ink-2); cursor: pointer; transition: background 0.15s, color 0.15s; }\r
+.ent-r .src { display: inline-flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\r
+.ent-r .v { white-space: nowrap; font-variant-numeric: tabular-nums; }\r
+.ent-r .v em { font-style: normal; color: var(--accent-ink); margin-left: 6px; }\r
+.ent-r:hover { background: var(--tile); }\r
+.ent-r.on { background: var(--accent); color: #fff; }\r
+.ent-r.on .v em { color: #fff; }\r
+.ent-r .mlogo { width: 16px; height: 16px; border-radius: 4px; }\r
+.ent-r .mlogo svg { width: 10px; height: 10px; }\r
+.ents .more { font-size: 12.5px; padding: 2px 4px; }\r
+\r
+/* MCP servers */\r
+.mcp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }\r
+.mtile { background: #faf9f6; border: 1px solid var(--line); border-radius: 12px; padding: 14px 15px; display: grid; gap: 10px; min-width: 0; transition: transform 0.2s, box-shadow 0.2s; }\r
+.mtile:hover { transform: translateY(-2px); box-shadow: var(--shadow); }\r
+.mtile-h { display: flex; align-items: center; gap: 10px; min-width: 0; }\r
+.mtile-h .nm { font-weight: 650; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\r
+.mtile-h .sub { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\r
+.mtile-h .live-tag { margin-left: auto; font: 600 10.5px var(--mono); color: var(--ok); background: var(--ok-soft); padding: 2px 6px; border-radius: 5px; letter-spacing: 0.04em; }\r
+.mtile .big { font-size: 24px; font-weight: 700; letter-spacing: -0.03em; color: var(--accent-ink); line-height: 1.1; }\r
+.mtile .big small { font-size: 12.5px; color: var(--muted); font-weight: 500; letter-spacing: 0; margin-left: 4px; }\r
+.wbars { display: grid; grid-template-columns: 58px minmax(0, 1fr) 48px; gap: 4px 8px; align-items: center; font-size: 11.5px; color: var(--muted); }\r
+.wbars i { display: block; height: 8px; border-radius: 2px; transform-origin: left; animation: grow 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both; }\r
+.wbars .n { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); }\r
+.rec { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; line-height: 1.4; color: var(--ink-2); padding-top: 9px; border-top: 1px dashed var(--line); }\r
+.rec i { width: 16px; height: 16px; border-radius: 50%; flex: none; display: grid; place-items: center; font: 700 10px var(--sans); font-style: normal; background: var(--tile); color: var(--muted); margin-top: 1px; }\r
+.rec.ok i { background: var(--ok-soft); color: var(--ok); }\r
+.rec.warn i { background: var(--warn-soft); color: var(--warn); }\r
+.mlogo { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; flex: none; background: color-mix(in srgb, var(--b) 13%, white); color: var(--b); position: relative; }\r
+.mlogo svg { width: 20px; height: 20px; display: block; transition: transform 0.4s cubic-bezier(0.2, 0.7, 0.2, 1); }\r
+.mlogo b { font: 700 13px var(--sans); }\r
+.mlogo.live::after { content: ""; position: absolute; inset: -3px; border-radius: 12px; border: 1.5px solid var(--b); opacity: 0; animation: halo 2.6s ease-out infinite; }\r
+.mlogo.live svg, .mlogo.live b { animation: bob 3.2s ease-in-out infinite; }\r
+.mtile:hover .mlogo svg, .gal-i:hover .mlogo svg { animation: wiggle 0.9s ease-in-out; }\r
+@keyframes wiggle { 0%, 100% { transform: rotate(0) scale(1); } 30% { transform: rotate(-10deg) scale(1.12); } 60% { transform: rotate(8deg) scale(1.08); } }\r
+.gallery { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }\r
+.gal-i { display: inline-flex; align-items: center; gap: 8px; padding: 5px 11px 5px 5px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); font-size: 12.5px; color: var(--muted); }\r
+.gal-i .mlogo { width: 26px; height: 26px; border-radius: 50%; filter: grayscale(1); opacity: 0.65; transition: filter 0.25s, opacity 0.25s; }\r
+.gal-i .mlogo svg { width: 14px; height: 14px; }\r
+.gal-i:hover { color: var(--ink); }\r
+.gal-i:hover .mlogo { filter: none; opacity: 1; }\r
+.gal-i.seen { color: var(--ink); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }\r
+.gal-i.seen .mlogo { filter: none; opacity: 1; }\r
+\r
+.mrow .logo { width: 28px; height: 28px; border-radius: 8px; }\r
+.mrow .logo svg { width: 16px; height: 16px; }\r
+\r
+@media (max-width: 1100px) {\r
+  .flow-top { grid-template-columns: minmax(0, 1fr); }\r
+  .flow-top h2 { font-size: 32px; }\r
+}\r
+@media (max-width: 860px) {\r
+  .ent.on { transform: none; }\r
+}\r
+@media (max-width: 560px) {\r
+  .flow-card { padding: 18px 16px; }\r
+  .flow-top h2 { font-size: 27px; }\r
+}\r
+\r
+/* Repo map: relationship lines between folders, file badges */\r
+.ents.erd-gutter { padding-left: 58px; }\r
+.ents .erd { position: absolute; left: 0; top: 0; overflow: visible; }\r
+.erd .lk { cursor: pointer; }\r
+.erd .lk path { fill: none; stroke: #d3cdc6; transition: stroke 0.2s, opacity 0.2s; }\r
+.erd .lk .hit { stroke: transparent; stroke-width: 12; }\r
+.erd .lk circle { fill: var(--card); stroke: #d3cdc6; stroke-width: 1.2; }\r
+.erd .lk text { font: 700 9px var(--mono); fill: var(--muted); }\r
+.erd .lk.on path:not(.hit) { stroke: var(--accent); }\r
+.erd .lk.on circle { stroke: var(--accent); fill: var(--accent-soft); }\r
+.erd .lk.on text { fill: var(--accent-ink); }\r
+.ents.has-on .erd .lk:not(.on) { opacity: 0.35; }\r
+.ent-r .lab { font: 10px var(--mono); text-transform: uppercase; letter-spacing: 0.04em; color: var(--accent-ink); background: var(--accent-soft); border-radius: 4px; padding: 1px 5px; margin-left: 6px; }\r
+.ent-r.on .lab { background: rgba(255, 255, 255, 0.25); color: #fff; }\r
+.fb { font-style: normal; margin-left: 8px; font-size: 11.5px; }\r
+.ent-r .fb.cut { color: var(--accent-ink); font-weight: 600; }\r
+.ent-r .fb.would { color: var(--accent-ink); border: 1px dashed currentColor; border-radius: 4px; padding: 0 4px; }\r
+.ent-r .fb.full { color: var(--ink-2); }\r
+.ent-r .fb.none { color: var(--faint); }\r
+.ent-r.on .fb.fb { color: #fff; border-color: #fff; }\r
+.repo-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: -6px 0 20px; }\r
+.repo-stats > div { background: var(--tile); border-radius: 10px; padding: 11px 14px; }\r
+.repo-stats .k { font-size: 12px; color: var(--muted); }\r
+.repo-stats .v { font-size: 22px; font-weight: 700; letter-spacing: -0.03em; margin-top: 2px; }\r
+.repo-stats .v.pink { color: var(--accent-ink); }\r
+.repo-stats .s { font-size: 11.5px; color: var(--muted); }\r
+\r
+\r
+.checks { display: flex; flex-wrap: wrap; gap: 10px 22px; margin-bottom: 20px; }\r
+.check { display: inline-flex; align-items: center; gap: 9px; color: var(--ink-2); font-size: 14.5px; }\r
+.check i { width: 17px; height: 17px; border-radius: 4px; background: var(--ink); display: grid; place-items: center; flex: none; }\r
+.check i::after { content: ""; width: 8px; height: 4.5px; border: solid #fff; border-width: 0 0 2px 2px; transform: translateY(-1px) rotate(-45deg); }\r
+.check.off { color: var(--faint); }\r
+.check.off i { background: var(--seg); }\r
+.statement { margin: 0; color: var(--ink); }\r
+.dotted { text-decoration: underline dotted var(--ink-2); text-underline-offset: 5px; text-decoration-thickness: 1.5px; }\r
+.chip { font: 12.5px var(--mono); background: var(--tile); border-radius: 6px; padding: 4px 9px; color: var(--ink-2); white-space: nowrap; }\r
+.hlt { background: var(--accent-hi); border-radius: 3px; }\r
+/* The landing page's session report, per folder or repo: panel, held-back callout, glowing bars */\r
+.rp { background: var(--card); border: 1px solid rgba(26, 20, 24, 0.07); border-radius: 18px; box-shadow: var(--shadow-lg); min-width: 0; overflow: hidden; }\r
+.rp-bar { display: flex; align-items: center; gap: 10px; height: 60px; padding: 0 22px 0 26px; border-bottom: 1px solid var(--line); }\r
+.rp-bar > svg { width: 20px; height: 20px; flex: none; }\r
+.rp-bar select { border: 0; box-shadow: none; background: transparent; font: 650 17px var(--sans); letter-spacing: -0.01em; padding: 4px 2px; max-width: 280px; cursor: pointer; }\r
+.rp-bar .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); animation: ping 2.4s ease-out infinite; }\r
+.rp-bar .mode { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; background: var(--tile); color: var(--ink-2); border-radius: 9px; padding: 7px 12px; font-size: 14px; white-space: nowrap; flex: none; }\r
+.rp-bar .mode svg { width: 15px; height: 15px; }\r
+.rp-body { padding: 26px 30px 24px; }\r
+.rp h3 { font-size: 24px; letter-spacing: -0.025em; font-weight: 700; margin: 0 0 16px; }\r
+.rp .checks { margin-bottom: 22px; }\r
+.rp .statement { font-size: 21px; line-height: 1.45; letter-spacing: -0.01em; margin: 0 0 22px; max-width: 760px; }\r
+.rp hr { border: 0; border-top: 1px solid var(--line); margin: 0 0 18px; }\r
+.rp-ch { display: flex; align-items: center; gap: 14px; color: var(--ink-2); font-size: 14.5px; margin-bottom: 10px; flex-wrap: wrap; }\r
+.rp-ch .legend { margin-left: auto; font-size: 14px; }\r
+.rp-ch .legend i { width: 12px; height: 12px; border-radius: 3px; }\r
+.rp-ch small { color: var(--muted); font-size: 12.5px; }\r
+.rp-rows { display: grid; grid-template-columns: minmax(120px, 0.95fr) minmax(0, 3fr) auto auto; align-items: center; column-gap: 16px; margin-bottom: 18px; }\r
+.rp-rows .nm { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 10px 0; cursor: pointer; position: relative; }\r
+.rp-rows .nm span { padding: 2px 6px; border-radius: 4px; transition: background 0.2s, color 0.2s; }\r
+.rp-rows .nm small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 1px; padding-left: 6px; }\r
+.rp-rows .bb { display: grid; gap: 4px; cursor: pointer; }\r
+.rp-rows .bb i { display: block; height: 11px; border-radius: 2px; transform-origin: left; animation: grow 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both; }\r
+.rp-rows .bb .w { background: var(--ink); min-width: 4px; }\r
+.rp-rows .bb .wo { background: var(--without); animation-delay: 0.06s; }\r
+.rp-rows .bb .w.proj { background: repeating-linear-gradient(135deg, var(--ink) 0 3px, #4a4048 3px 6px); }\r
+.rp-rows .val { font-size: 17px; font-weight: 650; text-align: right; font-variant-numeric: tabular-nums; }\r
+.rp-rows .val span { padding: 3px 7px; border-radius: 5px; transition: background 0.2s; }\r
+.rp-rows .pc { font-size: 16px; text-align: right; color: var(--ink-2); font-variant-numeric: tabular-nums; min-width: 66px; }\r
+.rp-rows .sel .nm span, .rp-rows .val.sel span { background: var(--accent-hi); color: var(--ink); }\r
+.rp-rows .nm.sel span { background: var(--accent-hi); }\r
+.rp-rows .flash span { animation: flash 2s ease-out; }\r
+@keyframes flash { from { background: var(--accent); color: #fff; } }\r
+.rp-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 18px; border-top: 1px solid var(--line); }\r
+.rp-foot .k { color: var(--ink-2); font-size: 14.5px; margin-right: 6px; }\r
+.rp-foot .chip { font-size: 13.5px; padding: 6px 11px; }\r
+.rp-foot .sp { flex: 1; }\r
+.rp-foot .acts { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }\r
+.rp-foot .btn { font-size: 14.5px; padding: 9px 15px; border-radius: 10px; }\r
+.rp-foot .btn.outline { border: 2px solid var(--ink); }\r
+.rp-explain { margin-top: 14px; background: var(--tile); border-radius: 12px; padding: 12px 14px; font-size: 13.5px; color: var(--ink-2); line-height: 1.5; }\r
+.rp-explain b { color: var(--ink); }\r
+.rp-empty { color: var(--muted); padding: 10px 0 18px; }\r
+\r
+.callout { background: var(--card); border: 1px solid rgba(26, 20, 24, 0.07); border-radius: 16px; box-shadow: var(--shadow-lg); padding: 24px 26px 18px; position: relative; z-index: 2; }\r
+.callout h4 { font-size: 22px; letter-spacing: -0.02em; margin: 0; font-weight: 700; }\r
+.callout h4 .hlt { background: var(--accent-hi); border-radius: 4px; padding: 0 5px; margin-left: -5px; }\r
+.callout .sub { color: var(--ink-2); font-size: 16px; margin: 6px 0 16px; }\r
+.callout .grep { font: 15px var(--mono); background: var(--tile); border-radius: 10px; padding: 14px 16px; overflow-x: auto; white-space: nowrap; margin-bottom: 14px; }\r
+.callout .grep.wrap { white-space: normal; font: 14.5px/1.5 var(--sans); }\r
+.callout table { font-size: 15.5px; }\r
+.callout th { font-size: 14px; color: var(--muted); font-weight: 500; padding-bottom: 10px; }\r
+.callout td { padding: 11px 10px 11px 0; }\r
+.callout th:last-child, .callout td:last-child { text-align: right; padding-right: 0; }\r
+.callout .cf { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 15px; color: var(--ink-2); flex-wrap: wrap; }\r
+.callout .cf .link { font-size: 15px; text-decoration-color: var(--ink); text-decoration-thickness: 1.5px; }\r
+.callout .loading { height: 140px; }\r
+\r
+.gbar { background: color-mix(in srgb, var(--card) 92%, transparent); border: 1px solid rgba(26, 20, 24, 0.07); border-radius: 14px; padding: 18px 20px; box-shadow: 0 1px 2px rgba(60, 20, 45, 0.04); }\r
+.gbar-h { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }\r
+.gbar-h b { font-size: 15px; font-weight: 650; }\r
+.gbar-h span { font-size: 13px; color: var(--muted); }\r
+.gbar p { margin: 8px 0 14px; font-size: 15px; }\r
+.gbar p .hlt { background: var(--accent-hi); padding: 0 3px; }\r
+.gb-rows { display: grid; grid-template-columns: minmax(90px, 0.6fr) minmax(0, 2fr) auto; gap: 10px 14px; align-items: center; font-size: 13.5px; }\r
+.gb-rows .t { font-variant-numeric: tabular-nums; color: var(--ink-2); text-align: right; white-space: nowrap; }\r
+.gb-rows .track { height: 9px; }\r
+.gb-rows .track i { display: block; height: 100%; background: var(--ink); border-radius: 1px; transform-origin: left; animation: grow 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both; animation-delay: var(--d, 0s); }\r
+.gb-rows .track i.pink { background: var(--accent); box-shadow: 0 0 0 1.5px var(--ink), 0 0 16px 2px rgba(230, 83, 186, 0.55); animation: grow 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both, glow 2.8s ease-in-out 1s infinite; animation-delay: var(--d, 0s), 1s; }\r
+@keyframes glow { 0%, 100% { box-shadow: 0 0 0 1.5px var(--ink), 0 0 10px 1px rgba(230, 83, 186, 0.4); } 50% { box-shadow: 0 0 0 1.5px var(--ink), 0 0 22px 5px rgba(230, 83, 186, 0.7); } }\r
+\r
+/* Repo section on the dashboard: folder cards and the report panel side by side */\r
+.rmap { display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); gap: 26px; align-items: start; }\r
+.rmap > .ents { min-width: 0; }\r
+.rmap .ent { min-width: 0; overflow: hidden; }\r
+.rmap .ent-h b { min-width: 0; }\r
+.rmap .rp { position: sticky; top: 80px; }\r
+.ent { cursor: pointer; }\r
+.ent.sel { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), 0 12px 26px -16px rgba(176, 48, 127, 0.45); }\r
+.ent .open { font: 600 11px var(--mono); color: var(--accent-ink); opacity: 0; transition: opacity 0.2s; margin-left: 8px; }\r
+.ent:hover .open, .ent.sel .open { opacity: 1; }\r
+\r
+/* The pop-up report page: the landing page's composition for one folder */\r
+.sheet { position: fixed; inset: 0; z-index: 50; overflow-y: auto; background-color: #f2f1ed;\r
+  background-image: linear-gradient(rgba(255, 255, 255, 0.75) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.75) 1px, transparent 1px), linear-gradient(180deg, #f2f3ef 0%, #f1e6ee 45%, #f3d9ea 100%);\r
+  background-size: 56px 56px, 56px 56px, 100% 100%; animation: sheetin 0.35s cubic-bezier(0.2, 0.7, 0.2, 1); }\r
+@keyframes sheetin { from { opacity: 0; transform: translateY(14px); } }\r
+.sheet-in { max-width: 1360px; margin: 0 auto; padding: 22px 32px 64px; position: relative; }\r
+.sheet-top { display: flex; align-items: center; gap: 12px; margin-bottom: 26px; }\r
+.sheet-top .x { margin-left: auto; }\r
+.sheet-grid { display: grid; grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr); gap: 56px; align-items: start; position: relative; }\r
+.sheet h1 { font-size: 54px; line-height: 1.04; letter-spacing: -0.045em; font-weight: 800; margin: 18px 0 18px; }\r
+.sheet .lede { font-size: 19px; line-height: 1.45; color: var(--ink-2); margin: 0 0 40px; max-width: 470px; }\r
+.sheet .stack { display: grid; gap: 14px; margin-top: 18px; }\r
+.sheet .wire { position: absolute; inset: 0; pointer-events: none; overflow: visible; width: 100%; height: 100%; }\r
+.sheet .wire path { fill: none; stroke: var(--accent); stroke-width: 2; }\r
+.sheet .wire circle { fill: var(--accent); }\r
+.stairs { position: absolute; display: grid; gap: 5px; pointer-events: none; }\r
+.stairs i { display: block; height: 4px; background: var(--ink); }\r
+.stairs i.p { background: var(--accent); }\r
+.stairs.l { left: 0; top: 340px; justify-items: start; }\r
+.stairs.r { right: 0; top: 120px; justify-items: end; }\r
+\r
+@media (max-width: 1100px) {\r
+  .sheet-grid { grid-template-columns: minmax(0, 1fr); gap: 24px; }\r
+  .sheet .wire { display: none; }\r
+  .rmap { grid-template-columns: minmax(0, 1fr); }\r
+  .rmap .rp { position: static; }\r
+}\r
+@media (max-width: 640px) {\r
+  .sheet-in { padding: 16px 16px 48px; }\r
+  .sheet h1 { font-size: 36px; }\r
+  .rp-body { padding: 20px 18px; }\r
+  .rp h3 { font-size: 20px; }\r
+  .rp .statement { font-size: 17px; }\r
+  .rp-rows { grid-template-columns: minmax(90px, 1fr) minmax(0, 1.4fr) auto; }\r
+  .rp-rows .pc { display: none; }\r
+  .stairs { display: none; }\r
+}\r
+\r
+/* Agent context files */\r
+.af-sum { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 10px; }\r
+.af-sum > div { background: var(--tile); border-radius: 10px; padding: 11px 14px; }\r
+.af-sum .k { font-size: 12px; color: var(--muted); }\r
+.af-sum .v { font-size: 22px; font-weight: 700; letter-spacing: -0.03em; margin-top: 2px; }\r
+.af-sum .v.pink { color: var(--accent-ink); }\r
+.af { display: grid; grid-template-columns: minmax(0, 1.7fr) 128px minmax(110px, 1fr) 92px; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }\r
+.af .p { min-width: 0; }\r
+.af .p b { display: block; font: 600 12.5px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\r
+.af .p small { color: var(--muted); font-size: 11.5px; }\r
+.af .kind { font-size: 12px; color: var(--muted); }\r
+.af .kind b { color: var(--ink); font-weight: 600; display: block; }\r
+.af .bar { height: 8px; border-radius: 3px; background: var(--seg); overflow: hidden; }\r
+.af .bar i { display: block; height: 100%; background: var(--ink); transform-origin: left; animation: grow 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both; }\r
+.af .bar i.always { background: var(--accent); }\r
+.af .bar i.od { background: var(--bar-in); }\r
+.af .n { text-align: right; font-variant-numeric: tabular-nums; font-weight: 650; font-size: 13px; }\r
+.af .n small { display: block; color: var(--muted); font-weight: 400; font-size: 11px; }\r
+.flag { display: inline-block; font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 6px; border-radius: 5px; background: var(--warn-soft); color: var(--warn); margin: 4px 4px 0 0; cursor: help; }\r
+@keyframes grow { from { transform: scaleX(0); } }\r
+@media (max-width: 800px) {\r
+  .tabs { justify-self: start; max-width: 100%; overflow-x: auto; }\r
+  .repo-stats, .af-sum { grid-template-columns: repeat(2, minmax(0, 1fr)); }\r
+  .af { grid-template-columns: minmax(0, 1fr) 84px; }\r
+  .af .kind, .af .bar { display: none; }\r
+  .ents.erd-gutter { padding-left: 0; }\r
+  .ents .erd { display: none; }\r
+}\r
+\r
+@media (max-width: 1100px) {\r
+  .g-row2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }\r
+  .g-row2 > :last-child { grid-column: 1 / -1; }\r
+  .models { --n: 2 !important; row-gap: 22px; }\r
+  .band { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); row-gap: 22px; }\r
+  .band > div:nth-child(odd) { border-left: 0; }\r
+  .model:nth-child(odd) { border-left: 0; }\r
+}\r
+@media (max-width: 800px) {\r
+  .nav-in { grid-template-columns: auto 1fr; height: auto; padding: 10px 16px 0; row-gap: 0; }\r
+  .tabs { grid-column: 1 / -1; grid-row: 2; height: 44px; overflow-x: auto; }\r
+  .proj { display: none; }\r
+  .wrap { padding: 18px 16px 48px; }\r
+  .g-row2, .g-row3, .g-2 { grid-template-columns: minmax(0, 1fr); }\r
+  .head-r { margin-left: 0; width: 100%; }\r
+  .mix { height: 240px; }\r
+}\r
+@media (max-width: 560px) {\r
+  .models { --n: 1 !important; }\r
+  .band { grid-template-columns: minmax(0, 1fr); }\r
+  .band > div { border-left: 0; }\r
+  .model { border-left: 0; }\r
+  .frow { grid-template-columns: 52px minmax(0, 1fr) auto; }\r
+  .hide-sm { display: none; }\r
+  .mix { --n: 3 !important; }\r
+  .mix .mcol:nth-child(n+4) { display: none; }\r
+}\r
+@media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }\r
+</style>\r
+</head>\r
+<body data-key="__SNOUT_KEY__">\r
+<header class="nav">\r
+  <div class="nav-in">\r
+    <div class="brand"><img src="data:image/png;base64,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" alt="">Snout<small>Local</small></div>\r
+    <nav class="tabs" role="tablist" aria-label="Sections">\r
+      <button class="tab" role="tab" data-tab="overview" aria-selected="true">Dashboard</button>\r
+      <button class="tab" role="tab" data-tab="context" aria-selected="false">Context</button>\r
+      <button class="tab" role="tab" data-tab="spend" aria-selected="false">Spend</button>\r
+      <button class="tab" role="tab" data-tab="settings" aria-selected="false">Settings</button>\r
+    </nav>\r
+    <div class="nav-r">\r
+      <span class="live" id="live"><i></i><span id="live-t">Connecting</span></span>\r
+      <span class="proj" id="proj" title="Project"></span>\r
+    </div>\r
+  </div>\r
+</header>\r
+<div class="toast" id="toast" role="status" aria-live="polite"></div>\r
+\r
+<main class="wrap">\r
+  <div class="head">\r
+    <div>\r
+      <h1 id="title">Dashboard</h1>\r
+      <div class="sub" id="headline"><span>Loading</span></div>\r
+    </div>\r
+    <div class="head-r">\r
+      <select id="session" aria-label="Session"><option value="">All sessions</option></select>\r
+      <div class="seg-switch" id="modeSwitch" role="group" aria-label="Mode" hidden>\r
+        <button type="button" data-mode="observe">Observe</button>\r
+        <button type="button" data-mode="enforce">Enforce</button>\r
+      </div>\r
+    </div>\r
+  </div>\r
+  <div id="banner"></div>\r
+\r
+  <!-- Dashboard -->\r
+  <section data-view="overview">\r
+    <div class="card band" id="band"><div class="sk" style="height:96px;grid-column:1/-1;margin:0 22px"></div></div>\r
+    <div id="repo"></div>\r
+    <div class="card models" id="models"><div class="models-empty"><div class="sk" style="height:74px"></div></div></div>\r
+\r
+    <div class="grid g-row2">\r
+      <div class="card">\r
+        <div class="card-h"><div><h2>Snout today</h2><p>What stayed out of your agents' context</p></div></div>\r
+        <div class="tiles">\r
+          <div class="tile hl"><div class="k">Kept out of context</div><div class="v num" id="t-held">0</div><div class="s" id="t-held-s">tokens</div></div>\r
+          <div class="tile"><div class="k">Saved</div><div class="v num" id="t-saved">$0.00</div><div class="s" id="t-saved-s">at your models' input price</div></div>\r
+          <div class="tile"><div class="k">Reads trimmed</div><div class="v num" id="t-cut">0</div><div class="s" id="t-cut-s">of today's reads</div></div>\r
+        </div>\r
+      </div>\r
+      <div class="card">\r
+        <div class="card-h"><div><h2>Live context</h2><p>Each file and tool result, as your agents read it</p></div><button class="link r" type="button" data-go="context">View all</button></div>\r
+        <div class="feed" id="feed"><div class="sk" style="height:220px"></div></div>\r
+      </div>\r
+      <div class="card">\r
+        <div class="card-h"><div><h2>Context over time</h2><p>Last 7 days, tokens per day</p></div>\r
+          <div class="legend r"><span style="--c: var(--ink)"><i></i>Into context</span><span style="--c: var(--accent)"><i></i>Kept out</span></div></div>\r
+        <div class="chart-box" id="trend-box"><svg class="trend" id="trend" role="img" aria-label="Tokens into context and kept out, per day"></svg><div class="tip" id="trend-tip"></div></div>\r
+      </div>\r
+    </div>\r
+\r
+    <div class="grid g-2">\r
+      <div class="card">\r
+        <div class="card-h"><div><h2>Savings by feature</h2><p>Tokens your agents asked for, and what each Snout feature kept out</p></div></div>\r
+        <div id="mix"><div class="sk" style="height:264px"></div></div>\r
+      </div>\r
+      <div class="card">\r
+        <div class="card-h"><div><h2>Cost breakdown</h2><p id="cost-p">API-equivalent, from your agents' own usage logs</p></div><button class="link r" type="button" data-go="spend">View spend</button></div>\r
+        <div id="cost"><div class="sk" style="height:200px"></div></div>\r
+      </div>\r
+    </div>\r
+  </section>\r
+\r
+  <!-- Context -->\r
+  <section data-view="context" hidden>\r
+    <div class="grid"><div id="agentfiles-box"></div></div>\r
+    <div class="grid"><div id="mcp-box"></div></div>\r
+    <div class="grid g-2">\r
+      <div class="card">\r
+        <div class="card-h"><div><h2>Live context</h2><p id="feed-all-p">Newest first</p></div></div>\r
+        <div class="scroll"><table id="feed-all"></table></div>\r
+      </div>\r
+      <div class="card">\r
+        <div class="card-h"><div><h2>Files that cost the most context</h2><p>Kept out by Snout first, then the largest full reads</p></div></div>\r
+        <div class="scroll"><table id="files"></table></div>\r
+      </div>\r
+    </div>\r
+    <div class="grid g-row3">\r
+      <div class="card"><div class="card-h"><div><h2>By coding agent</h2><p>Reads and tokens per agent</p></div></div><div class="scroll"><table id="clients"></table></div></div>\r
+      <div class="card"><div class="card-h"><div><h2>Sessions</h2><p>Most recent first</p></div></div><div class="scroll"><table id="sessions"></table></div></div>\r
+    </div>\r
+  </section>\r
+\r
+  <!-- Spend -->\r
+  <section data-view="spend" hidden>\r
+    <div class="grid g-2">\r
+      <div class="card">\r
+        <div class="card-h"><div><h2>Daily spend</h2><p id="bars-p">Last 30 days</p></div></div>\r
+        <div class="total"><span class="v num" id="sp-total">$0</span><span class="s" id="sp-meta"></span></div>\r
+        <div class="chart-box"><svg class="bars" id="bars" role="img" aria-label="Spend per day"></svg><div class="tip" id="bars-tip"></div></div>\r
+      </div>\r
+      <div class="card">\r
+        <div class="card-h"><div><h2>Where the tokens went</h2><p>Every billed token, by kind</p></div></div>\r
+        <div id="kinds"></div>\r
+      </div>\r
+    </div>\r
+    <div class="card"><div class="card-h"><div><h2>By model</h2><p id="sp-models-p"></p></div></div><div class="scroll"><table id="sp-models"></table></div></div>\r
+  </section>\r
+\r
+  <!-- Settings -->\r
+  <section data-view="settings" hidden>\r
+    <div class="card" style="max-width:860px">\r
+      <div class="set"><div><h3>Mode</h3><p><b>Observe</b> records what your agents read and what Snout would keep out. <b>Enforce</b> trims lockfiles, generated code, noisy command output and large MCP results before they reach the agent. Your own code is always read in full.</p></div>\r
+        <div class="seg-switch" id="modeSwitch2" role="group" aria-label="Mode"><button type="button" data-mode="observe">Observe</button><button type="button" data-mode="enforce">Enforce</button></div></div>\r
+      <div class="set"><div><h3>Prompt tips</h3><p>A short tip, shown only to you, when a task prompt doesn't say which file, what should happen or how to check it.</p></div>\r
+        <div class="seg-switch" id="coachSwitch" role="group" aria-label="Prompt tips"><button type="button" data-coach="off">Off</button><button type="button" data-coach="tip">On</button></div></div>\r
+      <div class="set"><div><h3>A file Snout trims that you need</h3><p>Open the Context tab and choose <b>Always read in full</b> next to it, or run <code>snout allow &lt;file&gt;</code>.</p></div><button type="button" class="btn" data-go="context">Open Context</button></div>\r
+      <div class="set"><div><h3>About</h3><p id="about"></p></div></div>\r
+    </div>\r
+  </section>\r
+\r
+  <footer>Runs on your machine. This page makes no requests beyond this local server.</footer>\r
+</main>\r
+\r
+<script>\r
+(function () {\r
+  "use strict";\r
+  var $ = function (id) { return document.getElementById(id); };\r
+  var KEY = document.body.getAttribute("data-key");\r
+  var state = { data: null, session: "", tab: "overview", seen: null, shown: {}, first: true };\r
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;\r
+\r
+  // Brand marks from Simple Icons (CC0), inlined so the page loads nothing from the network.\r
+  // They identify which provider ran a model, nothing more.\r
+  var LOGO_PATHS = {\r
+    "claude":"m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z",\r
+    "openai":"M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z",\r
+    "gemini":"M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81",\r
+    "cursor":"M11.503.131 1.891 5.678a.84.84 0 0 0-.42.726v11.188c0 .3.162.575.42.724l9.609 5.55a1 1 0 0 0 .998 0l9.61-5.55a.84.84 0 0 0 .42-.724V6.404a.84.84 0 0 0-.42-.726L12.497.131a1.01 1.01 0 0 0-.996 0M2.657 6.338h18.55c.263 0 .43.287.297.515L12.23 22.918c-.062.107-.229.064-.229-.06V12.335a.59.59 0 0 0-.295-.51l-9.11-5.257c-.109-.063-.064-.23.061-.23",\r
+    "copilot":"M23.922 16.997C23.061 18.492 18.063 22.02 12 22.02 5.937 22.02.939 18.492.078 16.997A.641.641 0 0 1 0 16.741v-2.869a.883.883 0 0 1 .053-.22c.372-.935 1.347-2.292 2.605-2.656.167-.429.414-1.055.644-1.517a10.098 10.098 0 0 1-.052-1.086c0-1.331.282-2.499 1.132-3.368.397-.406.89-.717 1.474-.952C7.255 2.937 9.248 1.98 11.978 1.98c2.731 0 4.767.957 6.166 2.093.584.235 1.077.546 1.474.952.85.869 1.132 2.037 1.132 3.368 0 .368-.014.733-.052 1.086.23.462.477 1.088.644 1.517 1.258.364 2.233 1.721 2.605 2.656a.841.841 0 0 1 .053.22v2.869a.641.641 0 0 1-.078.256Zm-11.75-5.992h-.344a4.359 4.359 0 0 1-.355.508c-.77.947-1.918 1.492-3.508 1.492-1.725 0-2.989-.359-3.782-1.259a2.137 2.137 0 0 1-.085-.104L4 11.746v6.585c1.435.779 4.514 2.179 8 2.179 3.486 0 6.565-1.4 8-2.179v-6.585l-.098-.104s-.033.045-.085.104c-.793.9-2.057 1.259-3.782 1.259-1.59 0-2.738-.545-3.508-1.492a4.359 4.359 0 0 1-.355-.508Zm2.328 3.25c.549 0 1 .451 1 1v2c0 .549-.451 1-1 1-.549 0-1-.451-1-1v-2c0-.549.451-1 1-1Zm-5 0c.549 0 1 .451 1 1v2c0 .549-.451 1-1 1-.549 0-1-.451-1-1v-2c0-.549.451-1 1-1Zm3.313-6.185c.136 1.057.403 1.913.878 2.497.442.544 1.134.938 2.344.938 1.573 0 2.292-.337 2.657-.751.384-.435.558-1.15.558-2.361 0-1.14-.243-1.847-.705-2.319-.477-.488-1.319-.862-2.824-1.025-1.487-.161-2.192.138-2.533.529-.269.307-.437.808-.438 1.578v.021c0 .265.021.562.063.893Zm-1.626 0c.042-.331.063-.628.063-.894v-.02c-.001-.77-.169-1.271-.438-1.578-.341-.391-1.046-.69-2.533-.529-1.505.163-2.347.537-2.824 1.025-.462.472-.705 1.179-.705 2.319 0 1.211.175 1.926.558 2.361.365.414 1.084.751 2.657.751 1.21 0 1.902-.394 2.344-.938.475-.584.742-1.44.878-2.497Z"};\r
+  var LOGO_FILL = { claude: "#D97757", openai: "currentColor", cursor: "currentColor", copilot: "currentColor", gemini: "url(#snout-gemini)" };\r
+  var CLIENT = { claude: "Claude Code", codex: "Codex", gemini: "Gemini CLI", cursor: "Cursor", copilot: "Copilot" };\r
+  var CLIENT_LOGO = { claude: "claude", codex: "openai", gemini: "gemini", cursor: "cursor", copilot: "copilot" };\r
+\r
+  function h(tag, attrs) {\r
+    var el = typeof tag === "string" ? document.createElement(tag) : tag;\r
+    if (attrs) for (var k in attrs) {\r
+      if (attrs[k] == null) continue;\r
+      if (k === "text") el.textContent = attrs[k];\r
+      else if (k === "cls") el.className = attrs[k];\r
+      else if (k === "on") for (var ev in attrs.on) el.addEventListener(ev, attrs.on[ev]);\r
+      else el.setAttribute(k, attrs[k]);\r
+    }\r
+    for (var i = 2; i < arguments.length; i++) {\r
+      var c = arguments[i];\r
+      if (c == null || c === false) continue;\r
+      if (Array.isArray(c)) { h.apply(null, [el, null].concat(c)); continue; }\r
+      el.appendChild(typeof c === "string" || typeof c === "number" ? document.createTextNode(String(c)) : c);\r
+    }\r
+    return el;\r
+  }\r
+  var NS = "http://www.w3.org/2000/svg";\r
+  function s(tag, a) { var e = document.createElementNS(NS, tag); for (var k in a) e.setAttribute(k, a[k]); return e; }\r
+\r
+  function fmt(n) {\r
+    n = Math.round(n || 0);\r
+    if (n < 1000) return String(n);\r
+    if (n < 1e6) return (n / 1e3).toFixed(n < 1e4 ? 1 : 0).replace(/\\.0$/, "") + "K";\r
+    return (n / 1e6).toFixed(n < 1e7 ? 2 : 1).replace(/\\.?0+$/, "") + "M";\r
+  }\r
+  function usd(n) { n = n || 0; return n > 0 && n < 0.01 ? "<$0.01" : "$" + (n < 1000 ? n.toFixed(2) : Math.round(n).toLocaleString()); }\r
+  function ago(ts) {\r
+    var x = Math.max(0, (Date.now() - Date.parse(ts)) / 1000);\r
+    if (x < 45) return "just now";\r
+    if (x < 3600) return Math.round(x / 60) + " min ago";\r
+    if (x < 86400) return Math.round(x / 3600) + " h ago";\r
+    return Math.round(x / 86400) + " d ago";\r
+  }\r
+  var pct = function (a, b) { return b ? Math.round((a / b) * 100) : 0; };\r
+  var shortPath = function (p) { var i = p.lastIndexOf("/"); return p.length > 44 && i > 0 ? "\u2026" + p.slice(i) : p; };\r
+\r
+  function tween(key, to, el, show) {\r
+    var from = state.shown[key] || 0, t0 = performance.now();\r
+    state.shown[key] = to;\r
+    if (from === to || reduced) { el.textContent = show(to); return; }\r
+    (function step(t) {\r
+      var k = Math.min(1, (t - t0) / 650), e = 1 - Math.pow(1 - k, 3);\r
+      el.textContent = show(from + (to - from) * e);\r
+      if (k < 1) requestAnimationFrame(step);\r
+    })(t0);\r
+  }\r
+\r
+  var toastTimer = 0;\r
+  function toast(text) {\r
+    var t = $("toast"); t.textContent = text; t.classList.add("show");\r
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove("show"); }, 3200);\r
+  }\r
+  /** Presses a button on the local server: the same code path as the matching CLI command. */\r
+  function act(body) {\r
+    return fetch("/api/action", { method: "POST", headers: { "content-type": "application/json", "x-snout-key": KEY }, body: JSON.stringify(body) })\r
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); })\r
+      .then(function (j) { toast(j.message); return j; }, function (e) { toast("Couldn't do that: " + e.message); throw e; });\r
+  }\r
+\r
+  // --- models and providers -----------------------------------------------------------\r
+\r
+  function providerOf(model) {\r
+    var m = String(model || "").toLowerCase();\r
+    if (/claude|opus|sonnet|haiku|fable|mythos/.test(m)) return "claude";\r
+    if (/gpt|codex|^o\\d/.test(m)) return "openai";\r
+    if (/gemini/.test(m)) return "gemini";\r
+    return null;\r
+  }\r
+  /** A shade per model inside its provider's family, so two Claude models still read apart. */\r
+  var SHADES = [\r
+    [/fable|mythos/, "#8B6CE0"], [/opus/, "#D97757"], [/sonnet/, "#E0A04C"], [/haiku/, "#C9B27A"],\r
+    [/codex/, "#0E8C6D"], [/gpt|^o\\d/, "#10A37F"], [/gemini.*flash/, "#6FA8FF"], [/gemini/, "#4285F4"],\r
+  ];\r
+  function modelColor(model) {\r
+    var m = String(model || "").toLowerCase();\r
+    for (var i = 0; i < SHADES.length; i++) if (SHADES[i][0].test(m)) return SHADES[i][1];\r
+    return "#8a8a93";\r
+  }\r
+  /** "claude-opus-5-5" \u2192 "Claude Opus 5.5", "gpt-5.5-codex" \u2192 "GPT-5.5 Codex". */\r
+  function modelLabel(model) {\r
+    var m = String(model || "");\r
+    if (!m || m === "unknown") return "Model not recorded";\r
+    var c = /^claude-([a-z]+)-(\\d+)(?:-(\\d{1,2}))?(?!\\d)/.exec(m);\r
+    if (c) return "Claude " + c[1][0].toUpperCase() + c[1].slice(1) + " " + c[2] + (c[3] ? "." + c[3] : "");\r
+    return m.replace(/^gpt/i, "GPT").replace(/^gemini/i, "Gemini").replace(/-(\\w)/g, function (_, x) { return " " + x.toUpperCase(); }).replace(/^GPT (\\d)/, "GPT-$1");\r
+  }\r
+  function logo(kind, small, fallback, live) {\r
+    var box = h("span", { cls: "logo" + (small ? " sm" : "") + (live && kind ? " live" : ""), "data-k": kind || null, "aria-hidden": "true" });\r
+    var d = kind && LOGO_PATHS[kind];\r
+    if (!d) { box.appendChild(h("b", { text: (fallback || "?").slice(0, 1).toUpperCase() })); return box; }\r
+    var svg = s("svg", { viewBox: "0 0 24 24" });\r
+    if (kind === "gemini") {\r
+      var defs = s("defs", {}), g = s("linearGradient", { id: "snout-gemini", x1: "0", y1: "0", x2: "1", y2: "1" });\r
+      [["0", "#4285F4"], ["0.55", "#9B72CB"], ["1", "#D96570"]].forEach(function (st) { g.appendChild(s("stop", { offset: st[0], "stop-color": st[1] })); });\r
+      defs.appendChild(g); svg.appendChild(defs);\r
+    }\r
+    svg.appendChild(s("path", { d: d, fill: LOGO_FILL[kind] }));\r
+    box.appendChild(svg);\r
+    return box;\r
+  }\r
+  var modelLogo = function (model, small, live) { return logo(providerOf(model), small, model, live); };\r
+  var clientLogo = function (client, small, live) { return logo(CLIENT_LOGO[client], small, client, live); };\r
+\r
+  /** What a rule means to someone who never saw the classifier. */\r
+  var LABELS = {\r
+    source: "Your code", lockfile: "Lockfiles", generated: "Generated", vendored: "Vendored", minified: "Minified",\r
+    binary: "Binary files", snapshot: "Snapshots", "command-output": "Command output", "mcp-output": "MCP results", "repeat-read": "Repeat reads", "repeat-output": "Repeat results", "long-doc": "Long docs", "long-log": "Long logs",\r
+    "tool-output": "Tool output", "always-allow": "Always read", secret: "Secrets", "size-hint": "Large files",\r
+    "generated-hint": "Generated", "minified-hint": "Minified", "fixture-hint": "Test fixtures", reversal: "Re-read in full",\r
+  };\r
+  var labelOf = function (k) { return LABELS[k] || k.replace(/-/g, " ").replace(/^./, function (c) { return c.toUpperCase(); }); };\r
+\r
+  var OUTCOME = { "read": ["Full read", "full"], trimmed: ["Trimmed", "cut"], "held back": ["Kept out", "cut"], asked: ["Asked you", "ask"], "would hold back": ["Would trim", "would"] };\r
+  function outcomeBadge(o) { var x = OUTCOME[o] || [o, ""]; return h("span", { cls: "badge " + x[1], text: x[0] }); }\r
+\r
+  // --- the view model: one shape for this machine's data (and, later, the cloud's) ---------\r
+\r
+  function view(d) {\r
+    var sp = d.spend;\r
+    var rate = sp && sp.inputRate ? sp.inputRate : 3;\r
+    var today = d.today || { reads: 0, inContext: 0, heldBack: 0, day: "" };\r
+    var spentToday = 0;\r
+    if (sp) sp.series.forEach(function (r) { if (r.day === today.day) spentToday = r.costUsd; });\r
+    var cutToday = 0;\r
+    (d.recent || []).forEach(function (r) { if (r.ts.slice(0, 10) === today.day && r.outcome !== "read") cutToday += 1; });\r
+\r
+    var models;\r
+    if (sp && sp.byModel && sp.byModel.length) {\r
+      var costAll = 0, tokAll = 0;\r
+      sp.byModel.forEach(function (m) { costAll += m.costUsd; tokAll += m.tokens; });\r
+      models = sp.byModel.map(function (m) {\r
+        return { key: m.key, label: modelLabel(m.key), client: m.client, color: modelColor(m.key),\r
+          value: m.today && m.today.tokens ? m.today.tokens : m.tokens, today: !!(m.today && m.today.tokens),\r
+          requests: m.today ? m.today.requests : 0, costToday: m.today ? m.today.costUsd : 0, cost7: m.weekCostUsd || 0, cost30: m.costUsd,\r
+          share: costAll ? m.costUsd / costAll : tokAll ? m.tokens / tokAll : 0 };\r
+      });\r
+    } else {\r
+      var all = 0;\r
+      (d.byModel || []).forEach(function (m) { all += m.inContext + m.heldBack; });\r
+      models = (d.byModel || []).filter(function (m) { return m.key !== "unknown"; }).map(function (m) {\r
+        return { key: m.key, label: modelLabel(m.key), client: null, color: modelColor(m.key), value: m.inContext, today: false,\r
+          requests: m.reads, costToday: 0, cost7: 0, cost30: 0, share: all ? (m.inContext + m.heldBack) / all : 0, fromLedger: true };\r
+      });\r
+    }\r
+    var activeClients = {};\r
+    (d.recent || []).forEach(function (r) { if (r.ts.slice(0, 10) === today.day) activeClients[r.client] = 1; });\r
+    return { d: d, sp: sp, rate: rate, today: today, spentToday: spentToday, saved: (today.heldBack * rate) / 1e6, cutToday: cutToday, models: models, agentsToday: Object.keys(activeClients).length };\r
+  }\r
+\r
+  // --- Dashboard ------------------------------------------------------------------------\r
+\r
+  function renderHead(v) {\r
+    var d = v.d, m = d.meta || {};\r
+    $("proj").textContent = m.project || "";\r
+    $("proj").title = "Project: " + (m.project || "");\r
+    var parts = [\r
+      h("span", null, h("b", { text: String(v.agentsToday) }), v.agentsToday === 1 ? " agent active today" : " agents active today"),\r
+      h("span", null, h("b", { text: fmt(v.today.inContext + v.today.heldBack) }), " tokens read"),\r
+      h("span", null, h("b", { text: "~" + fmt(v.today.heldBack) }), " kept out"),\r
+    ];\r
+    if (v.sp) parts.push(h("span", null, h("b", { text: usd(v.spentToday) }), " spent"));\r
+    $("headline").replaceChildren.apply($("headline"), parts);\r
+    document.title = v.today.heldBack ? "~" + fmt(v.today.heldBack) + " kept out \xB7 Snout" : "Snout Dashboard";\r
+\r
+    if (m.controls) {\r
+      $("modeSwitch").hidden = false;\r
+      ["modeSwitch", "modeSwitch2"].forEach(function (id) {\r
+        [].forEach.call($(id).querySelectorAll("button"), function (b) {\r
+          var on = b.getAttribute("data-mode") === (m.mode === "advise" ? "enforce" : m.mode);\r
+          b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on));\r
+        });\r
+      });\r
+      [].forEach.call($("coachSwitch").querySelectorAll("button"), function (b) {\r
+        var on = b.getAttribute("data-coach") === (m.coach === "off" ? "off" : "tip");\r
+        b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on));\r
+      });\r
+    } else {\r
+      $("coachSwitch").hidden = true; $("modeSwitch2").hidden = true;\r
+    }\r
+\r
+    var sel = $("session"), cur = state.session;\r
+    sel.replaceChildren(h("option", { value: "", text: "All sessions" }));\r
+    (d.sessions || []).forEach(function (x) {\r
+      sel.appendChild(h("option", { value: x.key, text: x.clients.map(function (c) { return CLIENT[c] || c; }).join(", ") + " \xB7 " + ago(x.last) + " \xB7 ~" + fmt(x.heldBack) + " kept out" }));\r
+    });\r
+    if (cur && !(d.sessions || []).some(function (x) { return x.key === cur; })) sel.appendChild(h("option", { value: cur, text: "This session" }));\r
+    sel.value = cur;\r
+\r
+    var banner = $("banner"); banner.replaceChildren();\r
+    if (m.mode === "observe" && d.couldHoldBack > 0) {\r
+      banner.appendChild(h("div", { cls: "banner" },\r
+        h("span", null, "Snout is only watching. Turned on, it would have kept ", h("b", { text: "~" + fmt(d.couldHoldBack) + " tokens" }), " out of context so far."),\r
+        m.controls ? h("button", { cls: "btn accent", type: "button", text: "Turn on", on: { click: function () { act({ type: "mode", value: "enforce" }); } } }) : h("code", { text: "snout mode enforce" })));\r
+    }\r
+  }\r
+\r
+  function renderModels(v) {\r
+    var box = $("models");\r
+    var list = v.models.slice(0, 4);\r
+    box.style.setProperty("--n", Math.max(1, list.length));\r
+    box.replaceChildren();\r
+    if (!list.length) {\r
+      box.style.setProperty("--n", 1);\r
+      box.appendChild(h("div", { cls: "models-empty" }, "Your models show up here after the first Claude Code or Codex session in this project, with tokens and spend from their own usage logs."));\r
+      return;\r
+    }\r
+    var SEGS = 24;\r
+    list.forEach(function (m, idx) {\r
+      var filled = Math.max(m.share > 0 ? 1 : 0, Math.round(m.share * SEGS));\r
+      var meter = h("div", { cls: "meter", style: "--c:" + m.color, title: Math.round(m.share * 100) + "% of " + (m.fromLedger ? "tokens read" : "spend") + (v.sp ? ", last " + v.sp.days + " days" : "") });\r
+      for (var i = 0; i < SEGS; i++) meter.appendChild(h("i"));\r
+      var note = m.fromLedger\r
+        ? h("div", { cls: "m-note" }, h("b", { style: "--c:" + m.color, text: String(m.requests) }), " reads")\r
+        : m.today\r
+          ? h("div", { cls: "m-note" }, h("b", { style: "--c:" + m.color, text: m.requests.toLocaleString() }), " requests today \xB7 " + usd(m.costToday))\r
+          : h("div", { cls: "m-note" }, "last " + (v.sp ? v.sp.days : 30) + " days \xB7 " + usd(m.cost30));\r
+      box.appendChild(h("div", { cls: "model" },\r
+        h("div", { cls: "m-id" }, modelLogo(m.key, false, m.today), h("div", { style: "min-width:0" }, h("div", { cls: "m-name", text: m.label }), h("div", { cls: "m-sub", text: m.client ? CLIENT[m.client] || m.client : "Model" }))),\r
+        h("div", { cls: "m-row" }, h("div", null, h("div", { cls: "m-val num", text: fmt(m.value) }), note), meter)));\r
+      // Segments fill left to right on first paint: the eye lands on relative size before the number.\r
+      var segs = meter.children;\r
+      for (var j = 0; j < filled; j++) {\r
+        (function (el, delay) {\r
+          if (reduced || !state.first) el.classList.add("f");\r
+          else setTimeout(function () { el.classList.add("f"); }, 120 + idx * 90 + delay);\r
+        })(segs[j], j * 14);\r
+      }\r
+    });\r
+  }\r
+\r
+  /** The headline: what Snout saved over the days the ledger covers, against what was spent then. */\r
+  function renderBand(v) {\r
+    var box = $("band"); box.replaceChildren();\r
+    var daily = v.d.daily || [], spendBy = {};\r
+    if (v.sp) v.sp.series.forEach(function (r) { spendBy[r.day] = r.costUsd; });\r
+    var held = 0, asked = 0, reads = 0, spent = 0, top = 0;\r
+    daily.forEach(function (r) { held += r.heldBack; asked += r.inContext + r.heldBack; reads += r.reads; spent += spendBy[r.day] || 0; top = Math.max(top, r.heldBack); });\r
+    var saved = (held * v.rate) / 1e6, n = daily.length || 0;\r
+    var observe = v.d.meta && v.d.meta.mode === "observe";\r
+    var spark = h("div", { cls: "spark", "aria-hidden": "true" });\r
+    daily.forEach(function (r, i) { spark.appendChild(h("i", { cls: i === daily.length - 1 ? "now" : "", style: "height:" + (top ? Math.max(4, (r.heldBack / top) * 100) : 4) + "%", title: r.day + ": " + usd((r.heldBack * v.rate) / 1e6) + " saved" })); });\r
+    var savedEl = h("div", { cls: "v num" }), heldEl = h("div", { cls: "v num" });\r
+    box.appendChild(h("div", { cls: "hero" }, h("div", { cls: "k", text: "Saved by Snout, last " + n + " days" }), savedEl,\r
+      h("div", { cls: "s", text: "Kept-out tokens at $" + v.rate.toFixed(2) + "/M input" + (v.sp && v.sp.inputRate ? ", your model mix" : "") }), spark));\r
+    box.appendChild(h("div", null, h("div", { cls: "k", text: "Share of spend" }), h("div", { cls: "v num", text: spent ? pct(saved, spent + saved) + "%" : "\u2014" }),\r
+      h("div", { cls: "s", text: spent ? "less than without Snout, on " + usd(spent) + " spent" : "appears after the first Claude Code or Codex session" })));\r
+    box.appendChild(h("div", null, h("div", { cls: "k", text: "Kept out of context" }), heldEl,\r
+      h("div", { cls: "s", text: asked ? pct(held, asked) + "% of " + fmt(asked) + " tokens agents asked for" : "nothing read yet" })));\r
+    box.appendChild(observe && v.d.couldHoldBack > 0\r
+      ? h("div", null, h("div", { cls: "k", text: "Waiting in observe mode" }), h("div", { cls: "v num", text: "~" + fmt(v.d.couldHoldBack) }), h("div", { cls: "s", text: "tokens enforce mode would also keep out" }))\r
+      : h("div", null, h("div", { cls: "k", text: "Reads trimmed" }), h("div", { cls: "v num", text: (v.d.gated || 0).toLocaleString() }), h("div", { cls: "s", text: "of " + (v.d.reads || reads).toLocaleString() + " reads" })));\r
+    tween("b-saved", saved, savedEl, usd);\r
+    tween("b-held", held, heldEl, function (x) { return "~" + fmt(x); });\r
+  }\r
+\r
+  function renderToday(v) {\r
+    tween("t-held", v.today.heldBack, $("t-held"), function (x) { return "~" + fmt(x); });\r
+    $("t-held-s").textContent = "tokens, " + (v.today.inContext + v.today.heldBack ? pct(v.today.heldBack, v.today.inContext + v.today.heldBack) + "% of what agents asked for" : "nothing read yet today");\r
+    tween("t-saved", v.saved, $("t-saved"), usd);\r
+    $("t-saved-s").textContent = "at $" + v.rate.toFixed(2) + " per million input tokens" + (v.sp && v.sp.inputRate ? ", your model mix" : "");\r
+    $("t-cut").textContent = String(v.cutToday);\r
+    $("t-cut-s").textContent = "of " + v.today.reads + " read" + (v.today.reads === 1 ? "" : "s") + " today";\r
+  }\r
+\r
+  function feedRow(r, fresh) {\r
+    return h("div", { cls: "frow" + (fresh ? " fresh" : ""), title: (CLIENT[r.client] || r.client) + (r.agent !== "main" ? " \xB7 " + r.agent : "") + " \xB7 " + labelOf(r.rule) + (r.reason && r.outcome !== "read" ? "\\n" + r.reason : "") },\r
+      h("span", { cls: "when", "data-ts": r.ts, text: ago(r.ts) }),\r
+      h("span", { cls: "what" }, clientLogo(r.client, true), h("span", { cls: "path", text: shortPath(r.path) })),\r
+      outcomeBadge(r.outcome));\r
+  }\r
+  function renderFeed(v) {\r
+    var rows = v.d.recent || [];\r
+    var box = $("feed"); box.replaceChildren();\r
+    var firstPaint = state.seen === null;\r
+    if (firstPaint) state.seen = new Set();\r
+    var fresh = {};\r
+    rows.forEach(function (r) { var id = r.ts + r.path + r.tool; if (!state.seen.has(id)) { if (!firstPaint) fresh[id] = 1; state.seen.add(id); } });\r
+    if (!rows.length) { box.appendChild(h("div", { cls: "none", text: "Waiting for the first read. Start your coding agent in this project." })); return; }\r
+    rows.slice(0, 7).forEach(function (r) { box.appendChild(feedRow(r, fresh[r.ts + r.path + r.tool])); });\r
+  }\r
+\r
+  function lastDays(n, byDay, empty) {\r
+    var out = [], now = Date.now();\r
+    for (var i = n - 1; i >= 0; i--) { var k = new Date(now - i * 86400000).toISOString().slice(0, 10); out.push(byDay[k] || empty(k)); }\r
+    return out;\r
+  }\r
+  var dayName = function (k) { return new Date(k + "T12:00:00Z").toLocaleDateString([], { month: "short", day: "numeric" }); };\r
+  function niceMax(x) { if (x <= 0) return 1; var p = Math.pow(10, Math.floor(Math.log10(x))); var f = x / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p; }\r
+\r
+  function renderTrend(v) {\r
+    var svg = $("trend"), box = $("trend-box"), tip = $("trend-tip");\r
+    var byDay = {}; (v.d.daily || []).forEach(function (r) { byDay[r.day] = r; });\r
+    var pts = lastDays(7, byDay, function (k) { return { day: k, inContext: 0, heldBack: 0, reads: 0 }; });\r
+    var W = Math.max(280, svg.clientWidth || 520), H = 250, L = 40, R = 8, T = 10, B = 26;\r
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);\r
+    svg.replaceChildren();\r
+    var top = 0; pts.forEach(function (p) { top = Math.max(top, p.inContext, p.heldBack); });\r
+    top = niceMax(top);\r
+    var x = function (i) { return L + (i / (pts.length - 1)) * (W - L - R); };\r
+    var y = function (val) { return T + (1 - val / top) * (H - T - B); };\r
+    var defs = s("defs", {}), grad = s("linearGradient", { id: "g-held", x1: 0, y1: 0, x2: 0, y2: 1 });\r
+    grad.appendChild(s("stop", { offset: "0", "stop-color": "var(--accent)", "stop-opacity": "0.18" }));\r
+    grad.appendChild(s("stop", { offset: "1", "stop-color": "var(--accent)", "stop-opacity": "0" }));\r
+    defs.appendChild(grad); svg.appendChild(defs);\r
+    [0, 0.5, 1].forEach(function (f) {\r
+      var t = s("text", { x: L - 8, y: y(top * f) + 4, "text-anchor": "end" }); t.textContent = f ? fmt(top * f) : "0"; svg.appendChild(t);\r
+    });\r
+    pts.forEach(function (p, i) {\r
+      svg.appendChild(s("line", { x1: x(i), x2: x(i), y1: T, y2: H - B, stroke: "var(--line)", "stroke-dasharray": "3 4" }));\r
+      var t = s("text", { x: x(i), y: H - 6, "text-anchor": i === 0 ? "start" : i === pts.length - 1 ? "end" : "middle" }); t.textContent = dayName(p.day); svg.appendChild(t);\r
+    });\r
+    svg.appendChild(s("line", { x1: L, x2: W - R, y1: y(0), y2: y(0), stroke: "var(--line)" }));\r
+    function line(key) { return pts.map(function (p, i) { return (i ? "L" : "M") + x(i).toFixed(1) + "," + y(p[key]).toFixed(1); }).join(""); }\r
+    svg.appendChild(s("path", { d: line("heldBack") + "L" + x(pts.length - 1) + "," + y(0) + "L" + x(0) + "," + y(0) + "Z", fill: "url(#g-held)" }));\r
+    var held = s("path", { d: line("heldBack"), fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-linejoin": "round" });\r
+    var ctx = s("path", { d: line("inContext"), fill: "none", stroke: "var(--ink)", "stroke-width": 1.75, "stroke-linejoin": "round" });\r
+    svg.appendChild(ctx); svg.appendChild(held);\r
+    if (state.first && !reduced) [ctx, held].forEach(function (p) {\r
+      var len = p.getTotalLength(); p.style.strokeDasharray = len; p.style.strokeDashoffset = len;\r
+      p.getBoundingClientRect(); p.style.transition = "stroke-dashoffset 0.9s cubic-bezier(0.2,0.7,0.2,1)"; p.style.strokeDashoffset = 0;\r
+    });\r
+    var guide = s("line", { y1: T, y2: H - B, stroke: "var(--faint)", opacity: 0 }), dotA = s("circle", { r: 3.5, fill: "var(--ink)", opacity: 0 }), dotB = s("circle", { r: 3.5, fill: "var(--accent)", opacity: 0 });\r
+    svg.appendChild(guide); svg.appendChild(dotA); svg.appendChild(dotB);\r
+    svg.onmousemove = function (e) {\r
+      var rect = svg.getBoundingClientRect(), mx = ((e.clientX - rect.left) / rect.width) * W;\r
+      var i = Math.max(0, Math.min(pts.length - 1, Math.round(((mx - L) / (W - L - R)) * (pts.length - 1)))), p = pts[i];\r
+      [guide, dotA, dotB].forEach(function (el) { el.setAttribute("opacity", 1); });\r
+      guide.setAttribute("x1", x(i)); guide.setAttribute("x2", x(i));\r
+      dotA.setAttribute("cx", x(i)); dotA.setAttribute("cy", y(p.inContext)); dotB.setAttribute("cx", x(i)); dotB.setAttribute("cy", y(p.heldBack));\r
+      tip.replaceChildren(h("b", { text: dayName(p.day) }), h("br"), fmt(p.inContext) + " into context", h("br"), "~" + fmt(p.heldBack) + " kept out \xB7 " + p.reads + " reads");\r
+      tip.style.left = (x(i) / W) * rect.width + "px"; tip.style.top = (y(Math.max(p.inContext, p.heldBack)) / H) * rect.height - 8 + "px"; tip.style.opacity = 1;\r
+    };\r
+    svg.onmouseleave = function () { tip.style.opacity = 0; [guide, dotA, dotB].forEach(function (el) { el.setAttribute("opacity", 0); }); };\r
+    box.title = "";\r
+  }\r
+\r
+  function renderCost(v) {\r
+    var box = $("cost"); box.replaceChildren();\r
+    var sp = v.sp;\r
+    if (!sp) {\r
+      $("cost-p").textContent = "API-equivalent, from your agents' own usage logs";\r
+      box.appendChild(h("div", { cls: "none", text: "No Claude Code or Codex usage found for this project yet. Spend appears here after the first session." }));\r
+      return;\r
+    }\r
+    var byDay = {}; sp.series.forEach(function (r) { byDay[r.day] = r; });\r
+    var days = lastDays(14, byDay, function (k) { return { day: k, costUsd: 0 }; });\r
+    var thisWeek = 0, lastWeek = 0;\r
+    days.forEach(function (r, i) { if (i >= 7) thisWeek += r.costUsd; else lastWeek += r.costUsd; });\r
+    var change = lastWeek ? ((thisWeek - lastWeek) / lastWeek) * 100 : null;\r
+    $("cost-p").textContent = "API-equivalent at list prices of " + sp.pricesAsOf + ", from your agents' own usage logs";\r
+    box.appendChild(h("div", { cls: "total" },\r
+      h("span", { cls: "v num", text: usd(sp.costUsd) }),\r
+      change === null ? null : h("span", { cls: "d " + (change > 0 ? "up" : "down"), text: (change > 0 ? "+" : "\u2212") + Math.abs(change).toFixed(1) + "%" }),\r
+      h("span", { cls: "s", text: change === null ? "last " + sp.days + " days" : "last 7 days vs the 7 before \xB7 " + sp.days + "-day total" })));\r
+    var t = h("table");\r
+    t.appendChild(h("tr", null, h("th", { text: "Model" }), h("th", { cls: "n", text: "Today" }), h("th", { cls: "n hide-sm", text: "7 days" }), h("th", { cls: "n", text: sp.days + " days" }), h("th", { cls: "n", text: "Share" })));\r
+    v.models.slice(0, 6).forEach(function (m) {\r
+      t.appendChild(h("tr", null,\r
+        h("td", null, h("span", { cls: "who", style: "--c:" + m.color }, modelLogo(m.key, true), h("i", { cls: "dot" }), h("span", { text: m.label }))),\r
+        h("td", { cls: "n", text: usd(m.costToday) }), h("td", { cls: "n hide-sm", text: usd(m.cost7) }), h("td", { cls: "n", text: usd(m.cost30) }),\r
+        h("td", { cls: "n strong", text: (m.share * 100).toFixed(1) + "%" })));\r
+    });\r
+    box.appendChild(t);\r
+  }\r
+\r
+  // Each label belongs to the Snout feature that trims it.\r
+  var FEATURES = [\r
+    { key: "source", name: "Your code", how: "always read in full", labels: /^(source|always-allow|secret|reversal|unclassified)$/ },\r
+    { key: "squeeze", name: "Command output", how: "Squeeze: problems and summary kept", labels: /^(command-output|tool-output)$/ },\r
+    { key: "sections", name: "Long docs & logs", how: "Section reads: head and a map", labels: /^long-/ },\r
+    { key: "repeat", name: "Repeats", how: "Repeat skip: pointer to the copy", labels: /^repeat-/ },\r
+    { key: "mcp", name: "MCP results", how: "MCP trimming, per server", labels: /^mcp/ },\r
+    { key: "bulk", name: "Bulk files", how: "Read gate: head and outline", labels: /./ },\r
+  ];\r
+  function featureOf(label) { for (var i = 0; i < FEATURES.length; i++) if (FEATURES[i].labels.test(label)) return FEATURES[i]; return FEATURES[FEATURES.length - 1]; }\r
+\r
+  function renderMix(v) {\r
+    var box = $("mix"); box.replaceChildren();\r
+    var groups = {};\r
+    (v.d.byLabel || []).forEach(function (l) {\r
+      var f = featureOf(l.key), g = groups[f.key] || (groups[f.key] = { key: f.key, name: f.name, how: f.how, inContext: 0, heldBack: 0, reads: 0 });\r
+      g.inContext += l.inContext; g.heldBack += l.heldBack; g.reads += l.reads;\r
+    });\r
+    var cols = FEATURES.map(function (f) { return groups[f.key]; }).filter(function (g) { return g && g.inContext + g.heldBack > 0; });\r
+    var all = 0; cols.forEach(function (c) { all += c.inContext + c.heldBack; });\r
+    if (!all) { box.appendChild(h("div", { cls: "none", text: "Fills in as your agents read files." })); return; }\r
+    var maxShare = 0; cols.forEach(function (c) { maxShare = Math.max(maxShare, (c.inContext + c.heldBack) / all); });\r
+    var grid = h("div", { cls: "mix", style: "--n:" + cols.length });\r
+    var BAR = 150;\r
+    cols.forEach(function (c) {\r
+      var tot = c.inContext + c.heldBack, share = tot / all;\r
+      var hgt = Math.max(3, (share / maxShare) * BAR);\r
+      var outH = tot ? (c.heldBack / tot) * hgt : 0;\r
+      var cut = c.heldBack > 0;\r
+      grid.appendChild(h("div", { cls: "mcol", title: c.name + " (" + c.how + "): " + c.reads + " reads, " + fmt(c.inContext) + " into context, ~" + fmt(c.heldBack) + " kept out" },\r
+        h("div", { cls: "top" },\r
+          h("div", { cls: "k", text: c.name }),\r
+          h("div", { cls: "v num", text: fmt(tot) }),\r
+          h("div", { cls: "s" + (cut ? " cut" : ""), text: cut ? "\u2212" + pct(c.heldBack, tot) + "% kept out" : c.key === "source" ? "always read in full" : "read in full" })),\r
+        h("div", { cls: "bar" },\r
+          h("div", { cls: "pct", text: Math.round(share * 100) + "%" }),\r
+          h("div", { cls: "stack", style: "height:" + hgt + "px" }, h("i", { cls: "in", style: "height:" + (hgt - outH) + "px" }), h("i", { cls: "out", style: "height:" + outH + "px" })))));\r
+    });\r
+    box.appendChild(grid);\r
+    box.appendChild(h("div", { cls: "mix-foot" },\r
+      h("div", { cls: "legend" }, h("span", { style: "--c: var(--bar-in)" }, h("i"), "Into context"), h("span", { style: "--c: var(--accent)" }, h("i"), "Kept out by Snout")),\r
+      h("span", { cls: "legend", text: "p50 " + v.d.latency.p50 + " ms per decision" })));\r
+  }\r
+\r
+  // --- Context tab ------------------------------------------------------------------------\r
+\r
+  function tableOf(el, head, rows, empty) {\r
+    el.replaceChildren();\r
+    if (!rows.length) { el.appendChild(h("tr", null, h("td", { cls: "none", text: empty, style: "border:0" }))); return; }\r
+    var tr = h("tr"); head.forEach(function (c) { tr.appendChild(h("th", { cls: c[1] || "", text: c[0] })); }); el.appendChild(tr);\r
+    rows.forEach(function (r) { el.appendChild(r); });\r
+  }\r
+  function renderContext(v) {\r
+    var d = v.d, controls = d.meta && d.meta.controls;\r
+    $("feed-all-p").textContent = "Newest first \xB7 p50 " + d.latency.p50 + " ms, p95 " + d.latency.p95 + " ms per decision";\r
+    tableOf($("feed-all"), [["When"], ["File or tool"], ["Result"], ["Tokens", "n"]], (d.recent || []).map(function (r) {\r
+      return h("tr", null,\r
+        h("td", { cls: "when", style: "white-space:nowrap;color:var(--muted)", "data-ts": r.ts, text: ago(r.ts) }),\r
+        h("td", { cls: "path" }, h("span", { cls: "who" }, clientLogo(r.client, true), h("span", { text: r.path })), h("div", { cls: "reason", text: labelOf(r.rule) + (r.outcome !== "read" && r.reason ? " \xB7 " + r.reason : "") })),\r
+        h("td", null, outcomeBadge(r.outcome)),\r
+        h("td", { cls: "n", text: r.heldBack ? "\u2212" + fmt(r.heldBack) : fmt(r.inContext) }));\r
+    }), "No reads yet.");\r
+    tableOf($("files"), [["File"], ["Kept out", "n"], ["In context", "n"], [""]], (d.files || []).map(function (f) {\r
+      var btn = f.heldBack > 0 && controls ? h("button", { cls: "btn", type: "button", text: "Always read in full", on: { click: function () { act({ type: "allow", path: f.key }); } } }) : null;\r
+      return h("tr", null,\r
+        h("td", { cls: "path" }, f.key, h("div", { cls: "reason", text: labelOf(f.label) + " \xB7 " + f.reads + (f.reads === 1 ? " read" : " reads") + " \xB7 last " + ago(f.last) })),\r
+        h("td", { cls: "n", style: f.heldBack ? "color:var(--accent-ink);font-weight:600" : "", text: f.heldBack ? "~" + fmt(f.heldBack) : "\u2014" }),\r
+        h("td", { cls: "n", text: fmt(f.inContext) }),\r
+        h("td", { cls: "n" }, btn));\r
+    }), "No files yet.");\r
+    tableOf($("clients"), [["Agent"], ["Reads", "n"], ["In context", "n"], ["Kept out", "n"]], (d.byClient || []).map(function (c) {\r
+      return h("tr", null, h("td", null, h("span", { cls: "who" }, clientLogo(c.key, true), h("span", { text: CLIENT[c.key] || c.key }))),\r
+        h("td", { cls: "n", text: c.reads.toLocaleString() }), h("td", { cls: "n", text: fmt(c.inContext) }), h("td", { cls: "n", text: "~" + fmt(c.heldBack) }));\r
+    }), "No agents yet.");\r
+    tableOf($("sessions"), [["Last active"], ["Agents"], ["Reads", "n"], ["Kept out", "n"]], (d.sessions || []).map(function (x) {\r
+      var agents = h("span", { cls: "who" }); x.clients.forEach(function (c) { agents.appendChild(clientLogo(c, true)); }); agents.appendChild(h("span", { text: x.clients.map(function (c) { return CLIENT[c] || c; }).join(", ") }));\r
+      return h("tr", null, h("td", { style: "white-space:nowrap", "data-ts": x.last, text: ago(x.last) }), h("td", null, agents),\r
+        h("td", { cls: "n", text: x.reads.toLocaleString() }), h("td", { cls: "n", text: "~" + fmt(x.heldBack) }));\r
+    }), "No sessions yet.");\r
+  }\r
+\r
+  // --- Repo map: folders as entities, and the landing page's report for the one you point at ---------\r
+\r
+  var shortName = function (p) { var i = p.lastIndexOf("/"); return i >= 0 ? p.slice(i + 1) : p; };\r
+  var groupName = function (k) { return k === "/" ? "(root)" : k + "/"; };\r
+  var inGroup = function (g, p) { return g.key === "/" ? p : p.slice(g.key.length + 1); };\r
+  var hlt = function (t) { return h("span", { cls: "hlt", text: t }); };\r
+  // Labels Snout reads whole or asks about first: never bulk (the same set as the server's).\r
+  var WHOLE = { source: 1, "always-allow": 1, secret: 1, reversal: 1 };\r
+  var bulk = function (label) { return !WHOLE[label]; };\r
+  function icon(d) {\r
+    var svg = s("svg", { class: "ic", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "2", "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" });\r
+    svg.appendChild(s("path", { d: d }));\r
+    return svg;\r
+  }\r
+  var IC_REPO = "M3 3v18h18M7 16h2M7 12h6M7 8h10", IC_LOCK = "M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z", IC_EYE = "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z";\r
+  function check(on, text) { return h("span", { cls: "check" + (on ? "" : " off") }, h("i"), text); }\r
+  function fileBadge(f) {\r
+    if (f.heldBack > 0) return h("em", { cls: "fb cut", text: "\u2212" + pct(f.heldBack, f.heldBack + f.inContext) + "%" });\r
+    if (f.reads > 0) return h("em", { cls: "fb full", text: "in full" });\r
+    if (bulk(f.label)) return h("em", { cls: "fb would", text: "would trim" });\r
+    return h("em", { cls: "fb none", text: "not read" });\r
+  }\r
+  function repoStat(k, v, s2, pink) { return h("div", null, h("div", { cls: "k", text: k }), h("div", { cls: "v num" + (pink ? " pink" : ""), text: v }), h("div", { cls: "s", text: s2 })); }\r
+\r
+  /** Tokens one read costs with Snout and without: measured from the ledger, or projected for a file nobody read yet. */\r
+  function perRead(f) {\r
+    if (f.reads) return { w: f.inContext / f.reads, wo: (f.inContext + f.heldBack) / f.reads, proj: false };\r
+    return { w: f.sendTokens, wo: f.tokens, proj: bulk(f.label) };\r
+  }\r
+  /** The chart's rows: what Snout kept out, then what it would trim, then source read whole, as on the landing page. */\r
+  function reportRows(g) {\r
+    var by = function (k) { return function (a, b) { return k(b) - k(a); }; };\r
+    var cut = g.top.filter(function (f) { return f.reads && f.heldBack > 0; }).sort(by(function (f) { return f.heldBack; }));\r
+    var would = g.top.filter(function (f) { return !f.reads && bulk(f.label); }).sort(by(function (f) { return f.tokens - f.sendTokens; }));\r
+    var whole = g.top.filter(function (f) { return !bulk(f.label) || (f.reads && !f.heldBack); }).sort(by(function (f) { return f.tokens; }));\r
+    var rows = cut.concat(would).slice(0, 5);\r
+    return rows.concat(whole.slice(0, Math.max(1, 6 - rows.length))).slice(0, 6);\r
+  }\r
+  function fileReport(path, done) {\r
+    state.reports = state.reports || {};\r
+    if (state.reports[path]) return done(state.reports[path]);\r
+    fetch("/api/file?path=" + encodeURIComponent(path)).then(function (r) { return r.ok ? r.json() : null; }).then(function (rep) { if (rep) state.reports[path] = rep; done(rep); }, function () { done(null); });\r
+  }\r
+\r
+  /** The landing page's session panel for one folder. \`o.sheet\` is the pop-up page's larger version. */\r
+  function reportPanel(r, g, o) {\r
+    var d = state.data, mode = (d.meta && d.meta.mode) || "observe";\r
+    var rows = reportRows(g), sel = o.file && rows.some(function (f) { return f.path === o.file; }) ? o.file : rows[0] && rows[0].path;\r
+    var pick = h("select", { "aria-label": "Folder" });\r
+    r.groups.forEach(function (x) { pick.appendChild(h("option", { value: x.key, text: groupName(x.key) })); });\r
+    pick.value = g.key;\r
+    pick.addEventListener("change", function () { o.onGroup(this.value); });\r
+    var live = g.top.some(function (f) { return f.last && Date.now() - Date.parse(f.last) < 10 * 60 * 1000; });\r
+    var bar = h("div", { cls: "rp-bar" }, icon(IC_REPO), pick, live ? h("i", { cls: "live-dot", title: "An agent read from this folder in the last few minutes" }) : null,\r
+      h("span", { cls: "mode", title: "Snout's mode in this project" }, icon(mode === "observe" ? IC_EYE : IC_LOCK), mode.charAt(0).toUpperCase() + mode.slice(1)));\r
+    var srcCut = g.top.some(function (f) { return f.label === "source" && f.heldBack > 0; });\r
+    var name = groupName(g.key), statement = h("p", { cls: "statement" });\r
+    if (g.heldBack) statement.append(h("span", { cls: "dotted", text: "~" + fmt(g.heldBack) + " tokens" }), " stayed out of context from " + name + ". ", srcCut ? "Some source was trimmed too." : "Every source file agents needed was read in full.");\r
+    else if (g.reads) statement.append("Agents read ", h("span", { cls: "dotted", text: fmt(g.inContext) + " tokens" }), " from " + name + ", all of it in full." + (g.bulk ? " ~" + fmt(g.bulk) + " of the folder is bulk Snout would trim." : ""));\r
+    else if (g.bulk) statement.append("No agent has read " + name + " yet. ", h("span", { cls: "dotted", text: "~" + fmt(g.bulk) + " tokens" }), " of its ~" + fmt(g.tokens) + " is bulk Snout would trim to a short head.");\r
+    else statement.append("No agent has read " + name + " yet. It is all source: ~" + fmt(g.tokens) + " tokens, read in full when they do.");\r
+\r
+    var max = 0; rows.forEach(function (f) { max = Math.max(max, perRead(f).wo); });\r
+    var grid = h("div", { cls: "rp-rows" }), anyProj = false;\r
+    rows.forEach(function (f) {\r
+      var v = perRead(f), cut = v.wo ? ((v.w - v.wo) / v.wo) * 100 : 0, on = f.path === sel;\r
+      if (v.proj) anyProj = true;\r
+      var go = function () { o.onFile(f.path); };\r
+      grid.append(\r
+        h("div", { cls: "nm" + (on ? " sel" : "") + (f.path === state.flashPath ? " flash" : ""), "data-path": f.path, title: f.path, on: { click: go } }, h("span", { text: inGroup(g, f.path) }),\r
+          h("small", { text: (f.reads ? f.reads + (f.reads === 1 ? " read" : " reads") : "not read yet") + (f.label !== "source" ? " \xB7 " + f.label : "") })),\r
+        h("div", { cls: "bb", on: { click: go } }, h("i", { cls: "w" + (v.proj ? " proj" : ""), style: "width:" + (max ? Math.max(0.6, (v.w / max) * 100) : 0) + "%" }), h("i", { cls: "wo", style: "width:" + (max ? (v.wo / max) * 100 : 0) + "%" })),\r
+        h("div", { cls: "val" + (on ? " sel" : "") }, h("span", { text: (v.proj ? "~" : "") + Math.round(v.w).toLocaleString() })),\r
+        h("div", { cls: "pc", text: (cut > -0.05 ? "+" : "\u2212") + Math.abs(cut).toFixed(1) + "%" }));\r
+    });\r
+    var labels = []; rows.forEach(function (f) { if (bulk(f.label) && labels.indexOf(f.label) < 0) labels.push(f.label); });\r
+    var explain = h("div", { cls: "rp-explain", hidden: "" });\r
+    var showExplain = function () {\r
+      if (!explain.hidden) { explain.hidden = true; return; }\r
+      explain.hidden = false; explain.textContent = "Reading the file\u2026";\r
+      fileReport(sel, function (rep) {\r
+        if (!rep) { explain.textContent = "This file is no longer in the project."; return; }\r
+        explain.replaceChildren(h("b", { text: rep.path }), " \xB7 " + (rep.label === "source" ? "no rule flags it, so it is read in full" : rep.label + " \xB7 confidence " + rep.confidence.toFixed(2) + " \xB7 band " + rep.band) + ". ", rep.reason || "");\r
+      });\r
+    };\r
+    var controls = d.meta && d.meta.controls, selFile = rows.filter(function (f) { return f.path === sel; })[0];\r
+    var foot = h("div", { cls: "rp-foot" }, h("span", { cls: "k", text: "Classified as" }),\r
+      labels.length ? labels.slice(0, 3).map(function (l) { return h("span", { cls: "chip", text: l }); }) : h("span", { cls: "chip", text: "source" }), h("span", { cls: "sp" }),\r
+      h("span", { cls: "acts" }, h("button", { cls: "btn", type: "button", text: "Explain", on: { click: showExplain } }),\r
+      o.sheet ? h("button", { cls: "btn outline", type: "button", text: "View report", on: { click: function () { closeSheet(); showTab("context"); window.scrollTo(0, 0); } } }) : null,\r
+      o.sheet && controls && selFile && bulk(selFile.label) ? h("button", { cls: "btn", type: "button", text: "Allow file", title: "Always read " + sel + " in full", on: { click: function () { act({ type: "allow", path: sel }); } } }) : null,\r
+      h("button", { cls: "btn dark", type: "button", text: "Open report", on: { click: o.sheet ? function () { closeSheet(); showTab("context"); window.scrollTo(0, 0); } : function () { openSheet(g.key, sel); } } })));\r
+    var body = h("div", { cls: "rp-body" }, h("h3", { text: "What reaches your agent from " + name }),\r
+      h("div", { cls: "checks" }, check(d.reads > 0, "Classifying each read"), check(g.heldBack > 0 || mode === "enforce", "Trimming bulk files"), check(!srcCut, "Reading source in full"), check(d.reads > 0, "Recording the savings")),\r
+      statement, h("hr"),\r
+      h("div", { cls: "rp-ch" }, "Tokens per read, with Snout vs. without", anyProj ? h("small", { text: "striped: projected, not read yet" }) : null,\r
+        h("div", { cls: "legend" }, h("span", { style: "--c: var(--ink)" }, h("i"), "With Snout"), h("span", { style: "--c: var(--without)" }, h("i"), "Without"))),\r
+      rows.length ? grid : h("div", { cls: "rp-empty", text: "No files to show." }), foot, explain);\r
+    return h("div", { cls: "rp" }, bar, body);\r
+  }\r
+\r
+  function renderRepo(v) {\r
+    var box = $("repo"), r = v.d.repo;\r
+    if (!r || !r.groups.length) { box.replaceChildren(); return; }\r
+    if (!r.groups.some(function (g) { return g.key === state.repoSel; })) state.repoSel = r.groups[0].key;\r
+    // A read newer than the last render flashes its row in the report.\r
+    var newest = (v.d.recent || [])[0];\r
+    state.flashPath = newest && state.repoNewest && newest.ts > state.repoNewest ? newest.path : null;\r
+    if (newest) state.repoNewest = newest.ts;\r
+    var info = h("div", { cls: "flow-info" });\r
+    var intro = function () { info.replaceChildren("Each card is a folder and its heaviest files. Point at one to see its report the way the landing page shows it; click to open the full page. ", r.links.length ? "Lines on the left join folders that share names." : ""); };\r
+    intro();\r
+    var card = h("div", { cls: "card flow-card" }, h("div", { cls: "flow-top" },\r
+      h("div", null, h("div", { cls: "eyebrow", text: "Repo map \xB7 live" }), h("h2", { text: "Your whole codebase, as your agents see it." })), info));\r
+    card.appendChild(h("div", { cls: "repo-stats" },\r
+      repoStat("Files", r.files.toLocaleString(), "in " + (r.groups.length + r.more) + " folders"),\r
+      repoStat("To read all of it", "~" + fmt(r.tokens), "tokens"),\r
+      repoStat("Bulk Snout trims", "~" + fmt(r.bulk), pct(r.bulk, r.tokens) + "% of the repo: lockfiles, generated, logs\u2026", true),\r
+      repoStat("Kept out so far", "~" + fmt(v.d.heldBack), v.d.reads.toLocaleString() + " reads classified", true)));\r
+    var ents = h("div", { cls: "ents erd-gutter" }), entEls = {}, slot = h("div");\r
+    var showPanel = function () {\r
+      var g = r.groups.filter(function (x) { return x.key === state.repoSel; })[0];\r
+      slot.replaceChildren(reportPanel(r, g, { file: state.repoFile, onFile: function (p) { openSheet(g.key, p); }, onGroup: function (k) { state.repoSel = k; state.repoFile = null; mark(); showPanel(); } }));\r
+    };\r
+    var mark = function () { Object.keys(entEls).forEach(function (k) { entEls[k].classList.toggle("sel", k === state.repoSel); }); };\r
+    r.groups.forEach(function (g, i) {\r
+      var e = h("div", { cls: "ent" + (state.first ? " pop" : ""), style: "--d:" + (i * 0.05).toFixed(2) + "s", tabindex: "0", role: "button", "aria-label": "Open the report for " + groupName(g.key),\r
+        on: { mouseenter: function () { if (state.repoSel !== g.key) { state.repoSel = g.key; state.repoFile = null; mark(); showPanel(); } }, click: function () { openSheet(g.key, state.repoFile); },\r
+          focus: function () { state.repoSel = g.key; mark(); showPanel(); }, keydown: function (ev) { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); openSheet(g.key, null); } } } });\r
+      e.appendChild(h("div", { cls: "ent-h", title: g.files + " files \xB7 ~" + fmt(g.tokens) + " tokens to read them all" },\r
+        h("i"), h("b", { text: groupName(g.key) }), h("span", { cls: "mono", text: g.files + (g.files === 1 ? " file" : " files") }), h("span", { cls: "open", text: "OPEN \u2197" }), h("span", { cls: "mono r", text: fmt(g.tokens) + " tok" })));\r
+      g.top.slice(0, 4).forEach(function (f) {\r
+        e.appendChild(h("div", { cls: "ent-r", title: f.path + " \xB7 " + labelOf(f.label) + " \xB7 ~" + fmt(f.tokens) + " tokens" + (f.reads ? " \xB7 " + f.reads + (f.reads === 1 ? " read" : " reads") : ""),\r
+          on: { mouseenter: function () { state.repoSel = g.key; state.repoFile = f.path; mark(); showPanel(); }, click: function (ev) { ev.stopPropagation(); openSheet(g.key, f.path); } } },\r
+          h("span", { cls: "src" }, shortName(f.path), f.label !== "source" ? h("span", { cls: "lab", text: f.label }) : null),\r
+          h("span", { cls: "v" }, fmt(f.tokens), fileBadge(f))));\r
+      });\r
+      entEls[g.key] = e;\r
+      ents.appendChild(e);\r
+    });\r
+    if (r.more) ents.appendChild(h("div", { cls: "note", style: "margin:0", text: "+" + r.more + " smaller folders" }));\r
+    card.appendChild(h("div", { cls: "rmap" }, ents, slot));\r
+    mark(); showPanel();\r
+    box.replaceChildren(card);\r
+    requestAnimationFrame(function () { drawLinks(ents, entEls, r, info, intro); });\r
+    if (state.sheet) renderSheet();\r
+  }\r
+\r
+  /** Relationship lines between folders, in the gutter left of the cards: an ERD's joins. */\r
+  function drawLinks(ents, entEls, r, info, intro) {\r
+    if (window.innerWidth <= 800 || !r.links.length) return;\r
+    var er = ents.getBoundingClientRect(), gut = 56, order = r.groups.map(function (g) { return g.key; });\r
+    var links = r.links.filter(function (l) { return entEls[l.a] && entEls[l.b]; }).slice(0, 7)\r
+      .sort(function (a, b) { return Math.abs(order.indexOf(a.a) - order.indexOf(a.b)) - Math.abs(order.indexOf(b.a) - order.indexOf(b.b)); });\r
+    var esvg = s("svg", { class: "erd", width: gut, height: er.height, viewBox: "0 0 " + gut + " " + er.height });\r
+    var maxN = 1; links.forEach(function (l) { maxN = Math.max(maxN, l.names); });\r
+    links.forEach(function (l, i) {\r
+      var A = entEls[l.a].getBoundingClientRect(), B = entEls[l.b].getBoundingClientRect();\r
+      var ya = A.top - er.top + 17, yb = B.top - er.top + 17, x0 = gut - 1, depth = Math.min(gut - 8, 12 + i * 6), ym = (ya + yb) / 2;\r
+      var d = "M" + x0 + "," + ya.toFixed(1) + " C" + (x0 - depth) + "," + ya.toFixed(1) + " " + (x0 - depth) + "," + yb.toFixed(1) + " " + x0 + "," + yb.toFixed(1);\r
+      var g = s("g", { class: "lk" });\r
+      g.appendChild(s("path", { d: d, "stroke-width": (1 + 3 * Math.sqrt(l.names / maxN)).toFixed(2) }));\r
+      g.appendChild(s("path", { class: "hit", d: d }));\r
+      var ax = x0 - depth * 0.75;\r
+      g.appendChild(s("circle", { cx: ax.toFixed(1), cy: ym.toFixed(1), r: 9 }));\r
+      var tx = s("text", { x: ax.toFixed(1), y: (ym + 3).toFixed(1), "text-anchor": "middle" }); tx.textContent = l.names > 99 ? "99+" : String(l.names); g.appendChild(tx);\r
+      g.addEventListener("mouseenter", function () {\r
+        ents.classList.add("has-on"); g.classList.add("on"); entEls[l.a].classList.add("on"); entEls[l.b].classList.add("on");\r
+        info.replaceChildren(h("b", { text: groupName(l.a) }), " and ", h("b", { text: groupName(l.b) }), " share " + l.names + " names, one declaring what the other uses, such as ", h("code", { text: l.sample.join(", ") }), ".");\r
+      });\r
+      g.addEventListener("mouseleave", function () { ents.classList.remove("has-on"); g.classList.remove("on"); entEls[l.a].classList.remove("on"); entEls[l.b].classList.remove("on"); intro(); });\r
+      esvg.appendChild(g);\r
+    });\r
+    ents.style.position = "relative";\r
+    ents.appendChild(esvg);\r
+  }\r
+\r
+  // --- The pop-up report page --------------------------------------------------------------------\r
+\r
+  function openSheet(key, file) {\r
+    state.sheet = { key: key, file: file || null, full: false };\r
+    state.sheetFocus = document.activeElement;\r
+    renderSheet();\r
+    document.body.style.overflow = "hidden";\r
+  }\r
+  function closeSheet() {\r
+    var el = $("sheet");\r
+    if (el) el.remove();\r
+    state.sheet = null;\r
+    document.body.style.overflow = "";\r
+    if (state.sheetFocus && state.sheetFocus.focus) state.sheetFocus.focus();\r
+  }\r
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && state.sheet) closeSheet(); });\r
+\r
+  function stairs(side, widths, pink) {\r
+    return h("div", { cls: "stairs " + side, "aria-hidden": "true" }, widths.map(function (w, i) { return h("i", { cls: i === pink ? "p" : "", style: "width:" + w + "px" }); }));\r
+  }\r
+  function gbar(title, meta, lede, rows, pinkIdx) {\r
+    var max = 0; rows.forEach(function (x) { max = Math.max(max, x[1]); });\r
+    return h("div", { cls: "gbar" }, h("div", { cls: "gbar-h" }, h("b", { text: title }), h("span", { text: meta })), h("p", null, lede),\r
+      h("div", { cls: "gb-rows" }, rows.map(function (x, i) {\r
+        return [h("span", { text: x[0] }), h("div", { cls: "track" }, h("i", { cls: i === pinkIdx ? "pink" : "", style: "width:" + (max ? Math.max(1, (x[1] / max) * 100) : 0) + "%;--d:" + (0.1 + i * 0.08).toFixed(2) + "s" })), h("span", { cls: "t", text: x[2] })];\r
+      })));\r
+  }\r
+\r
+  function renderSheet() {\r
+    var d = state.data, r = d && d.repo;\r
+    if (!state.sheet || !r || !r.groups.length) return;\r
+    var g = r.groups.filter(function (x) { return x.key === state.sheet.key; })[0] || r.groups[0];\r
+    var rows = reportRows(g), file = state.sheet.file && rows.some(function (f) { return f.path === state.sheet.file; }) ? state.sheet.file : rows[0] && rows[0].path;\r
+    var f = rows.filter(function (x) { return x.path === file; })[0];\r
+    var el = $("sheet"), fresh = !el;\r
+    if (fresh) { el = h("div", { cls: "sheet", id: "sheet", role: "dialog", "aria-modal": "true", "aria-label": "Report for " + groupName(g.key) }); document.body.appendChild(el); }\r
+    var keep = el.scrollTop;\r
+    var name = groupName(g.key), asked = g.inContext + g.heldBack, labels = [];\r
+    // What Snout kept out (measured), or else what it would trim.\r
+    g.kinds.forEach(function (k) { if (bulk(k.label) && (k.heldBack > 0 || !g.heldBack) && labels.length < 3) labels.push(labelOf(k.label).toLowerCase()); });\r
+    var headline = g.heldBack && asked ? "In " + name + ", " + pct(g.heldBack, asked) + "% less to read. Same code."\r
+      : g.bulk ? "In " + name + ", " + pct(g.bulk, g.tokens) + "% is bulk your agent never needs."\r
+      : "In " + name + ", all source. Read in full.";\r
+    var lede = g.heldBack ? "Snout kept " + (labels.join(", ") || "bulk") + " out of the agent's context. Every source file it needed went in, in full."\r
+      : labels.length ? "When an agent opens it, Snout sends " + labels.join(", ") + " as a short head and an outline, and your own code in full."\r
+      : "Nothing here for Snout to trim: your agents get every file whole.";\r
+\r
+    // The callout: Snout's real report for the selected file, filled in once the server has read it.\r
+    var call = h("div", { cls: "callout" }, h("div", { cls: "sk loading" }));\r
+    var fill = function (rep) {\r
+      if (!rep || !f) { call.replaceChildren(h("div", { cls: "none", text: "This file is no longer in the project." })); return; }\r
+      var held = f.heldBack ? f.heldBack : rep.head ? Math.max(0, rep.tokens - rep.head.tokens) : 0;\r
+      var shown = state.sheet.full ? rep.outline : rep.outline.slice(0, 3);\r
+      // replaceChildren would print a null as text, so absent parts are dropped first.\r
+      call.replaceChildren.apply(call, [\r
+        h("h4", null, held ? [h("span", { cls: "hlt num", text: Math.round(held).toLocaleString() }), f.heldBack ? " tokens held back" : " tokens it would hold back"] : [h("span", { cls: "hlt num", text: Math.round(rep.tokens).toLocaleString() }), " tokens, read in full"]),\r
+        h("div", { cls: "sub", text: rep.head ? "Trimmed to lines 1\u2013" + rep.head.lines + " \xB7 " + rep.label + " \xB7 confidence " + rep.confidence.toFixed(2) : rep.label === "source" ? inGroup(g, rep.path) + " \xB7 your code, always read whole" : rep.label + " \xB7 one long line, searched instead of read" }),\r
+        rep.hint ? h("div", { cls: "grep", text: rep.hint }) : null,\r
+        shown.length ? h("table", null, h("tr", null, h("th", { text: "Name" }), h("th", { text: "Detail" }), h("th", { text: "Line" }), h("th", { text: "Kind" })),\r
+          shown.map(function (x) { return h("tr", null, h("td", { text: x.name }), h("td", { text: x.detail || "\u2014" }), h("td", { text: x.line ? "L" + x.line : "\u2014" }), h("td", { text: x.kind === "dependency" ? "dependency" : "match" })); })) : null,\r
+        h("div", { cls: "cf" }, rep.outline.length > 3 ? h("button", { cls: "link", type: "button", text: state.sheet.full ? "Show less" : "Open full outline", on: { click: function () { state.sheet.full = !state.sheet.full; fill(rep); wire(); } } }) : h("span"),\r
+          h("span", { text: rep.outline.length ? "Showing " + shown.length + " from the outline" + (rep.more ? " (+" + rep.more + " more)" : "") : "No exported names to outline in this file" }))].filter(Boolean));\r
+      wire();\r
+    };\r
+    if (f) fileReport(f.path, fill); else fill(null);\r
+\r
+    // Glowing bars, as in the landing page's lower sections.\r
+    var kindRows = g.kinds.map(function (k) { return [labelOf(k.label), k.tokens, fmt(k.tokens) + " tok"]; });\r
+    var bulkIdx = -1; g.kinds.forEach(function (k, i) { if (bulkIdx < 0 && bulk(k.label)) bulkIdx = i; });\r
+    var big = bulkIdx >= 0 ? g.kinds[bulkIdx] : null;\r
+    var cards = [gbar(name + " by kind", "tokens", big ? [h("span", { cls: "hlt", text: labelOf(big.label) + " is " + pct(big.tokens, g.tokens) + "% of it." }), " Snout trims it; your code goes in whole."] : "All of it is your own code, read whole.", kindRows, bulkIdx)];\r
+    if (f) {\r
+      var v = perRead(f);\r
+      cards.push(gbar("What one read of " + shortName(f.path) + " costs", "tokens re-sent", [h("span", { cls: "hlt", text: "Read once, paid for on every message." }), v.w < v.wo ? " Unless Snout keeps it out." : " Your code is worth it."],\r
+        [["Read once", v.wo, fmt(v.wo)], ["After 10 messages", v.wo * 10, fmt(v.wo * 10)], ["After 20 messages", v.wo * 20, fmt(v.wo * 20)], ["With Snout, 20 messages", v.w * 20, fmt(v.w * 20)]], 3));\r
+    }\r
+\r
+    var panel = reportPanel(r, g, { sheet: true, file: file, onFile: function (p) { state.sheet.file = p; state.sheet.full = false; renderSheet(); }, onGroup: function (k) { state.sheet = { key: k, file: null, full: false }; renderSheet(); } });\r
+    var wireSvg = s("svg", { class: "wire", "aria-hidden": "true" });\r
+    var grid = h("div", { cls: "sheet-grid" }, h("div", null, h("div", { cls: "eyebrow", text: "Repo map \xB7 " + name }), h("h1", { text: headline }), h("p", { cls: "lede", text: lede }), call, h("div", { cls: "stack" }, cards)), panel, wireSvg);\r
+    var close = h("button", { cls: "btn x", type: "button", text: "Close  esc", on: { click: closeSheet } });\r
+    el.replaceChildren(stairs("l", [56, 44, 30, 18, 42, 50], 2), stairs("r", [14, 26, 38, 54], 2),\r
+      h("div", { cls: "sheet-in" }, h("div", { cls: "sheet-top" }, h("div", { cls: "brand" }, h("img", { src: document.querySelector(".brand img").src, alt: "" }), "Snout", h("small", { text: "Local" })), close), grid));\r
+    el.scrollTop = keep;\r
+    if (fresh) close.focus();\r
+\r
+    // A pink line from the callout to the file it describes, like the landing page's.\r
+    function wire() {\r
+      requestAnimationFrame(function () {\r
+        var row = panel.querySelector(".nm.sel");\r
+        wireSvg.replaceChildren();\r
+        if (!row || window.innerWidth <= 1100) return;\r
+        var G = grid.getBoundingClientRect(), C = call.getBoundingClientRect(), R = row.getBoundingClientRect();\r
+        var x0 = C.right - G.left, y0 = C.top - G.top + 34, x1 = R.left - G.left - 18, y1 = R.top - G.top + R.height / 2, xm = x0 + Math.max(16, (x1 - x0) * 0.5);\r
+        wireSvg.appendChild(s("path", { d: "M" + x0 + "," + y0 + " H" + xm + " V" + y1 + " H" + x1 }));\r
+        wireSvg.appendChild(s("circle", { cx: x1, cy: y1, r: 4.5 }));\r
+      });\r
+    }\r
+    wire();\r
+  }\r
+  window.addEventListener("resize", function () { if (state.sheet) renderSheet(); });\r
+\r
+  // --- Agent context files ------------------------------------------------------------------\r
+\r
+  var KIND = { always: ["Every session", "loaded in full"], described: ["Every session", "its description"], "on-demand": ["When used", "read on demand"] };\r
+  function renderAgentFiles(v) {\r
+    var a = v.d.agentFiles, box = $("agentfiles-box");\r
+    var c = h("div", { cls: "card" }, h("div", { cls: "card-h" }, h("div", null, h("h2", { text: "Agent context files" }), h("p", { text: "Instructions, memory, skills and commands your agents load, and what each one costs" }))));\r
+    if (!a) { c.appendChild(h("div", { cls: "none", text: "Reading your agent files\u2026" })); box.replaceChildren(c); return; }\r
+    c.appendChild(h("div", { cls: "af-sum" },\r
+      h("div", null, h("div", { cls: "k", text: "Files" }), h("div", { cls: "v num", text: String(a.count) })),\r
+      h("div", null, h("div", { cls: "k", text: "Loaded every session" }), h("div", { cls: "v num pink", text: "~" + fmt(a.alwaysPerSession) })),\r
+      h("div", null, h("div", { cls: "k", text: "Flagged" }), h("div", { cls: "v num", text: String(a.flagged) })),\r
+      h("div", null, h("div", { cls: "k", text: "Could save per session" }), h("div", { cls: "v num", text: a.savePerSession ? "~" + fmt(a.savePerSession) : "\u2014" }))));\r
+    var max = 1; a.files.forEach(function (f) { max = Math.max(max, f.perSession || f.tokens); });\r
+    a.files.slice(0, 12).forEach(function (f) {\r
+      var k = KIND[f.kind] || [f.kind, ""], w = ((f.perSession || f.tokens) / max) * 100;\r
+      c.appendChild(h("div", { cls: "af" },\r
+        h("div", { cls: "p" }, h("b", { text: f.path, title: f.path }), h("small", { text: f.role + " \xB7 " + (f.agents || []).map(function (x) { return CLIENT[x] || x; }).join(", ") + (f.uses !== null && f.uses !== undefined ? " \xB7 " + (f.uses ? f.uses + (f.uses === 1 ? " use" : " uses") : "never used") : "") }),\r
+          f.flags.length ? h("div", null, f.flags.map(function (x) { return h("span", { cls: "flag", title: x.reason + " Suggested: " + x.action + ".", text: x.code }); })) : null),\r
+        h("div", { cls: "kind" }, h("b", { text: k[0] }), k[1]),\r
+        h("div", { cls: "bar" }, h("i", { cls: f.kind === "always" ? "always" : f.kind === "on-demand" ? "od" : "", style: "width:" + Math.max(1.5, w).toFixed(1) + "%" })),\r
+        h("div", { cls: "n" }, f.perSession ? "~" + fmt(f.perSession) : "~" + fmt(f.tokens), h("small", { text: f.perSession ? "per session" : "when read" }))));\r
+    });\r
+    c.appendChild(h("p", { cls: "note" }, "From ", h("code", { text: "snout audit context" }), ", refreshed every few minutes. It archives a file only after you confirm, and every archive can be restored."));\r
+    box.replaceChildren(c);\r
+  }\r
+\r
+  // --- MCP servers ----------------------------------------------------------------------------\r
+\r
+  // MCP servers people connect, with Simple Icons marks (CC0) where one exists. They only identify the server.\r
+  var MCP_ICONS = {\r
+    "github": ["GitHub", "#181717", "M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"],\r
+    "linear": ["Linear", "#5E6AD2", "M2.886 4.18A11.982 11.982 0 0 1 11.99 0C18.624 0 24 5.376 24 12.009c0 3.64-1.62 6.903-4.18 9.105L2.887 4.18ZM1.817 5.626l16.556 16.556c-.524.33-1.075.62-1.65.866L.951 7.277c.247-.575.537-1.126.866-1.65ZM.322 9.163l14.515 14.515c-.71.172-1.443.282-2.195.322L0 11.358a12 12 0 0 1 .322-2.195Zm-.17 4.862 9.823 9.824a12.02 12.02 0 0 1-9.824-9.824Z"],\r
+    "sentry": ["Sentry", "#362D59", "M13.91 2.505c-.873-1.448-2.972-1.448-3.844 0L6.904 7.92a15.478 15.478 0 0 1 8.53 12.811h-2.221A13.301 13.301 0 0 0 5.784 9.814l-2.926 5.06a7.65 7.65 0 0 1 4.435 5.848H2.194a.365.365 0 0 1-.298-.534l1.413-2.402a5.16 5.16 0 0 0-1.614-.913L.296 19.275a2.182 2.182 0 0 0 .812 2.999 2.24 2.24 0 0 0 1.086.288h6.983a9.322 9.322 0 0 0-3.845-8.318l1.11-1.922a11.47 11.47 0 0 1 4.95 10.24h5.915a17.242 17.242 0 0 0-7.885-15.28l2.244-3.845a.37.37 0 0 1 .504-.13c.255.14 9.75 16.708 9.928 16.9a.365.365 0 0 1-.327.543h-2.287c.029.612.029 1.223 0 1.831h2.297a2.206 2.206 0 0 0 1.922-3.31z"],\r
+    "notion": ["Notion", "#000000", "M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z"],\r
+    "figma": ["Figma", "#F24E1E", "M15.852 8.981h-4.588V0h4.588c2.476 0 4.49 2.014 4.49 4.49s-2.014 4.491-4.49 4.491zM12.735 7.51h3.117c1.665 0 3.019-1.355 3.019-3.019s-1.355-3.019-3.019-3.019h-3.117V7.51zm0 1.471H8.148c-2.476 0-4.49-2.014-4.49-4.49S5.672 0 8.148 0h4.588v8.981zm-4.587-7.51c-1.665 0-3.019 1.355-3.019 3.019s1.354 3.02 3.019 3.02h3.117V1.471H8.148zm4.587 15.019H8.148c-2.476 0-4.49-2.014-4.49-4.49s2.014-4.49 4.49-4.49h4.588v8.98zM8.148 8.981c-1.665 0-3.019 1.355-3.019 3.019s1.355 3.019 3.019 3.019h3.117V8.981H8.148zM8.172 24c-2.489 0-4.515-2.014-4.515-4.49s2.014-4.49 4.49-4.49h4.588v4.441c0 2.503-2.047 4.539-4.563 4.539zm-.024-7.51a3.023 3.023 0 0 0-3.019 3.019c0 1.665 1.365 3.019 3.044 3.019 1.705 0 3.093-1.376 3.093-3.068v-2.97H8.148zm7.704 0h-.098c-2.476 0-4.49-2.014-4.49-4.49s2.014-4.49 4.49-4.49h.098c2.476 0 4.49 2.014 4.49 4.49s-2.014 4.49-4.49 4.49zm-.097-7.509c-1.665 0-3.019 1.355-3.019 3.019s1.355 3.019 3.019 3.019h.098c1.665 0 3.019-1.355 3.019-3.019s-1.355-3.019-3.019-3.019h-.098z"],\r
+    "supabase": ["Supabase", "#3FCF8E", "M11.9 1.036c-.015-.986-1.26-1.41-1.874-.637L.764 12.05C-.33 13.427.65 15.455 2.409 15.455h9.579l.113 7.51c.014.985 1.259 1.408 1.873.636l9.262-11.653c1.093-1.375.113-3.403-1.645-3.403h-9.642z"],\r
+    "stripe": ["Stripe", "#635BFF", "M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.594-7.305h.003z"],\r
+    "atlassian": ["Atlassian", "#0052CC", "M7.12 11.084a.683.683 0 00-1.16.126L.075 22.974a.703.703 0 00.63 1.018h8.19a.678.678 0 00.63-.39c1.767-3.65.696-9.203-2.406-12.52zM11.434.386a15.515 15.515 0 00-.906 15.317l3.95 7.9a.703.703 0 00.628.388h8.19a.703.703 0 00.63-1.017L12.63.38a.664.664 0 00-1.196.006z"],\r
+    "postgresql": ["PostgreSQL", "#4169E1", "M23.5594 14.7228a.5269.5269 0 0 0-.0563-.1191c-.139-.2632-.4768-.3418-1.0074-.2321-1.6533.3411-2.2935.1312-2.5256-.0191 1.342-2.0482 2.445-4.522 3.0411-6.8297.2714-1.0507.7982-3.5237.1222-4.7316a1.5641 1.5641 0 0 0-.1509-.235C21.6931.9086 19.8007.0248 17.5099.0005c-1.4947-.0158-2.7705.3461-3.1161.4794a9.449 9.449 0 0 0-.5159-.0816 8.044 8.044 0 0 0-1.3114-.1278c-1.1822-.0184-2.2038.2642-3.0498.8406-.8573-.3211-4.7888-1.645-7.2219.0788C.9359 2.1526.3086 3.8733.4302 6.3043c.0409.818.5069 3.334 1.2423 5.7436.4598 1.5065.9387 2.7019 1.4334 3.582.553.9942 1.1259 1.5933 1.7143 1.7895.4474.1491 1.1327.1441 1.8581-.7279.8012-.9635 1.5903-1.8258 1.9446-2.2069.4351.2355.9064.3625 1.39.3772a.0569.0569 0 0 0 .0004.0041 11.0312 11.0312 0 0 0-.2472.3054c-.3389.4302-.4094.5197-1.5002.7443-.3102.064-1.1344.2339-1.1464.8115-.0025.1224.0329.2309.0919.3268.2269.4231.9216.6097 1.015.6331 1.3345.3335 2.5044.092 3.3714-.6787-.017 2.231.0775 4.4174.3454 5.0874.2212.5529.7618 1.9045 2.4692 1.9043.2505 0 .5263-.0291.8296-.0941 1.7819-.3821 2.5557-1.1696 2.855-2.9059.1503-.8707.4016-2.8753.5388-4.1012.0169-.0703.0357-.1207.057-.1362.0007-.0005.0697-.0471.4272.0307a.3673.3673 0 0 0 .0443.0068l.2539.0223.0149.001c.8468.0384 1.9114-.1426 2.5312-.4308.6438-.2988 1.8057-1.0323 1.5951-1.6698zM2.371 11.8765c-.7435-2.4358-1.1779-4.8851-1.2123-5.5719-.1086-2.1714.4171-3.6829 1.5623-4.4927 1.8367-1.2986 4.8398-.5408 6.108-.13-.0032.0032-.0066.0061-.0098.0094-2.0238 2.044-1.9758 5.536-1.9708 5.7495-.0002.0823.0066.1989.0162.3593.0348.5873.0996 1.6804-.0735 2.9184-.1609 1.1504.1937 2.2764.9728 3.0892.0806.0841.1648.1631.2518.2374-.3468.3714-1.1004 1.1926-1.9025 2.1576-.5677.6825-.9597.5517-1.0886.5087-.3919-.1307-.813-.5871-1.2381-1.3223-.4796-.839-.9635-2.0317-1.4155-3.5126zm6.0072 5.0871c-.1711-.0428-.3271-.1132-.4322-.1772.0889-.0394.2374-.0902.4833-.1409 1.2833-.2641 1.4815-.4506 1.9143-1.0002.0992-.126.2116-.2687.3673-.4426a.3549.3549 0 0 0 .0737-.1298c.1708-.1513.2724-.1099.4369-.0417.156.0646.3078.26.3695.4752.0291.1016.0619.2945-.0452.4444-.9043 1.2658-2.2216 1.2494-3.1676 1.0128zm2.094-3.988-.0525.141c-.133.3566-.2567.6881-.3334 1.003-.6674-.0021-1.3168-.2872-1.8105-.8024-.6279-.6551-.9131-1.5664-.7825-2.5004.1828-1.3079.1153-2.4468.079-3.0586-.005-.0857-.0095-.1607-.0122-.2199.2957-.2621 1.6659-.9962 2.6429-.7724.4459.1022.7176.4057.8305.928.5846 2.7038.0774 3.8307-.3302 4.7363-.084.1866-.1633.3629-.2311.5454zm7.3637 4.5725c-.0169.1768-.0358.376-.0618.5959l-.146.4383a.3547.3547 0 0 0-.0182.1077c-.0059.4747-.054.6489-.115.8693-.0634.2292-.1353.4891-.1794 1.0575-.11 1.4143-.8782 2.2267-2.4172 2.5565-1.5155.3251-1.7843-.4968-2.0212-1.2217a6.5824 6.5824 0 0 0-.0769-.2266c-.2154-.5858-.1911-1.4119-.1574-2.5551.0165-.5612-.0249-1.9013-.3302-2.6462.0044-.2932.0106-.5909.019-.8918a.3529.3529 0 0 0-.0153-.1126 1.4927 1.4927 0 0 0-.0439-.208c-.1226-.4283-.4213-.7866-.7797-.9351-.1424-.059-.4038-.1672-.7178-.0869.067-.276.1831-.5875.309-.9249l.0529-.142c.0595-.16.134-.3257.213-.5012.4265-.9476 1.0106-2.2453.3766-5.1772-.2374-1.0981-1.0304-1.6343-2.2324-1.5098-.7207.0746-1.3799.3654-1.7088.5321a5.6716 5.6716 0 0 0-.1958.1041c.0918-1.1064.4386-3.1741 1.7357-4.4823a4.0306 4.0306 0 0 1 .3033-.276.3532.3532 0 0 0 .1447-.0644c.7524-.5706 1.6945-.8506 2.802-.8325.4091.0067.8017.0339 1.1742.081 1.939.3544 3.2439 1.4468 4.0359 2.3827.8143.9623 1.2552 1.9315 1.4312 2.4543-1.3232-.1346-2.2234.1268-2.6797.779-.9926 1.4189.543 4.1729 1.2811 5.4964.1353.2426.2522.4522.2889.5413.2403.5825.5515.9713.7787 1.2552.0696.087.1372.1714.1885.245-.4008.1155-1.1208.3825-1.0552 1.717-.0123.1563-.0423.4469-.0834.8148-.0461.2077-.0702.4603-.0994.7662zm.8905-1.6211c-.0405-.8316.2691-.9185.5967-1.0105a2.8566 2.8566 0 0 0 .135-.0406 1.202 1.202 0 0 0 .1342.103c.5703.3765 1.5823.4213 3.0068.1344-.2016.1769-.5189.3994-.9533.6011-.4098.1903-1.0957.333-1.7473.3636-.7197.0336-1.0859-.0807-1.1721-.151zm.5695-9.2712c-.0059.3508-.0542.6692-.1054 1.0017-.055.3576-.112.7274-.1264 1.1762-.0142.4368.0404.8909.0932 1.3301.1066.887.216 1.8003-.2075 2.7014a3.5272 3.5272 0 0 1-.1876-.3856c-.0527-.1276-.1669-.3326-.3251-.6162-.6156-1.1041-2.0574-3.6896-1.3193-4.7446.3795-.5427 1.3408-.5661 2.1781-.463zm.2284 7.0137a12.3762 12.3762 0 0 0-.0853-.1074l-.0355-.0444c.7262-1.1995.5842-2.3862.4578-3.4385-.0519-.4318-.1009-.8396-.0885-1.2226.0129-.4061.0666-.7543.1185-1.0911.0639-.415.1288-.8443.1109-1.3505.0134-.0531.0188-.1158.0118-.1902-.0457-.4855-.5999-1.938-1.7294-3.253-.6076-.7073-1.4896-1.4972-2.6889-2.0395.5251-.1066 1.2328-.2035 2.0244-.1859 2.0515.0456 3.6746.8135 4.8242 2.2824a.908.908 0 0 1 .0667.1002c.7231 1.3556-.2762 6.2751-2.9867 10.5405zm-8.8166-6.1162c-.025.1794-.3089.4225-.6211.4225a.5821.5821 0 0 1-.0809-.0056c-.1873-.026-.3765-.144-.5059-.3156-.0458-.0605-.1203-.178-.1055-.2844.0055-.0401.0261-.0985.0925-.1488.1182-.0894.3518-.1226.6096-.0867.3163.0441.6426.1938.6113.4186zm7.9305-.4114c.0111.0792-.049.201-.1531.3102-.0683.0717-.212.1961-.4079.2232a.5456.5456 0 0 1-.075.0052c-.2935 0-.5414-.2344-.5607-.3717-.024-.1765.2641-.3106.5611-.352.297-.0414.6111.0088.6356.1851z"],\r
+    "vercel": ["Vercel", "#000000", "m12 1.608 12 20.784H0Z"],\r
+    "cloudflare": ["Cloudflare", "#F38020", "M16.5088 16.8447c.1475-.5068.0908-.9707-.1553-1.3154-.2246-.3164-.6045-.499-1.0615-.5205l-8.6592-.1123a.1559.1559 0 0 1-.1333-.0713c-.0283-.042-.0351-.0986-.021-.1553.0278-.084.1123-.1484.2036-.1562l8.7359-.1123c1.0351-.0489 2.1601-.8868 2.5537-1.9136l.499-1.3013c.0215-.0561.0293-.1128.0147-.168-.5625-2.5463-2.835-4.4453-5.5499-4.4453-2.5039 0-4.6284 1.6177-5.3876 3.8614-.4927-.3658-1.1187-.5625-1.794-.499-1.2026.119-2.1665 1.083-2.2861 2.2856-.0283.31-.0069.6128.0635.894C1.5683 13.171 0 14.7754 0 16.752c0 .1748.0142.3515.0352.5273.0141.083.0844.1475.1689.1475h15.9814c.0909 0 .1758-.0645.2032-.1553l.12-.4268zm2.7568-5.5634c-.0771 0-.1611 0-.2383.0112-.0566 0-.1054.0415-.127.0976l-.3378 1.1744c-.1475.5068-.0918.9707.1543 1.3164.2256.3164.6055.498 1.0625.5195l1.8437.1133c.0557 0 .1055.0263.1329.0703.0283.043.0351.1074.0214.1562-.0283.084-.1132.1485-.204.1553l-1.921.1123c-1.041.0488-2.1582.8867-2.5527 1.914l-.1406.3585c-.0283.0713.0215.1416.0986.1416h6.5977c.0771 0 .1474-.0489.169-.126.1122-.4082.1757-.837.1757-1.2803 0-2.6025-2.125-4.727-4.7344-4.727"],\r
+    "googledrive": ["Google Drive", "#4285F4", "M12.01 1.485c-2.082 0-3.754.02-3.743.047.01.02 1.708 3.001 3.774 6.62l3.76 6.574h3.76c2.081 0 3.753-.02 3.742-.047-.005-.02-1.708-3.001-3.775-6.62l-3.76-6.574zm-4.76 1.73a789.828 789.861 0 0 0-3.63 6.319L0 15.868l1.89 3.298 1.885 3.297 3.62-6.335 3.618-6.33-1.88-3.287C8.1 4.704 7.255 3.22 7.25 3.214zm2.259 12.653-.203.348c-.114.198-.96 1.672-1.88 3.287a423.93 423.948 0 0 1-1.698 2.97c-.01.026 3.24.042 7.222.042h7.244l1.796-3.157c.992-1.734 1.85-3.23 1.906-3.323l.104-.167h-7.249z"],\r
+    "mongodb": ["MongoDB", "#47A248", "M17.193 9.555c-1.264-5.58-4.252-7.414-4.573-8.115-.28-.394-.53-.954-.735-1.44-.036.495-.055.685-.523 1.184-.723.566-4.438 3.682-4.74 10.02-.282 5.912 4.27 9.435 4.888 9.884l.07.05A73.49 73.49 0 0111.91 24h.481c.114-1.032.284-2.056.51-3.07.417-.296.604-.463.85-.693a11.342 11.342 0 003.639-8.464c.01-.814-.103-1.662-.197-2.218zm-5.336 8.195s0-8.291.275-8.29c.213 0 .49 10.695.49 10.695-.381-.045-.765-1.76-.765-2.405z"],\r
+    "gitlab": ["GitLab", "#FC6D26", "m23.6004 9.5927-.0337-.0862L20.3.9814a.851.851 0 0 0-.3362-.405.8748.8748 0 0 0-.9997.0539.8748.8748 0 0 0-.29.4399l-2.2055 6.748H7.5375l-2.2057-6.748a.8573.8573 0 0 0-.29-.4412.8748.8748 0 0 0-.9997-.0537.8585.8585 0 0 0-.3362.4049L.4332 9.5015l-.0325.0862a6.0657 6.0657 0 0 0 2.0119 7.0105l.0113.0087.03.0213 4.976 3.7264 2.462 1.8633 1.4995 1.1321a1.0085 1.0085 0 0 0 1.2197 0l1.4995-1.1321 2.4619-1.8633 5.006-3.7489.0125-.01a6.0682 6.0682 0 0 0 2.0094-7.003z"],\r
+    "asana": ["Asana", "#F06A6A", "M18.78 12.653c-2.882 0-5.22 2.336-5.22 5.22s2.338 5.22 5.22 5.22 5.22-2.34 5.22-5.22-2.336-5.22-5.22-5.22zm-13.56 0c-2.88 0-5.22 2.337-5.22 5.22s2.338 5.22 5.22 5.22 5.22-2.338 5.22-5.22-2.336-5.22-5.22-5.22zm12-6.525c0 2.883-2.337 5.22-5.22 5.22-2.882 0-5.22-2.337-5.22-5.22 0-2.88 2.338-5.22 5.22-5.22 2.883 0 5.22 2.34 5.22 5.22z"],\r
+    "airtable": ["Airtable", "#18BFFF", "M11.992 1.966c-.434 0-.87.086-1.28.257L1.779 5.917c-.503.208-.49.908.012 1.116l8.982 3.558a3.266 3.266 0 0 0 2.454 0l8.982-3.558c.503-.196.503-.908.012-1.116l-8.957-3.694a3.255 3.255 0 0 0-1.272-.257zM23.4 8.056a.589.589 0 0 0-.222.045l-10.012 3.877a.612.612 0 0 0-.38.564v8.896a.6.6 0 0 0 .821.552L23.62 18.1a.583.583 0 0 0 .38-.551V8.653a.6.6 0 0 0-.6-.596zM.676 8.095a.644.644 0 0 0-.48.19C.086 8.396 0 8.53 0 8.69v8.355c0 .442.515.737.908.54l6.27-3.006.307-.147 2.969-1.436c.466-.22.43-.908-.061-1.092L.883 8.138a.57.57 0 0 0-.207-.044z"],\r
+    "hubspot": ["HubSpot", "#FF7A59", "M18.164 7.93V5.084a2.198 2.198 0 001.267-1.978v-.067A2.2 2.2 0 0017.238.845h-.067a2.2 2.2 0 00-2.193 2.193v.067a2.196 2.196 0 001.252 1.973l.013.006v2.852a6.22 6.22 0 00-2.969 1.31l.012-.01-7.828-6.095A2.497 2.497 0 104.3 4.656l-.012.006 7.697 5.991a6.176 6.176 0 00-1.038 3.446c0 1.343.425 2.588 1.147 3.607l-.013-.02-2.342 2.343a1.968 1.968 0 00-.58-.095h-.002a2.033 2.033 0 102.033 2.033 1.978 1.978 0 00-.1-.595l.005.014 2.317-2.317a6.247 6.247 0 104.782-11.134l-.036-.005zm-.964 9.378a3.206 3.206 0 113.215-3.207v.002a3.206 3.206 0 01-3.207 3.207z"],\r
+    "shopify": ["Shopify", "#7AB55C", "M15.337 23.979l7.216-1.561s-2.604-17.613-2.625-17.73c-.018-.116-.114-.192-.211-.192s-1.929-.136-1.929-.136-1.275-1.274-1.439-1.411c-.045-.037-.075-.057-.121-.074l-.914 21.104h.023zM11.71 11.305s-.81-.424-1.774-.424c-1.447 0-1.504.906-1.504 1.141 0 1.232 3.24 1.715 3.24 4.629 0 2.295-1.44 3.76-3.406 3.76-2.354 0-3.54-1.465-3.54-1.465l.646-2.086s1.245 1.066 2.28 1.066c.675 0 .975-.545.975-.932 0-1.619-2.654-1.694-2.654-4.359-.034-2.237 1.571-4.416 4.827-4.416 1.257 0 1.875.361 1.875.361l-.945 2.715-.02.01zM11.17.83c.136 0 .271.038.405.135-.984.465-2.064 1.639-2.508 3.992-.656.213-1.293.405-1.889.578C7.697 3.75 8.951.84 11.17.84V.83zm1.235 2.949v.135c-.754.232-1.583.484-2.394.736.466-1.777 1.333-2.645 2.085-2.971.193.501.309 1.176.309 2.1zm.539-2.234c.694.074 1.141.867 1.429 1.755-.349.114-.735.231-1.158.366v-.252c0-.752-.096-1.371-.271-1.871v.002zm2.992 1.289c-.02 0-.06.021-.078.021s-.289.075-.714.21c-.423-1.233-1.176-2.37-2.508-2.37h-.115C12.135.209 11.669 0 11.265 0 8.159 0 6.675 3.877 6.21 5.846c-1.194.365-2.063.636-2.16.674-.675.213-.694.232-.772.87-.075.462-1.83 14.063-1.83 14.063L15.009 24l.927-21.166z"],\r
+    "playwright": ["Playwright", "#2EAD33", null],\r
+    "slack": ["Slack", "#4A154B", null],\r
+    "context7": ["Context7", "#0F766E", null],\r
+    "puppeteer": ["Puppeteer", "#40B5A4", null],\r
+    "filesystem": ["Filesystem", "#57534E", null],\r
+  };\r
+  var MCP_ALIAS = { postgres: "postgresql", gdrive: "googledrive", googledocs: "googledrive", jira: "atlassian", confluence: "atlassian", ctx7: "context7" };\r
+  var MCP_BLOAT = { github: "PR diffs, issue and file lists", linear: "issue lists and comments", sentry: "events and stack traces", notion: "pages and database rows", figma: "design node trees",\r
+    supabase: "query results and logs", stripe: "API objects", atlassian: "Jira issues, Confluence pages", postgresql: "query results", vercel: "build and deploy logs", cloudflare: "logs and configs",\r
+    googledrive: "documents", mongodb: "query results", gitlab: "MR diffs and pipelines", asana: "task lists", airtable: "records", hubspot: "CRM records", shopify: "store data",\r
+    playwright: "page snapshots", slack: "channel history", context7: "library docs", puppeteer: "page content", filesystem: "file listings" };\r
+  var MCP_GALLERY = ["github", "linear", "sentry", "playwright", "notion", "figma", "supabase", "atlassian", "slack", "stripe", "postgresql", "vercel", "cloudflare", "gitlab", "googledrive", "mongodb", "context7", "asana", "airtable", "hubspot", "shopify"];\r
+  function mcpKey(name) {\r
+    var n = String(name || "").toLowerCase().replace(/[^a-z0-9]/g, "");\r
+    if (MCP_ICONS[n]) return n;\r
+    if (MCP_ALIAS[n]) return MCP_ALIAS[n];\r
+    for (var k in MCP_ICONS) if (n.indexOf(k) >= 0) return k;\r
+    for (var a in MCP_ALIAS) if (n.indexOf(a) >= 0) return MCP_ALIAS[a];\r
+    return null;\r
+  }\r
+  function mcpTitle(name) { var k = mcpKey(name); return k ? MCP_ICONS[k][0] : String(name || "MCP").replace(/[-_]+/g, " ").replace(/^./, function (c) { return c.toUpperCase(); }); }\r
+  function mcpLogo(name, live) {\r
+    var k = mcpKey(name), info = k && MCP_ICONS[k];\r
+    var color = info ? info[1] : "#6b6d65";\r
+    if (color === "#000000" || color === "#181717") color = "#1a1418";\r
+    var box = h("span", { cls: "mlogo" + (live ? " live" : ""), style: "--b:" + color, "aria-hidden": "true" });\r
+    if (info && info[2]) { var svg = s("svg", { viewBox: "0 0 24 24" }); svg.appendChild(s("path", { d: info[2], fill: "currentColor" })); box.appendChild(svg); }\r
+    else box.appendChild(h("b", { text: k === "context7" ? "C7" : (info ? info[0] : String(name || "?")).slice(0, 1).toUpperCase() }));\r
+    return box;\r
+  }\r
+  function recOf(x) {\r
+    var share = x.asked ? x.heldBack / x.asked : 0;\r
+    if (x.after > 8000) return { tone: "warn", text: "~" + fmt(x.after) + " tokens a call still reach the agent. Ask it for fewer fields or smaller pages." };\r
+    if (share >= 0.4) return { tone: "ok", text: "Snout trims " + Math.round(share * 100) + "% of every result. Nothing to change." };\r
+    if (x.per < 1500) return { tone: "", text: "Results are small (~" + fmt(x.per) + " a call), so Snout leaves them whole." };\r
+    return { tone: "warn", text: "Mostly read whole (" + Math.round(share * 100) + "% trimmed). Narrower queries would save more." };\r
+  }\r
+  function renderMcp(v) {\r
+    var d = v.d, box = $("mcp-box");\r
+    var live = {};\r
+    (d.recent || []).forEach(function (r) { if (r.tool && r.tool.indexOf("mcp__") === 0 && Date.now() - Date.parse(r.ts) < 10 * 60 * 1000) live[r.tool.split("__")[1]] = 1; });\r
+    var list = (d.byMcpServer || []).map(function (x) {\r
+      var asked = x.inContext + x.heldBack;\r
+      return { key: x.key, name: mcpTitle(x.key), calls: x.reads, inContext: x.inContext, heldBack: x.heldBack, asked: asked, per: x.reads ? asked / x.reads : 0, after: x.reads ? x.inContext / x.reads : 0, live: !!live[x.key] };\r
+    }).sort(function (a, b) { return b.asked - a.asked; });\r
+    var used = {}; list.forEach(function (x) { used[x.key] = 1; });\r
+    var idle = (d.mcpConfig || []).filter(function (c) { return c.calls === 0 && !used[c.name]; });\r
+    var held = 0, asked = 0; list.forEach(function (x) { held += x.heldBack; asked += x.asked; });\r
+    var c = h("div", { cls: "card" }, h("div", { cls: "card-h" }, h("div", null, h("h2", { text: "MCP servers" }),\r
+      h("p", { text: list.length ? list.length + (list.length === 1 ? " server" : " servers") + " sent results \xB7 ~" + fmt(held) + " tokens kept out, " + pct(held, asked) + "% of what they returned" : "Results from every MCP server your agents use, and what Snout trimmed" }))));\r
+    var grid = h("div", { cls: "mcp-grid" });\r
+    list.forEach(function (x, i) {\r
+      var r = recOf(x), max = x.per || 1;\r
+      grid.appendChild(h("div", { cls: "mtile" + (state.first ? " pop" : ""), style: "--d:" + (i * 0.05).toFixed(2) + "s" },\r
+        h("div", { cls: "mtile-h" }, mcpLogo(x.key, x.live), h("div", { style: "min-width:0" }, h("div", { cls: "nm", text: x.name }), h("div", { cls: "sub", text: x.calls.toLocaleString() + (x.calls === 1 ? " call \xB7 " : " calls \xB7 ") + (MCP_BLOAT[mcpKey(x.key)] || "tool results") })), x.live ? h("span", { cls: "live-tag", text: "LIVE" }) : null),\r
+        h("div", { cls: "big num" }, x.heldBack ? "~" + fmt(x.heldBack) : "0", h("small", { text: x.heldBack ? "kept out \xB7 \u2212" + pct(x.heldBack, x.asked) + "%" : "kept out" })),\r
+        h("div", { cls: "wbars", title: "Tokens per call" }, h("span", { text: "Without" }), h("i", { style: "width:100%;background:var(--without)" }), h("span", { cls: "n", text: fmt(x.per) }),\r
+          h("span", { text: "With Snout" }), h("i", { style: "width:" + Math.max(2, (x.after / max) * 100) + "%;background:var(--ink)" }), h("span", { cls: "n", text: fmt(x.after) })),\r
+        h("div", { cls: "rec " + r.tone }, h("i", { text: r.tone === "ok" ? "\u2713" : r.tone === "warn" ? "!" : "i" }), h("span", { text: r.text }))));\r
+    });\r
+    idle.forEach(function (x) {\r
+      grid.appendChild(h("div", { cls: "mtile" }, h("div", { cls: "mtile-h" }, mcpLogo(x.name), h("div", { style: "min-width:0" }, h("div", { cls: "nm", text: mcpTitle(x.name) }), h("div", { cls: "sub", text: x.source }))),\r
+        h("div", { cls: "big num", style: "color:var(--ink)" }, "0", h("small", { text: "calls in 30 days" })),\r
+        h("div", { cls: "rec warn" }, h("i", { text: "!" }), h("span", null, "Never called, but its tool list rides along on every request. ", h("code", { text: "snout audit" }), " shows how to turn it off."))));\r
+    });\r
+    if (!list.length && !idle.length) c.appendChild(h("div", { cls: "none", text: "No MCP calls yet. Results from every MCP server your agents use show up here." }));\r
+    else c.appendChild(grid);\r
+    var seen = {}; list.forEach(function (x) { var k = mcpKey(x.key); if (k) seen[k] = 1; }); (d.mcpConfig || []).forEach(function (x) { var k = mcpKey(x.name); if (k) seen[k] = 1; });\r
+    c.appendChild(h("h3", { style: "margin:22px 0 0", text: "Works with any MCP server" }));\r
+    c.appendChild(h("div", { cls: "gallery" }, MCP_GALLERY.map(function (k) {\r
+      return h("span", { cls: "gal-i" + (seen[k] ? " seen" : ""), title: (seen[k] ? "Connected here" : "Not connected") + " \xB7 typical bloat: " + MCP_BLOAT[k] }, mcpLogo(k), MCP_ICONS[k][0]);\r
+    })));\r
+    box.replaceChildren(c);\r
+  }\r
+\r
+  // --- Spend tab --------------------------------------------------------------------------\r
+\r
+  function renderSpend(v) {\r
+    var sp = v.sp;\r
+    var svg = $("bars"), tip = $("bars-tip");\r
+    svg.replaceChildren();\r
+    if (!sp) {\r
+      $("sp-total").textContent = "\u2014"; $("sp-meta").textContent = "No Claude Code or Codex usage found for this project yet.";\r
+      $("kinds").replaceChildren(h("div", { cls: "none", text: "Appears after the first session." }));\r
+      tableOf($("sp-models"), [], [], "No spend yet.");\r
+      return;\r
+    }\r
+    $("bars-p").textContent = "Last " + sp.days + " days \xB7 API list prices of " + sp.pricesAsOf;\r
+    $("sp-total").textContent = usd(sp.costUsd);\r
+    $("sp-meta").textContent = sp.requests.toLocaleString() + " requests \xB7 " + fmt(sp.tokens) + " tokens";\r
+    var byDay = {}; sp.series.forEach(function (r) { byDay[r.day] = r; });\r
+    var list = lastDays(sp.days, byDay, function (k) { return { day: k, costUsd: 0, tokens: 0 }; });\r
+    var W = Math.max(280, svg.clientWidth || 600), H = 160, B = 18;\r
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);\r
+    var top = 0; list.forEach(function (r) { top = Math.max(top, r.costUsd); });\r
+    var bw = W / list.length;\r
+    list.forEach(function (r, i) {\r
+      var hgt = top ? (r.costUsd / top) * (H - B - 6) : 0;\r
+      var rect = s("rect", { cls: "b", class: "b" + (i === list.length - 1 ? " today" : ""), x: i * bw + 1.5, y: H - B - hgt, width: Math.max(1, bw - 3), height: Math.max(hgt, r.costUsd ? 1.5 : 0), rx: 2 });\r
+      rect.addEventListener("mousemove", function () {\r
+        var rb = svg.getBoundingClientRect();\r
+        tip.replaceChildren(h("b", { text: dayName(r.day) }), h("br"), usd(r.costUsd) + " \xB7 " + fmt(r.tokens) + " tokens");\r
+        tip.style.left = ((i + 0.5) * bw / W) * rb.width + "px"; tip.style.top = ((H - B - hgt) / H) * rb.height - 6 + "px"; tip.style.opacity = 1;\r
+      });\r
+      rect.addEventListener("mouseleave", function () { tip.style.opacity = 0; });\r
+      svg.appendChild(rect);\r
+    });\r
+    [0, Math.floor(list.length / 2), list.length - 1].forEach(function (i) {\r
+      var t = s("text", { x: i === 0 ? 0 : i === list.length - 1 ? W : (i + 0.5) * bw, y: H - 3, "text-anchor": i === 0 ? "start" : i === list.length - 1 ? "end" : "middle" });\r
+      t.textContent = i === list.length - 1 ? "Today" : dayName(list[i].day); svg.appendChild(t);\r
+    });\r
+\r
+    var uncached = Math.max(0, sp.input), kinds = [\r
+      ["Input", uncached, "var(--ink)"], ["Cache writes", sp.cacheWrite, "#8a8a93"], ["Cache reads", sp.cacheRead, "var(--bar-in)"], ["Output", sp.output, "var(--accent)"],\r
+    ];\r
+    var total = kinds.reduce(function (a, k) { return a + k[1]; }, 0) || 1;\r
+    var split = h("div", { cls: "split" }); kinds.forEach(function (k) { if (k[1]) split.appendChild(h("i", { style: "--c:" + k[2] + ";flex:" + k[1] })); });\r
+    var kv = h("dl", { cls: "kv" });\r
+    kinds.forEach(function (k) { kv.appendChild(h("dt", { style: "--c:" + k[2] }, h("i"), k[0])); kv.appendChild(h("dd", { text: fmt(k[1]) + " \xB7 " + pct(k[1], total) + "%" })); });\r
+    var notes = [];\r
+    if (sp.cacheRead) notes.push("Cache reads bill at about a tenth of the input price, so most of the volume costs little.");\r
+    if (sp.unpriced.length) notes.push("No list price for " + sp.unpriced.join(", ") + ", so it isn't in the totals.");\r
+    notes.push("On a Claude or ChatGPT subscription, this is what the same work would cost on the API.");\r
+    $("kinds").replaceChildren(split, kv, h("p", { cls: "none", style: "margin-top:10px", text: notes.join(" ") }));\r
+\r
+    $("sp-models-p").textContent = "Last " + sp.days + " days";\r
+    tableOf($("sp-models"), [["Model"], ["Agent", "hide-sm"], ["Requests", "n"], ["Tokens", "n hide-sm"], ["Cost", "n"], ["Share", "n"]], v.models.map(function (m) {\r
+      return h("tr", null,\r
+        h("td", null, h("span", { cls: "who", style: "--c:" + m.color }, modelLogo(m.key, true), h("i", { cls: "dot" }), h("span", { text: m.label }))),\r
+        h("td", { cls: "hide-sm", text: m.client ? CLIENT[m.client] || m.client : "" }),\r
+        h("td", { cls: "n", text: (sp.byModel.filter(function (x) { return x.key === m.key; })[0] || { requests: 0 }).requests.toLocaleString() }),\r
+        h("td", { cls: "n hide-sm", text: fmt((sp.byModel.filter(function (x) { return x.key === m.key; })[0] || { tokens: 0 }).tokens) }),\r
+        h("td", { cls: "n", text: usd(m.cost30) }), h("td", { cls: "n strong", text: (m.share * 100).toFixed(1) + "%" }));\r
+    }), "No spend yet.");\r
+  }\r
+\r
+  function renderAbout(v) {\r
+    var m = v.d.meta || {};\r
+    $("about").textContent = "Snout " + (m.version || "") + " \xB7 project " + (m.project || "") + " \xB7 " + v.d.reads.toLocaleString() + " reads classified, p50 " + v.d.latency.p50 + " ms, p95 " + v.d.latency.p95 + " ms per decision. Everything on this page is computed on your machine.";\r
+  }\r
+\r
+  function render(d) {\r
+    state.data = d;\r
+    var v = view(d);\r
+    renderHead(v);\r
+    renderBand(v);\r
+    renderModels(v);\r
+    renderToday(v);\r
+    renderFeed(v);\r
+    renderTrend(v);\r
+    renderCost(v);\r
+    renderMix(v);\r
+    renderContext(v);\r
+    renderAgentFiles(v);\r
+    renderMcp(v);\r
+    if (state.tab === "overview") renderRepo(v);\r
+    if (state.tab === "spend" || state.first) renderSpend(v);\r
+    renderAbout(v);\r
+    state.first = false;\r
+  }\r
+\r
+  // --- tabs, live connection ----------------------------------------------------------------\r
+\r
+  function showTab(tab) {\r
+    state.tab = tab;\r
+    [].forEach.call(document.querySelectorAll(".tab"), function (b) { b.setAttribute("aria-selected", String(b.getAttribute("data-tab") === tab)); });\r
+    [].forEach.call(document.querySelectorAll("[data-view]"), function (sec) { sec.hidden = sec.getAttribute("data-view") !== tab; });\r
+    $("title").textContent = { overview: "Dashboard", context: "Context", spend: "Spend", settings: "Settings" }[tab];\r
+    if (history.replaceState) history.replaceState(null, "", tab === "overview" ? location.pathname + location.search : "#" + tab);\r
+    if (state.data) { var v = view(state.data); if (tab === "spend") renderSpend(v); if (tab === "overview") { renderTrend(v); renderRepo(v); } }\r
+  }\r
+  [].forEach.call(document.querySelectorAll(".tab"), function (b) { b.addEventListener("click", function () { showTab(b.getAttribute("data-tab")); window.scrollTo(0, 0); }); });\r
+  [].forEach.call(document.querySelectorAll("[data-go]"), function (b) { b.addEventListener("click", function () { showTab(b.getAttribute("data-go")); window.scrollTo(0, 0); }); });\r
+  ["modeSwitch", "modeSwitch2"].forEach(function (id) {\r
+    [].forEach.call($(id).querySelectorAll("button"), function (b) {\r
+      b.addEventListener("click", function () { if (!b.classList.contains("on")) act({ type: "mode", value: b.getAttribute("data-mode") }); });\r
+    });\r
+  });\r
+  [].forEach.call($("coachSwitch").querySelectorAll("button"), function (b) {\r
+    b.addEventListener("click", function () { if (!b.classList.contains("on")) act({ type: "coach", value: b.getAttribute("data-coach") }); });\r
+  });\r
+\r
+  var es = null, poll = null;\r
+  function setLive(ok, text) { $("live").className = "live" + (ok ? " on" : ""); $("live-t").textContent = text; }\r
+  function query() { return state.session ? "?session=" + encodeURIComponent(state.session) : ""; }\r
+  function open() {\r
+    if (es) es.close();\r
+    if (poll) { clearInterval(poll); poll = null; }\r
+    state.seen = null;\r
+    if (!window.EventSource) return startPolling();\r
+    es = new EventSource("/events" + query());\r
+    es.addEventListener("summary", function (ev) { setLive(true, "Live"); render(JSON.parse(ev.data)); });\r
+    es.onopen = function () { setLive(true, "Live"); };\r
+    es.onerror = function () { setLive(false, "Reconnecting"); };\r
+  }\r
+  function startPolling() {\r
+    function tick() { fetch("/api/summary" + query()).then(function (r) { return r.json(); }).then(function (d) { setLive(true, "Live"); render(d); }, function () { setLive(false, "Offline"); }); }\r
+    tick(); poll = setInterval(tick, 3000);\r
+  }\r
+  $("session").addEventListener("change", function () { state.session = this.value; open(); });\r
+  var rt = 0;\r
+  window.addEventListener("resize", function () { clearTimeout(rt); rt = setTimeout(function () { if (state.data) { var v = view(state.data); renderTrend(v); if (state.tab === "overview") renderRepo(v); if (state.tab === "spend") renderSpend(v); } }, 120); });\r
+  setInterval(function () { document.querySelectorAll("[data-ts]").forEach(function (el) { el.textContent = ago(el.getAttribute("data-ts")); }); }, 15000);\r
+  var start = (location.hash || "").slice(1);\r
+  if (["context", "spend", "settings"].indexOf(start) >= 0) showTab(start);\r
+  open();\r
+})();\r
+</script>\r
+</body>\r
+</html>\r
 `;
 
 // src/dashboard/page.ts
@@ -5337,168 +5330,10 @@ function summarizeSpend(rows, sinceDay = "", now = /* @__PURE__ */ new Date()) {
   return s;
 }
 
-// src/cloud/client.ts
-import { createHash as createHash2 } from "node:crypto";
-import { chmodSync, existsSync as existsSync10, mkdirSync as mkdirSync6, readFileSync as readFileSync9, rmSync, writeFileSync as writeFileSync4 } from "node:fs";
-import { homedir as homedir4 } from "node:os";
-import { basename as basename3, dirname as dirname7, join as join11 } from "node:path";
-import { spawnSync } from "node:child_process";
-var DEFAULT_CLOUD_URL = "https://app.usesnout.xyz";
-var SYNC_DAYS = 35;
-var AUTO_SYNC_MS = 60 * 1e3;
-var RECENT_DAYS = 2;
-var FULL_SYNC_MS = 60 * 60 * 1e3;
-var AGENT_SYNC_MS = 60 * 1e3;
-function configDir() {
-  if (process.env.SNOUT_CONFIG_DIR) return process.env.SNOUT_CONFIG_DIR;
-  if (process.platform === "win32" && process.env.APPDATA) return join11(process.env.APPDATA, "snout");
-  return join11(process.env.XDG_CONFIG_HOME || join11(homedir4(), ".config"), "snout");
-}
-var credsPath = () => join11(configDir(), "cloud.json");
-function loadCredentials() {
-  const env = process.env.SNOUT_TOKEN;
-  if (env && env.startsWith("snt_")) return { url: cloudUrl(), token: env, user: "agent", team: "workspace" };
-  try {
-    const c = JSON.parse(readFileSync9(credsPath(), "utf8"));
-    return c.url && c.token ? c : null;
-  } catch {
-    return null;
-  }
-}
-function saveCredentials(c) {
-  const p = credsPath();
-  mkdirSync6(dirname7(p), { recursive: true });
-  writeFileSync4(p, JSON.stringify(c, null, 2) + "\n", { mode: 384 });
-  try {
-    chmodSync(p, 384);
-  } catch {
-  }
-}
-function forgetCredentials() {
-  if (!existsSync10(credsPath())) return false;
-  rmSync(credsPath());
-  return true;
-}
-function cloudUrl(flag) {
-  return (flag || process.env.SNOUT_CLOUD_URL || DEFAULT_CLOUD_URL).replace(/\/+$/, "");
-}
-function sessionOf(paths) {
-  try {
-    const s = JSON.parse(readFileSync9(join11(paths.snoutDir, "state.json"), "utf8"));
-    return typeof s.session === "string" && s.session ? s.session : null;
-  } catch {
-    return null;
-  }
-}
-function projectKey(projectDir) {
-  const r = spawnSync("git", ["config", "--get", "remote.origin.url"], { cwd: projectDir, encoding: "utf8", timeout: 3e3 });
-  const remote = r.status === 0 ? r.stdout.trim() : "";
-  const norm = remote ? remote.replace(/^[a-z+]+:\/\/([^@/]*@)?/i, "").replace(/^[^@/]*@/, "").replace(":", "/").replace(/\.git$/, "").toLowerCase() : projectDir;
-  return createHash2("sha256").update(norm).digest("hex").slice(0, 24);
-}
-function buildPayload(paths, version, now = /* @__PURE__ */ new Date(), days = SYNC_DAYS) {
-  const since = new Date(now.getTime() - (days - 1) * 864e5).toISOString().slice(0, 10);
-  return {
-    v: 1,
-    snout: version,
-    project: { key: projectKey(paths.projectDir), name: basename3(paths.projectDir).slice(0, 80) },
-    days: dailyAggregates(readDecisions(paths.ledger, 2e4), since),
-    ...sessionOf(paths) ? { run: createHash2("sha256").update(sessionOf(paths)).digest("hex").slice(0, 32) } : {},
-    spend: [...readSpend(paths.projectDir, join11(paths.snoutDir, "spend-cache.json"), configDir()).values()].flat().filter((r) => r.day >= since).map((r) => ({ ...r, model: modelKey(r.model).slice(0, 64), costUsd: r.costUsd === null ? null : Math.round(r.costUsd * 1e6) / 1e6 }))
-  };
-}
-async function post(url, body, token) {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json", ...token ? { authorization: `Bearer ${token}` } : {} },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15e3)
-  });
-  let json = null;
-  try {
-    json = await res.json();
-  } catch {
-  }
-  return { status: res.status, json };
-}
-var syncState = (paths) => join11(paths.snoutDir, "cloud-sync.json");
-function lastSync(paths) {
-  try {
-    return JSON.parse(readFileSync9(syncState(paths), "utf8"));
-  } catch {
-    return null;
-  }
-}
-async function sync(paths, version) {
-  const creds = loadCredentials();
-  if (!creds) return { ok: false, message: "Not logged in. Run `snout login` first; nothing is sent until you do." };
-  const last = lastSync(paths);
-  const full = !last?.fullAt || Date.now() - Date.parse(last.fullAt) > FULL_SYNC_MS;
-  const payload = buildPayload(paths, version, /* @__PURE__ */ new Date(), full ? SYNC_DAYS : RECENT_DAYS);
-  let result;
-  try {
-    const { status, json } = await post(`${creds.url}/api/ingest`, payload, creds.token);
-    if (status === 200) result = { ok: true, message: `Synced ${payload.days.length} day-row(s) for ${payload.project.name} to ${creds.team}.` };
-    else if (status === 401) result = { ok: false, message: "The saved login was revoked or expired. Run `snout login` again." };
-    else if (status === 402) result = { ok: false, message: `${String(json?.error ?? "Plan limit reached.").slice(0, 200)}${json?.upgrade ? ` ${String(json.upgrade).slice(0, 200)}` : ""} (Snout itself keeps working locally.)` };
-    else result = { ok: false, message: `Sync failed (${status}): ${String(json?.error ?? "no detail").slice(0, 200)}` };
-  } catch (err) {
-    result = { ok: false, message: `Sync failed: ${err.message}` };
-  }
-  try {
-    mkdirSync6(paths.snoutDir, { recursive: true });
-    const fullAt = full && result.ok ? (/* @__PURE__ */ new Date()).toISOString() : last?.fullAt;
-    writeFileSync4(syncState(paths), JSON.stringify({ at: (/* @__PURE__ */ new Date()).toISOString(), ok: result.ok, ...fullAt ? { fullAt } : {}, ...result.ok ? {} : { error: result.message } }) + "\n");
-  } catch {
-  }
-  return result;
-}
-async function login(url, say2, openBrowser2) {
-  if (!url) {
-    say2("Snout Cloud has no default address yet. Pass one: snout login --url https://<your-snout-cloud>");
-    return false;
-  }
-  let start;
-  const beta = url === DEFAULT_CLOUD_URL ? " Snout Cloud is in private beta; everything local works without it. To join: https://usesnout.xyz/contact" : "";
-  try {
-    start = await post(`${url}/api/device/start`, { client: "snout-cli" });
-  } catch (err) {
-    say2(`Could not reach ${url}: ${err.message}.${beta}`);
-    return false;
-  }
-  if (start.status !== 200 || !start.json?.device_code) {
-    say2(`${url} did not start a login (${start.status}).${beta}`);
-    return false;
-  }
-  const { device_code, user_code, verify_url, interval = 3, expires_in = 600 } = start.json;
-  say2(`Open ${verify_url} and approve code ${user_code}.`);
-  openBrowser2(verify_url);
-  const deadline = Date.now() + expires_in * 1e3;
-  while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, interval * 1e3));
-    let res;
-    try {
-      res = await post(`${url}/api/device/poll`, { device_code });
-    } catch {
-      continue;
-    }
-    if (res.status === 428) continue;
-    if (res.status === 200 && res.json?.token) {
-      saveCredentials({ url, token: res.json.token, user: res.json.user, team: res.json.team });
-      say2(`Logged in as ${res.json.user} (${res.json.team}). Totals sync when a session ends; \`snout sync --dry-run\` shows what is sent.`);
-      return true;
-    }
-    say2(`Login ${res.status === 410 ? "expired" : "was refused"}. Run \`snout login\` to try again.`);
-    return false;
-  }
-  say2("Login timed out. Run `snout login` to try again.");
-  return false;
-}
-
 // src/map/map.ts
-import { spawnSync as spawnSync2 } from "node:child_process";
-import { readdirSync as readdirSync3, readFileSync as readFileSync10, statSync as statSync11 } from "node:fs";
-import { basename as basename4, extname as extname2, join as join12, relative as relative5, sep as sep3 } from "node:path";
+import { spawnSync } from "node:child_process";
+import { readdirSync as readdirSync3, readFileSync as readFileSync9, statSync as statSync11 } from "node:fs";
+import { basename as basename3, extname as extname2, join as join11, relative as relative5, sep as sep3 } from "node:path";
 var TEXT_EXT = /\.(m?js|cjs|jsx|ts|tsx|mts|cts|py|pyi|go|rs|java|kt|kts|cs|rb|php|swift|scala|c|cc|cpp|h|hpp|m|mm|ex|exs|erl|clj|lua|sh|bash|zsh|sql|graphql|proto|vue|svelte|astro|md|mdx|rst|txt|toml|ya?ml|json|ini|cfg|conf|env\.example|html|css|scss)$/i;
 var SKIP_DIR = /* @__PURE__ */ new Set(["node_modules", ".git", "dist", "build", "out", "target", "vendor", "third_party", "coverage", ".next", ".venv", "venv", "__pycache__", ".snout", ".claude", ".tox", ".mypy_cache", ".pytest_cache"]);
 var MAX_FILE_BYTES = 512 * 1024;
@@ -5521,9 +5356,9 @@ var DECLARATIONS2 = [
 ];
 var CONSTANT = /^\s*(?:export\s+)?(?:const\s+|let\s+|var\s+|final\s+|static\s+)*([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)\s*[:=]/gm;
 function listFiles(projectDir) {
-  const git = spawnSync2("git", ["ls-files", "-co", "--exclude-standard"], { cwd: projectDir, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
-  if (git.status === 0 && git.stdout.trim()) {
-    return git.stdout.split("\n").filter((f) => f && TEXT_EXT.test(f) && !f.split("/").some((p) => SKIP_DIR.has(p))).slice(0, MAX_FILES);
+  const git2 = spawnSync("git", ["ls-files", "-co", "--exclude-standard"], { cwd: projectDir, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  if (git2.status === 0 && git2.stdout.trim()) {
+    return git2.stdout.split("\n").filter((f) => f && TEXT_EXT.test(f) && !f.split("/").some((p) => SKIP_DIR.has(p))).slice(0, MAX_FILES);
   }
   const out = [];
   const walk2 = (dir) => {
@@ -5536,8 +5371,8 @@ function listFiles(projectDir) {
     for (const e of entries) {
       if (out.length >= MAX_FILES) return;
       if (e.isDirectory()) {
-        if (!SKIP_DIR.has(e.name) && !e.name.startsWith(".")) walk2(join12(dir, e.name));
-      } else if (e.isFile() && TEXT_EXT.test(e.name)) out.push(relative5(projectDir, join12(dir, e.name)).split(sep3).join("/"));
+        if (!SKIP_DIR.has(e.name) && !e.name.startsWith(".")) walk2(join11(dir, e.name));
+      } else if (e.isFile() && TEXT_EXT.test(e.name)) out.push(relative5(projectDir, join11(dir, e.name)).split(sep3).join("/"));
     }
   };
   walk2(projectDir);
@@ -5567,7 +5402,7 @@ function buildMap(projectDir, prev, skip) {
     if (skip?.(rel)) continue;
     let st;
     try {
-      st = statSync11(join12(projectDir, rel));
+      st = statSync11(join11(projectDir, rel));
     } catch {
       continue;
     }
@@ -5580,7 +5415,7 @@ function buildMap(projectDir, prev, skip) {
     }
     let text;
     try {
-      text = readFileSync10(join12(projectDir, rel), "utf8");
+      text = readFileSync9(join11(projectDir, rel), "utf8");
     } catch {
       continue;
     }
@@ -5660,12 +5495,50 @@ function candidates(map, prompt, k = 15) {
   }
   const lower = prompt.replace(URL2, " ").toLowerCase();
   for (const p of paths) {
-    const stem = basename4(p, extname2(p)).toLowerCase();
+    const stem = basename3(p, extname2(p)).toLowerCase();
     if (stem.length < 5) continue;
     const esc = stem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     if (new RegExp(`(^|[^\\w.])${esc}\\.[a-z]{1,5}\\b|/${esc}\\b|\\b${esc} (module|file|package)\\b`).test(lower)) add(p, Math.log(1 + N), stem, true);
   }
+  for (const [p, w] of locations(paths, prompt)) add(p, Math.log(1 + N) * w, basename3(p), true);
   return [...scored.values()].sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, k);
+}
+function locations(paths, prompt) {
+  const bySuffix = /* @__PURE__ */ new Map();
+  for (const p of paths) {
+    const segs = p.split("/");
+    for (let i = 0; i + 1 < segs.length; i++) {
+      const s = segs.slice(i).join("/");
+      bySuffix.set(s, bySuffix.has(s) && bySuffix.get(s) !== p ? null : p);
+    }
+  }
+  const resolve14 = (raw) => {
+    const segs = raw.split(/[\\/]+/).filter(Boolean);
+    for (let i = 0; i + 1 < segs.length; i++) {
+      const hit = bySuffix.get(segs.slice(i).join("/"));
+      if (hit) return hit;
+      if (hit === null) return null;
+    }
+    return null;
+  };
+  const out = /* @__PURE__ */ new Map();
+  const put = (p, w) => out.set(p, Math.max(out.get(p) ?? 0, w));
+  const frames = [...prompt.matchAll(/File "([^"\n]+)", line \d+/g)].map((m) => resolve14(m[1])).filter((p) => !!p);
+  const seen = [];
+  for (const p of frames.reverse()) if (!seen.includes(p)) seen.push(p);
+  seen.forEach((p, i) => put(p, 1 / (i + 1)));
+  const files = new Set(paths);
+  for (const m of prompt.replace(URL2, " ").matchAll(/\b[A-Za-z_]\w*(?:\.[A-Za-z_]\w*){1,8}\b/g)) {
+    const parts2 = m[0].split(".");
+    for (let n = parts2.length; n >= 2; n--) {
+      const base = parts2.slice(0, n).join("/");
+      if (files.has(`${base}.py`)) {
+        put(`${base}.py`, 1);
+        break;
+      }
+    }
+  }
+  return out;
 }
 function renderCandidates(cs) {
   if (!cs.length) return "";
@@ -5674,9 +5547,9 @@ function renderCandidates(cs) {
 }
 
 // src/audit/mcp-servers.ts
-import { existsSync as existsSync11, readdirSync as readdirSync4, readFileSync as readFileSync11, statSync as statSync12 } from "node:fs";
-import { homedir as homedir5 } from "node:os";
-import { join as join13, resolve as resolve7 } from "node:path";
+import { existsSync as existsSync10, readdirSync as readdirSync4, readFileSync as readFileSync10, statSync as statSync12 } from "node:fs";
+import { homedir as homedir4 } from "node:os";
+import { join as join12, resolve as resolve7 } from "node:path";
 import { spawn } from "node:child_process";
 function claudeToolSearch(env = process.env) {
   const v = env.ENABLE_TOOL_SEARCH?.trim().toLowerCase();
@@ -5686,7 +5559,7 @@ function claudeToolSearch(env = process.env) {
 }
 var readJson = (path) => {
   try {
-    return JSON.parse(readFileSync11(path, "utf8"));
+    return JSON.parse(readFileSync10(path, "utf8"));
   } catch {
     return null;
   }
@@ -5706,7 +5579,7 @@ function fromMap(map, source, agent) {
 function codexServers(path) {
   let text = "";
   try {
-    text = readFileSync11(path, "utf8");
+    text = readFileSync10(path, "utf8");
   } catch {
     return [];
   }
@@ -5716,35 +5589,35 @@ function codexServers(path) {
   while (m = re.exec(text)) out.push({ name: m[2], source: "Codex (user)", agent: "codex" });
   return out;
 }
-function configuredServers(projectDir, home = homedir5()) {
+function configuredServers(projectDir, home = homedir4()) {
   const dir = resolve7(projectDir);
   const servers = [];
-  servers.push(...fromMap(readJson(join13(dir, ".mcp.json"))?.mcpServers, "project .mcp.json", "claude"));
-  const claude2 = readJson(join13(process.env.CLAUDE_CONFIG_DIR ? join13(process.env.CLAUDE_CONFIG_DIR, "..") : home, ".claude.json"));
+  servers.push(...fromMap(readJson(join12(dir, ".mcp.json"))?.mcpServers, "project .mcp.json", "claude"));
+  const claude2 = readJson(join12(process.env.CLAUDE_CONFIG_DIR ? join12(process.env.CLAUDE_CONFIG_DIR, "..") : home, ".claude.json"));
   if (claude2) {
     servers.push(...fromMap(claude2.mcpServers, "Claude Code (user)", "claude"));
     servers.push(...fromMap(claude2.projects?.[dir]?.mcpServers, "Claude Code (this project)", "claude"));
     const disabled = claude2.projects?.[dir]?.disabledMcpjsonServers ?? [];
     for (let i = servers.length - 1; i >= 0; i--) if (servers[i].source === "project .mcp.json" && disabled.includes(servers[i].name)) servers.splice(i, 1);
   }
-  servers.push(...fromMap(readJson(join13(dir, ".cursor", "mcp.json"))?.mcpServers, "Cursor (project)", "cursor"));
-  servers.push(...fromMap(readJson(join13(home, ".cursor", "mcp.json"))?.mcpServers, "Cursor (user)", "cursor"));
-  servers.push(...fromMap(readJson(join13(dir, ".gemini", "settings.json"))?.mcpServers, "Gemini CLI (project)", "gemini"));
-  servers.push(...fromMap(readJson(join13(home, ".gemini", "settings.json"))?.mcpServers, "Gemini CLI (user)", "gemini"));
-  servers.push(...codexServers(join13(process.env.CODEX_HOME || join13(home, ".codex"), "config.toml")));
+  servers.push(...fromMap(readJson(join12(dir, ".cursor", "mcp.json"))?.mcpServers, "Cursor (project)", "cursor"));
+  servers.push(...fromMap(readJson(join12(home, ".cursor", "mcp.json"))?.mcpServers, "Cursor (user)", "cursor"));
+  servers.push(...fromMap(readJson(join12(dir, ".gemini", "settings.json"))?.mcpServers, "Gemini CLI (project)", "gemini"));
+  servers.push(...fromMap(readJson(join12(home, ".gemini", "settings.json"))?.mcpServers, "Gemini CLI (user)", "gemini"));
+  servers.push(...codexServers(join12(process.env.CODEX_HOME || join12(home, ".codex"), "config.toml")));
   return servers;
 }
-function mcpUsage(projectDir, days = 30, home = homedir5()) {
-  const root = join13(process.env.CLAUDE_CONFIG_DIR || join13(home, ".claude"), "projects", resolve7(projectDir).replace(/[^A-Za-z0-9]/g, "-"));
+function mcpUsage(projectDir, days = 30, home = homedir4()) {
+  const root = join12(process.env.CLAUDE_CONFIG_DIR || join12(home, ".claude"), "projects", resolve7(projectDir).replace(/[^A-Za-z0-9]/g, "-"));
   const counts = /* @__PURE__ */ new Map();
-  if (!existsSync11(root)) return counts;
+  if (!existsSync10(root)) return counts;
   const since = Date.now() - days * 864e5;
   for (const f of readdirSync4(root)) {
     if (!f.endsWith(".jsonl")) continue;
-    const path = join13(root, f);
+    const path = join12(root, f);
     try {
       if (statSync12(path).mtimeMs < since) continue;
-      const text = readFileSync11(path, "utf8");
+      const text = readFileSync10(path, "utf8");
       const re = /"name":"mcp__([A-Za-z0-9_.-]+?)__[A-Za-z0-9_.-]+"/g;
       let m;
       while (m = re.exec(text)) counts.set(m[1], (counts.get(m[1]) ?? 0) + 1);
@@ -5933,13 +5806,13 @@ function linksOf(map, groupOf, keep) {
 }
 
 // src/dashboard/file.ts
-import { readFileSync as readFileSync12, statSync as statSync13 } from "node:fs";
-import { isAbsolute as isAbsolute8, join as join14, relative as relative6, resolve as resolve8 } from "node:path";
+import { readFileSync as readFileSync11, statSync as statSync13 } from "node:fs";
+import { isAbsolute as isAbsolute8, join as join13, relative as relative6, resolve as resolve8 } from "node:path";
 var HEAD_LINES2 = 60;
 var HEAD_BYTES3 = 6 * 1024;
 var MAX_BYTES2 = 4 * 1024 * 1024;
 function fileReport(projectDir, path, cfg) {
-  const abs = resolve8(isAbsolute8(path) ? path : join14(projectDir, path));
+  const abs = resolve8(isAbsolute8(path) ? path : join13(projectDir, path));
   const rel = relative6(projectDir, abs).split("\\").join("/");
   if (!rel || rel.startsWith("..") || isAbsolute8(rel)) throw new Error("outside the project");
   const st = statSync13(abs);
@@ -5948,7 +5821,7 @@ function fileReport(projectDir, path, cfg) {
   const label = d && d.value <= 1 ? d.rule : "source";
   const base = { path: rel, tokens: estimateTokens(st.size, rel), label, confidence: d?.confidence ?? 0, band: bandOf(d), reason: d?.reason ?? "" };
   if (label === "secret" || label === "binary" || label === "binary-content") return { ...base, lines: 0, head: null, outline: [], more: 0, hint: "" };
-  const text = readFileSync12(abs, "utf8").slice(0, MAX_BYTES2);
+  const text = readFileSync11(abs, "utf8").slice(0, MAX_BYTES2);
   const lines = text.split("\n");
   const oneLine2 = st.size / Math.max(1, lines.length) > 1e3;
   let head = null;
@@ -6013,7 +5886,7 @@ function startDashboard(paths, opts) {
   const readSpendNow = () => {
     try {
       const since = new Date(Date.now() - (SPEND_DAYS - 1) * 864e5).toISOString().slice(0, 10);
-      const rows = [...readSpend(paths.projectDir, join15(paths.snoutDir, "spend-cache.json"), configDir()).values()].flat();
+      const rows = [...readSpend(paths.projectDir, join14(paths.snoutDir, "spend-cache.json"), configDir()).values()].flat();
       const next = summarizeSpend(rows, since);
       const changed = !spend || next.requests !== spend.requests || next.costUsd !== spend.costUsd;
       spend = next;
@@ -6036,7 +5909,7 @@ function startDashboard(paths, opts) {
     if (l === void 0) {
       try {
         cfg ??= loadConfig(paths);
-        const d = tier0({ absPath: join15(paths.projectDir, path), projectDir: paths.projectDir, cfg });
+        const d = tier0({ absPath: join14(paths.projectDir, path), projectDir: paths.projectDir, cfg });
         l = d && d.value <= 1 ? d.rule : "source";
       } catch {
         l = "source";
@@ -6055,7 +5928,7 @@ function startDashboard(paths, opts) {
           if (seen.has(p) || isAbsolute9(p) || p.startsWith("..")) continue;
           seen.add(p);
           try {
-            const st = statSync14(join15(paths.projectDir, p));
+            const st = statSync14(join14(paths.projectDir, p));
             if (st.isFile()) next.push({ path: p, size: st.size });
           } catch {
           }
@@ -6066,7 +5939,7 @@ function startDashboard(paths, opts) {
           const v = `${st.size}:${st.mtimeMs}`;
           if (v !== mapStamp) {
             mapStamp = v;
-            repoMap = JSON.parse(readFileSync13(paths.map, "utf8"));
+            repoMap = JSON.parse(readFileSync12(paths.map, "utf8"));
           }
         } catch {
           repoMap = null;
@@ -6135,12 +6008,11 @@ function startDashboard(paths, opts) {
       mcpConfig,
       sessions,
       meta: {
-        project: basename5(paths.projectDir),
+        project: basename4(paths.projectDir),
         mode: opts.actions?.mode() ?? opts.mode,
         version: opts.version,
         session,
         coach: opts.actions?.coach() ?? null,
-        cloud: opts.actions?.cloud() ?? null,
         controls: !!opts.actions
       },
       spend: spend && spend.requests ? { ...spend, days: SPEND_DAYS, pricesAsOf: PRICES_AS_OF } : null
@@ -6229,7 +6101,7 @@ data: ${JSON.stringify(summary(session))}
     }
     const act = opts.actions;
     try {
-      const message = a.type === "mode" ? act.setMode(String(a.value)) : a.type === "allow" ? act.allow(String(a.path)) : a.type === "coach" ? act.setCoach(String(a.value)) : a.type === "login" ? act.login() : null;
+      const message = a.type === "mode" ? act.setMode(String(a.value)) : a.type === "allow" ? act.allow(String(a.path)) : a.type === "coach" ? act.setCoach(String(a.value)) : null;
       if (message === null) return reply(400, { error: "unknown action" });
       cache2 = /* @__PURE__ */ new Map();
       reply(200, { ok: true, message });
@@ -6266,12 +6138,12 @@ data: ${JSON.stringify(summary(session))}
 }
 
 // src/dashboard/registry.ts
-import { existsSync as existsSync12, mkdirSync as mkdirSync7, readFileSync as readFileSync14 } from "node:fs";
-import { dirname as dirname8, join as join16, resolve as resolve9 } from "node:path";
-var file = (configDir2) => join16(configDir2, "dashboards.json");
+import { existsSync as existsSync11, mkdirSync as mkdirSync6, readFileSync as readFileSync13 } from "node:fs";
+import { dirname as dirname7, join as join15, resolve as resolve9 } from "node:path";
+var file = (configDir2) => join15(configDir2, "dashboards.json");
 function read(configDir2) {
   try {
-    return JSON.parse(readFileSync14(file(configDir2), "utf8"));
+    return JSON.parse(readFileSync13(file(configDir2), "utf8"));
   } catch {
     return {};
   }
@@ -6294,7 +6166,7 @@ function registerDashboard(configDir2, projectDir, entry) {
     for (const [k, v] of Object.entries(all)) if (!alive(v.pid)) delete all[k];
     all[resolve9(projectDir)] = entry;
     const f = file(configDir2);
-    if (!existsSync12(dirname8(f))) mkdirSync7(dirname8(f), { recursive: true });
+    if (!existsSync11(dirname7(f))) mkdirSync6(dirname7(f), { recursive: true });
     writeAtomic(f, JSON.stringify(all, null, 2) + "\n");
   } catch {
   }
@@ -6304,13 +6176,13 @@ function registerDashboard(configDir2, projectDir, entry) {
 import { createRequire as createRequire2 } from "node:module";
 
 // src/replay/replay.ts
-import { existsSync as existsSync14, mkdirSync as mkdirSync8, mkdtempSync, readFileSync as readFileSync16, rmSync as rmSync2, writeFileSync as writeFileSync5 } from "node:fs";
+import { existsSync as existsSync13, mkdirSync as mkdirSync7, mkdtempSync, readFileSync as readFileSync15, rmSync, writeFileSync as writeFileSync4 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname as dirname9, isAbsolute as isAbsolute12, join as join18, relative as relative8, sep as sep5 } from "node:path";
+import { dirname as dirname8, isAbsolute as isAbsolute12, join as join17, relative as relative8, sep as sep5 } from "node:path";
 
 // src/compact/memory.ts
-import { closeSync as closeSync3, existsSync as existsSync13, openSync as openSync3, readFileSync as readFileSync15, readSync as readSync3, statSync as statSync15 } from "node:fs";
-import { isAbsolute as isAbsolute11, join as join17, relative as relative7, resolve as resolve11, sep as sep4 } from "node:path";
+import { closeSync as closeSync3, existsSync as existsSync12, openSync as openSync3, readFileSync as readFileSync14, readSync as readSync3, statSync as statSync15 } from "node:fs";
+import { isAbsolute as isAbsolute11, join as join16, relative as relative7, resolve as resolve11, sep as sep4 } from "node:path";
 
 // src/compact/codex.ts
 import { isAbsolute as isAbsolute10, resolve as resolve10 } from "node:path";
@@ -6562,7 +6434,7 @@ var resultText = (content) => typeof content === "string" ? content : Array.isAr
 var SLOW = /did not complete within its \d+s timeout|moved to the background/;
 function projectModule(name, projectDir) {
   if (name.includes(".")) return true;
-  return existsSync13(join17(projectDir, name)) || existsSync13(join17(projectDir, `${name}.py`));
+  return existsSync12(join16(projectDir, name)) || existsSync12(join16(projectDir, `${name}.py`));
 }
 function requestText(text) {
   const t = text.trim();
@@ -6690,10 +6562,10 @@ function codexSessionFacts(transcriptPath, projectDir) {
   return factsFromClaudeRows(codexRows(tail(transcriptPath).split(/\n/)), projectDir);
 }
 function readPins(projectDir, snoutDir) {
-  const file2 = join17(snoutDir, "pins.md");
-  if (!existsSync13(file2)) return [];
+  const file2 = join16(snoutDir, "pins.md");
+  if (!existsSync12(file2)) return [];
   const pins = [];
-  for (const raw of readFileSync15(file2, "utf8").split("\n")) {
+  for (const raw of readFileSync14(file2, "utf8").split("\n")) {
     const m = raw.match(/^\s*[-*]\s+(.*\S)\s*$/);
     if (!m) continue;
     const text = m[1];
@@ -6712,7 +6584,7 @@ function pinLines(pins, projectDir, secrets) {
     out.push(`- ${p.text.replace(/\s*\[re-?read \d+\]/i, "")}`);
     if (!p.path || !p.reread) continue;
     const abs = isAbsolute11(p.path) ? p.path : resolve11(projectDir, p.path);
-    if (!existsSync13(abs)) {
+    if (!existsSync12(abs)) {
       out.push(`  (not on disk now: ${p.path})`);
       continue;
     }
@@ -6723,7 +6595,7 @@ function pinLines(pins, projectDir, secrets) {
       continue;
     }
     try {
-      const lines = readFileSync15(abs, "utf8").split("\n").slice(0, p.reread);
+      const lines = readFileSync14(abs, "utf8").split("\n").slice(0, p.reread);
       out.push("  ```", ...lines.map((l) => `  ${l.slice(0, 200)}`), "  ```");
     } catch {
       out.push(`  (could not read ${p.path})`);
@@ -6751,10 +6623,10 @@ function sessionStartMs(transcriptPath) {
   }
 }
 function readProgress(snoutDir, sinceMs) {
-  const file2 = join17(snoutDir, PROGRESS_FILE);
+  const file2 = join16(snoutDir, PROGRESS_FILE);
   try {
     if (statSync15(file2).mtimeMs < sinceMs) return void 0;
-    const text = readFileSync15(file2, "utf8").trim();
+    const text = readFileSync14(file2, "utf8").trim();
     return text ? text.length > PROGRESS_MAX_CHARS ? `${text.slice(0, PROGRESS_MAX_CHARS - 1)}\u2026` : text : void 0;
   } catch {
     return void 0;
@@ -6802,7 +6674,7 @@ var EDITS2 = /* @__PURE__ */ new Set(["Edit", "Write", "MultiEdit", "NotebookEdi
 var withoutCd = (c) => c.replace(/^\s*cd\s+("[^"]*"|'[^']*'|\S+)\s*(&&|;)\s*/, "");
 function readLines(file2) {
   const out = [];
-  for (const raw of readFileSync16(file2, "utf8").split("\n")) {
+  for (const raw of readFileSync15(file2, "utf8").split("\n")) {
     if (!raw) continue;
     try {
       out.push({ o: JSON.parse(raw), raw });
@@ -6817,7 +6689,7 @@ function projectOf(lines) {
   return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? process.cwd();
 }
 function shadowProject(lines, projectDir) {
-  const root = mkdtempSync(join18(tmpdir(), "snout-replay-project-"));
+  const root = mkdtempSync(join17(tmpdir(), "snout-replay-project-"));
   const best = /* @__PURE__ */ new Map();
   for (const { o } of lines) {
     const f = o.toolUseResult?.file;
@@ -6833,16 +6705,16 @@ function shadowProject(lines, projectDir) {
     const filler = "x".repeat(avg);
     const total = Math.max(f.total, f.start - 1 + known.length);
     const out = Array.from({ length: total }, (_, i) => i >= f.start - 1 && i < f.start - 1 + known.length ? known[i - f.start + 1] : filler);
-    const dest = join18(root, r);
-    mkdirSync8(dirname9(dest), { recursive: true });
-    writeFileSync5(dest, out.join("\n"));
+    const dest = join17(root, r);
+    mkdirSync7(dirname8(dest), { recursive: true });
+    writeFileSync4(dest, out.join("\n"));
   }
   return { root, files: best.size };
 }
 function replaySession(file2, run) {
   const lines = readLines(file2).filter(({ o }) => !o.isSidechain);
   const projectDir = projectOf(lines);
-  const shadow = existsSync14(projectDir) ? null : shadowProject(lines, projectDir);
+  const shadow = existsSync13(projectDir) ? null : shadowProject(lines, projectDir);
   const onDisk = (v) => {
     if (!shadow) return v;
     if (typeof v === "string") return v.split(projectDir).join(shadow.root);
@@ -6988,11 +6860,11 @@ function replaySession(file2, run) {
     }
   });
   if (boundaries.length) {
-    const dir = mkdtempSync(join18(tmpdir(), "snout-replay-mem-"));
+    const dir = mkdtempSync(join17(tmpdir(), "snout-replay-mem-"));
     try {
       for (const at of boundaries) {
-        const prefix = join18(dir, "prefix.jsonl");
-        writeFileSync5(prefix, lines.slice(0, at).map((l) => l.raw).join("\n") + "\n");
+        const prefix = join17(dir, "prefix.jsonl");
+        writeFileSync4(prefix, lines.slice(0, at).map((l) => l.raw).join("\n") + "\n");
         const facts = sessionFacts(prefix, projectDir);
         const restored = memoryText(facts, [], projectDir);
         r.memory.chars += restored.length;
@@ -7012,10 +6884,10 @@ function replaySession(file2, run) {
         }
       }
     } finally {
-      rmSync2(dir, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true });
     }
   }
-  if (shadow) rmSync2(shadow.root, { recursive: true, force: true });
+  if (shadow) rmSync(shadow.root, { recursive: true, force: true });
   return r;
 }
 var COMPACTION_COSTS = {
@@ -7117,8 +6989,8 @@ function renderReplay(rows) {
 }
 
 // src/gate/install.ts
-import { existsSync as existsSync15, mkdirSync as mkdirSync9, readFileSync as readFileSync17 } from "node:fs";
-import { join as join19 } from "node:path";
+import { existsSync as existsSync14, mkdirSync as mkdirSync8, readFileSync as readFileSync16 } from "node:fs";
+import { join as join18 } from "node:path";
 
 // src/squeeze/squeeze.ts
 var KINDS2 = [
@@ -7353,13 +7225,13 @@ var isGate = (e) => (e.hooks ?? []).some((h) => ours(h, "pre-tool"));
 var isSqueeze = (e) => (e.hooks ?? []).some((h) => ours(h, "squeeze"));
 function read2(file2) {
   try {
-    return JSON.parse(readFileSync17(file2, "utf8"));
+    return JSON.parse(readFileSync16(file2, "utf8"));
   } catch {
     return {};
   }
 }
 function write(file2, settings) {
-  mkdirSync9(join19(file2, ".."), { recursive: true });
+  mkdirSync8(join18(file2, ".."), { recursive: true });
   writeAtomic(file2, JSON.stringify(settings, null, 2) + "\n");
 }
 function strip(settings) {
@@ -7378,7 +7250,7 @@ function strip(settings) {
 }
 function installGate(projectDir, bin, fast = false) {
   removeGate(projectDir);
-  const file2 = join19(projectDir, ".claude", "settings.local.json");
+  const file2 = join18(projectDir, ".claude", "settings.local.json");
   const settings = read2(file2);
   settings.hooks ??= {};
   settings.hooks.PreToolUse = [...settings.hooks.PreToolUse ?? [], ...gateEntries(bin, fast)];
@@ -7389,8 +7261,8 @@ function installGate(projectDir, bin, fast = false) {
 function removeGate(projectDir) {
   let removed = false;
   for (const name of SETTINGS) {
-    const file2 = join19(projectDir, ".claude", name);
-    if (!existsSync15(file2)) continue;
+    const file2 = join18(projectDir, ".claude", name);
+    if (!existsSync14(file2)) continue;
     const settings = read2(file2);
     if (strip(settings)) {
       write(file2, settings);
@@ -7401,8 +7273,8 @@ function removeGate(projectDir) {
 }
 function refreshGate(projectDir, bin) {
   for (const name of SETTINGS) {
-    const file2 = join19(projectDir, ".claude", name);
-    if (!existsSync15(file2)) continue;
+    const file2 = join18(projectDir, ".claude", name);
+    if (!existsSync14(file2)) continue;
     const pre = read2(file2).hooks?.PreToolUse ?? [];
     const stale = pre.some((e) => isGate(e) && (e.hooks ?? []).some((h) => typeof h.command === "string" && h.command.includes(MARK) && !h.command.includes(`"${bin}"`)));
     if (stale) {
@@ -7414,7 +7286,7 @@ function refreshGate(projectDir, bin) {
 }
 
 // src/coach/coach.ts
-import { spawnSync as spawnSync3 } from "node:child_process";
+import { spawnSync as spawnSync2 } from "node:child_process";
 var TASK = /\b(fix|add|implement|build|create|make|refactor|debug|update|change|write|remove|delete|improve|optimi[sz]e|migrate|rename|support|handle|investigate|clean ?up|speed up|port|convert|rewrite|finish|wire|hook up)\b/i;
 var FOLLOW_UP = /^(yes|yeah|yep|no|nope|ok(ay)?|sure|thanks?|thank you|continue|go( ahead)?|do it|proceed|next|again|looks good|lgtm|that|it|this|now|also|and|then|same|please)\b/i;
 var FILE = /(?:^|[\s`'"(])(?:[\w.-]+\/)*[\w-]+\.(?:[cm]?[jt]sx?|py|go|rs|java|kt|swift|rb|php|cs|c|h|cpp|hpp|scala|sql|sh|ya?ml|toml|json|md|html|css|scss|vue|svelte|proto|graphql|tf|lock)\b/i;
@@ -7482,7 +7354,7 @@ function scoreWithJev(prompt, rules, timeoutMs = 2500) {
   const body = JSON.stringify({ model: process.env.SNOUT_COACH_MODEL || PINNED_MODEL, state: { prompt: prompt.slice(0, 4e3) }, questions: QUESTIONS });
   const url = `${(process.env.TYPESAFE_BASE_URL || "https://api.typesafe.ai").replace(/\/$/, "")}/v1/systemone`;
   const script = `fetch(process.argv[1],{method:"POST",headers:{authorization:"Bearer "+process.env.TYPESAFE_API_KEY,"content-type":"application/json"},body:require("fs").readFileSync(0,"utf8"),signal:AbortSignal.timeout(${timeoutMs - 300})}).then(r=>r.ok?r.text():Promise.reject(r.status)).then(t=>process.stdout.write(t),()=>process.exit(1))`;
-  const r = spawnSync3(process.execPath, ["-e", script, url], { input: body, encoding: "utf8", timeout: timeoutMs });
+  const r = spawnSync2(process.execPath, ["-e", script, url], { input: body, encoding: "utf8", timeout: timeoutMs });
   if (r.status !== 0 || !r.stdout) return rules;
   try {
     const a = JSON.parse(r.stdout).answers ?? {};
@@ -7579,6 +7451,373 @@ function trimMcp(response, savedTo) {
   return { output, beforeChars, afterChars };
 }
 
+// src/audit/ci.ts
+import { existsSync as existsSync15, readdirSync as readdirSync5, readFileSync as readFileSync17 } from "node:fs";
+import { join as join19, resolve as resolve12 } from "node:path";
+
+// src/audit/yaml.ts
+function stripComment(s) {
+  let q = null;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (q) {
+      if (c === q && !(q === '"' && s[i - 1] === "\\")) q = null;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      if (i === 0 || /[\s:\[{,-]/.test(s[i - 1])) q = c;
+      continue;
+    }
+    if (c === "#" && (i === 0 || /\s/.test(s[i - 1]))) return s.slice(0, i).trimEnd();
+  }
+  return s.trimEnd();
+}
+function scalar(raw) {
+  const s = raw.trim();
+  if (s === "" || s === "~" || s === "null") return null;
+  if (s.startsWith("'") && s.endsWith("'") && s.length >= 2) return s.slice(1, -1).replace(/''/g, "'");
+  if (s.startsWith('"') && s.endsWith('"') && s.length >= 2) return s.slice(1, -1).replace(/\\n/g, "\n").replace(/\\t/g, "	").replace(/\\(["\\])/g, "$1");
+  if (s.startsWith("[") || s.startsWith("{")) return flow(s, { i: 0 });
+  return s;
+}
+function flow(s, p) {
+  const ws = () => {
+    while (p.i < s.length && /\s/.test(s[p.i])) p.i++;
+  };
+  ws();
+  const open = s[p.i];
+  if (open === "[" || open === "{") {
+    p.i++;
+    const close = open === "[" ? "]" : "}";
+    const list = [];
+    const map = {};
+    for (; ; ) {
+      ws();
+      if (s[p.i] === close) {
+        p.i++;
+        break;
+      }
+      if (p.i >= s.length) break;
+      if (open === "[") list.push(flow(s, p));
+      else {
+        const key = atom(s, p, ":}");
+        if (s[p.i] === ":") {
+          p.i++;
+          map[String(key ?? "")] = flow(s, p);
+        } else map[String(key ?? "")] = null;
+      }
+      ws();
+      if (s[p.i] === ",") p.i++;
+    }
+    return open === "[" ? list : map;
+  }
+  return atom(s, p, ",]}");
+}
+function atom(s, p, stops) {
+  while (p.i < s.length && /\s/.test(s[p.i])) p.i++;
+  const q = s[p.i];
+  if (q === '"' || q === "'") {
+    let j2 = p.i + 1;
+    while (j2 < s.length && !(s[j2] === q && s[j2 - 1] !== "\\")) j2++;
+    const v2 = scalar(s.slice(p.i, j2 + 1));
+    p.i = j2 + 1;
+    return v2;
+  }
+  let j = p.i;
+  while (j < s.length && !stops.includes(s[j]) && !(s[j] === ":" && /\s|$/.test(s[j + 1] ?? ""))) j++;
+  if (stops.includes(":") && s[j] === ":") {
+    const v2 = s.slice(p.i, j).trim();
+    p.i = j;
+    return v2;
+  }
+  const v = scalar(s.slice(p.i, j));
+  p.i = j;
+  return v;
+}
+function keySplit(t) {
+  let q = null;
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (q) {
+      if (c === q) q = null;
+      continue;
+    }
+    if ((c === '"' || c === "'") && i === 0) {
+      q = c;
+      continue;
+    }
+    if (c === "[" || c === "{") return -1;
+    if (c === ":" && (i === t.length - 1 || t[i + 1] === " " || t[i + 1] === "	")) return i;
+  }
+  return -1;
+}
+function parseYaml(text) {
+  const raw = text.replace(/\r\n?/g, "\n").split("\n");
+  const lines = [];
+  raw.forEach((r, n) => {
+    if (/^\s*(#|$)/.test(r) || /^(---|\.\.\.)\s*$/.test(r)) {
+      lines.push({ indent: -1, text: "", n, raw: r });
+      return;
+    }
+    lines.push({ indent: r.length - r.trimStart().length, text: stripComment(r.trim()), n, raw: r });
+  });
+  const p = { i: 0 };
+  const skip = () => {
+    while (p.i < lines.length && lines[p.i].indent < 0) p.i++;
+  };
+  function blockScalar(header, parent) {
+    const folded = header.startsWith(">");
+    const keep = header.includes("+"), strip2 = header.includes("-");
+    const body = [];
+    let ind = -1;
+    while (p.i < lines.length) {
+      const l = lines[p.i];
+      if (l.indent >= 0 && l.indent <= parent) break;
+      if (l.indent < 0) {
+        body.push("");
+        p.i++;
+        continue;
+      }
+      if (ind < 0) ind = l.indent;
+      body.push(l.raw.slice(Math.min(ind, l.indent)));
+      p.i++;
+    }
+    while (!keep && body.length && body[body.length - 1] === "") body.pop();
+    const out = folded ? body.join("\n").replace(/([^\n])\n(?=[^\n ])/g, "$1 ") : body.join("\n");
+    return strip2 ? out : out + "\n";
+  }
+  function value(rest, indent) {
+    const v = rest.trim();
+    if (/^[|>][-+0-9]*$/.test(v)) return blockScalar(v, indent);
+    if (v === "") {
+      skip();
+      const next = lines[p.i];
+      if (!next) return null;
+      if (next.indent > indent || next.indent === indent && (next.text.startsWith("- ") || next.text === "-")) return block(next.indent);
+      return null;
+    }
+    return scalar(v);
+  }
+  function block(indent) {
+    skip();
+    const first2 = lines[p.i];
+    if (!first2) return null;
+    if (first2.text === "-" || first2.text.startsWith("- ")) {
+      const list = [];
+      while (p.i < lines.length) {
+        skip();
+        const l = lines[p.i];
+        if (!l || l.indent !== indent || !(l.text === "-" || l.text.startsWith("- "))) break;
+        const inner = l.text === "-" ? "" : l.text.slice(2);
+        const innerIndent = indent + (l.text.length - l.text.slice(1).trimStart().length);
+        p.i++;
+        if (inner === "") {
+          list.push(value("", indent));
+          continue;
+        }
+        const k = keySplit(inner);
+        if (k >= 0 && !/^["'[{]/.test(inner)) {
+          const map = {};
+          map[unquote(inner.slice(0, k))] = value(inner.slice(k + 1), innerIndent);
+          Object.assign(map, mapAt(innerIndent));
+          list.push(map);
+        } else list.push(value(inner, indent));
+      }
+      return list;
+    }
+    return mapAt(indent);
+  }
+  function mapAt(indent) {
+    const map = {};
+    while (p.i < lines.length) {
+      skip();
+      const l = lines[p.i];
+      if (!l || l.indent !== indent || l.text.startsWith("- ") || l.text === "-") break;
+      const k = keySplit(l.text);
+      p.i++;
+      if (k < 0) continue;
+      map[unquote(l.text.slice(0, k))] = value(l.text.slice(k + 1), indent);
+    }
+    return map;
+  }
+  skip();
+  return lines[p.i] ? block(lines[p.i].indent) : null;
+}
+var unquote = (k) => {
+  const s = k.trim();
+  return /^(["']).*\1$/.test(s) ? s.slice(1, -1) : s;
+};
+var asMap = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : {};
+var asList = (v) => Array.isArray(v) ? v : v == null ? [] : [v];
+var asStr = (v) => typeof v === "string" ? v : "";
+
+// src/audit/ci.ts
+var PR_EVENTS = /* @__PURE__ */ new Set(["pull_request", "pull_request_target"]);
+var COMMENT_EVENTS = /* @__PURE__ */ new Set(["issue_comment", "pull_request_review_comment", "pull_request_review", "discussion_comment"]);
+var PR_DEFAULT_TYPES = ["opened", "synchronize", "reopened"];
+function triggersOf(on) {
+  const events = {};
+  if (typeof on === "string") events[on] = {};
+  else if (Array.isArray(on)) for (const e of on) events[asStr(e)] = {};
+  else for (const [k, v] of Object.entries(asMap(on))) events[k] = k === "schedule" ? { cron: asList(v).map((c) => asStr(asMap(c).cron)) } : asMap(v);
+  const triggers = Object.entries(events).map(([event, cfg]) => {
+    const parts2 = [];
+    if (cfg.types) parts2.push(`types: ${asList(cfg.types).map(asStr).join(", ")}`);
+    else if (PR_EVENTS.has(event)) parts2.push("types: opened, synchronize, reopened (default)");
+    if (cfg.branches) parts2.push(`branches: ${asList(cfg.branches).map(asStr).join(", ")}`);
+    if (cfg.paths) parts2.push("paths filter");
+    if (event === "schedule") parts2.push(asList(cfg.cron).map(asStr).join(", "));
+    return { event, detail: parts2.join("; ") };
+  });
+  return { triggers, events };
+}
+function cronPerMonth(cron) {
+  const f = cron.trim().split(/\s+/);
+  if (f.length !== 5) return null;
+  const count = (field, size) => {
+    let n = 0;
+    for (const part of field.split(",")) {
+      const [range, step] = part.split("/");
+      const s = Number(step ?? 1) || 1;
+      if (range === "*") n += Math.ceil(size / s);
+      else if (range.includes("-")) {
+        const [a, b] = range.split("-").map(Number);
+        n += Math.floor(((b ?? 0) - (a ?? 0)) / s) + 1;
+      } else n += 1;
+    }
+    return n;
+  };
+  const perDay = count(f[0], 60) * count(f[1], 24);
+  const days = f[4] !== "*" ? 30 * count(f[4], 7) / 7 : f[2] !== "*" ? count(f[2], 31) : 30;
+  const months = f[3] !== "*" ? count(f[3], 12) / 12 : 1;
+  return Math.round(perDay * days * months);
+}
+function cliOptions(s) {
+  const opt = (re) => re.exec(s)?.[1] ?? null;
+  const turns = opt(/--max-turns[= ]+["']?(\d+)/);
+  const budget = opt(/--max-budget-usd[= ]+["']?([\d.]+)/);
+  return {
+    model: opt(/(?:--model|(?:^|\s)-m)[= ]+["']?([\w.:\/-]+)/),
+    maxTurns: turns ? Number(turns) : null,
+    budgetUsd: budget ? Number(budget) : null,
+    effort: opt(/model_reasoning_effort[= ]*["']?=?["']?(\w+)/) ?? opt(/--effort[= ]+["']?(\w+)/)
+  };
+}
+var CLAUDE_CLI = /(^|[\s;&|(`$])(?:npx\s+(?:-y\s+)?@anthropic-ai\/claude-code|claude)\s+(?:[^\n|;&]*\s)?(?:-p|--print)\b/m;
+var CODEX_CLI = /(^|[\s;&|(`$])(?:npx\s+(?:-y\s+)?@openai\/codex|codex)\s+exec\b/m;
+function auditCi(projectDir, opts = {}) {
+  const dir = resolve12(projectDir);
+  const wfDir = join19(dir, ".github", "workflows");
+  const steps = [];
+  const unreadable = [];
+  const files = existsSync15(wfDir) ? readdirSync5(wfDir).filter((f) => /\.ya?ml$/i.test(f)).sort() : [];
+  for (const file2 of files) {
+    let doc;
+    try {
+      doc = asMap(parseYaml(readFileSync17(join19(wfDir, file2), "utf8")));
+    } catch (e) {
+      unreadable.push({ file: file2, error: String(e.message ?? e) });
+      continue;
+    }
+    const { triggers, events } = triggersOf(doc.on ?? doc.true ?? null);
+    const wfConcurrency = doc.concurrency;
+    const sched = asList(events.schedule?.cron).map((c) => cronPerMonth(asStr(c))).filter((n) => n !== null);
+    for (const [jobId, jobY] of Object.entries(asMap(doc.jobs))) {
+      const job = asMap(jobY);
+      const jobIf = asStr(job.if);
+      const concurrency = job.concurrency ?? wfConcurrency;
+      asList(job.steps).forEach((stepY, i) => {
+        const step = asMap(stepY);
+        const uses = asStr(step.uses);
+        const run = asStr(step.run);
+        const w = asMap(step.with);
+        const name = asStr(step.name) || asStr(step.id) || uses.split("@")[0] || `step ${i + 1}`;
+        let found = null;
+        if (/^anthropics\/claude-code(-base)?-action@/i.test(uses)) {
+          const o = cliOptions(asStr(w.claude_args));
+          const prompt = asStr(w.prompt) || asStr(w.direct_prompt) || asStr(w.override_prompt);
+          found = {
+            agent: "claude",
+            via: "action",
+            mode: /base-action/i.test(uses) || prompt ? "automation" : "tag",
+            model: o.model ?? (asStr(w.model) || asStr(w.anthropic_model) || null),
+            maxTurns: o.maxTurns ?? (Number(asStr(w.max_turns)) || null),
+            budgetUsd: o.budgetUsd,
+            effort: null,
+            plugins: asStr(w.plugins).split(/[\s,]+/).filter(Boolean)
+          };
+        } else if (/^openai\/codex-action@/i.test(uses)) {
+          const o = cliOptions(asStr(w["codex-args"]));
+          found = { agent: "codex", via: "action", mode: "automation", model: asStr(w.model) || o.model, maxTurns: null, budgetUsd: null, effort: asStr(w.effort) || o.effort, plugins: [] };
+        } else if (CLAUDE_CLI.test(run)) {
+          const o = cliOptions(run);
+          found = { agent: "claude", via: "cli", mode: "automation", model: o.model, maxTurns: o.maxTurns, budgetUsd: o.budgetUsd, effort: null, plugins: [] };
+        } else if (CODEX_CLI.test(run)) {
+          const o = cliOptions(run);
+          found = { agent: "codex", via: "cli", mode: "automation", model: o.model, maxTurns: null, budgetUsd: null, effort: o.effort, plugins: [] };
+        }
+        if (!found) return;
+        const conditions = [jobIf, asStr(step.if)].join(" ");
+        const s = { workflow: file2, job: jobId, step: name, ...found, triggers, scheduledPerMonth: sched.length ? sched.reduce((a, b) => a + b, 0) : null, flags: [] };
+        flagStep(s, events, conditions, concurrency, Number(asStr(job["timeout-minutes"])) || null);
+        if (/\.lock\.ya?ml$/i.test(file2)) for (const f of s.flags) f.fix += ` (in ${file2.replace(/\.lock\.ya?ml$/i, ".md")}, then recompile)`;
+        steps.push(s);
+      });
+    }
+  }
+  let loadedPerRun = { claude: 0, codex: 0 };
+  if (steps.length) {
+    const t = totals(auditContext(dir, { home: opts.home ?? join19(dir, ".snout", "no-home"), noUsage: true, noGit: true }));
+    loadedPerRun = { claude: (t.always.byAgent.claude ?? 0) + t.described.perSession, codex: t.always.byAgent.codex ?? 0 };
+  }
+  return { projectDir: dir, workflows: files.length, steps, loadedPerRun, unreadable };
+}
+function flagStep(s, events, conditions, concurrency, timeoutMin) {
+  const flag = (code, reason, fix) => s.flags.push({ code, reason, fix });
+  const runsOnEverything = s.mode === "automation";
+  const prEvents = Object.keys(events).filter((e) => PR_EVENTS.has(e));
+  if (runsOnEverything && prEvents.length) {
+    const types = prEvents.flatMap((e) => events[e].types ? asList(events[e].types).map(asStr) : PR_DEFAULT_TYPES);
+    if (types.includes("synchronize"))
+      flag("every-push", "runs again on every push to an open PR, so a PR pushed 6 times pays for 6 runs", "on: pull_request: types: [opened, ready_for_review]  (or trigger on a label or an @mention)");
+    if (!/draft/.test(conditions) && !types.every((t) => t === "ready_for_review"))
+      flag("drafts", "also runs on draft PRs, which usually change again before review", "if: github.event.pull_request.draft == false");
+    if (!/github\.actor|user\.(login|type)|\bbots?\b|\[bot\]|dependabot|renovate/i.test(conditions))
+      flag("bot-prs", "also runs on PRs opened by bots (Dependabot, Renovate), which rarely need an AI review", `if: "!endsWith(github.actor, '[bot]')"`);
+    const conc = asMap(concurrency);
+    if (!concurrency || !/true/.test(asStr(conc["cancel-in-progress"]) || ""))
+      flag("no-concurrency", "a new push doesn't cancel the run still going for the previous one; both are billed", "concurrency: { group: ${{ github.workflow }}-${{ github.event.pull_request.number }}, cancel-in-progress: true }");
+  }
+  const commentEvents = Object.keys(events).filter((e) => COMMENT_EVENTS.has(e));
+  if (runsOnEverything && commentEvents.length && !/comment\.body|review\.body|contains\(/.test(conditions))
+    flag("every-comment", `runs on every ${commentEvents.join(" / ")}, not only the ones that ask for it`, "if: contains(github.event.comment.body, '@claude')");
+  if (s.agent === "claude" && s.maxTurns === null && s.budgetUsd === null)
+    flag("no-limit", `no turn or budget limit: one confused run can loop until the job times out (${timeoutMin ? `${timeoutMin} min here` : "6 hours by default"})`, s.via === "action" ? "claude_args: --max-turns 15" : "add --max-turns 15 (or --max-budget-usd 2)");
+  if (s.scheduledPerMonth !== null && s.scheduledPerMonth > 31)
+    flag("frequent-schedule", `scheduled about ${s.scheduledPerMonth} times a month`, "run it daily or weekly unless each run finds new work");
+  if (s.model && /opus/i.test(s.model))
+    flag("top-model", `uses ${s.model}, the most expensive tier; reviews and triage usually run as well on a Sonnet model`, "try --model with a Sonnet model on a few PRs and compare");
+}
+function renderCi(a) {
+  if (!a.steps.length) return `No AI agents run in this repository's GitHub Actions (${a.workflows} workflow${a.workflows === 1 ? "" : "s"} checked).${a.unreadable.length ? `
+Could not read: ${a.unreadable.map((u) => u.file).join(", ")}` : ""}`;
+  const lines = [`AI agents in GitHub Actions for ${a.projectDir} \xB7 ${a.steps.length} step${a.steps.length === 1 ? "" : "s"} in ${new Set(a.steps.map((s) => s.workflow)).size} workflow${a.steps.length === 1 ? "" : "s"}`, ""];
+  const agentName2 = { claude: "Claude Code", codex: "Codex" };
+  for (const s of a.steps) {
+    const limits = [s.maxTurns !== null ? `max ${s.maxTurns} turns` : "", s.budgetUsd !== null ? `$${s.budgetUsd} cap` : "", s.effort ? `effort ${s.effort}` : ""].filter(Boolean).join(", ");
+    lines.push(`  ${s.workflow} \u203A ${s.job} \u203A ${s.step}`);
+    lines.push(`    ${agentName2[s.agent]} ${s.via === "action" ? "action" : "CLI"}${s.agent === "claude" && s.via === "action" ? ` (${s.mode} mode)` : ""} \xB7 model ${s.model ?? "default"}${limits ? ` \xB7 ${limits}` : ""}${s.plugins.length ? ` \xB7 plugins: ${s.plugins.join(", ")}` : ""}`);
+    lines.push(`    runs on: ${s.triggers.map((t) => t.detail ? `${t.event} (${t.detail})` : t.event).join(", ")}`);
+    for (const f of s.flags) lines.push(`    \u2717 ${f.reason}`, `      fix: ${f.fix}`);
+    if (!s.flags.length) lines.push("    \u2713 nothing to change");
+    lines.push("");
+  }
+  const per = [a.loadedPerRun.claude && a.steps.some((s) => s.agent === "claude") ? `Claude Code ~${Math.round(a.loadedPerRun.claude).toLocaleString("en-US")}` : "", a.loadedPerRun.codex && a.steps.some((s) => s.agent === "codex") ? `Codex ~${Math.round(a.loadedPerRun.codex).toLocaleString("en-US")}` : ""].filter(Boolean);
+  if (per.length) lines.push(`Every run starts by loading the repository's instructions: ${per.join(", ")} tokens. \`snout audit context\` shows what to trim; each token saved there is saved on every CI run too.`);
+  if (a.unreadable.length) lines.push(`Could not read: ${a.unreadable.map((u) => u.file).join(", ")}`);
+  return lines.join("\n").trimEnd();
+}
+
 // src/gate/longdoc.ts
 var LONG_DOC_BYTES = 32 * 1024;
 var HEAD_LINES3 = 60;
@@ -7666,16 +7905,185 @@ function logTail(all) {
   return { kind: "log", start, lines, bytes, totalLines: n, map };
 }
 
-// src/gate/repeat.ts
-import { existsSync as existsSync16, readFileSync as readFileSync18, statSync as statSync16 } from "node:fs";
+// src/memory/memory.ts
+import { existsSync as existsSync16, mkdirSync as mkdirSync9, readdirSync as readdirSync6, readFileSync as readFileSync18, unlinkSync as unlinkSync2 } from "node:fs";
 import { join as join20 } from "node:path";
-import { createHash as createHash3 } from "node:crypto";
+import { spawnSync as spawnSync3 } from "node:child_process";
+var MEMORY_DIR = "memory";
+var MAX_AGE_DAYS = 90;
+var MAX_CARDS = 3;
+var MAX_BRIEF_CHARS = 2400;
+var dirOf = (snoutDir) => join20(snoutDir, MEMORY_DIR);
+var fileOf = (snoutDir, session) => join20(dirOf(snoutDir), `${session.replace(/[^\w.-]/g, "_").slice(0, 80)}.json`);
+function readCard(snoutDir, session) {
+  try {
+    return JSON.parse(readFileSync18(fileOf(snoutDir, session), "utf8"));
+  } catch {
+    return null;
+  }
+}
+function readCards(snoutDir) {
+  let names;
+  try {
+    names = readdirSync6(dirOf(snoutDir)).filter((n) => n.endsWith(".json"));
+  } catch {
+    return [];
+  }
+  const cards = [];
+  for (const n of names) {
+    try {
+      const c = JSON.parse(readFileSync18(join20(dirOf(snoutDir), n), "utf8"));
+      if (c?.v === 1 && typeof c.session === "string") cards.push(c);
+    } catch {
+    }
+  }
+  return cards;
+}
+function writeCard(snoutDir, card) {
+  mkdirSync9(dirOf(snoutDir), { recursive: true });
+  writeAtomic(fileOf(snoutDir, card.session), `${JSON.stringify(card, null, 1)}
+`);
+}
+function forgetCard(snoutDir, session) {
+  try {
+    unlinkSync2(fileOf(snoutDir, session));
+    return true;
+  } catch {
+    return false;
+  }
+}
+function git(projectDir, args) {
+  try {
+    const r = spawnSync3("git", args, { cwd: projectDir, encoding: "utf8", timeout: 2e3, windowsHide: true });
+    return r.status === 0 ? r.stdout.trim() : void 0;
+  } catch {
+    return void 0;
+  }
+}
+var emptyCard = (session, agent, now) => ({ v: 1, id: session, session, agent, started: now, updated: now, changed: [], rules: [], commits: [] });
+function captureSession(snoutDir, projectDir, session, agent, facts, now = (/* @__PURE__ */ new Date()).toISOString()) {
+  const prev = readCard(snoutDir, session);
+  if (!facts.goal && !facts.changed.length && !prev?.commits.length) return null;
+  const card = {
+    ...prev ?? emptyCard(session, agent, now),
+    updated: now,
+    branch: git(projectDir, ["rev-parse", "--abbrev-ref", "HEAD"]) ?? prev?.branch,
+    author: prev?.author ?? git(projectDir, ["config", "user.name"]),
+    task: facts.goal ?? prev?.task,
+    request: facts.request !== facts.goal ? facts.request : void 0,
+    changed: facts.changed.filter((p) => !/^[A-Za-z]:|^\//.test(p)).slice(0, 20),
+    test: facts.test,
+    error: facts.error,
+    rules: facts.rules
+  };
+  writeCard(snoutDir, card);
+  return card;
+}
+var COMMITS = /\bgit\b[^|;&]*\b(commit|merge|cherry-pick|revert|am)\b/;
+function linkCommit(snoutDir, projectDir, session, agent, now = (/* @__PURE__ */ new Date()).toISOString()) {
+  const head = git(projectDir, ["log", "-1", "--format=%H%x1f%s%x1f%cI", "--name-only"]);
+  if (!head) return null;
+  const [first2, ...rest] = head.split("\n");
+  const [sha, subject, ts] = first2.split("");
+  if (!sha || !ts) return null;
+  const card = readCard(snoutDir, session) ?? emptyCard(session, agent, now);
+  if (card.commits.some((c) => c.sha === sha)) return null;
+  if (Date.parse(ts) < Date.parse(card.started) - 6e4) return null;
+  const commit = { sha, subject: subject ?? "", ts, files: rest.map((l) => l.trim()).filter(Boolean).slice(0, 30) };
+  card.commits.push(commit);
+  card.updated = now;
+  writeCard(snoutDir, card);
+  return commit;
+}
+var STOP3 = new Set("the and for are but not you all any can had her was one our out has his how its may new now old see two way who did get let put say she too use this that with from have what when where which will your into than then them they there these those were been being does done just also only some such more most very about after again could should would here make made want need like look fix add bug issue error file files code please thanks okay yes run test tests work works working change changes update".split(" "));
+function terms(text) {
+  const out = [];
+  for (const m of text.matchAll(/[A-Za-z][A-Za-z0-9_]{2,}/g)) {
+    const w = m[0];
+    const parts2 = w.split(/_|(?<=[a-z0-9])(?=[A-Z])/).filter((p) => p.length >= 3);
+    for (const t of new Set([w, ...parts2].map((x) => x.toLowerCase()))) if (!STOP3.has(t)) out.push(t);
+  }
+  return out;
+}
+function cardText(c) {
+  return [c.task, c.request, ...c.changed, ...c.commits.flatMap((k) => [k.subject, ...k.files]), c.error?.line, c.branch].filter(Boolean).join(" ");
+}
+var cardFiles = (c) => [.../* @__PURE__ */ new Set([...c.changed, ...c.commits.flatMap((k) => k.files)])];
+function recall(cards, prompt, opts = {}) {
+  const now = opts.now ?? Date.now();
+  const asOf = opts.asOf ? Date.parse(opts.asOf) : void 0;
+  const live = cards.filter((c) => {
+    if (c.session === opts.session) return false;
+    if (asOf !== void 0) return Date.parse(c.started) < asOf;
+    return now - Date.parse(c.updated) <= MAX_AGE_DAYS * 864e5;
+  }).map((c) => asOf === void 0 ? c : { ...c, commits: c.commits.filter((k) => Date.parse(k.ts) < asOf) });
+  if (!live.length) return [];
+  const q = [...new Set(terms(prompt))];
+  if (!q.length) return [];
+  const docs = live.map((c) => terms(cardText(c)));
+  const avg = docs.reduce((a, d) => a + d.length, 0) / docs.length || 1;
+  const df = /* @__PURE__ */ new Map();
+  for (const d of docs) for (const t of new Set(d)) df.set(t, (df.get(t) ?? 0) + 1);
+  const lower = prompt.toLowerCase();
+  const out = [];
+  live.forEach((card, i) => {
+    const d = docs[i];
+    const tf = /* @__PURE__ */ new Map();
+    for (const t of d) tf.set(t, (tf.get(t) ?? 0) + 1);
+    let score = 0;
+    const matched = [];
+    for (const t of q) {
+      const f = tf.get(t);
+      if (!f) continue;
+      matched.push(t);
+      const n = df.get(t);
+      const idf = Math.log(1 + (live.length - n + 0.5) / (n + 0.5));
+      score += idf * (f * 2.2) / (f + 1.2 * (0.25 + 0.75 * d.length / avg));
+    }
+    let files = cardFiles(card).filter((p) => lower.includes(p.toLowerCase()) || p.split("/").pop().length >= 6 && lower.includes(p.split("/").pop().toLowerCase()));
+    score += files.length * 3;
+    if (matched.length < 2 && !files.length) return;
+    if (opts.projectDir) files = files.filter((p) => existsSync16(join20(opts.projectDir, p)));
+    out.push({ card, score, matched, files });
+  });
+  return out.sort((a, b) => b.score - a.score).slice(0, MAX_CARDS);
+}
+var clip = (s, n) => safeText(s.replace(/\s+/g, " ").trim(), n);
+function renderRecall(hits, projectDir) {
+  if (!hits.length) return "";
+  const exists = (p) => !projectDir || existsSync16(join20(projectDir, p));
+  const lines = ["Snout memory: earlier sessions in this repo that bear on this request (local notes from their transcripts and commits; check before relying on them)."];
+  for (const { card: c } of hits) {
+    const parts2 = [`- ${c.started.slice(0, 10)} \xB7 ${c.agent}${c.branch ? ` \xB7 ${clip(c.branch, 60)}` : ""}: "${clip(c.task ?? c.commits[0]?.subject ?? "untitled", 160)}"`];
+    const files = cardFiles(c).filter(exists).slice(0, 8);
+    if (files.length) parts2.push(`  files: ${files.map((f) => clip(f, 120)).join(", ")}`);
+    if (c.commits.length) parts2.push(`  commits: ${c.commits.slice(-3).map((k) => `${k.sha.replace(/[^0-9a-f]/gi, "").slice(0, 7)} "${clip(k.subject, 80)}"`).join("; ")}`);
+    if (c.test) parts2.push(`  tests: \`${clip(c.test.command, 100)}\` \u2192 ${clip(c.test.result, 80)}`);
+    if (c.error) parts2.push(`  unresolved at the end: ${clip(c.error.line, 140)} (from \`${clip(c.error.command, 80)}\`)`);
+    if (c.rules.length) parts2.push(`  the user said: ${c.rules.slice(-3).map((r) => `"${clip(r, 120)}"`).join(" ")}`);
+    lines.push(parts2.join("\n"));
+  }
+  let text = lines.join("\n");
+  while (text.length > MAX_BRIEF_CHARS && lines.length > 2) {
+    lines.pop();
+    text = lines.join("\n");
+  }
+  return text.length > MAX_BRIEF_CHARS ? `${text.slice(0, MAX_BRIEF_CHARS - 1)}\u2026` : text;
+}
+function listCards(snoutDir) {
+  return readCards(snoutDir).sort((a, b) => b.updated.localeCompare(a.updated));
+}
+
+// src/gate/repeat.ts
+import { existsSync as existsSync17, readFileSync as readFileSync19, statSync as statSync16 } from "node:fs";
+import { join as join21 } from "node:path";
+import { createHash as createHash2 } from "node:crypto";
 var MAX_ENTRIES = 2e3;
 var MAX_WINDOWS = 20;
-var storePath = (snoutDir) => join20(snoutDir, "reads.json");
+var storePath = (snoutDir) => join21(snoutDir, "reads.json");
 function load2(snoutDir, session) {
   try {
-    const s = JSON.parse(readFileSync18(storePath(snoutDir), "utf8"));
+    const s = JSON.parse(readFileSync19(storePath(snoutDir), "utf8"));
     if (s.session === session && s.reads && typeof s.reads === "object") return s;
   } catch {
   }
@@ -7730,7 +8138,7 @@ function statOf(absPath) {
 }
 function rememberRead(snoutDir, session, agentId, absPath, rel, window, turn) {
   const st = statOf(absPath);
-  if (!st || !existsSync16(snoutDir)) return;
+  if (!st || !existsSync17(snoutDir)) return;
   const store = load2(snoutDir, session);
   const key = keyOf(agentId, rel);
   const prior = store.reads[key];
@@ -7751,9 +8159,9 @@ function repeatOf(snoutDir, session, agentId, absPath, rel, window, native = fal
   return { turn: prior.turn, window: covering };
 }
 var MIN_REPEAT_CHARS = 800;
-var outputKey = (agentId, tool, text) => `${agentId || "main"}\0${tool}\0${createHash3("sha256").update(text).digest("hex").slice(0, 32)}`;
+var outputKey = (agentId, tool, text) => `${agentId || "main"}\0${tool}\0${createHash2("sha256").update(text).digest("hex").slice(0, 32)}`;
 function repeatOutput(snoutDir, session, agentId, tool, text, turn, call) {
-  if (text.length < MIN_REPEAT_CHARS || !existsSync16(snoutDir)) return null;
+  if (text.length < MIN_REPEAT_CHARS || !existsSync17(snoutDir)) return null;
   const store = load2(snoutDir, session);
   store.outputs ??= {};
   const key = outputKey(agentId, tool, text);
@@ -7764,13 +8172,13 @@ function repeatOutput(snoutDir, session, agentId, tool, text, turn, call) {
   return null;
 }
 function forgetReads(snoutDir, session) {
-  if (!existsSync16(snoutDir)) return;
+  if (!existsSync17(snoutDir)) return;
   save2(snoutDir, { session, reads: {}, outputs: {} });
 }
 
 // src/cli.ts
 var VERSION2 = "0.2.2";
-var BIN = resolve12(process.argv[1] ?? "dist/snout.mjs");
+var BIN = resolve13(process.argv[1] ?? "dist/snout.mjs");
 var requestStart = 0;
 var elapsedMs = () => Math.round(performance.now() - requestStart);
 var HOOK_EVENTS = /* @__PURE__ */ new Set(["session-start", "prompt-submit", "pre-tool", "post-tool", "pre-compact", "stop", "squeeze"]);
@@ -7791,10 +8199,6 @@ function main() {
   }
   if (command === "audit") {
     void cmdAudit(process.argv.slice(3)).catch((err) => recordError("audit", err)).finally(() => process.exit(0));
-    return;
-  }
-  if (command === "login" || command === "logout" || command === "sync") {
-    void cmdCloud(command, process.argv.slice(3)).catch((err) => recordError(command, err)).finally(() => process.exit(0));
     return;
   }
   const input = readHookInput();
@@ -7822,42 +8226,7 @@ function onAgentHook(agent, event, raw) {
   const text = fromInternal(agent, event, out);
   if (text) writeOut(text);
 }
-function maybeAutoSync(paths) {
-  if (replayDir) return;
-  try {
-    if (!loadCredentials()) return;
-    const last = lastSync(paths);
-    if (last && Date.now() - Date.parse(last.at) < (process.env.SNOUT_TOKEN ? AGENT_SYNC_MS : AUTO_SYNC_MS)) return;
-    const script = process.argv[1];
-    if (!script) return;
-    spawn2(process.execPath, [script, "sync", "--quiet", paths.projectDir], { stdio: "ignore", detached: true, windowsHide: true }).on("error", () => {
-    }).unref();
-  } catch (err) {
-    recordError("autoSync", err);
-  }
-}
-async function cmdCloud(command, args) {
-  const flag = (name) => {
-    const i = args.indexOf(name);
-    return i >= 0 ? args[i + 1] : void 0;
-  };
-  const dir = args.find((a, i) => !a.startsWith("-") && !["--url"].includes(args[i - 1] ?? ""));
-  if (command === "logout") {
-    return say(forgetCredentials() ? "Logged out. Nothing more is sent; the local ledger is untouched." : "Not logged in.");
-  }
-  if (command === "login") {
-    await login(cloudUrl(flag("--url")), say, args.includes("--no-open") ? () => {
-    } : openBrowser);
-    return;
-  }
-  const paths = resolvePaths(dir);
-  if (args.includes("--dry-run")) {
-    return say(JSON.stringify(buildPayload(paths, VERSION2), null, 2));
-  }
-  const r = await sync(paths, VERSION2);
-  if (!args.includes("--quiet") || !r.ok) say(r.message);
-}
-var spendCache = (paths) => existsSync17(paths.snoutDir) ? join21(paths.snoutDir, "spend-cache.json") : null;
+var spendCache = (paths) => existsSync18(paths.snoutDir) ? join22(paths.snoutDir, "spend-cache.json") : null;
 function cmdStatus(paths, cfg) {
   const rows = readDecisions(paths.ledger, 2e4);
   const s = summarizeLedger(rows);
@@ -7870,9 +8239,9 @@ function cmdStatus(paths, cfg) {
   } catch {
   }
   const usd = (tokens2) => rate ? ` (~$${(tokens2 * rate / 1e6).toFixed(2)})` : "";
-  const lines = [`snout ${VERSION2} \xB7 ${basename6(paths.projectDir)} \xB7 mode ${cfg.mode}`, ""];
+  const lines = [`snout ${VERSION2} \xB7 ${basename5(paths.projectDir)} \xB7 mode ${cfg.mode}`, ""];
   if (!s.reads) {
-    lines.push("  No reads recorded yet in this project.", "", `  Next: ${gateInstalled(paths) || existsSync17(paths.hooks) ? "start your agent here and work as usual" : "snout init claude (or codex, cursor, gemini)"}`);
+    lines.push("  No reads recorded yet in this project.", "", `  Next: ${gateInstalled(paths) || existsSync18(paths.hooks) ? "start your agent here and work as usual" : "snout init claude (or codex, cursor, gemini)"}`);
     return say(lines.join("\n"));
   }
   lines.push(`  Today     ~${fmtTokens(s.today.heldBack)} tokens kept out of context${usd(s.today.heldBack)} across ${s.today.reads} read(s)${spentToday ? ` \xB7 agents spent $${spentToday.toFixed(2)}` : ""}`);
@@ -7886,7 +8255,7 @@ function cmdSpend(paths, args) {
   const i = args.indexOf("--days");
   const days = i >= 0 ? Math.max(1, Number(args[i + 1]) || 30) : 30;
   const since = new Date(Date.now() - (days - 1) * 864e5).toISOString().slice(0, 10);
-  const spend = readSpend(all ? null : paths.projectDir, all ? join21(configDir(), "spend-cache.json") : join21(paths.snoutDir, "spend-cache.json"), configDir());
+  const spend = readSpend(all ? null : paths.projectDir, all ? join22(configDir(), "spend-cache.json") : join22(paths.snoutDir, "spend-cache.json"), configDir());
   const s = summarizeSpend([...spend.values()].flat(), since);
   const held = all ? 0 : dailyAggregates(readDecisions(paths.ledger, 2e4), since).reduce((a, d) => a + d.heldBack, 0);
   const projects = [...spend.entries()].map(([dir, r]) => ({ dir, s: summarizeSpend(r, since) })).filter((p) => p.s.requests > 0).sort((a, b) => b.s.costUsd - a.s.costUsd);
@@ -7895,7 +8264,7 @@ function cmdSpend(paths, args) {
   }
   const usd = (n) => `$${n < 100 ? n.toFixed(2) : Math.round(n).toLocaleString()}`;
   const pad = (v, n, left = false) => left ? v.padEnd(n) : v.padStart(n);
-  const lines = [`snout spend \u2014 ${all ? "all projects on this machine" : basename6(paths.projectDir)} \xB7 last ${days} days \xB7 API list prices of ${PRICES_AS_OF}`, ""];
+  const lines = [`snout spend \u2014 ${all ? "all projects on this machine" : basename5(paths.projectDir)} \xB7 last ${days} days \xB7 API list prices of ${PRICES_AS_OF}`, ""];
   if (!s.requests) {
     lines.push("  No agent usage recorded in this range. Claude Code and Codex sessions are read from their own logs.");
     return say(lines.join("\n"));
@@ -7907,11 +8276,11 @@ function cmdSpend(paths, args) {
   for (const m of s.byModel) lines.push(`    ${pad(safeText(m.key, 22), 22, true)}${pad(m.requests.toLocaleString(), 10)}${pad(fmtTokens(m.tokens), 10)}${pad(usd(m.costUsd), 11)}`);
   if (all) {
     lines.push("", `  ${pad("BY PROJECT", 46, true)}${pad("cost", 11)}`);
-    for (const p of projects.slice(0, 10)) lines.push(`    ${pad(safeText(p.dir.replace(homedir6(), "~"), 60).slice(-42), 42, true)}${pad(usd(p.s.costUsd), 11)}`);
+    for (const p of projects.slice(0, 10)) lines.push(`    ${pad(safeText(p.dir.replace(homedir5(), "~"), 60).slice(-42), 42, true)}${pad(usd(p.s.costUsd), 11)}`);
     const rest = projects.slice(10);
     if (rest.length) lines.push(`    ${pad(`${rest.length} more`, 42, true)}${pad(usd(rest.reduce((a, p) => a + p.s.costUsd, 0)), 11)}`);
   }
-  if (s.unpriced.length) lines.push("", `  No list price for ${s.unpriced.map((m) => safeText(m, 40)).join(", ")}: tokens counted, cost left out. Add it to ${join21(configDir(), "prices.json")}.`);
+  if (s.unpriced.length) lines.push("", `  No list price for ${s.unpriced.map((m) => safeText(m, 40)).join(", ")}: tokens counted, cost left out. Add it to ${join22(configDir(), "prices.json")}.`);
   lines.push("", "  A Claude or ChatGPT subscription is not billed per token; this is what the same work costs on the API.");
   say(lines.join("\n"));
 }
@@ -8005,6 +8374,7 @@ function dispatch(command, input) {
   attach(paths);
   const cfg = replayDir ? { ...loadConfig(paths), mode: "enforce" } : loadConfig(paths);
   if (HOOK_EVENTS.has(command)) recordHeartbeat(paths, command, input);
+  pluginNotice = !client && !replayDir && (command === "pre-tool" || command === "squeeze") ? pluginMissingNotice(paths, input) : null;
   switch (command) {
     case "session-start":
       return onSessionStart(input, paths, cfg);
@@ -8048,6 +8418,10 @@ function dispatch(command, input) {
       return cmdOutput(paths, cfg, process.argv.slice(3));
     case "map":
       return cmdMap(paths, cfg, process.argv.slice(3));
+    case "memory":
+      return cmdMemory(paths, cfg, process.argv.slice(3));
+    case "recall":
+      return cmdRecall(paths, process.argv.slice(3));
     case "fast":
       return cmdFast(paths, cfg, process.argv[3]);
     case "version":
@@ -8101,6 +8475,45 @@ function lastSeenByEvent(paths) {
   }
   return out;
 }
+function sessionWithoutPlugin(paths) {
+  const events = /* @__PURE__ */ new Map();
+  for (const r of readRows(paths.hooks, 5e3)) {
+    if (!r || typeof r.event !== "string" || typeof r.session !== "string") continue;
+    const s = events.get(r.session) ?? { last: "", recording: false };
+    if (r.ts > s.last) s.last = r.ts;
+    if (RECORDING_HOOKS.includes(r.event)) s.recording = true;
+    events.set(r.session, s);
+  }
+  let newest = null;
+  for (const e of events) if (!newest || e[1].last > newest[1].last) newest = e;
+  return newest && !newest[1].recording && newest[0] !== "unknown" ? newest[0] : null;
+}
+var pluginNotice = null;
+var sessionsDir = (paths) => join22(paths.snoutDir, "sessions");
+var markerOf = (paths, session) => join22(sessionsDir(paths), session.replace(/[^\w.-]/g, "_").slice(0, 80));
+function markPluginStarted(paths, session) {
+  try {
+    mkdirSync10(sessionsDir(paths), { recursive: true });
+    writeFileSync5(markerOf(paths, session), "");
+    const all = readdirSync7(sessionsDir(paths)).map((f) => ({ f, t: statSync17(join22(sessionsDir(paths), f)).mtimeMs })).sort((a, b) => b.t - a.t);
+    for (const { f } of all.slice(50)) rmSync2(join22(sessionsDir(paths), f), { force: true });
+  } catch (err) {
+    recordError("markPluginStarted", err);
+  }
+}
+function pluginMissingNotice(paths, input) {
+  const session = input.session_id;
+  if (!session || !existsSync18(sessionsDir(paths))) return null;
+  const marker = markerOf(paths, session);
+  if (existsSync18(marker) || existsSync18(marker + ".warned")) return null;
+  try {
+    writeFileSync5(marker + ".warned", "");
+  } catch (err) {
+    recordError("pluginMissingNotice", err);
+    return null;
+  }
+  return "Snout's plugin is not running in this session, only its read gate: this Claude Code started before Snout was installed or updated. Restart Claude Code to turn on memory and reporting.";
+}
 function ago(iso) {
   const ms = Date.now() - Date.parse(iso);
   if (!Number.isFinite(ms) || ms < 0) return "just now";
@@ -8118,6 +8531,7 @@ function onSessionStart(input, paths, cfg) {
   state.session = session;
   if (typeof input.model === "string" && input.model) state.model = input.model.slice(0, 64);
   saveState(paths.state, state);
+  if (!client) markPluginStarted(paths, session);
   if (!client) {
     try {
       if (gateInstalled(paths)) refreshGate(paths.projectDir, BIN);
@@ -8136,7 +8550,7 @@ function onSessionStart(input, paths, cfg) {
     try {
       const progress = readProgress(paths.snoutDir, sessionStartMs(input.transcript_path));
       const facts = client === "codex" ? codexSessionFacts(input.transcript_path, paths.projectDir) : sessionFacts(input.transcript_path, paths.projectDir);
-      const progressFile = toRel(join21(paths.snoutDir, PROGRESS_FILE), paths.projectDir);
+      const progressFile = toRel(join22(paths.snoutDir, PROGRESS_FILE), paths.projectDir);
       const text = memoryText(facts, readPins(paths.projectDir, paths.snoutDir), paths.projectDir, cfg, progress, progressFile);
       if (text) return emit({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: cfg.output === "concise" ? `${text}
 
@@ -8160,6 +8574,7 @@ function withOutputStyle(cfg, out) {
 }
 async function cmdAudit(args) {
   if (args[0] === "context") return cmdAuditContext(args.slice(1));
+  if (args[0] === "ci") return cmdAuditCi(args.slice(1));
   const flag = (name) => {
     const i = args.indexOf(name);
     return i >= 0 ? args[i + 1] : void 0;
@@ -8192,6 +8607,11 @@ async function cmdAudit(args) {
   if (!measure) lines.push("", "Add --measure to start each local server once and count what its tool list costs.");
   if (reports.some((r) => r.source === "Claude account connector")) lines.push("Connectors from your Claude account can't be listed from local files, so unused ones don't show here. Claude Code loads large tool sets on demand, which limits their cost; review them at claude.ai \u2192 Settings \u2192 Connectors.");
   say(lines.join("\n"));
+}
+function cmdAuditCi(args) {
+  const dir = args.find((a2) => !a2.startsWith("-"));
+  const a = auditCi(resolvePaths(dir).projectDir);
+  say(args.includes("--json") ? JSON.stringify(a, null, 2) : renderCi(a));
 }
 async function cmdAuditContext(args) {
   const valued = /* @__PURE__ */ new Set(["--days", "--restore", "--max-tokens"]);
@@ -8265,8 +8685,8 @@ function cmdOutput(paths, cfg, args) {
 }
 var FIRST_RUN_MIN_READS = 3;
 function firstRunReport(paths, cfg, s) {
-  const flag = join21(paths.snoutDir, "first-run.json");
-  if (cfg.mode !== "observe" || existsSync17(flag) || s.reads < FIRST_RUN_MIN_READS || s.couldHoldBack <= 0) return null;
+  const flag = join22(paths.snoutDir, "first-run.json");
+  if (cfg.mode !== "observe" || existsSync18(flag) || s.reads < FIRST_RUN_MIN_READS || s.couldHoldBack <= 0) return null;
   let usd = "";
   try {
     const rate = summarizeSpend([...readSpend(paths.projectDir, spendCache(paths), configDir()).values()].flat()).inputRate;
@@ -8309,32 +8729,23 @@ function dashboardActions(paths) {
       if (v !== "off" && v !== "tip" && v !== "jev") throw new Error("unknown coach mode");
       setConfigKey(paths.config, "coach", v);
       return v === "off" ? "Prompt coach off." : "Prompt coach on.";
-    },
-    cloud: () => {
-      const c = loadCredentials();
-      return c ? { loggedIn: true, team: c.team } : { loggedIn: false };
-    },
-    login: () => {
-      spawn2(process.execPath, [BIN, "login", paths.projectDir], { stdio: "ignore", detached: true, windowsHide: true }).on("error", () => {
-      }).unref();
-      return "Opening the sign-in page in your browser.";
     }
   };
 }
 var SQUEEZE_LOGS_KEPT = 30;
 function firstForCall(paths, id) {
   if (!id) return true;
-  const dir = join21(paths.snoutDir, "calls");
+  const dir = join22(paths.snoutDir, "calls");
   try {
     mkdirSync10(dir, { recursive: true });
-    writeFileSync6(join21(dir, createHash4("sha256").update(id).digest("hex").slice(0, 24)), "", { flag: "wx" });
+    writeFileSync5(join22(dir, createHash3("sha256").update(id).digest("hex").slice(0, 24)), "", { flag: "wx" });
   } catch (err) {
     if (err.code === "EEXIST") return false;
     return true;
   }
   try {
-    const all = readdirSync5(dir);
-    if (all.length > 400) for (const f of all.map((f2) => ({ f: f2, t: statSync17(join21(dir, f2)).mtimeMs })).sort((a, b) => a.t - b.t).slice(0, all.length - 200)) rmSync3(join21(dir, f.f), { force: true });
+    const all = readdirSync7(dir);
+    if (all.length > 400) for (const f of all.map((f2) => ({ f: f2, t: statSync17(join22(dir, f2)).mtimeMs })).sort((a, b) => a.t - b.t).slice(0, all.length - 200)) rmSync2(join22(dir, f.f), { force: true });
   } catch {
   }
   return true;
@@ -8401,16 +8812,16 @@ ${stderr}` : resp.stdout;
   });
   emit({ hookSpecificOutput: { hookEventName: "PostToolUse", updatedToolOutput: { ...resp, stdout: s.text, stderr: "" } } });
 }
-var squeezeLogName = (command) => `${(/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-")}-${createHash4("sha256").update(command).digest("hex").slice(0, 8)}.log`;
+var squeezeLogName = (command) => `${(/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-")}-${createHash3("sha256").update(command).digest("hex").slice(0, 8)}.log`;
 function saveSqueezeLog(paths, logName, command, full) {
-  const dir = join21(paths.snoutDir, "squeeze");
+  const dir = join22(paths.snoutDir, "squeeze");
   try {
     mkdirSync10(dir, { recursive: true });
-    writeAtomic(join21(dir, logName), `$ ${command}
+    writeAtomic(join22(dir, logName), `$ ${command}
 
 ${full}`);
-    const logs = readdirSync5(dir).filter((f) => f.endsWith(".log")).sort();
-    for (const old of logs.slice(0, Math.max(0, logs.length - SQUEEZE_LOGS_KEPT))) rmSync3(join21(dir, old), { force: true });
+    const logs = readdirSync7(dir).filter((f) => f.endsWith(".log")).sort();
+    for (const old of logs.slice(0, Math.max(0, logs.length - SQUEEZE_LOGS_KEPT))) rmSync2(join22(dir, old), { force: true });
     return true;
   } catch (err) {
     recordError("squeeze log", err);
@@ -8458,8 +8869,8 @@ function onMcpTrim(input, paths, cfg, started) {
       return emit({ hookSpecificOutput: { hookEventName: "PostToolUse", updatedToolOutput: [{ type: "text", text: note }] } });
     }
   }
-  const dir = join21(paths.snoutDir, "squeeze");
-  const logName = `${(/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-")}-${createHash4("sha256").update(tool).digest("hex").slice(0, 8)}.json`;
+  const dir = join22(paths.snoutDir, "squeeze");
+  const logName = `${(/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-")}-${createHash3("sha256").update(tool).digest("hex").slice(0, 8)}.json`;
   const t = trimMcp(input.tool_response, `.snout/squeeze/${logName}`);
   if (!t) {
     recordToolOutput(input, paths, loadState(paths.state, input.session_id ?? "unknown"), responseBytes(input.tool_response));
@@ -8467,9 +8878,9 @@ function onMcpTrim(input, paths, cfg, started) {
   }
   try {
     mkdirSync10(dir, { recursive: true });
-    writeAtomic(join21(dir, logName), JSON.stringify({ tool, input: input.tool_input ?? null, output: input.tool_response }, null, 1));
-    const logs = readdirSync5(dir).sort();
-    for (const old of logs.slice(0, Math.max(0, logs.length - SQUEEZE_LOGS_KEPT))) rmSync3(join21(dir, old), { force: true });
+    writeAtomic(join22(dir, logName), JSON.stringify({ tool, input: input.tool_input ?? null, output: input.tool_response }, null, 1));
+    const logs = readdirSync7(dir).sort();
+    for (const old of logs.slice(0, Math.max(0, logs.length - SQUEEZE_LOGS_KEPT))) rmSync2(join22(dir, old), { force: true });
   } catch (err) {
     recordError("mcp trim log", err);
     return emit({});
@@ -8506,25 +8917,83 @@ function onPromptSubmit(input, paths, cfg) {
   const session = input.session_id ?? "unknown";
   const state = loadState(paths.state, session);
   state.turn += 1;
-  state.goalHash = createHash4("sha256").update(input.prompt ?? "").digest("hex").slice(0, 12);
+  state.goalHash = createHash3("sha256").update(input.prompt ?? "").digest("hex").slice(0, 12);
   const tip = coachPrompt(input.prompt ?? "", paths, cfg, state);
   const files = cfg.repoMap ? suggestFiles(input.prompt ?? "", paths, cfg, state) : "";
+  const brief = cfg.memory !== false && cfg.mode !== "observe" ? recallBrief(input.prompt ?? "", paths, state) : "";
   saveState(paths.state, state);
+  const context = [brief, files].filter(Boolean).join("\n\n");
   emit({
     ...tip ? { systemMessage: tip } : {},
-    ...files ? { hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: files } } : {}
+    ...context ? { hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: context } } : {}
   });
+}
+var agentName = () => client === "codex" ? "codex" : "claude";
+function recallBrief(prompt, paths, state) {
+  if (!prompt.trim()) return "";
+  try {
+    const seen = new Set(state.recalled ?? []);
+    const hits = recall(readCards(paths.snoutDir), prompt, { session: state.session, projectDir: paths.projectDir }).filter((h) => !seen.has(h.card.id));
+    const text = renderRecall(hits, paths.projectDir);
+    if (!text) return "";
+    state.recalled = [...seen, ...hits.map((h) => h.card.id)].slice(-50);
+    appendRow(join22(paths.snoutDir, "recall.jsonl"), {
+      ts: (/* @__PURE__ */ new Date()).toISOString(),
+      session: state.session,
+      turn: state.turn,
+      cards: hits.map((h) => h.card.id),
+      scores: hits.map((h) => Math.round(h.score * 100) / 100),
+      tokensEst: estimateTokens(Buffer.byteLength(text), "x.txt")
+    });
+    return text;
+  } catch (err) {
+    recordError("recall", err);
+    return "";
+  }
+}
+function captureCard(input, paths, cfg, session) {
+  if (cfg.memory === false || !input.transcript_path || replayDir) return;
+  try {
+    const facts = client === "codex" ? codexSessionFacts(input.transcript_path, paths.projectDir) : sessionFacts(input.transcript_path, paths.projectDir);
+    captureSession(paths.snoutDir, paths.projectDir, session, agentName(), facts);
+  } catch (err) {
+    recordError("memoryCapture", err);
+  }
+}
+function cmdMemory(paths, cfg, args) {
+  const v = args[0];
+  if (v === "on" || v === "off") {
+    setConfigKey(paths.config, "memory", v === "on");
+    return say(v === "on" ? "Memory on. Each session leaves a card in .snout/memory (task, files changed, commits, test command, what failed), and a later prompt that bears on one gets a short brief. Local only; commit .snout/memory to share it with your team." : "Memory off. No new cards, and nothing is recalled. Existing cards stay in .snout/memory.");
+  }
+  if (v === "forget") {
+    const id = args[1];
+    if (!id) return say("Usage: snout memory forget <session>");
+    return say(forgetCard(paths.snoutDir, id) ? `Forgot ${safeText(id, 80)}.` : `No card for ${safeText(id, 80)}.`);
+  }
+  const cards = listCards(paths.snoutDir);
+  const head = `Memory is ${cfg.memory === false ? "off" : "on"} \xB7 ${cards.length} card${cards.length === 1 ? "" : "s"} in ${toRel(join22(paths.snoutDir, "memory"), paths.projectDir)}`;
+  const rows = cards.slice(0, 20).map((c) => `  ${c.updated.slice(0, 10)}  ${c.agent.padEnd(6)} ${safeText(c.session, 36)}  ${safeText(c.task ?? c.commits[0]?.subject ?? "", 70)}${c.commits.length ? `  [${c.commits.map((k) => k.sha.slice(0, 7)).join(" ")}]` : ""}`);
+  say([head, ...rows, "", 'Usage: snout memory on|off \xB7 snout memory forget <session> \xB7 snout recall "<request>"'].join("\n"));
+}
+function cmdRecall(paths, args) {
+  const i = args.indexOf("--as-of");
+  const asOf = i >= 0 ? args[i + 1] : void 0;
+  const request = args.filter((_, j) => i < 0 || j !== i && j !== i + 1).join(" ").trim();
+  if (!request) return say('Usage: snout recall "<request>" [--as-of 2026-10-01]');
+  const text = renderRecall(recall(readCards(paths.snoutDir), request, { asOf, projectDir: paths.projectDir }), paths.projectDir);
+  say(text || "No earlier session bears on that request.");
 }
 var MAP_CANDIDATES = 4;
 function refreshMap(paths, cfg) {
   let prev = null;
   try {
-    prev = JSON.parse(readFileSync19(paths.map, "utf8"));
+    prev = JSON.parse(readFileSync20(paths.map, "utf8"));
   } catch {
   }
   const lowValue = (rel) => {
     try {
-      return decide({ absPath: join21(paths.projectDir, rel), projectDir: paths.projectDir, cfg }).value === 0;
+      return decide({ absPath: join22(paths.projectDir, rel), projectDir: paths.projectDir, cfg }).value === 0;
     } catch {
       return false;
     }
@@ -8542,7 +9011,7 @@ function suggestFiles(prompt, paths, cfg, state) {
     const cs = candidates(refreshMap(paths, cfg), prompt, MAP_CANDIDATES);
     if (!shouldSuggest(cs, prompt)) return "";
     const line = renderCandidates(cs.map((c) => ({ ...c, path: safePath(c.path) })));
-    appendRow(join21(paths.snoutDir, "map-suggestions.jsonl"), {
+    appendRow(join22(paths.snoutDir, "map-suggestions.jsonl"), {
       ts: (/* @__PURE__ */ new Date()).toISOString(),
       session: state.session,
       turn: state.turn,
@@ -8663,7 +9132,7 @@ function coachPrompt(prompt, paths, cfg, state) {
     const tip = c.tip && !quiet ? c.tip : null;
     if (tip) state.lastCoachTurn = state.turn;
     if (c.taskLike) {
-      appendRow(join21(paths.snoutDir, "prompts.jsonl"), {
+      appendRow(join22(paths.snoutDir, "prompts.jsonl"), {
         ts: (/* @__PURE__ */ new Date()).toISOString(),
         session: state.session,
         turn: state.turn,
@@ -8739,7 +9208,7 @@ function onPreTool(input, paths, cfg) {
     emit({});
     return;
   }
-  const absPath = isAbsolute13(filePath) ? filePath : join21(paths.projectDir, filePath);
+  const absPath = isAbsolute13(filePath) ? filePath : join22(paths.projectDir, filePath);
   const state = loadState(paths.state, input.session_id ?? "unknown");
   if (tool === "Read" && cfg.repeatReads !== false) {
     const rel = toRel(absPath, paths.projectDir);
@@ -8798,7 +9267,7 @@ function readWindowBytes(input, absPath) {
   if (!Number.isFinite(limit) || limit <= 0) return void 0;
   const offset = Math.max(1, typeof t.offset === "number" ? t.offset : Number(t.offset) || 1);
   try {
-    const lines = readFileSync19(absPath, "utf8").split("\n").slice(offset - 1, offset - 1 + limit);
+    const lines = readFileSync20(absPath, "utf8").split("\n").slice(offset - 1, offset - 1 + limit);
     return Buffer.byteLength(lines.join("\n"));
   } catch {
     return void 0;
@@ -8808,7 +9277,7 @@ function contentsOf(absPath, rel, rule) {
   try {
     const size = sizeOf(absPath);
     if (size > 4 * 1024 * 1024) return { outline: "", oneLine: false };
-    const text = readFileSync19(absPath, "utf8");
+    const text = readFileSync20(absPath, "utf8");
     const lines = text.split("\n").length;
     return { outline: outline(rel, rule, text), oneLine: size / lines > 1e3 };
   } catch {
@@ -8820,7 +9289,7 @@ var TRIM_BYTES = 6 * 1024;
 function headWindow(absPath) {
   try {
     if (sizeOf(absPath) > 16 * 1024 * 1024) return null;
-    const all = readFileSync19(absPath, "utf8").split("\n");
+    const all = readFileSync20(absPath, "utf8").split("\n");
     let bytes = 0, lines = 0;
     for (const line of all.slice(0, TRIM_LINES)) {
       const b = Buffer.byteLength(line) + 1;
@@ -8887,7 +9356,7 @@ function longDocOf(absPath, rel) {
   try {
     const size = sizeOf(absPath);
     if (size > 16 * 1024 * 1024) return null;
-    return docWindow(rel, size >= 32 * 1024 ? readFileSync19(absPath, "utf8") : "", size);
+    return docWindow(rel, size >= 32 * 1024 ? readFileSync20(absPath, "utf8") : "", size);
   } catch {
     return null;
   }
@@ -9005,6 +9474,7 @@ function repeatResponse(input, paths, state, absPath, rel, window, prior) {
     }
   });
 }
+var READ_VIEWABLE = /\.(png|jpe?g|gif|webp|pdf)$/i;
 function classifyForGate(input, paths, cfg, state, absPath, windowBytes) {
   const rel = toRel(absPath, paths.projectDir);
   const bytes = windowBytes ?? sizeOf(absPath);
@@ -9020,6 +9490,9 @@ function classifyForGate(input, paths, cfg, state, absPath, windowBytes) {
     };
   }
   if (d.rule === "oversized" && windowBytes !== void 0 && windowBytes <= cfg.sizeCapBytes) {
+    d = { ...d, verdict: "allow", suppressedByMode: true };
+  }
+  if (d.rule === "binary" && !client && input.tool_name === "Read" && READ_VIEWABLE.test(absPath)) {
     d = { ...d, verdict: "allow", suppressedByMode: true };
   }
   if (d.verdict !== "allow" && !worthGating(d, isRegularFile(absPath), estimated)) {
@@ -9078,7 +9551,6 @@ function agentSearchHint(rule, rel, oneLine2) {
   return client === "codex" && powerShellRead && hint ? powerShellSearchHint(rel) : hint;
 }
 function onPostTool(input, paths, cfg) {
-  maybeAutoSync(paths);
   const state = loadState(paths.state, input.session_id ?? "unknown");
   const pending = state;
   const id = input.tool_use_id;
@@ -9087,12 +9559,19 @@ function onPostTool(input, paths, cfg) {
   if (input.tool_name === "Read" && filePath) {
     const window = returnedWindow(input.tool_response);
     if (window) {
-      const abs = isAbsolute13(filePath) ? filePath : join21(paths.projectDir, filePath);
+      const abs = isAbsolute13(filePath) ? filePath : join22(paths.projectDir, filePath);
       rememberRead(paths.snoutDir, state.session, agentOf2(input).agentId, abs, toRel(abs, paths.projectDir), window, state.turn);
     }
   } else if (input.tool_name === "Bash") {
     const resp = input.tool_response;
     const command = stringField(input.tool_input, "command");
+    if (command && COMMITS.test(command) && cfg.memory !== false && !replayDir) {
+      try {
+        linkCommit(paths.snoutDir, paths.projectDir, state.session, agentName());
+      } catch (err) {
+        recordError("memoryCommit", err);
+      }
+    }
     if (command && resp && typeof resp.stdout === "string" && resp.interrupted !== true) {
       for (const abs of shellDumpTargets(command, paths.projectDir)) {
         rememberRead(paths.snoutDir, state.session, agentOf2(input).agentId, abs, toRel(abs, paths.projectDir), "full", state.turn);
@@ -9158,8 +9637,8 @@ function onPreCompact(input, paths) {
   emit({});
 }
 function onStop(input, paths, cfg) {
-  maybeAutoSync(paths);
   const state = loadState(paths.state, input.session_id ?? "unknown");
+  captureCard(input, paths, cfg, input.session_id ?? state.session);
   const rows = readDecisions(paths.ledger, 2e3).filter(
     (r) => r.session === state.session && r.turn === state.turn && r.rule !== "reversal"
   );
@@ -9250,7 +9729,7 @@ function recordToolOutput(input, paths, state, bytes) {
   });
 }
 function recordObservation(input, paths, cfg, filePath, state, bytesHint) {
-  const absPath = isAbsolute13(filePath) ? filePath : join21(paths.projectDir, filePath);
+  const absPath = isAbsolute13(filePath) ? filePath : join22(paths.projectDir, filePath);
   const rel = toRel(absPath, paths.projectDir);
   const d = decide({ absPath, projectDir: paths.projectDir, cfg });
   const returned = bytesHint ?? responseBytes(input.tool_response);
@@ -9285,7 +9764,7 @@ function recordObservation(input, paths, cfg, filePath, state, bytesHint) {
   });
 }
 function hasPreToolRow(paths, state, filePath, agentId) {
-  const rel = toRel(isAbsolute13(filePath) ? filePath : join21(paths.projectDir, filePath), paths.projectDir);
+  const rel = toRel(isAbsolute13(filePath) ? filePath : join22(paths.projectDir, filePath), paths.projectDir);
   return readDecisions(paths.ledger, 12).some(
     (r) => r.path === rel && r.turn === state.turn && r.session === state.session && r.agentId === agentId && !r.observedOnly
   );
@@ -9340,7 +9819,7 @@ function cmdReport(paths, cfg, args) {
 }
 function currentSession(paths) {
   try {
-    const s = JSON.parse(readFileSync19(paths.state, "utf8"));
+    const s = JSON.parse(readFileSync20(paths.state, "utf8"));
     return typeof s.session === "string" ? s.session : null;
   } catch {
     return null;
@@ -9373,11 +9852,11 @@ function cmdAllow(paths, cfg, target) {
   setConfigKey(paths.config, "alwaysAllow", [...cfg.alwaysAllow, target]);
   say(`Added ${target} to always-allow. It will never be flagged again.`);
 }
-var appliedPath = (paths) => join21(paths.snoutDir, "applied.jsonl");
+var appliedPath = (paths) => join22(paths.snoutDir, "applied.jsonl");
 function currentTips(paths, cfg) {
   let claudeMd = "";
   try {
-    claudeMd = readFileSync19(join21(paths.projectDir, "CLAUDE.md"), "utf8");
+    claudeMd = readFileSync20(join22(paths.projectDir, "CLAUDE.md"), "utf8");
   } catch {
   }
   return tipsOf(readDecisions(paths.ledger, 5e3), {
@@ -9407,7 +9886,7 @@ function cmdApply(paths, cfg, args) {
   const tip = tips[n - 1];
   if (!tip) return say(`No tip ${n}. Run snout apply to list them.`);
   const toUser = args.includes("--user") && tip.kind !== "claude-md";
-  const file2 = tip.kind === "claude-md" ? join21(paths.projectDir, "CLAUDE.md") : toUser ? userConfigPath() : paths.config;
+  const file2 = tip.kind === "claude-md" ? join22(paths.projectDir, "CLAUDE.md") : toUser ? userConfigPath() : paths.config;
   if (!args.includes("--yes")) {
     const lines = [
       `${n}. ${safeText(tip.title, 90)}`,
@@ -9425,8 +9904,8 @@ function cmdApply(paths, cfg, args) {
   const row = { ts: (/* @__PURE__ */ new Date()).toISOString(), id: tip.id, kind: tip.kind, target: tip.target, file: file2 };
   if (tip.kind === "claude-md") {
     const line = claudeMdLine(tip.target, tip.rule ?? "");
-    const existed = existsSync17(file2);
-    const prev = existed ? readFileSync19(file2, "utf8") : "";
+    const existed = existsSync18(file2);
+    const prev = existed ? readFileSync20(file2, "utf8") : "";
     writeAtomic(file2, prev + (prev === "" || prev.endsWith("\n") ? "" : "\n") + line + "\n");
     Object.assign(row, { line, created: !existed });
   } else {
@@ -9447,11 +9926,11 @@ function undoApply(paths) {
   const last = [...rows].reverse().find((r) => !r.undone && !undone.has(r.ts));
   if (!last) return say("Nothing to undo.");
   if (last.kind === "claude-md" && last.line) {
-    const text = existsSync17(last.file) ? readFileSync19(last.file, "utf8") : "";
+    const text = existsSync18(last.file) ? readFileSync20(last.file, "utf8") : "";
     const i = text.lastIndexOf(last.line + "\n");
     if (i < 0) return say(`The line snout added to ${safeText(last.file, 120)} is no longer there; nothing changed.`);
     const next = text.slice(0, i) + text.slice(i + last.line.length + 1);
-    if (last.created && next.trim() === "") rmSync3(last.file, { force: true });
+    if (last.created && next.trim() === "") rmSync2(last.file, { force: true });
     else writeAtomic(last.file, next);
   } else if (last.key) {
     setConfigKey(last.file, last.key, last.before);
@@ -9486,7 +9965,7 @@ function cmdExplain(paths, cfg, args) {
     say("Usage: /snout:explain <path> [--json]");
     return;
   }
-  const absPath = isAbsolute13(target) ? target : join21(paths.projectDir, target);
+  const absPath = isAbsolute13(target) ? target : join22(paths.projectDir, target);
   const rel = toRel(absPath, paths.projectDir);
   const bytes = sizeOf(absPath);
   const tokens2 = estimateTokens(bytes, rel);
@@ -9583,7 +10062,7 @@ function cmdScan(paths, cfg, args) {
   const topN = Math.max(0, Math.min(100, Number(flag("--top") ?? 10) || 10));
   const valued = /* @__PURE__ */ new Set(["--deny", "--ask", "--mode", "--top"]);
   const target = args.find((a, i) => !a.startsWith("--") && !valued.has(args[i - 1] ?? ""));
-  const root = target ? isAbsolute13(target) ? target : join21(paths.projectDir, target) : paths.projectDir;
+  const root = target ? isAbsolute13(target) ? target : join22(paths.projectDir, target) : paths.projectDir;
   const started = Date.now();
   const files = [];
   let truncated = false;
@@ -9598,14 +10077,14 @@ function cmdScan(paths, cfg, args) {
         truncated = true;
         break;
       }
-      const abs = join21(root, rel);
+      const abs = join22(root, rel);
       if (isRegularFile(abs)) add(abs);
     }
   }
   const walk2 = (dir) => {
     let entries;
     try {
-      entries = readdirSync5(dir, { withFileTypes: true });
+      entries = readdirSync7(dir, { withFileTypes: true });
     } catch {
       return;
     }
@@ -9614,7 +10093,7 @@ function cmdScan(paths, cfg, args) {
         truncated = true;
         return;
       }
-      const abs = join21(dir, e.name);
+      const abs = join22(dir, e.name);
       if (e.isDirectory()) {
         if (!SCAN_SKIP.has(e.name)) walk2(abs);
       } else if (e.isFile()) {
@@ -9668,7 +10147,7 @@ function renderScan(sum, root, truncated, ms) {
 function cmdReset(paths) {
   for (const p of [paths.ledger, paths.turns, paths.errors, paths.hooks, paths.state]) {
     try {
-      if (existsSync17(p)) writeAtomic(p, "");
+      if (existsSync18(p)) writeAtomic(p, "");
     } catch (err) {
       recordError("reset", err);
     }
@@ -9678,15 +10157,15 @@ function cmdReset(paths) {
 function cmdDoctor(paths, cfg) {
   const rows = readDecisions(paths.ledger, 5e3);
   const t = totalsOf(rows.filter((r) => r.rule !== "reversal"));
-  const errors = existsSync17(paths.errors) ? readFileSync19(paths.errors, "utf8").trim().split("\n").filter(Boolean) : [];
+  const errors = existsSync18(paths.errors) ? readFileSync20(paths.errors, "utf8").trim().split("\n").filter(Boolean) : [];
   const lines = [
     `snout ${VERSION2}`,
     `  node            ${process.version}`,
     `  bundle          ${runningBundle()}`,
     `  project         ${paths.projectDir}`,
-    `  .snout            ${existsSync17(paths.snoutDir) ? "present" : "MISSING"}`,
-    `  config          ${existsSync17(paths.config) ? paths.config : "no project file"}`,
-    `  user defaults   ${existsSync17(userConfigPath()) ? userConfigPath() : "none (~/.snout/config.json)"}`,
+    `  .snout            ${existsSync18(paths.snoutDir) ? "present" : "MISSING"}`,
+    `  config          ${existsSync18(paths.config) ? paths.config : "no project file"}`,
+    `  user defaults   ${existsSync18(userConfigPath()) ? userConfigPath() : "none (~/.snout/config.json)"}`,
     `  mode from       ${configSource(paths, "mode")}`,
     `  mode            ${cfg.mode}`,
     `  decisions       ${rows.length}`,
@@ -9708,6 +10187,16 @@ function cmdDoctor(paths, cfg) {
     for (const event of RECORDING_HOOKS) {
       const ts = seen.get(event);
       lines.push(`    ${event.padEnd(14)} ${ts ? ago(ts) : "never"}`);
+    }
+    const orphan = sessionWithoutPlugin(paths);
+    if (orphan) {
+      lines.push(
+        "",
+        `    Session ${safeText(orphan.slice(0, 8), 8)} ran the gate in .claude/settings but none of the plugin's`,
+        "    hooks, so its prompts, turns and compactions go unrecorded. Its Claude Code process",
+        "    started before the plugin was enabled: plugins load at process start, and /clear",
+        "    does not reload them. Quit that Claude Code and start it again."
+      );
     }
     if (!seen.has("post-tool")) {
       const started = seen.get("session-start") ?? "";
@@ -9745,8 +10234,8 @@ function cmdDoctor(paths, cfg) {
   }
   if (errors.length > 0) lines.push("", "  Most recent error:", `  ${errors[errors.length - 1]}`);
   const tp = process.env.SNOUT_TRANSCRIPT;
-  if (tp && existsSync17(tp)) {
-    const u = readTranscriptUsage(readFileSync19(tp, "utf8"));
+  if (tp && existsSync18(tp)) {
+    const u = readTranscriptUsage(readFileSync20(tp, "utf8"));
     lines.push(
       "",
       "  MEASURED FROM TRANSCRIPT",
@@ -9769,7 +10258,7 @@ var HELP = `snout ${VERSION2} \xB7 the context gate for coding agents
   snout dashboard            live savings in the browser
   snout mode observe|enforce record only, or trim low-value reads
   snout explain <file>       why a file was trimmed        snout allow <file>   never trim it
-  snout login                team dashboard (syncs daily totals, never code)
+  snout memory               what earlier sessions left     snout recall "<q>"   what a prompt would get
 
   Docs and advanced commands: https://github.com/biffbuster/snout-context#cli`;
 function readStdin(timeoutMs = 1e3) {
@@ -9817,7 +10306,7 @@ function recordRow(path, row) {
   let model = r.model;
   if (!model) {
     try {
-      const st = JSON.parse(readFileSync19(join21(dirname10(path), "state.json"), "utf8"));
+      const st = JSON.parse(readFileSync20(join22(dirname9(path), "state.json"), "utf8"));
       if (st.model && st.session === r.session) model = st.model;
     } catch {
     }
@@ -9826,7 +10315,7 @@ function recordRow(path, row) {
 }
 var replayDir = null;
 function rebase(p, dir) {
-  return { ...p, snoutDir: dir, config: join21(dir, "config.json"), thresholds: join21(dir, "thresholds.json"), ledger: join21(dir, "ledger.jsonl"), turns: join21(dir, "turns.jsonl"), errors: join21(dir, "errors.jsonl"), hooks: join21(dir, "hooks.jsonl"), state: join21(dir, "state.json"), map: join21(dir, "map.json") };
+  return { ...p, snoutDir: dir, config: join22(dir, "config.json"), thresholds: join22(dir, "thresholds.json"), ledger: join22(dir, "ledger.jsonl"), turns: join22(dir, "turns.jsonl"), errors: join22(dir, "errors.jsonl"), hooks: join22(dir, "hooks.jsonl"), state: join22(dir, "state.json"), map: join22(dir, "map.json") };
 }
 function runHook(command, input) {
   captured = null;
@@ -9848,8 +10337,8 @@ function cmdReplay(paths, args) {
   const last = lastAt >= 0 ? Math.max(1, Number(args[lastAt + 1]) || 20) : 20;
   let files = args.filter((a, i) => a.endsWith(".jsonl") && args[i - 1] !== "--last");
   if (!files.length) {
-    const dir = join21(process.env.CLAUDE_CONFIG_DIR || join21(homedir6(), ".claude"), "projects", resolve12(paths.projectDir).replace(/[^A-Za-z0-9]/g, "-"));
-    files = existsSync17(dir) ? readdirSync5(dir).filter((f) => f.endsWith(".jsonl")).map((f) => join21(dir, f)).sort((a, b) => statSync17(b).mtimeMs - statSync17(a).mtimeMs).slice(0, last) : [];
+    const dir = join22(process.env.CLAUDE_CONFIG_DIR || join22(homedir5(), ".claude"), "projects", resolve13(paths.projectDir).replace(/[^A-Za-z0-9]/g, "-"));
+    files = existsSync18(dir) ? readdirSync7(dir).filter((f) => f.endsWith(".jsonl")).map((f) => join22(dir, f)).sort((a, b) => statSync17(b).mtimeMs - statSync17(a).mtimeMs).slice(0, last) : [];
   }
   if (!files.length) return say("snout replay: no Claude Code sessions found for this project. Pass transcript files (.jsonl) to replay others.");
   const rows = [];
@@ -9859,10 +10348,10 @@ function cmdReplay(paths, args) {
     post: (input) => void runHook("post-tool", input)
   };
   for (const file2 of files) {
-    const dir = mkdtempSync2(join21(tmpdir2(), "snout-replay-"));
+    const dir = mkdtempSync2(join22(tmpdir2(), "snout-replay-"));
     for (const name of ["config.json", "thresholds.json"]) {
-      const from = join21(paths.snoutDir, name);
-      if (existsSync17(from)) copyFileSync(from, join21(dir, name));
+      const from = join22(paths.snoutDir, name);
+      if (existsSync18(from)) copyFileSync(from, join22(dir, name));
     }
     replayDir = dir;
     try {
@@ -9871,7 +10360,7 @@ function cmdReplay(paths, args) {
       recordError("replay", err);
     } finally {
       replayDir = null;
-      rmSync3(dir, { recursive: true, force: true });
+      rmSync2(dir, { recursive: true, force: true });
     }
   }
   const capAt = args.indexOf("--compact-at");
@@ -9892,6 +10381,10 @@ ${lines.join("\n")}
   From the sessions' own token counts, flat prices; calibrated on two runs measured both ways, where live savings were larger.` : ""));
 }
 function emit(payload) {
+  if (pluginNotice) {
+    if (!payload.systemMessage) payload = { ...payload, systemMessage: pluginNotice };
+    pluginNotice = null;
+  }
   if (Object.keys(payload).length === 0) return;
   if (capturing) {
     captured = payload;
@@ -9937,7 +10430,7 @@ function runningBundle() {
 function fastGateInstalled(paths) {
   for (const f of ["settings.json", "settings.local.json"]) {
     try {
-      const pre = JSON.parse(readFileSync19(join21(paths.projectDir, ".claude", f), "utf8")).hooks?.PreToolUse ?? [];
+      const pre = JSON.parse(readFileSync20(join22(paths.projectDir, ".claude", f), "utf8")).hooks?.PreToolUse ?? [];
       if (pre.some((e) => (e.hooks ?? []).some((h) => isSnoutUrl(h.url)))) return true;
     } catch {
     }
@@ -9958,10 +10451,10 @@ function gateMatcher(paths) {
   const tools = /* @__PURE__ */ new Set();
   let found = false;
   for (const f of ["settings.json", "settings.local.json"]) {
-    const p = join21(paths.projectDir, ".claude", f);
-    if (!existsSync17(p)) continue;
+    const p = join22(paths.projectDir, ".claude", f);
+    if (!existsSync18(p)) continue;
     try {
-      const settings = JSON.parse(readFileSync19(p, "utf8"));
+      const settings = JSON.parse(readFileSync20(p, "utf8"));
       const entries = settings.hooks?.PreToolUse ?? [];
       for (const entry of entries) {
         if (!(entry.hooks ?? []).some((h) => typeof h.command === "string" && h.command.includes("snout.mjs") || isSnoutUrl(h.url))) continue;
@@ -9979,7 +10472,7 @@ function setConfigKey(file2, key, value) {
     const layer = readLayer(file2);
     if (value === void 0) delete layer[key];
     else layer[key] = value;
-    mkdirSync10(dirname10(file2), { recursive: true });
+    mkdirSync10(dirname9(file2), { recursive: true });
     writeAtomic(file2, JSON.stringify(layer, null, 2) + "\n");
   } catch (err) {
     recordError("writeConfig", err);
@@ -9990,4 +10483,4 @@ try {
 } catch (err) {
   recordError("main", err);
 }
-if (!["mcp", "dashboard", "login", "logout", "sync", "audit", "serve"].includes(process.argv[2] ?? "")) process.exit(0);
+if (!["mcp", "dashboard", "audit", "serve"].includes(process.argv[2] ?? "")) process.exit(0);

@@ -4,18 +4,26 @@
  * SWE_FAKE_AGENT=1 to check everything around the agent before a paid run. It fires the hooks in
  * the workspace's .claude/settings.json the way Claude Code does (JSON on stdin, through Git Bash
  * on Windows), feeds them a large Read, a repeat of it and a long passing test run, applies the
- * gold patch from SWE_FAKE_PATCH, and prints Claude Code's JSON result with a nominal cost.
+ * gold patch from SWE_FAKE_PATCH, and prints Claude Code's JSON result with a nominal cost. For long
+ * sessions (bench/swelong.mjs) it continues a session with --resume, works in the issue folder named
+ * in .current, and before every second issue runs a compaction's hooks to see what Snout restores.
  *
  * What each hook answered is written to stderr, so a dry run shows whether Snout stepped in.
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { randomUUID } from "node:crypto";
 
 const cwd = process.cwd();
-const session_id = randomUUID();
+// Long sessions (bench/swelong.mjs): --resume continues a session, and the issue's own folder is in
+// .current (the session runs in the chain folder above it).
+const resumed = process.argv.includes("--resume") ? process.argv[process.argv.indexOf("--resume") + 1] : null;
+const session_id = resumed ?? randomUUID();
+const work = existsSync(".current") ? readFileSync(".current", "utf8").trim() : cwd;
 const prompt = process.argv[process.argv.indexOf("-p") + 1] ?? "";
+const issue = Number(/Issue (\d+) of \d+:/.exec(prompt)?.[1] ?? 0);
 const settings = existsSync(".claude/settings.json") ? JSON.parse(readFileSync(".claude/settings.json", "utf8")) : {};
 const hooks = settings.hooks ?? {};
 const BASH = process.platform === "win32"
@@ -23,6 +31,19 @@ const BASH = process.platform === "win32"
   : "bash";
 const log = (s) => process.stderr.write(`[fake] ${s}\n`);
 const answers = [];
+// A transcript in Claude Code's format and place (the config folder's projects/), kept across
+// --resume: a compaction's hooks restore from it and the harness prices the session from it.
+const model = process.argv.includes("--model") ? process.argv[process.argv.indexOf("--model") + 1] : "claude-haiku-5-5";
+const transcript_path = join(process.env.CLAUDE_CONFIG_DIR || join(tmpdir(), "snout-fake-claude"), "projects", "fake", `${session_id}.jsonl`);
+mkdirSync(join(transcript_path, ".."), { recursive: true });
+// Each assistant turn carries usage as the API returns it, the prompt growing by what was said.
+let context = existsSync(transcript_path) ? Math.round(statSync(transcript_path).size / 4) : 0;
+const row = (o) => appendFileSync(transcript_path, JSON.stringify({ sessionId: session_id, uuid: randomUUID(), cwd, ...o }) + "\n");
+const record = (type, content) => {
+  const usage = type === "assistant" ? { input_tokens: 3, cache_read_input_tokens: 20_000 + context, cache_creation_input_tokens: 400, output_tokens: 120 } : undefined;
+  row({ type, message: { role: type, content, ...(usage ? { id: `msg_${randomUUID()}`, model, usage } : {}) } });
+  context += Math.round(JSON.stringify(content).length / 4);
+};
 
 /** Every hook of `event` whose matcher (and `if` rule) fits the tool call; returns their parsed outputs. */
 function fire(event, payload) {
@@ -35,7 +56,7 @@ function fire(event, payload) {
         const m = /^Bash\((\S+) \*\)$/.exec(h.if);
         if (m && !String(payload.tool_input?.command ?? "").startsWith(m[1] + " ")) continue;
       }
-      const r = spawnSync(BASH, ["-c", h.command], { cwd, input: JSON.stringify({ session_id, transcript_path: "", cwd, hook_event_name: event, ...payload }), encoding: "utf8", timeout: (h.timeout ?? 60) * 1000 });
+      const r = spawnSync(BASH, ["-c", h.command], { cwd, input: JSON.stringify({ session_id, transcript_path, cwd, hook_event_name: event, ...payload }), encoding: "utf8", timeout: (h.timeout ?? 60) * 1000 });
       if (r.status !== 0 && r.status !== 2) log(`${event} hook exited ${r.status}: ${(r.stderr || "").trim().slice(0, 200)}`);
       let out = null;
       try { out = r.stdout.trim() ? JSON.parse(r.stdout) : null; } catch { log(`${event} hook printed non-JSON: ${r.stdout.slice(0, 120)}`); }
@@ -56,7 +77,7 @@ function biggestPython() {
       else if (e.name.endsWith(".py")) { const s = statSync(p).size; if (!best || s > best.size) best = { p, size: s }; }
     }
   };
-  walk(cwd, 0);
+  walk(work, 0);
   return best?.p;
 }
 
@@ -64,14 +85,30 @@ function tool(name, input, response) {
   const pre = fire("PreToolUse", { tool_name: name, tool_input: input });
   const deny = pre.find((o) => o?.hookSpecificOutput?.permissionDecision === "deny");
   if (deny) { answers.push(`${name}: denied`); log(`${name} denied: ${deny.hookSpecificOutput.permissionDecisionReason.slice(0, 120)}`); return; }
-  const post = fire("PostToolUse", { tool_name: name, tool_input: input, tool_response: response, tool_use_id: randomUUID() });
+  const id = `toolu_${randomUUID().replace(/-/g, "")}`;
+  record("assistant", [{ type: "tool_use", id, name, input }]);
+  const post = fire("PostToolUse", { tool_name: name, tool_input: input, tool_response: response, tool_use_id: id });
   const upd = post.find((o) => o?.hookSpecificOutput?.updatedToolOutput);
+  const shown = upd ? upd.hookSpecificOutput.updatedToolOutput : response;
+  record("user", [{ type: "tool_result", tool_use_id: id, content: typeof shown === "string" ? shown : shown.stdout ?? shown.file?.content ?? JSON.stringify(shown) }]);
   answers.push(`${name}: ${upd ? "trimmed" : "passed"}`);
   log(`${name} ${upd ? `trimmed to ${JSON.stringify(upd.hookSpecificOutput.updatedToolOutput).length} chars from ${JSON.stringify(response).length}` : "passed through"}`);
 }
 
-fire("SessionStart", { source: "startup" });
+fire("SessionStart", { source: resumed ? "resume" : "startup" });
+// Every second issue of a long session, a compaction as Claude Code runs one: PreCompact, then
+// SessionStart with source "compact", whose additionalContext is what Snout restores.
+if (resumed && issue % 2 === 0) {
+  fire("PreCompact", { trigger: "auto", custom_instructions: "" });
+  row({ type: "system", subtype: "compact_boundary", compactMetadata: { trigger: "auto", preTokens: 20_000 + context } });
+  row({ type: "user", isCompactSummary: true, message: { role: "user", content: "This session is being continued from a previous conversation (stand-in summary)." } });
+  context = 0;
+  const restored = fire("SessionStart", { source: "compact" }).map((o) => o?.hookSpecificOutput?.additionalContext).filter(Boolean);
+  answers.push(`compaction: ${restored.length ? "restored" : "nothing restored"}`);
+  log(`compaction before issue ${issue}: ${restored.length ? `Snout restored ${restored.join("").length} chars` : "nothing restored"}`);
+}
 fire("UserPromptSubmit", { prompt });
+record("user", prompt);
 
 const big = biggestPython();
 if (big) {
@@ -80,14 +117,19 @@ if (big) {
   const resp = { type: "text", file: { filePath: big, content, numLines: lines.length, startLine: 1, totalLines: lines.length } };
   tool("Read", { file_path: big }, resp);
   tool("Read", { file_path: big }, resp); // the repeat
-  log(`read ${relative(cwd, big)} (${lines.length} lines) twice`);
+  log(`read ${relative(work, big)} (${lines.length} lines) twice`);
 }
 const passing = Array.from({ length: 300 }, (_, i) => `tests/test_mod.py::test_case_${i} PASSED`).join("\n");
 tool("Bash", { command: "python -m pytest -v tests/test_mod.py" }, { stdout: `${passing}\n============ 300 passed in 4.21s ============\n`, stderr: "", interrupted: false, isImage: false });
 
 if (process.env.SWE_FAKE_PATCH && existsSync(process.env.SWE_FAKE_PATCH)) {
-  const r = spawnSync("git", ["apply", "--whitespace=nowarn", process.env.SWE_FAKE_PATCH], { cwd, encoding: "utf8" });
+  const r = spawnSync("git", ["apply", "--whitespace=nowarn", process.env.SWE_FAKE_PATCH], { cwd: work, encoding: "utf8" });
   log(r.status === 0 ? "gold patch applied" : `gold patch failed: ${r.stderr.trim().slice(0, 200)}`);
+  // The edits, as Edit calls in the transcript, so a restore can name the files changed.
+  for (const m of readFileSync(process.env.SWE_FAKE_PATCH, "utf8").matchAll(/^\+\+\+ b\/(.+)$/gm)) {
+    const file_path = join(work, m[1].trim());
+    record("assistant", [{ type: "tool_use", id: `toolu_${randomUUID().replace(/-/g, "")}`, name: "Edit", input: { file_path, old_string: "", new_string: "" } }]);
+  }
 }
 fire("Stop", {});
 

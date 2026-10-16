@@ -1184,8 +1184,8 @@ function splitGrepOutput(text, cwd, searchPath) {
     isFileCache.set(p, ok);
     return ok;
   };
-  const resolve8 = (p) => isAbsolute4(p) ? p : join3(cwd, p);
-  const single = searchPath && isFile(resolve8(searchPath)) ? resolve8(searchPath) : null;
+  const resolve9 = (p) => isAbsolute4(p) ? p : join3(cwd, p);
+  const single = searchPath && isFile(resolve9(searchPath)) ? resolve9(searchPath) : null;
   const lines = text.split("\n");
   lines.forEach((line, i) => {
     const bytes = Buffer.byteLength(line) + 1;
@@ -1193,17 +1193,17 @@ function splitGrepOutput(text, cwd, searchPath) {
       rest += bytes;
       return;
     }
-    const owner = ownerOf(line, resolve8, isFile) ?? single;
+    const owner = ownerOf(line, resolve9, isFile) ?? single;
     if (owner) files.set(owner, (files.get(owner) ?? 0) + bytes);
     else rest += bytes;
   });
   return { files, rest };
 }
-function ownerOf(line, resolve8, isFile) {
+function ownerOf(line, resolve9, isFile) {
   for (let i = 1; i < line.length && i < 1024; i++) {
     const c = line[i];
     if (c !== ":" && c !== "-") continue;
-    const abs = resolve8(line.slice(0, i));
+    const abs = resolve9(line.slice(0, i));
     if (isFile(abs)) return abs;
   }
   return null;
@@ -1378,6 +1378,7 @@ function loadConfig(paths) {
   const envMode = process.env.SNOUT_MODE;
   if (envMode === "observe" || envMode === "advise" || envMode === "enforce") cfg.mode = envMode;
   if (process.env.SNOUT_DISABLE) cfg.mode = "observe";
+  if (process.env.SNOUT_MEMORY === "1" || process.env.SNOUT_MEMORY === "0") cfg.memory = process.env.SNOUT_MEMORY === "1";
   if (process.env.SNOUT_REPO_MAP === "1" || process.env.SNOUT_REPO_MAP === "0") cfg.repoMap = process.env.SNOUT_REPO_MAP === "1";
   return cfg;
 }
@@ -3149,9 +3150,9 @@ function gitAuthorship(projectDir, maxCommits = 3e3) {
   }
   return { files: out, ever: out.size ? new Set(out.keys()) : void 0 };
 }
-function authorOf(git, agentWrote) {
-  const ai = (git?.ai ?? 0) + (agentWrote ? 1 : 0);
-  const human = git?.human ?? 0;
+function authorOf(git2, agentWrote) {
+  const ai = (git2?.ai ?? 0) + (agentWrote ? 1 : 0);
+  const human = git2?.human ?? 0;
   if (!ai && !human) return "unknown";
   if (ai && human) return "mixed";
   return ai ? "ai" : "human";
@@ -3253,7 +3254,7 @@ function auditContext(projectDir, opts = {}) {
   };
   const usage = opts.noUsage ? { reads: /* @__PURE__ */ new Map(), skills: /* @__PURE__ */ new Map(), commands: /* @__PURE__ */ new Map(), agents: /* @__PURE__ */ new Map(), writes: /* @__PURE__ */ new Set(), codex: [], sources: [] } : collectUsage(dir, days, home, opts.ledger);
   const history = opts.noGit ? { files: /* @__PURE__ */ new Map(), ever: void 0 } : gitAuthorship(dir);
-  const git = history.files;
+  const git2 = history.files;
   const now = Date.now();
   const files = [];
   const texts = /* @__PURE__ */ new Map();
@@ -3286,7 +3287,7 @@ function auditContext(projectDir, opts = {}) {
     if (f.scope === "project" && usage.codex.length) {
       for (const [t, ts] of usage.codex) if (t.includes(rel)) use = use ? [use[0] + 1, ts > use[1] ? ts : use[1]] : [1, ts];
     }
-    const g = f.scope === "project" ? git.get(rel) : void 0;
+    const g = f.scope === "project" ? git2.get(rel) : void 0;
     const created = new Date(g?.first ?? st.mtimeMs).toISOString();
     files.push({
       path: rel,
@@ -3392,13 +3393,13 @@ function auditContext(projectDir, opts = {}) {
     }
   }
   const instr = files.filter((f) => f.kind !== "on-demand" && (f.role === "instructions" || f.role === "rules" || f.role === "memory") && (texts.get(f.abs) ?? "").length > 200);
-  const terms = new Map(instr.map((f) => [f.abs, topTerms(normalize(texts.get(f.abs)))]));
+  const terms2 = new Map(instr.map((f) => [f.abs, topTerms(normalize(texts.get(f.abs)))]));
   const conflictCandidates = [];
   for (let i = 0; i < instr.length; i++) {
     for (let j = i + 1; j < instr.length; j++) {
       const a = instr[i], b = instr[j];
       if (a.flags.some((x) => /duplicate/.test(x.code)) || b.flags.some((x) => /duplicate/.test(x.code))) continue;
-      const ta = terms.get(a.abs), tb = terms.get(b.abs);
+      const ta = terms2.get(a.abs), tb = terms2.get(b.abs);
       let inter = 0;
       for (const t of ta) if (tb.has(t)) inter++;
       const o = inter / Math.max(1, Math.min(ta.size, tb.size));
@@ -3587,8 +3588,375 @@ function restoreArchive(projectDir, id) {
   return { restored, skipped };
 }
 
+// src/audit/ci.ts
+import { existsSync as existsSync8, readdirSync as readdirSync3, readFileSync as readFileSync7 } from "node:fs";
+import { join as join9, resolve as resolve6 } from "node:path";
+
+// src/audit/yaml.ts
+function stripComment(s) {
+  let q = null;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (q) {
+      if (c === q && !(q === '"' && s[i - 1] === "\\")) q = null;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      if (i === 0 || /[\s:\[{,-]/.test(s[i - 1])) q = c;
+      continue;
+    }
+    if (c === "#" && (i === 0 || /\s/.test(s[i - 1]))) return s.slice(0, i).trimEnd();
+  }
+  return s.trimEnd();
+}
+function scalar(raw) {
+  const s = raw.trim();
+  if (s === "" || s === "~" || s === "null") return null;
+  if (s.startsWith("'") && s.endsWith("'") && s.length >= 2) return s.slice(1, -1).replace(/''/g, "'");
+  if (s.startsWith('"') && s.endsWith('"') && s.length >= 2) return s.slice(1, -1).replace(/\\n/g, "\n").replace(/\\t/g, "	").replace(/\\(["\\])/g, "$1");
+  if (s.startsWith("[") || s.startsWith("{")) return flow(s, { i: 0 });
+  return s;
+}
+function flow(s, p) {
+  const ws = () => {
+    while (p.i < s.length && /\s/.test(s[p.i])) p.i++;
+  };
+  ws();
+  const open = s[p.i];
+  if (open === "[" || open === "{") {
+    p.i++;
+    const close = open === "[" ? "]" : "}";
+    const list = [];
+    const map = {};
+    for (; ; ) {
+      ws();
+      if (s[p.i] === close) {
+        p.i++;
+        break;
+      }
+      if (p.i >= s.length) break;
+      if (open === "[") list.push(flow(s, p));
+      else {
+        const key = atom(s, p, ":}");
+        if (s[p.i] === ":") {
+          p.i++;
+          map[String(key ?? "")] = flow(s, p);
+        } else map[String(key ?? "")] = null;
+      }
+      ws();
+      if (s[p.i] === ",") p.i++;
+    }
+    return open === "[" ? list : map;
+  }
+  return atom(s, p, ",]}");
+}
+function atom(s, p, stops) {
+  while (p.i < s.length && /\s/.test(s[p.i])) p.i++;
+  const q = s[p.i];
+  if (q === '"' || q === "'") {
+    let j2 = p.i + 1;
+    while (j2 < s.length && !(s[j2] === q && s[j2 - 1] !== "\\")) j2++;
+    const v2 = scalar(s.slice(p.i, j2 + 1));
+    p.i = j2 + 1;
+    return v2;
+  }
+  let j = p.i;
+  while (j < s.length && !stops.includes(s[j]) && !(s[j] === ":" && /\s|$/.test(s[j + 1] ?? ""))) j++;
+  if (stops.includes(":") && s[j] === ":") {
+    const v2 = s.slice(p.i, j).trim();
+    p.i = j;
+    return v2;
+  }
+  const v = scalar(s.slice(p.i, j));
+  p.i = j;
+  return v;
+}
+function keySplit(t) {
+  let q = null;
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (q) {
+      if (c === q) q = null;
+      continue;
+    }
+    if ((c === '"' || c === "'") && i === 0) {
+      q = c;
+      continue;
+    }
+    if (c === "[" || c === "{") return -1;
+    if (c === ":" && (i === t.length - 1 || t[i + 1] === " " || t[i + 1] === "	")) return i;
+  }
+  return -1;
+}
+function parseYaml(text) {
+  const raw = text.replace(/\r\n?/g, "\n").split("\n");
+  const lines = [];
+  raw.forEach((r, n) => {
+    if (/^\s*(#|$)/.test(r) || /^(---|\.\.\.)\s*$/.test(r)) {
+      lines.push({ indent: -1, text: "", n, raw: r });
+      return;
+    }
+    lines.push({ indent: r.length - r.trimStart().length, text: stripComment(r.trim()), n, raw: r });
+  });
+  const p = { i: 0 };
+  const skip = () => {
+    while (p.i < lines.length && lines[p.i].indent < 0) p.i++;
+  };
+  function blockScalar(header, parent) {
+    const folded = header.startsWith(">");
+    const keep = header.includes("+"), strip = header.includes("-");
+    const body = [];
+    let ind = -1;
+    while (p.i < lines.length) {
+      const l = lines[p.i];
+      if (l.indent >= 0 && l.indent <= parent) break;
+      if (l.indent < 0) {
+        body.push("");
+        p.i++;
+        continue;
+      }
+      if (ind < 0) ind = l.indent;
+      body.push(l.raw.slice(Math.min(ind, l.indent)));
+      p.i++;
+    }
+    while (!keep && body.length && body[body.length - 1] === "") body.pop();
+    const out = folded ? body.join("\n").replace(/([^\n])\n(?=[^\n ])/g, "$1 ") : body.join("\n");
+    return strip ? out : out + "\n";
+  }
+  function value(rest, indent) {
+    const v = rest.trim();
+    if (/^[|>][-+0-9]*$/.test(v)) return blockScalar(v, indent);
+    if (v === "") {
+      skip();
+      const next = lines[p.i];
+      if (!next) return null;
+      if (next.indent > indent || next.indent === indent && (next.text.startsWith("- ") || next.text === "-")) return block(next.indent);
+      return null;
+    }
+    return scalar(v);
+  }
+  function block(indent) {
+    skip();
+    const first = lines[p.i];
+    if (!first) return null;
+    if (first.text === "-" || first.text.startsWith("- ")) {
+      const list = [];
+      while (p.i < lines.length) {
+        skip();
+        const l = lines[p.i];
+        if (!l || l.indent !== indent || !(l.text === "-" || l.text.startsWith("- "))) break;
+        const inner = l.text === "-" ? "" : l.text.slice(2);
+        const innerIndent = indent + (l.text.length - l.text.slice(1).trimStart().length);
+        p.i++;
+        if (inner === "") {
+          list.push(value("", indent));
+          continue;
+        }
+        const k = keySplit(inner);
+        if (k >= 0 && !/^["'[{]/.test(inner)) {
+          const map = {};
+          map[unquote(inner.slice(0, k))] = value(inner.slice(k + 1), innerIndent);
+          Object.assign(map, mapAt(innerIndent));
+          list.push(map);
+        } else list.push(value(inner, indent));
+      }
+      return list;
+    }
+    return mapAt(indent);
+  }
+  function mapAt(indent) {
+    const map = {};
+    while (p.i < lines.length) {
+      skip();
+      const l = lines[p.i];
+      if (!l || l.indent !== indent || l.text.startsWith("- ") || l.text === "-") break;
+      const k = keySplit(l.text);
+      p.i++;
+      if (k < 0) continue;
+      map[unquote(l.text.slice(0, k))] = value(l.text.slice(k + 1), indent);
+    }
+    return map;
+  }
+  skip();
+  return lines[p.i] ? block(lines[p.i].indent) : null;
+}
+var unquote = (k) => {
+  const s = k.trim();
+  return /^(["']).*\1$/.test(s) ? s.slice(1, -1) : s;
+};
+var asMap = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : {};
+var asList = (v) => Array.isArray(v) ? v : v == null ? [] : [v];
+var asStr = (v) => typeof v === "string" ? v : "";
+
+// src/audit/ci.ts
+var PR_EVENTS = /* @__PURE__ */ new Set(["pull_request", "pull_request_target"]);
+var COMMENT_EVENTS = /* @__PURE__ */ new Set(["issue_comment", "pull_request_review_comment", "pull_request_review", "discussion_comment"]);
+var PR_DEFAULT_TYPES = ["opened", "synchronize", "reopened"];
+function triggersOf(on) {
+  const events = {};
+  if (typeof on === "string") events[on] = {};
+  else if (Array.isArray(on)) for (const e of on) events[asStr(e)] = {};
+  else for (const [k, v] of Object.entries(asMap(on))) events[k] = k === "schedule" ? { cron: asList(v).map((c) => asStr(asMap(c).cron)) } : asMap(v);
+  const triggers = Object.entries(events).map(([event, cfg]) => {
+    const parts2 = [];
+    if (cfg.types) parts2.push(`types: ${asList(cfg.types).map(asStr).join(", ")}`);
+    else if (PR_EVENTS.has(event)) parts2.push("types: opened, synchronize, reopened (default)");
+    if (cfg.branches) parts2.push(`branches: ${asList(cfg.branches).map(asStr).join(", ")}`);
+    if (cfg.paths) parts2.push("paths filter");
+    if (event === "schedule") parts2.push(asList(cfg.cron).map(asStr).join(", "));
+    return { event, detail: parts2.join("; ") };
+  });
+  return { triggers, events };
+}
+function cronPerMonth(cron) {
+  const f = cron.trim().split(/\s+/);
+  if (f.length !== 5) return null;
+  const count = (field, size) => {
+    let n = 0;
+    for (const part of field.split(",")) {
+      const [range, step] = part.split("/");
+      const s = Number(step ?? 1) || 1;
+      if (range === "*") n += Math.ceil(size / s);
+      else if (range.includes("-")) {
+        const [a, b] = range.split("-").map(Number);
+        n += Math.floor(((b ?? 0) - (a ?? 0)) / s) + 1;
+      } else n += 1;
+    }
+    return n;
+  };
+  const perDay = count(f[0], 60) * count(f[1], 24);
+  const days = f[4] !== "*" ? 30 * count(f[4], 7) / 7 : f[2] !== "*" ? count(f[2], 31) : 30;
+  const months = f[3] !== "*" ? count(f[3], 12) / 12 : 1;
+  return Math.round(perDay * days * months);
+}
+function cliOptions(s) {
+  const opt = (re) => re.exec(s)?.[1] ?? null;
+  const turns = opt(/--max-turns[= ]+["']?(\d+)/);
+  const budget = opt(/--max-budget-usd[= ]+["']?([\d.]+)/);
+  return {
+    model: opt(/(?:--model|(?:^|\s)-m)[= ]+["']?([\w.:\/-]+)/),
+    maxTurns: turns ? Number(turns) : null,
+    budgetUsd: budget ? Number(budget) : null,
+    effort: opt(/model_reasoning_effort[= ]*["']?=?["']?(\w+)/) ?? opt(/--effort[= ]+["']?(\w+)/)
+  };
+}
+var CLAUDE_CLI = /(^|[\s;&|(`$])(?:npx\s+(?:-y\s+)?@anthropic-ai\/claude-code|claude)\s+(?:[^\n|;&]*\s)?(?:-p|--print)\b/m;
+var CODEX_CLI = /(^|[\s;&|(`$])(?:npx\s+(?:-y\s+)?@openai\/codex|codex)\s+exec\b/m;
+function auditCi(projectDir, opts = {}) {
+  const dir = resolve6(projectDir);
+  const wfDir = join9(dir, ".github", "workflows");
+  const steps = [];
+  const unreadable = [];
+  const files = existsSync8(wfDir) ? readdirSync3(wfDir).filter((f) => /\.ya?ml$/i.test(f)).sort() : [];
+  for (const file of files) {
+    let doc;
+    try {
+      doc = asMap(parseYaml(readFileSync7(join9(wfDir, file), "utf8")));
+    } catch (e) {
+      unreadable.push({ file, error: String(e.message ?? e) });
+      continue;
+    }
+    const { triggers, events } = triggersOf(doc.on ?? doc.true ?? null);
+    const wfConcurrency = doc.concurrency;
+    const sched = asList(events.schedule?.cron).map((c) => cronPerMonth(asStr(c))).filter((n) => n !== null);
+    for (const [jobId, jobY] of Object.entries(asMap(doc.jobs))) {
+      const job = asMap(jobY);
+      const jobIf = asStr(job.if);
+      const concurrency = job.concurrency ?? wfConcurrency;
+      asList(job.steps).forEach((stepY, i) => {
+        const step = asMap(stepY);
+        const uses = asStr(step.uses);
+        const run = asStr(step.run);
+        const w = asMap(step.with);
+        const name = asStr(step.name) || asStr(step.id) || uses.split("@")[0] || `step ${i + 1}`;
+        let found = null;
+        if (/^anthropics\/claude-code(-base)?-action@/i.test(uses)) {
+          const o = cliOptions(asStr(w.claude_args));
+          const prompt = asStr(w.prompt) || asStr(w.direct_prompt) || asStr(w.override_prompt);
+          found = {
+            agent: "claude",
+            via: "action",
+            mode: /base-action/i.test(uses) || prompt ? "automation" : "tag",
+            model: o.model ?? (asStr(w.model) || asStr(w.anthropic_model) || null),
+            maxTurns: o.maxTurns ?? (Number(asStr(w.max_turns)) || null),
+            budgetUsd: o.budgetUsd,
+            effort: null,
+            plugins: asStr(w.plugins).split(/[\s,]+/).filter(Boolean)
+          };
+        } else if (/^openai\/codex-action@/i.test(uses)) {
+          const o = cliOptions(asStr(w["codex-args"]));
+          found = { agent: "codex", via: "action", mode: "automation", model: asStr(w.model) || o.model, maxTurns: null, budgetUsd: null, effort: asStr(w.effort) || o.effort, plugins: [] };
+        } else if (CLAUDE_CLI.test(run)) {
+          const o = cliOptions(run);
+          found = { agent: "claude", via: "cli", mode: "automation", model: o.model, maxTurns: o.maxTurns, budgetUsd: o.budgetUsd, effort: null, plugins: [] };
+        } else if (CODEX_CLI.test(run)) {
+          const o = cliOptions(run);
+          found = { agent: "codex", via: "cli", mode: "automation", model: o.model, maxTurns: null, budgetUsd: null, effort: o.effort, plugins: [] };
+        }
+        if (!found) return;
+        const conditions = [jobIf, asStr(step.if)].join(" ");
+        const s = { workflow: file, job: jobId, step: name, ...found, triggers, scheduledPerMonth: sched.length ? sched.reduce((a, b) => a + b, 0) : null, flags: [] };
+        flagStep(s, events, conditions, concurrency, Number(asStr(job["timeout-minutes"])) || null);
+        if (/\.lock\.ya?ml$/i.test(file)) for (const f of s.flags) f.fix += ` (in ${file.replace(/\.lock\.ya?ml$/i, ".md")}, then recompile)`;
+        steps.push(s);
+      });
+    }
+  }
+  let loadedPerRun = { claude: 0, codex: 0 };
+  if (steps.length) {
+    const t = totals(auditContext(dir, { home: opts.home ?? join9(dir, ".snout", "no-home"), noUsage: true, noGit: true }));
+    loadedPerRun = { claude: (t.always.byAgent.claude ?? 0) + t.described.perSession, codex: t.always.byAgent.codex ?? 0 };
+  }
+  return { projectDir: dir, workflows: files.length, steps, loadedPerRun, unreadable };
+}
+function flagStep(s, events, conditions, concurrency, timeoutMin) {
+  const flag = (code, reason, fix) => s.flags.push({ code, reason, fix });
+  const runsOnEverything = s.mode === "automation";
+  const prEvents = Object.keys(events).filter((e) => PR_EVENTS.has(e));
+  if (runsOnEverything && prEvents.length) {
+    const types = prEvents.flatMap((e) => events[e].types ? asList(events[e].types).map(asStr) : PR_DEFAULT_TYPES);
+    if (types.includes("synchronize"))
+      flag("every-push", "runs again on every push to an open PR, so a PR pushed 6 times pays for 6 runs", "on: pull_request: types: [opened, ready_for_review]  (or trigger on a label or an @mention)");
+    if (!/draft/.test(conditions) && !types.every((t) => t === "ready_for_review"))
+      flag("drafts", "also runs on draft PRs, which usually change again before review", "if: github.event.pull_request.draft == false");
+    if (!/github\.actor|user\.(login|type)|\bbots?\b|\[bot\]|dependabot|renovate/i.test(conditions))
+      flag("bot-prs", "also runs on PRs opened by bots (Dependabot, Renovate), which rarely need an AI review", `if: "!endsWith(github.actor, '[bot]')"`);
+    const conc = asMap(concurrency);
+    if (!concurrency || !/true/.test(asStr(conc["cancel-in-progress"]) || ""))
+      flag("no-concurrency", "a new push doesn't cancel the run still going for the previous one; both are billed", "concurrency: { group: ${{ github.workflow }}-${{ github.event.pull_request.number }}, cancel-in-progress: true }");
+  }
+  const commentEvents = Object.keys(events).filter((e) => COMMENT_EVENTS.has(e));
+  if (runsOnEverything && commentEvents.length && !/comment\.body|review\.body|contains\(/.test(conditions))
+    flag("every-comment", `runs on every ${commentEvents.join(" / ")}, not only the ones that ask for it`, "if: contains(github.event.comment.body, '@claude')");
+  if (s.agent === "claude" && s.maxTurns === null && s.budgetUsd === null)
+    flag("no-limit", `no turn or budget limit: one confused run can loop until the job times out (${timeoutMin ? `${timeoutMin} min here` : "6 hours by default"})`, s.via === "action" ? "claude_args: --max-turns 15" : "add --max-turns 15 (or --max-budget-usd 2)");
+  if (s.scheduledPerMonth !== null && s.scheduledPerMonth > 31)
+    flag("frequent-schedule", `scheduled about ${s.scheduledPerMonth} times a month`, "run it daily or weekly unless each run finds new work");
+  if (s.model && /opus/i.test(s.model))
+    flag("top-model", `uses ${s.model}, the most expensive tier; reviews and triage usually run as well on a Sonnet model`, "try --model with a Sonnet model on a few PRs and compare");
+}
+function renderCi(a) {
+  if (!a.steps.length) return `No AI agents run in this repository's GitHub Actions (${a.workflows} workflow${a.workflows === 1 ? "" : "s"} checked).${a.unreadable.length ? `
+Could not read: ${a.unreadable.map((u) => u.file).join(", ")}` : ""}`;
+  const lines = [`AI agents in GitHub Actions for ${a.projectDir} \xB7 ${a.steps.length} step${a.steps.length === 1 ? "" : "s"} in ${new Set(a.steps.map((s) => s.workflow)).size} workflow${a.steps.length === 1 ? "" : "s"}`, ""];
+  const agentName = { claude: "Claude Code", codex: "Codex" };
+  for (const s of a.steps) {
+    const limits = [s.maxTurns !== null ? `max ${s.maxTurns} turns` : "", s.budgetUsd !== null ? `$${s.budgetUsd} cap` : "", s.effort ? `effort ${s.effort}` : ""].filter(Boolean).join(", ");
+    lines.push(`  ${s.workflow} \u203A ${s.job} \u203A ${s.step}`);
+    lines.push(`    ${agentName[s.agent]} ${s.via === "action" ? "action" : "CLI"}${s.agent === "claude" && s.via === "action" ? ` (${s.mode} mode)` : ""} \xB7 model ${s.model ?? "default"}${limits ? ` \xB7 ${limits}` : ""}${s.plugins.length ? ` \xB7 plugins: ${s.plugins.join(", ")}` : ""}`);
+    lines.push(`    runs on: ${s.triggers.map((t) => t.detail ? `${t.event} (${t.detail})` : t.event).join(", ")}`);
+    for (const f of s.flags) lines.push(`    \u2717 ${f.reason}`, `      fix: ${f.fix}`);
+    if (!s.flags.length) lines.push("    \u2713 nothing to change");
+    lines.push("");
+  }
+  const per = [a.loadedPerRun.claude && a.steps.some((s) => s.agent === "claude") ? `Claude Code ~${Math.round(a.loadedPerRun.claude).toLocaleString("en-US")}` : "", a.loadedPerRun.codex && a.steps.some((s) => s.agent === "codex") ? `Codex ~${Math.round(a.loadedPerRun.codex).toLocaleString("en-US")}` : ""].filter(Boolean);
+  if (per.length) lines.push(`Every run starts by loading the repository's instructions: ${per.join(", ")} tokens. \`snout audit context\` shows what to trim; each token saved there is saved on every CI run too.`);
+  if (a.unreadable.length) lines.push(`Could not read: ${a.unreadable.map((u) => u.file).join(", ")}`);
+  return lines.join("\n").trimEnd();
+}
+
 // src/compact/codex.ts
-import { isAbsolute as isAbsolute7, resolve as resolve6 } from "node:path";
+import { isAbsolute as isAbsolute7, resolve as resolve7 } from "node:path";
 var SHELL_TOOLS = /* @__PURE__ */ new Set(["shell_command", "shell", "exec_command", "local_shell", "container.exec"]);
 var SHELLS = /^(?:.*[\\/])?(?:bash|sh|zsh|pwsh|powershell)(?:\.exe)?$/i;
 var STR = String.raw`("(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|\x60(?:[^\x60\\]|\\.)*\x60)`;
@@ -3601,7 +3969,7 @@ function codexRows(lines) {
   const result = (id, content) => ({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: id, content }] } });
   let cwd;
   let synthetic = 0;
-  const abs = (f) => cwd && !isAbsolute7(f) ? resolve6(cwd, f) : f;
+  const abs = (f) => cwd && !isAbsolute7(f) ? resolve7(cwd, f) : f;
   const edits = (patch) => patchFiles(patch).map((f) => use(`codex-edit-${synthetic++}`, "Edit", { file_path: abs(f) }));
   for (const line of lines) {
     if (!line) continue;
@@ -3721,8 +4089,8 @@ function parts(content) {
 }
 
 // src/compact/memory.ts
-import { closeSync as closeSync3, existsSync as existsSync8, openSync as openSync3, readFileSync as readFileSync7, readSync as readSync3, statSync as statSync10 } from "node:fs";
-import { isAbsolute as isAbsolute8, join as join9, relative as relative4, resolve as resolve7, sep as sep3 } from "node:path";
+import { closeSync as closeSync3, existsSync as existsSync9, openSync as openSync3, readFileSync as readFileSync8, readSync as readSync3, statSync as statSync10 } from "node:fs";
+import { isAbsolute as isAbsolute8, join as join10, relative as relative4, resolve as resolve8, sep as sep3 } from "node:path";
 var TAIL_BYTES = 16 * 1024 * 1024;
 var HEAD_BYTES = 2 * 1024 * 1024;
 var MAX_CHARS = 6e3;
@@ -3783,7 +4151,7 @@ function testCommand(command, projectDir) {
     if (!words.length || NOT_RUNNER.has(words[0]) || !TEST.test(s.bare)) continue;
     let run = s.text.replace(/\s*2>&1\s*$/, "").split(`${projectDir}/`).join("");
     if (cd) {
-      const abs = isAbsolute8(cd) ? cd : resolve7(projectDir, cd);
+      const abs = isAbsolute8(cd) ? cd : resolve8(projectDir, cd);
       const r = relative4(projectDir, abs).split(sep3).join("/");
       if (r) run = `cd ${r.startsWith("..") ? cd : r} && ${run}`;
     }
@@ -3839,7 +4207,7 @@ var resultText = (content) => typeof content === "string" ? content : Array.isAr
 var SLOW = /did not complete within its \d+s timeout|moved to the background/;
 function projectModule(name, projectDir) {
   if (name.includes(".")) return true;
-  return existsSync8(join9(projectDir, name)) || existsSync8(join9(projectDir, `${name}.py`));
+  return existsSync9(join10(projectDir, name)) || existsSync9(join10(projectDir, `${name}.py`));
 }
 function requestText(text) {
   const t = text.trim();
@@ -3967,10 +4335,10 @@ function codexSessionFacts(transcriptPath, projectDir) {
   return factsFromClaudeRows(codexRows(tail(transcriptPath).split(/\n/)), projectDir);
 }
 function readPins(projectDir, snoutDir) {
-  const file = join9(snoutDir, "pins.md");
-  if (!existsSync8(file)) return [];
+  const file = join10(snoutDir, "pins.md");
+  if (!existsSync9(file)) return [];
   const pins = [];
-  for (const raw of readFileSync7(file, "utf8").split("\n")) {
+  for (const raw of readFileSync8(file, "utf8").split("\n")) {
     const m = raw.match(/^\s*[-*]\s+(.*\S)\s*$/);
     if (!m) continue;
     const text = m[1];
@@ -3988,8 +4356,8 @@ function pinLines(pins, projectDir, secrets) {
   for (const p of pins) {
     out.push(`- ${p.text.replace(/\s*\[re-?read \d+\]/i, "")}`);
     if (!p.path || !p.reread) continue;
-    const abs = isAbsolute8(p.path) ? p.path : resolve7(projectDir, p.path);
-    if (!existsSync8(abs)) {
+    const abs = isAbsolute8(p.path) ? p.path : resolve8(projectDir, p.path);
+    if (!existsSync9(abs)) {
       out.push(`  (not on disk now: ${p.path})`);
       continue;
     }
@@ -4000,7 +4368,7 @@ function pinLines(pins, projectDir, secrets) {
       continue;
     }
     try {
-      const lines = readFileSync7(abs, "utf8").split("\n").slice(0, p.reread);
+      const lines = readFileSync8(abs, "utf8").split("\n").slice(0, p.reread);
       out.push("  ```", ...lines.map((l) => `  ${l.slice(0, 200)}`), "  ```");
     } catch {
       out.push(`  (could not read ${p.path})`);
@@ -4028,10 +4396,10 @@ function sessionStartMs(transcriptPath) {
   }
 }
 function readProgress(snoutDir, sinceMs) {
-  const file = join9(snoutDir, PROGRESS_FILE);
+  const file = join10(snoutDir, PROGRESS_FILE);
   try {
     if (statSync10(file).mtimeMs < sinceMs) return void 0;
-    const text = readFileSync7(file, "utf8").trim();
+    const text = readFileSync8(file, "utf8").trim();
     return text ? text.length > PROGRESS_MAX_CHARS ? `${text.slice(0, PROGRESS_MAX_CHARS - 1)}\u2026` : text : void 0;
   } catch {
     return void 0;
@@ -4151,8 +4519,8 @@ function str(v) {
 
 // src/map/map.ts
 import { spawnSync } from "node:child_process";
-import { readdirSync as readdirSync3, readFileSync as readFileSync8, statSync as statSync11 } from "node:fs";
-import { basename as basename3, extname as extname2, join as join10, relative as relative5, sep as sep4 } from "node:path";
+import { readdirSync as readdirSync4, readFileSync as readFileSync9, statSync as statSync11 } from "node:fs";
+import { basename as basename3, extname as extname2, join as join11, relative as relative5, sep as sep4 } from "node:path";
 var TEXT_EXT = /\.(m?js|cjs|jsx|ts|tsx|mts|cts|py|pyi|go|rs|java|kt|kts|cs|rb|php|swift|scala|c|cc|cpp|h|hpp|m|mm|ex|exs|erl|clj|lua|sh|bash|zsh|sql|graphql|proto|vue|svelte|astro|md|mdx|rst|txt|toml|ya?ml|json|ini|cfg|conf|env\.example|html|css|scss)$/i;
 var SKIP_DIR = /* @__PURE__ */ new Set(["node_modules", ".git", "dist", "build", "out", "target", "vendor", "third_party", "coverage", ".next", ".venv", "venv", "__pycache__", ".snout", ".claude", ".tox", ".mypy_cache", ".pytest_cache"]);
 var MAX_FILE_BYTES = 512 * 1024;
@@ -4175,23 +4543,23 @@ var DECLARATIONS2 = [
 ];
 var CONSTANT = /^\s*(?:export\s+)?(?:const\s+|let\s+|var\s+|final\s+|static\s+)*([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)\s*[:=]/gm;
 function listFiles(projectDir) {
-  const git = spawnSync("git", ["ls-files", "-co", "--exclude-standard"], { cwd: projectDir, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
-  if (git.status === 0 && git.stdout.trim()) {
-    return git.stdout.split("\n").filter((f) => f && TEXT_EXT.test(f) && !f.split("/").some((p) => SKIP_DIR.has(p))).slice(0, MAX_FILES);
+  const git2 = spawnSync("git", ["ls-files", "-co", "--exclude-standard"], { cwd: projectDir, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  if (git2.status === 0 && git2.stdout.trim()) {
+    return git2.stdout.split("\n").filter((f) => f && TEXT_EXT.test(f) && !f.split("/").some((p) => SKIP_DIR.has(p))).slice(0, MAX_FILES);
   }
   const out = [];
   const walk2 = (dir) => {
     let entries;
     try {
-      entries = readdirSync3(dir, { withFileTypes: true });
+      entries = readdirSync4(dir, { withFileTypes: true });
     } catch {
       return;
     }
     for (const e of entries) {
       if (out.length >= MAX_FILES) return;
       if (e.isDirectory()) {
-        if (!SKIP_DIR.has(e.name) && !e.name.startsWith(".")) walk2(join10(dir, e.name));
-      } else if (e.isFile() && TEXT_EXT.test(e.name)) out.push(relative5(projectDir, join10(dir, e.name)).split(sep4).join("/"));
+        if (!SKIP_DIR.has(e.name) && !e.name.startsWith(".")) walk2(join11(dir, e.name));
+      } else if (e.isFile() && TEXT_EXT.test(e.name)) out.push(relative5(projectDir, join11(dir, e.name)).split(sep4).join("/"));
     }
   };
   walk2(projectDir);
@@ -4221,7 +4589,7 @@ function buildMap(projectDir, prev, skip) {
     if (skip?.(rel)) continue;
     let st;
     try {
-      st = statSync11(join10(projectDir, rel));
+      st = statSync11(join11(projectDir, rel));
     } catch {
       continue;
     }
@@ -4234,7 +4602,7 @@ function buildMap(projectDir, prev, skip) {
     }
     let text;
     try {
-      text = readFileSync8(join10(projectDir, rel), "utf8");
+      text = readFileSync9(join11(projectDir, rel), "utf8");
     } catch {
       continue;
     }
@@ -4319,7 +4687,45 @@ function candidates(map, prompt, k = 15) {
     const esc = stem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     if (new RegExp(`(^|[^\\w.])${esc}\\.[a-z]{1,5}\\b|/${esc}\\b|\\b${esc} (module|file|package)\\b`).test(lower)) add(p, Math.log(1 + N), stem, true);
   }
+  for (const [p, w] of locations(paths, prompt)) add(p, Math.log(1 + N) * w, basename3(p), true);
   return [...scored.values()].sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, k);
+}
+function locations(paths, prompt) {
+  const bySuffix = /* @__PURE__ */ new Map();
+  for (const p of paths) {
+    const segs = p.split("/");
+    for (let i = 0; i + 1 < segs.length; i++) {
+      const s = segs.slice(i).join("/");
+      bySuffix.set(s, bySuffix.has(s) && bySuffix.get(s) !== p ? null : p);
+    }
+  }
+  const resolve9 = (raw) => {
+    const segs = raw.split(/[\\/]+/).filter(Boolean);
+    for (let i = 0; i + 1 < segs.length; i++) {
+      const hit = bySuffix.get(segs.slice(i).join("/"));
+      if (hit) return hit;
+      if (hit === null) return null;
+    }
+    return null;
+  };
+  const out = /* @__PURE__ */ new Map();
+  const put = (p, w) => out.set(p, Math.max(out.get(p) ?? 0, w));
+  const frames = [...prompt.matchAll(/File "([^"\n]+)", line \d+/g)].map((m) => resolve9(m[1])).filter((p) => !!p);
+  const seen = [];
+  for (const p of frames.reverse()) if (!seen.includes(p)) seen.push(p);
+  seen.forEach((p, i) => put(p, 1 / (i + 1)));
+  const files = new Set(paths);
+  for (const m of prompt.replace(URL, " ").matchAll(/\b[A-Za-z_]\w*(?:\.[A-Za-z_]\w*){1,8}\b/g)) {
+    const parts2 = m[0].split(".");
+    for (let n = parts2.length; n >= 2; n--) {
+      const base = parts2.slice(0, n).join("/");
+      if (files.has(`${base}.py`)) {
+        put(`${base}.py`, 1);
+        break;
+      }
+    }
+  }
+  return out;
 }
 function renderCandidates(cs) {
   if (!cs.length) return "";
@@ -4328,16 +4734,16 @@ function renderCandidates(cs) {
 }
 
 // src/replay/replay.ts
-import { existsSync as existsSync9, mkdirSync as mkdirSync5, mkdtempSync, readFileSync as readFileSync9, rmSync, writeFileSync as writeFileSync4 } from "node:fs";
+import { existsSync as existsSync10, mkdirSync as mkdirSync5, mkdtempSync, readFileSync as readFileSync10, rmSync, writeFileSync as writeFileSync4 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname as dirname6, isAbsolute as isAbsolute9, join as join11, relative as relative6, sep as sep5 } from "node:path";
+import { dirname as dirname6, isAbsolute as isAbsolute9, join as join12, relative as relative6, sep as sep5 } from "node:path";
 var tokens = (text) => estimateTokens(Buffer.byteLength(text), "output.txt");
 var textOf = (content) => typeof content === "string" ? content : Array.isArray(content) ? content.map((p) => typeof p?.text === "string" ? p.text : "").join("\n") : "";
 var EDITS2 = /* @__PURE__ */ new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
 var withoutCd = (c) => c.replace(/^\s*cd\s+("[^"]*"|'[^']*'|\S+)\s*(&&|;)\s*/, "");
 function readLines(file) {
   const out = [];
-  for (const raw of readFileSync9(file, "utf8").split("\n")) {
+  for (const raw of readFileSync10(file, "utf8").split("\n")) {
     if (!raw) continue;
     try {
       out.push({ o: JSON.parse(raw), raw });
@@ -4352,7 +4758,7 @@ function projectOf(lines) {
   return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? process.cwd();
 }
 function shadowProject(lines, projectDir) {
-  const root = mkdtempSync(join11(tmpdir(), "snout-replay-project-"));
+  const root = mkdtempSync(join12(tmpdir(), "snout-replay-project-"));
   const best = /* @__PURE__ */ new Map();
   for (const { o } of lines) {
     const f = o.toolUseResult?.file;
@@ -4368,7 +4774,7 @@ function shadowProject(lines, projectDir) {
     const filler = "x".repeat(avg);
     const total = Math.max(f.total, f.start - 1 + known.length);
     const out = Array.from({ length: total }, (_, i) => i >= f.start - 1 && i < f.start - 1 + known.length ? known[i - f.start + 1] : filler);
-    const dest = join11(root, r);
+    const dest = join12(root, r);
     mkdirSync5(dirname6(dest), { recursive: true });
     writeFileSync4(dest, out.join("\n"));
   }
@@ -4377,7 +4783,7 @@ function shadowProject(lines, projectDir) {
 function replaySession(file, run) {
   const lines = readLines(file).filter(({ o }) => !o.isSidechain);
   const projectDir = projectOf(lines);
-  const shadow = existsSync9(projectDir) ? null : shadowProject(lines, projectDir);
+  const shadow = existsSync10(projectDir) ? null : shadowProject(lines, projectDir);
   const onDisk = (v) => {
     if (!shadow) return v;
     if (typeof v === "string") return v.split(projectDir).join(shadow.root);
@@ -4523,10 +4929,10 @@ function replaySession(file, run) {
     }
   });
   if (boundaries.length) {
-    const dir = mkdtempSync(join11(tmpdir(), "snout-replay-mem-"));
+    const dir = mkdtempSync(join12(tmpdir(), "snout-replay-mem-"));
     try {
       for (const at of boundaries) {
-        const prefix = join11(dir, "prefix.jsonl");
+        const prefix = join12(dir, "prefix.jsonl");
         writeFileSync4(prefix, lines.slice(0, at).map((l) => l.raw).join("\n") + "\n");
         const facts = sessionFacts(prefix, projectDir);
         const restored = memoryText(facts, [], projectDir);
@@ -4650,7 +5056,166 @@ function renderReplay(rows) {
   out.push(rebuilt.length ? `  ${rebuilt.length} session(s) whose project is gone were judged on the file copies they recorded (${rebuilt.reduce((a, r) => a + r.rebuilt, 0)} files); the rest on the files as they are on disk now.` : "  Files are judged as they are on disk now.");
   return out.join("\n");
 }
+
+// src/memory/memory.ts
+import { existsSync as existsSync11, mkdirSync as mkdirSync6, readdirSync as readdirSync5, readFileSync as readFileSync11, unlinkSync as unlinkSync2 } from "node:fs";
+import { join as join13 } from "node:path";
+import { spawnSync as spawnSync2 } from "node:child_process";
+var MEMORY_DIR = "memory";
+var MAX_AGE_DAYS = 90;
+var MAX_CARDS = 3;
+var MAX_BRIEF_CHARS = 2400;
+var dirOf = (snoutDir) => join13(snoutDir, MEMORY_DIR);
+var fileOf = (snoutDir, session) => join13(dirOf(snoutDir), `${session.replace(/[^\w.-]/g, "_").slice(0, 80)}.json`);
+function readCard(snoutDir, session) {
+  try {
+    return JSON.parse(readFileSync11(fileOf(snoutDir, session), "utf8"));
+  } catch {
+    return null;
+  }
+}
+function readCards(snoutDir) {
+  let names;
+  try {
+    names = readdirSync5(dirOf(snoutDir)).filter((n) => n.endsWith(".json"));
+  } catch {
+    return [];
+  }
+  const cards = [];
+  for (const n of names) {
+    try {
+      const c = JSON.parse(readFileSync11(join13(dirOf(snoutDir), n), "utf8"));
+      if (c?.v === 1 && typeof c.session === "string") cards.push(c);
+    } catch {
+    }
+  }
+  return cards;
+}
+function writeCard(snoutDir, card) {
+  mkdirSync6(dirOf(snoutDir), { recursive: true });
+  writeAtomic(fileOf(snoutDir, card.session), `${JSON.stringify(card, null, 1)}
+`);
+}
+function git(projectDir, args) {
+  try {
+    const r = spawnSync2("git", args, { cwd: projectDir, encoding: "utf8", timeout: 2e3, windowsHide: true });
+    return r.status === 0 ? r.stdout.trim() : void 0;
+  } catch {
+    return void 0;
+  }
+}
+var emptyCard = (session, agent, now) => ({ v: 1, id: session, session, agent, started: now, updated: now, changed: [], rules: [], commits: [] });
+function captureSession(snoutDir, projectDir, session, agent, facts, now = (/* @__PURE__ */ new Date()).toISOString()) {
+  const prev = readCard(snoutDir, session);
+  if (!facts.goal && !facts.changed.length && !prev?.commits.length) return null;
+  const card = {
+    ...prev ?? emptyCard(session, agent, now),
+    updated: now,
+    branch: git(projectDir, ["rev-parse", "--abbrev-ref", "HEAD"]) ?? prev?.branch,
+    author: prev?.author ?? git(projectDir, ["config", "user.name"]),
+    task: facts.goal ?? prev?.task,
+    request: facts.request !== facts.goal ? facts.request : void 0,
+    changed: facts.changed.filter((p) => !/^[A-Za-z]:|^\//.test(p)).slice(0, 20),
+    test: facts.test,
+    error: facts.error,
+    rules: facts.rules
+  };
+  writeCard(snoutDir, card);
+  return card;
+}
+var COMMITS = /\bgit\b[^|;&]*\b(commit|merge|cherry-pick|revert|am)\b/;
+function linkCommit(snoutDir, projectDir, session, agent, now = (/* @__PURE__ */ new Date()).toISOString()) {
+  const head = git(projectDir, ["log", "-1", "--format=%H%x1f%s%x1f%cI", "--name-only"]);
+  if (!head) return null;
+  const [first, ...rest] = head.split("\n");
+  const [sha, subject, ts] = first.split("");
+  if (!sha || !ts) return null;
+  const card = readCard(snoutDir, session) ?? emptyCard(session, agent, now);
+  if (card.commits.some((c) => c.sha === sha)) return null;
+  if (Date.parse(ts) < Date.parse(card.started) - 6e4) return null;
+  const commit = { sha, subject: subject ?? "", ts, files: rest.map((l) => l.trim()).filter(Boolean).slice(0, 30) };
+  card.commits.push(commit);
+  card.updated = now;
+  writeCard(snoutDir, card);
+  return commit;
+}
+var STOP3 = new Set("the and for are but not you all any can had her was one our out has his how its may new now old see two way who did get let put say she too use this that with from have what when where which will your into than then them they there these those were been being does done just also only some such more most very about after again could should would here make made want need like look fix add bug issue error file files code please thanks okay yes run test tests work works working change changes update".split(" "));
+function terms(text) {
+  const out = [];
+  for (const m of text.matchAll(/[A-Za-z][A-Za-z0-9_]{2,}/g)) {
+    const w = m[0];
+    const parts2 = w.split(/_|(?<=[a-z0-9])(?=[A-Z])/).filter((p) => p.length >= 3);
+    for (const t of new Set([w, ...parts2].map((x) => x.toLowerCase()))) if (!STOP3.has(t)) out.push(t);
+  }
+  return out;
+}
+function cardText(c) {
+  return [c.task, c.request, ...c.changed, ...c.commits.flatMap((k) => [k.subject, ...k.files]), c.error?.line, c.branch].filter(Boolean).join(" ");
+}
+var cardFiles = (c) => [.../* @__PURE__ */ new Set([...c.changed, ...c.commits.flatMap((k) => k.files)])];
+function recall(cards, prompt, opts = {}) {
+  const now = opts.now ?? Date.now();
+  const asOf = opts.asOf ? Date.parse(opts.asOf) : void 0;
+  const live = cards.filter((c) => {
+    if (c.session === opts.session) return false;
+    if (asOf !== void 0) return Date.parse(c.started) < asOf;
+    return now - Date.parse(c.updated) <= MAX_AGE_DAYS * 864e5;
+  }).map((c) => asOf === void 0 ? c : { ...c, commits: c.commits.filter((k) => Date.parse(k.ts) < asOf) });
+  if (!live.length) return [];
+  const q = [...new Set(terms(prompt))];
+  if (!q.length) return [];
+  const docs = live.map((c) => terms(cardText(c)));
+  const avg = docs.reduce((a, d) => a + d.length, 0) / docs.length || 1;
+  const df = /* @__PURE__ */ new Map();
+  for (const d of docs) for (const t of new Set(d)) df.set(t, (df.get(t) ?? 0) + 1);
+  const lower = prompt.toLowerCase();
+  const out = [];
+  live.forEach((card, i) => {
+    const d = docs[i];
+    const tf = /* @__PURE__ */ new Map();
+    for (const t of d) tf.set(t, (tf.get(t) ?? 0) + 1);
+    let score = 0;
+    const matched = [];
+    for (const t of q) {
+      const f = tf.get(t);
+      if (!f) continue;
+      matched.push(t);
+      const n = df.get(t);
+      const idf = Math.log(1 + (live.length - n + 0.5) / (n + 0.5));
+      score += idf * (f * 2.2) / (f + 1.2 * (0.25 + 0.75 * d.length / avg));
+    }
+    let files = cardFiles(card).filter((p) => lower.includes(p.toLowerCase()) || p.split("/").pop().length >= 6 && lower.includes(p.split("/").pop().toLowerCase()));
+    score += files.length * 3;
+    if (matched.length < 2 && !files.length) return;
+    if (opts.projectDir) files = files.filter((p) => existsSync11(join13(opts.projectDir, p)));
+    out.push({ card, score, matched, files });
+  });
+  return out.sort((a, b) => b.score - a.score).slice(0, MAX_CARDS);
+}
+var clip = (s, n) => safeText(s.replace(/\s+/g, " ").trim(), n);
+function renderRecall(hits, projectDir) {
+  if (!hits.length) return "";
+  const exists = (p) => !projectDir || existsSync11(join13(projectDir, p));
+  const lines = ["Snout memory: earlier sessions in this repo that bear on this request (local notes from their transcripts and commits; check before relying on them)."];
+  for (const { card: c } of hits) {
+    const parts2 = [`- ${c.started.slice(0, 10)} \xB7 ${c.agent}${c.branch ? ` \xB7 ${clip(c.branch, 60)}` : ""}: "${clip(c.task ?? c.commits[0]?.subject ?? "untitled", 160)}"`];
+    const files = cardFiles(c).filter(exists).slice(0, 8);
+    if (files.length) parts2.push(`  files: ${files.map((f) => clip(f, 120)).join(", ")}`);
+    if (c.commits.length) parts2.push(`  commits: ${c.commits.slice(-3).map((k) => `${k.sha.replace(/[^0-9a-f]/gi, "").slice(0, 7)} "${clip(k.subject, 80)}"`).join("; ")}`);
+    if (c.test) parts2.push(`  tests: \`${clip(c.test.command, 100)}\` \u2192 ${clip(c.test.result, 80)}`);
+    if (c.error) parts2.push(`  unresolved at the end: ${clip(c.error.line, 140)} (from \`${clip(c.error.command, 80)}\`)`);
+    if (c.rules.length) parts2.push(`  the user said: ${c.rules.slice(-3).map((r) => `"${clip(r, 120)}"`).join(" ")}`);
+    lines.push(parts2.join("\n"));
+  }
+  let text = lines.join("\n");
+  while (text.length > MAX_BRIEF_CHARS && lines.length > 2) {
+    lines.pop();
+    text = lines.join("\n");
+  }
+  return text.length > MAX_BRIEF_CHARS ? `${text.slice(0, MAX_BRIEF_CHARS - 1)}\u2026` : text;
+}
 export {
+  COMMITS,
   COMPACTION_COSTS,
   DEFAULTS,
   DEFAULT_LIMIT,
@@ -4669,6 +5234,7 @@ export {
   applyMode,
   archiveFiles,
   attach,
+  auditCi,
   auditContext,
   authorOf,
   bandOf,
@@ -4676,6 +5242,7 @@ export {
   buildMap,
   byAgentOf,
   candidates,
+  captureSession,
   classifyContextPath,
   claudeImports,
   claudeMdLine,
@@ -4687,6 +5254,7 @@ export {
   codexSessionFacts,
   compactionWhatIf,
   costOf,
+  cronPerMonth,
   dailyAggregates,
   decide,
   dropEchoes,
@@ -4704,6 +5272,7 @@ export {
   isValidMode,
   kindOf,
   labelOf,
+  linkCommit,
   listArchives,
   listFiles,
   loadConfig,
@@ -4717,10 +5286,12 @@ export {
   outline,
   overlap,
   parseGitignore,
+  parseYaml,
   percentile,
   powerShellDumpTargets,
   priceOf,
   ratioFor,
+  readCards,
   readClaudeTranscript,
   readDecisions,
   readPins,
@@ -4730,10 +5301,13 @@ export {
   readTargets,
   readTranscriptUsage,
   readTurns,
+  recall,
   redundancyOf,
   renderAudit,
   renderCandidates,
+  renderCi,
   renderMap,
+  renderRecall,
   renderReplay,
   renderReport,
   renderStatusline,
@@ -4766,6 +5340,7 @@ export {
   summarizeLedger,
   summarizeSpend,
   tailLines,
+  terms,
   testCommand,
   tier0,
   tipsOf,

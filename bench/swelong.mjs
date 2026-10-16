@@ -24,14 +24,13 @@
  *   node bench/swelong.mjs --merge out.json a.json b.json c.json   # parallel runners → one file
  *   node bench/swelong.mjs --refacts bench/ab-results/swelong-<ts>.json   # recompute costs from transcripts
  */
-import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, realpathSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 // SNOUT_BIN: a frozen build, so edits to dist/ during a run can't change the arm under test.
-import { sh, ensureImage, prepareCheckout, writeShims, armSettings, preflight, leftovers, removeContainers, dockerHealthy, grade, REPO, SNOUT_BIN } from "./swe.mjs";
+import { sh, ensureImage, prepareCheckout, writeShims, armSettings, preflight, leftovers, removeContainers, dockerHealthy, grade, launchClaude, frozenBuild, goldPatch, sweArgs, workBase, REPO, SNOUT_BIN, SWE_PY, FAKE, CLEAN_HOME } from "./swe.mjs";
 
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, a, i, all) => (a.startsWith("--") ? [...acc, [a.slice(2), all[i + 1] && !all[i + 1].startsWith("--") ? all[i + 1] : true]] : acc), []),
@@ -40,8 +39,7 @@ const N = Number(args.n ?? 1);
 const MODEL = typeof args.model === "string" ? args.model : "claude-haiku-5-5";
 const ARMS = (typeof args.arms === "string" ? args.arms : "default,c100k").split(",");
 const BUDGET = String(args.budget ?? "3.00");
-const API_KEY = args.api ? (readFileSync(join(REPO, ".env.local"), "utf8").split("\n").find((l) => l.startsWith("ANTHROPIC_API_KEY=")) ?? "").slice("ANTHROPIC_API_KEY=".length).trim() : null;
-if (args.api && !API_KEY) throw new Error("--api: no ANTHROPIC_API_KEY in .env.local");
+// --api (the key, the isolated config), CLAUDE_BIN and SWE_FAKE_AGENT are handled by swe.mjs's launchClaude.
 
 /** Chains, in a fixed order; every task's image is one the SWE pilot already pulled. */
 const CHAINS = {
@@ -107,12 +105,14 @@ function usages(file) {
  * are billed too and counted in the cost; peak and compactions are the main conversation's.
  */
 function transcriptFacts(sessionId) {
-  const root = join(homedir(), ".claude/projects");
-  const r = sh("find", [root, "-name", `${sessionId}.jsonl`]);
-  const f = r.stdout.trim().split("\n")[0];
+  // With --api the sessions ran against the isolated config, so their transcripts live there.
+  // The stand-in agent writes its transcripts under a temp config folder without --api.
+  const root = join(CLEAN_HOME ?? (FAKE ? join(tmpdir(), "snout-fake-claude") : join(homedir(), ".claude")), "projects");
+  const jsonl = (dir, name) => { try { return readdirSync(dir, { recursive: true }).map(String).filter((p) => (name ? p.split(/[\\/]/).pop() === name : p.endsWith(".jsonl"))).map((p) => join(dir, p)); } catch { return []; } };
+  const f = jsonl(root, `${sessionId}.jsonl`)[0];
   if (!f || !existsSync(f)) return null;
   const subDir = join(f.replace(/\.jsonl$/, ""), "subagents");
-  const subs = existsSync(subDir) ? sh("find", [subDir, "-name", "*.jsonl"]).stdout.trim().split("\n").filter(Boolean) : [];
+  const subs = existsSync(subDir) ? jsonl(subDir) : [];
   let subCost = 0, subCalls = 0;
   for (const s of subs) for (const { u, model } of usages(s)) { subCost += callCost(model ?? MODEL, u) ?? 0; subCalls++; }
   let calls = 0, peak = 0, over = 0, cost = 0;
@@ -161,9 +161,9 @@ const issuePrompt = (t, i, n, first) => `${first ? firstPrompt(n) + "\n\n" : ""}
 ${t.problem_statement}
 </issue>`;
 
-function runClaude(dir, text, resume, arm) {
+function runClaude(dir, text, resume, arm, gold) {
   const window = /(?:^|-)c(\d+)k$/.exec(arm);
-  return new Promise((resolve) => {
+  {
     const argv = [
       "-p", text, "--output-format", "json", "--model", MODEL,
       "--setting-sources", "project,local", "--strict-mcp-config", "--mcp-config", join(dir, ".mcp.json"),
@@ -174,24 +174,19 @@ function runClaude(dir, text, resume, arm) {
     ];
     // The advisor tool (a second model reading the whole transcript at decision points) stays off in
     // every arm: it is switched on by a fetched flag, and its uncached reads would differ between arms.
-    const env = { ...process.env, SNOUT_MODE: "", CLAUDE_CODE_DISABLE_ADVISOR_TOOL: "1", PATH: `${join(dir, ".bin")}:${process.env.PATH}`, ...(API_KEY ? { ANTHROPIC_API_KEY: API_KEY } : {}) };
-    if (window) env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = String(Number(window[1]) * 1000);
-    else delete env.CLAUDE_CODE_AUTO_COMPACT_WINDOW;
-    const child = spawn("claude", argv, { cwd: dir, env, stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = "", stderr = "";
-    child.stdout.on("data", (d) => (stdout += d));
-    child.stderr.on("data", (d) => (stderr += d));
-    let timedOut = false;
+    // Claude Code's own auto-compact window in every arm unless the arm names one (an empty value
+    // overrides any the operator's environment sets).
+    const env = { CLAUDE_CODE_DISABLE_ADVISOR_TOOL: "1", CLAUDE_CODE_AUTO_COMPACT_WINDOW: window ? String(Number(window[1]) * 1000) : "" };
     // SWELONG_ISSUE_LIMIT_MS shortens the limit only to test the hang path with a stand-in claude.
-    const timer = setTimeout(() => { timedOut = true; child.kill("SIGTERM"); }, Number(process.env.SWELONG_ISSUE_LIMIT_MS) || 30 * 60_000);
-    child.on("close", () => { clearTimeout(timer); resolve({ stdout, stderr, timedOut }); });
-  });
+    return launchClaude(dir, argv, { env, goldPatch: gold, limitMs: Number(process.env.SWELONG_ISSUE_LIMIT_MS) || 30 * 60_000 });
+  }
 }
 
 async function runChain(chain, tasks, arm, rep) {
   const started = Date.now();
-  const dir = mkdtempSync(join(tmpdir(), "snout-long-"));
-  const label = dir.split("/").pop();
+  // workBase: on Windows a short path under ~/.snout-bench, which Docker can mount.
+  const dir = mkdtempSync(join(workBase(), "snout-long-"));
+  const label = dir.split(/[\\/]/).pop();
   const row = { chain, arm, rep, tasks: [], steps: [] };
   try {
     tasks.forEach((t, i) => prepareCheckout(t, join(dir, `task${i + 1}`), label));
@@ -199,8 +194,12 @@ async function runChain(chain, tasks, arm, rep) {
     armSettings(dir, arm === "snout" || arm.startsWith("snout-") ? "enforce" : "off");
     let session = null;
     for (let i = 0; i < tasks.length; i++) {
-      writeFileSync(join(dir, ".current"), join(sh("realpath", [dir]).stdout.trim(), `task${i + 1}`));
-      const r = await runClaude(dir, issuePrompt(tasks[i], i, tasks.length, i === 0), session, arm);
+      writeFileSync(join(dir, ".current"), join(realpathSync(dir), `task${i + 1}`));
+      // Dry run: the stand-in applies this issue's real fix, from a file outside the agent's folder.
+      const gold = FAKE ? `${dir}.gold.patch` : undefined;
+      if (gold) writeFileSync(gold, goldPatch(tasks[i].instance_id));
+      const r = await runClaude(dir, issuePrompt(tasks[i], i, tasks.length, i === 0), session, arm, gold);
+      if (gold) { process.stderr.write(r.stderr); rmSync(gold, { force: true }); }
       let out = {};
       try { out = JSON.parse(r.stdout); } catch { out = { is_error: true, result: (r.stderr || r.stdout || "").slice(0, 300) }; }
       session = out.session_id ?? session;
@@ -360,11 +359,11 @@ async function main() {
   if (!PRICES[MODEL]) throw new Error(`no tiered prices for ${MODEL}; add them to PRICES`);
   const all = JSON.parse(readFileSync(join(REPO, "bench/swe-tasks.json"), "utf8")).tasks;
   // Tasks outside the pilot's 15 (django-11099) come from the dataset via swe.mjs's selection dump.
-  const dump = sh(process.env.SWE_PY || join(homedir(), "opt/anaconda3/envs/swebench/bin/python"), ["-c", `
+  const dump = sh(SWE_PY, sweArgs(["-c", `
 import json
 from swebench.harness.utils import load_swebench_dataset
 print(json.dumps([{k: d[k] for k in ("instance_id","repo","base_commit","problem_statement","image","difficulty")} for d in load_swebench_dataset("SWE-bench/SWE-bench_Verified","test")]))
-`]);
+`]), { maxBuffer: 256 * 1024 * 1024 });
   if (dump.status !== 0) throw new Error(dump.stderr.slice(-1000));
   const extra = JSON.parse(dump.stdout);
   const used = new Set(all.map((t) => t.instance_id)); // the SWE pilot's tasks are development data
@@ -399,7 +398,8 @@ print(json.dumps([{k: d[k] for k in ("instance_id","repo","base_commit","problem
   const rows = (prior?.rows ?? []).filter((r) => !replaced(r));
     if (prior && prior.snout?.sha256 && prior.snout.sha256 !== createHash("sha256").update(readFileSync(SNOUT_BIN)).digest("hex")) throw new Error("--append: the Snout build differs from the one this file was measured with (set SNOUT_BIN to it)");
   const snout = { bin: SNOUT_BIN, sha256: createHash("sha256").update(readFileSync(SNOUT_BIN)).digest("hex") };
-  const save = () => writeFileSync(outFile, JSON.stringify({ runId, model: MODEL, n: N, arms: prior?.arms ?? ARMS, measuredAt: prior?.measuredAt ?? new Date().toISOString(), ...(prior ? { appendedAt: [...(prior.appendedAt ?? []), new Date().toISOString()] } : {}), claudeCode: sh("claude", ["--version"]).stdout.trim(), snout, rows, ...(excluded.length ? { excluded } : {}) }, null, 2));
+  const frozen = frozenBuild(); // commit, Claude Code version, config mode; refuses an uncommitted build
+  const save = () => writeFileSync(outFile, JSON.stringify({ runId, model: MODEL, n: N, arms: prior?.arms ?? ARMS, measuredAt: prior?.measuredAt ?? new Date().toISOString(), ...(prior ? { appendedAt: [...(prior.appendedAt ?? []), new Date().toISOString()] } : {}), frozen, snout, rows, ...(excluded.length ? { excluded } : {}) }, null, 2));
   console.error(`${plan.length} chain session(s): ${names.join(", ")} × ${ARMS.join(", ")} × ${N}, model ${MODEL} → ${outFile}`);
   let done = 0;
   for (const [ch, ts, a, rep] of plan) { // one at a time: a chain runs several containers

@@ -37,7 +37,10 @@ const shouldSuggest = libShouldSuggest ?? ((cs, prompt) => cs.some((c) => c.defi
 const SUGGESTED = 4; // what the hook shows the agent
 
 const REPO = fileURLToPath(new URL("..", import.meta.url)).replace(/\/$/, "");
-const SWE_PY = process.env.SWE_PY || join(homedir(), "opt/anaconda3/envs/swebench/bin/python");
+const WIN = process.platform === "win32";
+const SWE_PY = process.env.SWE_PY || (WIN ? join(REPO, ".snout/heldout/venv3/Scripts/python.exe") : join(homedir(), "opt/anaconda3/envs/swebench/bin/python"));
+/** swebench imports the POSIX-only `resource` module; Windows gets an empty stand-in. */
+const PRELUDE = WIN ? "import sys, types\nsys.modules.setdefault('resource', types.ModuleType('resource'))\n" : "";
 const KS = [1, 3, 5, 10, 15];
 const keep = process.argv.includes("--keep");
 const sh = (c, a, o = {}) => spawnSync(c, a, { encoding: "utf8", maxBuffer: 256 * 1024 * 1024, ...o });
@@ -46,7 +49,7 @@ const CONFIRM = process.argv.includes("--confirm");
 const LITE = process.argv.includes("--lite");
 const HELDOUT = process.argv.includes("--heldout") || CONFIRM || LITE;
 const devTasks = JSON.parse(readFileSync(join(REPO, "bench/swe-tasks.json"), "utf8")).tasks;
-const dumpOf = (dataset) => JSON.parse(sh(SWE_PY, ["-c", `
+const dumpOf = (dataset) => JSON.parse(sh(SWE_PY, ["-c", `${PRELUDE}
 import json, re, sys
 from swebench.harness.utils import load_swebench_dataset
 ds = load_swebench_dataset(${JSON.stringify(dataset)}, "test")
@@ -183,7 +186,8 @@ for (const t of tasks) {
   if (HELDOUT) prevMaps.set(t.repo, map);
   const buildMs = Date.now() - t0;
   const t1 = Date.now();
-  const mapC = candidates(map, t.problem_statement, 50).map((c) => c.path);
+  const mapS = candidates(map, t.problem_statement, 50);
+  const mapC = mapS.map((c) => c.path);
   const queryMs = Date.now() - t1;
   const line = renderCandidates(candidates(map, t.problem_statement, 15));
   const g = gold[t.instance_id].filter((f) => map.files[f]); // gold files the map could index
@@ -193,7 +197,9 @@ for (const t of tasks) {
   const shown = candidates(map, t.problem_statement, SUGGESTED);
   const fired = shouldSuggest(shown, t.problem_statement);
   const shownHit = fired && shown.some((c) => gold[t.instance_id].includes(c.path));
-  const row = { task: t.instance_id, repo: t.repo, fired, shownHit, files: read + reused, reread: read, gold: gold[t.instance_id], indexedGold: g.length, buildMs, queryMs, lineTokens: Math.round(line.length / 3.5) };
+  const row = { task: t.instance_id, repo: t.repo, fired, shownHit, files: read + reused, reread: read, gold: gold[t.instance_id], indexedGold: g.length, buildMs, queryMs, lineTokens: Math.round(line.length / 3.5),
+    // For a confidence gate: the top two scores and whether the top file is one the fix edited.
+    top: mapS.slice(0, 2).map((c) => +c.score.toFixed(3)), top1Gold: !!mapS[0] && gold[t.instance_id].includes(mapS[0].path), top3: mapC.slice(0, 3) };
   for (const [name, r] of Object.entries(ranks)) {
     row[name] = { first: g.length ? firstRank(r, g) : null, ...Object.fromEntries(KS.map((k) => [`r${k}`, g.length ? recall(r, g, k) : null])), ...Object.fromEntries(KS.map((k) => [`acc${k}`, g.length ? Number(recall(r, g, k) === 1) : null])) };
   }
@@ -251,6 +257,13 @@ for (const base of ["bm25full"]) {
 }
 const fired = usable.filter((r) => r.fired), junk = fired.filter((r) => !r.shownHit);
 console.log(`\n  hook (top ${SUGGESTED}, firing rule): fires on ${fired.length}/${usable.length} tasks (${(100 * fired.length / usable.length).toFixed(0)}%) · a fix file among those shown ${fired.length - junk.length}/${fired.length} (${fired.length ? (100 * (fired.length - junk.length) / fired.length).toFixed(0) : 0}%) · fires with no fix file ${junk.length} (${(100 * junk.length / usable.length).toFixed(0)}% of tasks)`);
+// Confidence gate: precision and coverage of the top file when it leads the second by a ratio.
+console.log("\n  top-1 gate (score ratio top1/top2)   coverage   top-1 is a fix file");
+for (const ratio of [1, 1.25, 1.5, 2, 3]) {
+  const pass = usable.filter((r) => r.top?.length && (r.top.length < 2 || r.top[0] >= ratio * r.top[1]));
+  const good = pass.filter((r) => r.top1Gold).length;
+  console.log(`  >= ${String(ratio).padEnd(32)} ${`${pass.length}/${usable.length}`.padStart(8)}   ${pass.length ? ((100 * good) / pass.length).toFixed(0) : "-"}%`);
+}
 const med = (xs) => xs.sort((a, b) => a - b)[Math.floor(xs.length / 2)];
 console.log(`\n  map build: median ${med(rows.map((r) => r.buildMs))} ms over a median ${med(rows.map((r) => r.files))} files, rereading a median ${med(rows.map((r) => r.reread))} · query ${med(rows.map((r) => r.queryMs))} ms · candidate line ~${med(rows.map((r) => r.lineTokens))} tokens`);
 mkdirSync(join(REPO, "bench/ab-results"), { recursive: true });

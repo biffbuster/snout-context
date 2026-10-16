@@ -50,6 +50,7 @@ second, mostly Node's startup.
 | Output of a passing test, install, build or search | The problems and the summary, grouped by file; the full log is saved |
 | Generated, vendored and built files | The first lines, an outline, and a search hint |
 | `.env` and key files | Snout asks you first |
+| Your request bears on an earlier session in this repo | A short brief: what that session was asked, the files it changed, its commits, the test command that worked, what the user told it. Nothing when nothing matches |
 | Your request names code in the repo (opt-in: `snout map on`) | Up to four paths that declare or use it, so the agent opens them instead of searching; never file contents |
 
 When no rule is sure, the file is read in full, and every error lets the read through. Any ranged
@@ -81,12 +82,12 @@ snout                   # status: what's been kept out, and what it saved
 snout scan              # what in this repo would crowd your agent's context
 snout audit             # MCP servers: which are used, what each one's results cost and saved
 snout audit context     # instructions, skills and AI-written docs: per-session cost, last use, dead weight
+snout memory            # what earlier sessions left: task, files, commits (`snout recall "<q>"` to test a prompt)
 snout map on            # opt-in: suggest the files your prompt names (paths only)
 snout report            # what was read, kept out and saved, with spend
 snout dashboard         # live savings in your browser
 snout mode enforce      # start trimming (observe = record only)
 snout explain <file>    # why a file was trimmed; `snout allow <file>` keeps it whole
-snout login             # connect to Snout Cloud
 ```
 
 In Claude Code: `/snout:report`, `/snout:mode`, `/snout:explain`. More commands: [docs/configuration.md](docs/configuration.md).
@@ -106,25 +107,16 @@ npm uninstall -g usesnout
 
 Snout's records live in `.snout/` in each project; delete the folder to remove them.
 
-## Snout Cloud
+## Plans
 
-One dashboard for your team's agents: savings and real spend by person, project, coding agent and
-model. Cloud agents (CI, Claude Code on the web, Codex cloud) connect with a workspace key set as
-`SNOUT_TOKEN`. Only per-day totals are sent, never code; `snout sync --dry-run` shows exactly what.
-
-| Plan | Price | Includes |
-| --- | --- | --- |
-| **Free** | $0 | Everything local, unlimited: trimming, memory after compaction, spend tracking, project scan and audit, the local dashboard |
-| **Team** | $15 per active developer / month | One dashboard for the team's agents: spend and savings by person, project, agent and model; budgets and alerts; shared rules; cloud-agent keys |
-| **Enterprise** | Contact us | SSO, audit log, self-hosting |
-
-Snout Cloud is in private beta. To join, [contact us](https://usesnout.xyz/contact).
+Everything above is free and local: trimming, memory after compaction, spend tracking, project
+audits and the local dashboard. Team plans, with memory shared across a team, are coming next.
 
 ## Privacy
 
 Snout reads a file's path, size and first 2 KB to classify it, in memory, and records its decisions
-to `.snout/` in your project as plain files you can read or delete. It makes no network calls unless
-you run `snout login`. Releases are built and published from GitHub Actions with npm provenance.
+and a short card per session (`.snout/memory/`) to `.snout/` in your project as plain files you can read or delete. It makes no network calls unless
+you turn on the Jev prompt coach. Releases are built and published from GitHub Actions with npm provenance.
 Details: [SECURITY.md](SECURITY.md) · [docs/privacy.md](docs/privacy.md).
 
 ## Docs
@@ -134,7 +126,6 @@ Details: [SECURITY.md](SECURITY.md) · [docs/privacy.md](docs/privacy.md).
 | [Quickstart](docs/quickstart.md) | First session, step by step |
 | [Integrations](docs/integrations.md) | Setup for each agent and MCP |
 | [Configuration](docs/configuration.md) | Modes, allow lists, advanced commands |
-| [Teams](docs/teams.md) | Snout Cloud, organizations, cloud agents |
 | [Benchmark](docs/benchmark.md) | How the results were measured |
 | [Troubleshooting](docs/troubleshooting.md) | When something doesn't look right |
 | [Development](docs/development.md) | Repo layout, evals, limits, contributing |

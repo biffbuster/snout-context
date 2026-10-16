@@ -11,8 +11,7 @@ not by promise. This page says what it touches, what it never does, and how to c
 | **Reads** | The output of test, install and build commands your agent already ran (Squeeze) | Nowhere; the full output is saved to `.snout/squeeze/` in your project |
 | **Reads** | Your agents' own usage logs (tokens and model per request), for `snout spend` | Nowhere |
 | **Stores** | One line per decision: path, label, token estimates, time | `.snout/` in your project, plain JSON Lines you can open or delete |
-| **Sends** | Nothing, unless you run `snout login` | |
-| **Sends, after `snout login`** | Per-day totals: read counts, tokens and spend by coding agent, model and file type; a hash of the project's git remote; the folder name | Snout Cloud. Never file contents, paths, prompts or reasons. `snout sync --dry-run` prints the exact payload. |
+| **Sends** | Nothing, unless you turn on the Jev prompt coach | |
 | **Sends, with `snout coach jev` only** | The text of prompts that look like tasks | TypeSafe's API, to score them. Off by default. |
 
 ## What Snout never does
@@ -33,15 +32,7 @@ not by promise. This page says what it touches, what it never does, and how to c
   commit and workflow that built each version.
 - **Watch it first.** Snout starts in observe mode: it records what it would do and changes
   nothing until you run `snout mode enforce`.
-- **See what would leave.** `snout sync --dry-run` prints the full cloud payload.
 - **No runtime dependencies.** The CLI is one bundled file with nothing pulled from npm at run time.
-
-## Snout Cloud
-
-Sign-in is through GitHub; sessions are signed, HttpOnly, SameSite cookies over HTTPS. CLI and
-agent keys are stored as SHA-256 hashes and shown once. Webhooks from Stripe are verified by
-signature. Payments are handled entirely by Stripe; Snout never sees card details. Totals are
-kept per team, and people only see teams they belong to.
 
 ## Reporting a vulnerability
 

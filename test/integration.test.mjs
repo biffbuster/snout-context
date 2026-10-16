@@ -79,6 +79,20 @@ test("a denied read tells the agent how to search instead", () => {
 
 const bashCall = (command) => ({ tool_name: "Bash", tool_use_id: "b1", tool_input: { command } });
 
+test("enforce lets Claude Code's Read open a PDF or screenshot, but not cat print one", () => {
+  const root = project();
+  const bytes = Buffer.concat([Buffer.from("%PDF-1.4\n"), Buffer.alloc(200_000, 0x41), Buffer.from("\n".repeat(400))]);
+  writeFileSync(join(root, "spec.pdf"), bytes);
+  writeFileSync(join(root, "shot.png"), bytes);
+  for (const f of ["spec.pdf", "shot.png"]) {
+    const out = hook(root, "pre-tool", read(root, f), { SNOUT_MODE: "enforce" });
+    assert.equal(out?.hookSpecificOutput?.permissionDecision ?? "allow", "allow", f);
+    assert.equal(out?.hookSpecificOutput?.updatedInput, undefined, `${f} was trimmed`);
+  }
+  const cat = hook(root, "pre-tool", bashCall("cat spec.pdf"), { SNOUT_MODE: "enforce" });
+  assert.equal(cat.hookSpecificOutput.permissionDecision, "deny");
+});
+
 test("enforce denies printing a flagged file whole with Bash, and points to a search", () => {
   const root = project();
   const out = hook(root, "pre-tool", bashCall("cat package-lock.json"), { SNOUT_MODE: "enforce" });
@@ -363,6 +377,27 @@ test("doctor flags a blocking hook that is installed but idle", () => {
   const r = spawnSync(process.execPath, [CLI, "doctor"], { cwd: root, encoding: "utf8" });
   assert.match(r.stdout, /installed \(PreToolUse\)/);
   assert.match(r.stdout, /costs a process per read/);
+});
+
+test("doctor names a session that ran the gate but never loaded the plugin", () => {
+  const root = project();
+  hook(root, "session-start", {});
+  hook(root, "stop", {});
+  hook(root, "pre-tool", { ...read(root, "src/app.ts"), session_id: "old-process-session" });
+  const r = spawnSync(process.execPath, [CLI, "doctor"], { cwd: root, encoding: "utf8" });
+  assert.match(r.stdout, /Session old-proc ran the gate/);
+  hook(root, "prompt-submit", { session_id: "old-process-session", prompt: "hi" });
+  const after = spawnSync(process.execPath, [CLI, "doctor"], { cwd: root, encoding: "utf8" });
+  assert.doesNotMatch(after.stdout, /ran the gate/);
+});
+
+test("the gate tells the user once when the plugin never started in this session", () => {
+  const root = project();
+  hook(root, "session-start", { session_id: "fresh" });
+  assert.equal(hook(root, "pre-tool", { ...read(root, "src/app.ts"), session_id: "fresh" }), null);
+  const stale = hook(root, "pre-tool", { ...read(root, "src/app.ts"), session_id: "stale" });
+  assert.match(stale.systemMessage, /plugin is not running in this session/);
+  assert.equal(hook(root, "pre-tool", { ...read(root, "src/app.ts"), session_id: "stale" }), null, "only once");
 });
 
 test("doctor reads the split layout /snout:mode installs: Read entry plus if-filtered Bash handlers", () => {

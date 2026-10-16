@@ -240,7 +240,53 @@ export function candidates(map: RepoMap, prompt: string, k = 15): Candidate[] {
     const esc = stem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     if (new RegExp(`(^|[^\\w.])${esc}\\.[a-z]{1,5}\\b|/${esc}\\b|\\b${esc} (module|file|package)\\b`).test(lower)) add(p, Math.log(1 + N), stem, true);
   }
+  for (const [p, w] of locations(paths, prompt)) add(p, Math.log(1 + N) * w, basename(p), true);
   return [...scored.values()].sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, k);
+}
+
+/**
+ * Files a request locates directly, with a weight: frames of a traceback and dotted module paths.
+ * A frame's path is matched to a project file by its longest suffix of two or more segments (an
+ * installed copy, `/usr/lib/python3/site-packages/django/db/models/query.py`, is the project's
+ * `django/db/models/query.py`). Following BRTracer (Wong et al., 2014), the frame nearest the error
+ * counts most: a Python traceback lists it last, so the n-th project frame from the end weighs 1/n.
+ * A dotted name (`django.db.models.lookups.Exact`) locates the file of its longest prefix that is a
+ * module (`django/db/models/lookups.py`), weight 1. A package (`django.db`) locates nothing: its
+ * `__init__.py` is named by every import line.
+ */
+export function locations(paths: string[], prompt: string): Map<string, number> {
+  const bySuffix = new Map<string, string | null>();
+  for (const p of paths) {
+    const segs = p.split("/");
+    for (let i = 0; i + 1 < segs.length; i++) {
+      const s = segs.slice(i).join("/");
+      bySuffix.set(s, bySuffix.has(s) && bySuffix.get(s) !== p ? null : p); // null: ambiguous
+    }
+  }
+  const resolve = (raw: string): string | null => {
+    const segs = raw.split(/[\\/]+/).filter(Boolean);
+    for (let i = 0; i + 1 < segs.length; i++) {
+      const hit = bySuffix.get(segs.slice(i).join("/"));
+      if (hit) return hit;
+      if (hit === null) return null;
+    }
+    return null;
+  };
+  const out = new Map<string, number>();
+  const put = (p: string, w: number) => out.set(p, Math.max(out.get(p) ?? 0, w));
+  const frames = [...prompt.matchAll(/File "([^"\n]+)", line \d+/g)].map((m) => resolve(m[1]!)).filter((p): p is string => !!p);
+  const seen: string[] = [];
+  for (const p of frames.reverse()) if (!seen.includes(p)) seen.push(p);
+  seen.forEach((p, i) => put(p, 1 / (i + 1)));
+  const files = new Set(paths);
+  for (const m of prompt.replace(URL, " ").matchAll(/\b[A-Za-z_]\w*(?:\.[A-Za-z_]\w*){1,8}\b/g)) {
+    const parts = m[0].split(".");
+    for (let n = parts.length; n >= 2; n--) {
+      const base = parts.slice(0, n).join("/");
+      if (files.has(`${base}.py`)) { put(`${base}.py`, 1); break; }
+    }
+  }
+  return out;
 }
 
 /** The line handed to the agent: paths and why, never file contents. */

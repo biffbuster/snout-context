@@ -143,6 +143,8 @@ export interface SessionState {
   lastCoachTurn?: number;
   /** The session's model, from SessionStart, stamped on every row so savings split by model. */
   model?: string;
+  /** Memory cards already recalled into this session, so each is offered once. */
+  recalled?: string[];
 }
 
 export function loadState(path: string, session: string): SessionState {

@@ -213,7 +213,7 @@ footer { color: var(--faint); font-size: 12px; text-align: center; margin-top: 2
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 [hidden] { display: none !important; }
 
-/* The landing page's look, the same as Snout Cloud: a warm off-white fading into pink over a fine
+/* The landing page's look: a warm off-white fading into pink over a fine
    white grid, glassy navigation, and the pink that means "kept out of context". */
 body {
   background-color: var(--bg);
@@ -580,7 +580,6 @@ code { font: 12px var(--mono); background: var(--tile); border-radius: 5px; padd
         <button type="button" data-mode="observe">Observe</button>
         <button type="button" data-mode="enforce">Enforce</button>
       </div>
-      <button type="button" class="btn dark" id="connect" hidden>Connect team</button>
     </div>
   </div>
   <div id="banner"></div>
@@ -666,8 +665,6 @@ code { font: 12px var(--mono); background: var(--tile); border-radius: 5px; padd
         <div class="seg-switch" id="modeSwitch2" role="group" aria-label="Mode"><button type="button" data-mode="observe">Observe</button><button type="button" data-mode="enforce">Enforce</button></div></div>
       <div class="set"><div><h3>Prompt tips</h3><p>A short tip, shown only to you, when a task prompt doesn't say which file, what should happen or how to check it.</p></div>
         <div class="seg-switch" id="coachSwitch" role="group" aria-label="Prompt tips"><button type="button" data-coach="off">Off</button><button type="button" data-coach="tip">On</button></div></div>
-      <div class="set"><div><h3>Snout Cloud</h3><p id="cloud-p">One dashboard for your team: spend and savings by person, project and model. Only daily totals are sent, never code or file paths.</p></div>
-        <button type="button" class="btn dark" id="connect2">Connect team</button></div>
       <div class="set"><div><h3>A file Snout trims that you need</h3><p>Open the Context tab and choose <b>Always read in full</b> next to it, or run <code>snout allow &lt;file&gt;</code>.</p></div><button type="button" class="btn" data-go="context">Open Context</button></div>
       <div class="set"><div><h3>About</h3><p id="about"></p></div></div>
     </div>
@@ -873,17 +870,8 @@ code { font: 12px var(--mono); background: var(--tile); border-radius: 5px; padd
         var on = b.getAttribute("data-coach") === (m.coach === "off" ? "off" : "tip");
         b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on));
       });
-      var connected = m.cloud && m.cloud.loggedIn;
-      ["connect", "connect2"].forEach(function (id) {
-        var c = $(id); c.hidden = false;
-        c.textContent = connected ? "Team: " + (m.cloud.team || "connected") : "Connect team";
-        c.disabled = !!connected; c.className = connected ? "btn done" : "btn dark";
-      });
-      $("cloud-p").textContent = connected
-        ? "Syncing daily totals to " + (m.cloud.team || "your team") + " after each session. Never code or file paths."
-        : "One dashboard for your team: spend and savings by person, project and model. Only daily totals are sent, never code or file paths.";
     } else {
-      $("coachSwitch").hidden = true; $("modeSwitch2").hidden = true; $("connect2").hidden = true;
+      $("coachSwitch").hidden = true; $("modeSwitch2").hidden = true;
     }
 
     var sel = $("session"), cur = state.session;
@@ -1071,7 +1059,7 @@ code { font: 12px var(--mono); background: var(--tile); border-radius: 5px; padd
     box.appendChild(t);
   }
 
-  // Each label belongs to the Snout feature that trims it (same grouping as Snout Cloud).
+  // Each label belongs to the Snout feature that trims it.
   var FEATURES = [
     { key: "source", name: "Your code", how: "always read in full", labels: /^(source|always-allow|secret|reversal|unclassified)$/ },
     { key: "squeeze", name: "Command output", how: "Squeeze: problems and summary kept", labels: /^(command-output|tool-output)$/ },
@@ -1660,7 +1648,6 @@ code { font: 12px var(--mono); background: var(--tile); border-radius: 5px; padd
   [].forEach.call($("coachSwitch").querySelectorAll("button"), function (b) {
     b.addEventListener("click", function () { if (!b.classList.contains("on")) act({ type: "coach", value: b.getAttribute("data-coach") }); });
   });
-  ["connect", "connect2"].forEach(function (id) { $(id).addEventListener("click", function () { act({ type: "login" }); }); });
 
   var es = null, poll = null;
   function setLive(ok, text) { $("live").className = "live" + (ok ? " on" : ""); $("live-t").textContent = text; }

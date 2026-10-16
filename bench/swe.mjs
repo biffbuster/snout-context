@@ -131,6 +131,29 @@ function rng(seed) {
   return () => ((s = (s * 16807) % 2147483647) / 2147483647);
 }
 
+/**
+ * The build under test, recorded with every run: the commit, the bundle's hash, Claude Code's
+ * version and the config mode. With SNOUT_COMMIT, both bundles must equal that commit's dist/; a
+ * published number must name the exact build that ran, so uncommitted src/ or dist/ changes stop
+ * the run unless --allow-dirty (smoke runs and dry runs only).
+ */
+export function frozenBuild() {
+  const frozen = {
+    snoutCommit: FROZEN_COMMIT || sh("git", ["rev-parse", "HEAD"], { cwd: REPO }).stdout.trim(),
+    snoutDirty: FROZEN_COMMIT ? false : sh("git", ["status", "--porcelain", "src", "dist"], { cwd: REPO }).stdout.trim() !== "",
+    ...(FROZEN_COMMIT ? { frozenCopy: SNOUT_BIN } : {}),
+    snoutDistSha256: createHash("sha256").update(readFileSync(SNOUT_BIN)).digest("hex"),
+    claudeCode: FAKE ? "stand-in (SWE_FAKE_AGENT=1)" : sh(CLAUDE, ["--version"]).stdout.trim(),
+    claudeConfig: CLEAN_HOME ? "isolated (empty CLAUDE_CONFIG_DIR, API key)" : "operator login",
+  };
+  if (FROZEN_COMMIT) for (const [file, inRepo] of [[SNOUT_BIN, "dist/snout.mjs"], [SNOUT_LIB, "dist/lib.mjs"]]) {
+    const committed = spawnSync("git", ["show", `${FROZEN_COMMIT}:${inRepo}`], { cwd: REPO, maxBuffer: 256 << 20 });
+    if (committed.status !== 0 || !readFileSync(file).equals(committed.stdout)) throw new Error(`SNOUT_COMMIT: ${file} is not ${FROZEN_COMMIT}'s ${inRepo}`);
+  }
+  if (frozen.snoutDirty && !args["allow-dirty"]) throw new Error("src/ or dist/ has uncommitted changes: commit them so the recorded commit is the build under test (or pass --allow-dirty for a smoke run)");
+  return frozen;
+}
+
 /** Gold patches for a dry run with the stand-in agent; never written into task files the agent could see. */
 let GOLD = null;
 function goldPatch(id) {
@@ -403,32 +426,41 @@ ${task.problem_statement}
 
 // ------------------------------------------------------------------ run
 
-function runClaude(dir, text, goldPatch) {
+/**
+ * Starts Claude Code in `dir` the same way for every harness (this one and swelong.mjs): CLAUDE_BIN,
+ * or the stand-in with SWE_FAKE_AGENT=1 (applying `goldPatch`); the shims first on the PATH; the
+ * isolated config and the API key with --api. Resolves when the process ends or `limitMs` passes.
+ */
+export function launchClaude(dir, argv, { env: extra = {}, goldPatch, limitMs = SESSION_LIMIT_MS } = {}) {
   return new Promise((resolve) => {
-    const argv = [
-      "-p", text,
-      "--output-format", "json",
-      "--model", MODEL,
-      "--setting-sources", "project",
-      "--strict-mcp-config",
-      "--mcp-config", join(dir, ".mcp.json"),
-      "--permission-mode", "acceptEdits",
-      "--allowedTools", "Read", "Edit", "Write", "Grep", "Glob", "Bash(python:*)", "Bash(python3:*)", "Bash(pytest:*)", "Bash(ls:*)", "Bash(cat:*)", "Bash(grep:*)", "Bash(rg:*)", "Bash(find:*)", "Bash(head:*)", "Bash(tail:*)", "Bash(wc:*)", "Bash(git diff:*)", "Bash(git status:*)", "Bash(git log:*)", "Bash(git show:*)",
-      "--max-budget-usd", BUDGET,
-    ];
     // Windows spells it Path: keep one key, or the child may see the PATH without the shims.
     const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => k.toUpperCase() !== "PATH"));
     const path = Object.entries(process.env).find(([k]) => k.toUpperCase() === "PATH")?.[1] ?? "";
     if (CLEAN_HOME) mkdirSync(CLEAN_HOME, { recursive: true });
     const [bin, args] = FAKE ? [process.execPath, [join(REPO, "bench/fake-claude.mjs"), ...argv]] : [CLAUDE, argv];
-    const child = spawn(bin, args, { cwd: dir, env: { ...env, ...(FAKE ? { SWE_FAKE_PATCH: goldPatch } : {}), SNOUT_MODE: "", DISABLE_AUTOUPDATER: "1", [WIN ? "Path" : "PATH"]: `${join(dir, ".bin")}${delimiter}${path}`, ...(API_KEY ? { ANTHROPIC_API_KEY: API_KEY } : {}), ...(CLEAN_HOME ? { CLAUDE_CONFIG_DIR: CLEAN_HOME } : {}) }, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(bin, args, { cwd: dir, env: { ...env, ...(FAKE && goldPatch ? { SWE_FAKE_PATCH: goldPatch } : {}), SNOUT_MODE: "", DISABLE_AUTOUPDATER: "1", ...extra, [WIN ? "Path" : "PATH"]: `${join(dir, ".bin")}${delimiter}${path}`, ...(API_KEY ? { ANTHROPIC_API_KEY: API_KEY } : {}), ...(CLEAN_HOME ? { CLAUDE_CONFIG_DIR: CLEAN_HOME } : {}) }, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "", stderr = "";
     child.stdout.on("data", (d) => (stdout += d));
     child.stderr.on("data", (d) => (stderr += d));
     let timedOut = false;
-    const timer = setTimeout(() => { timedOut = true; child.kill("SIGTERM"); }, SESSION_LIMIT_MS);
+    const timer = setTimeout(() => { timedOut = true; child.kill("SIGTERM"); }, limitMs);
     child.on("close", () => { clearTimeout(timer); resolve({ stdout, stderr, timedOut }); });
   });
+}
+
+function runClaude(dir, text, goldPatch) {
+  const argv = [
+    "-p", text,
+    "--output-format", "json",
+    "--model", MODEL,
+    "--setting-sources", "project",
+    "--strict-mcp-config",
+    "--mcp-config", join(dir, ".mcp.json"),
+    "--permission-mode", "acceptEdits",
+    "--allowedTools", "Read", "Edit", "Write", "Grep", "Glob", "Bash(python:*)", "Bash(python3:*)", "Bash(pytest:*)", "Bash(ls:*)", "Bash(cat:*)", "Bash(grep:*)", "Bash(rg:*)", "Bash(find:*)", "Bash(head:*)", "Bash(tail:*)", "Bash(wc:*)", "Bash(git diff:*)", "Bash(git status:*)", "Bash(git log:*)", "Bash(git show:*)",
+    "--max-budget-usd", BUDGET,
+  ];
+  return launchClaude(dir, argv, { goldPatch });
 }
 
 async function runOne(task, arm, rep) {
@@ -491,7 +523,9 @@ function grade(file) {
     const ids = rows.filter((r) => r.patch.trim()).map((r) => r.task);
     if (ids.length) {
       console.error(`grading ${model}: ${ids.length} patch(es)`);
-      const g = sh(SWE_PY, sweArgs(["-m", "swebench.harness.run_evaluation", "--dataset_name", DATASET, "--predictions_path", preds, "--instance_ids", ...ids, "--max_workers", String(JOBS), "--run_id", saved.runId, "--report_dir", work]), { cwd: work, stdio: ["ignore", "inherit", "inherit"], timeout: 4 * 3600_000 });
+      // The grader writes test logs in the locale encoding unless told otherwise; on Windows that is
+      // cp1252, and a test that prints a non-Latin character crashes the instance (2026-10-15 dry run).
+      const g = sh(SWE_PY, sweArgs(["-m", "swebench.harness.run_evaluation", "--dataset_name", DATASET, "--predictions_path", preds, "--instance_ids", ...ids, "--max_workers", String(JOBS), "--run_id", saved.runId, "--report_dir", work]), { cwd: work, env: { ...process.env, PYTHONUTF8: "1" }, stdio: ["ignore", "inherit", "inherit"], timeout: 4 * 3600_000 });
       if (g.status !== 0) throw new Error(`grader exited ${g.status} for ${model}`);
     }
     const reportFile = join(work, `${model}.${saved.runId}.json`);
@@ -580,22 +614,9 @@ async function main() {
   const runId = resumed?.runId ?? `swe-${Date.now()}`;
   const outFile = resumed ? args.resume : join(REPO, "bench/ab-results", `${runId}.json`);
   mkdirSync(join(REPO, "bench/ab-results"), { recursive: true });
-  const frozen = {
-    snoutCommit: FROZEN_COMMIT || sh("git", ["rev-parse", "HEAD"], { cwd: REPO }).stdout.trim(),
-    snoutDirty: FROZEN_COMMIT ? false : sh("git", ["status", "--porcelain", "src", "dist"], { cwd: REPO }).stdout.trim() !== "",
-    ...(FROZEN_COMMIT ? { frozenCopy: SNOUT_BIN } : {}),
-    snoutDistSha256: createHash("sha256").update(readFileSync(SNOUT_BIN)).digest("hex"),
-    claudeCode: sh(CLAUDE, ["--version"]).stdout.trim(),
-    claudeConfig: CLEAN_HOME ? "isolated (empty CLAUDE_CONFIG_DIR, API key)" : "operator login",
-  };
-  if (FROZEN_COMMIT) for (const [file, inRepo] of [[SNOUT_BIN, "dist/snout.mjs"], [SNOUT_LIB, "dist/lib.mjs"]]) {
-    const committed = spawnSync("git", ["show", `${FROZEN_COMMIT}:${inRepo}`], { cwd: REPO, maxBuffer: 256 << 20 });
-    if (committed.status !== 0 || !readFileSync(file).equals(committed.stdout)) throw new Error(`SNOUT_COMMIT: ${file} is not ${FROZEN_COMMIT}'s ${inRepo}`);
-  }
+  const frozen = frozenBuild();
   if (resumed && resumed.frozen.snoutCommit !== frozen.snoutCommit) throw new Error("--resume: a different Snout commit than the run started with");
   if (resumed && resumed.frozen.snoutDistSha256 !== frozen.snoutDistSha256) throw new Error("--resume: dist/snout.mjs changed since this run started; the arms would not be the same Snout");
-  // A published number must name the exact build that ran: committed source, committed bundle.
-  if (frozen.snoutDirty && !args["allow-dirty"]) throw new Error("src/ or dist/ has uncommitted changes: commit them so the recorded commit is the build under test (or pass --allow-dirty for a smoke run)");
   const save = () => writeFileSync(outFile, JSON.stringify({ runId, model: MODEL, n: N, measuredAt: resumed?.measuredAt ?? new Date().toISOString(), ...(resumed ? { resumedAt: [...(resumed.resumedAt ?? []), new Date().toISOString()] } : {}), frozen, rows, ...(excluded.length ? { excluded } : {}) }, null, 2));
   console.error(`${plan.length} session(s): ${tasks.length} task(s) × ${ARMS.length} arm(s) × ${N}, model ${MODEL}, cap $${BUDGET}, ${JOBS} at a time → ${outFile}`);
   let next = 0, done = 0, halted = null;
@@ -627,6 +648,6 @@ async function main() {
   summarize(JSON.parse(readFileSync(outFile, "utf8")));
 }
 
-export { sh, ensureImage, preflight, leftovers, removeContainers, dockerHealthy, grade, startContainer, SWE_PY, DATASET, SNOUT_BIN, REPO };
+export { sh, sweArgs, ensureImage, preflight, leftovers, removeContainers, dockerHealthy, grade, startContainer, goldPatch, SWE_PY, DATASET, SNOUT_BIN, REPO, FAKE, CLEAN_HOME, API_REFUSED };
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) main().catch((e) => { console.error(e); process.exit(1); });

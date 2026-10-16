@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  # The full CI suite: every OS and Node version, eval gate, committed bundle, cloud, latency.
+  # The full CI suite: every OS and Node version, eval gate, committed bundle, latency.
   ci:
     uses: ./.github/workflows/ci.yml
 
