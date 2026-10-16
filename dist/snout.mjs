@@ -6438,7 +6438,7 @@ function projectModule(name, projectDir) {
 }
 function requestText(text) {
   const t = text.trim();
-  if (!t || /^<(command-|local-command|system-reminder)/.test(t)) return void 0;
+  if (!t || /^<(command-|local-command|system-reminder|task-notification)/.test(t)) return void 0;
   const own = t.replace(/<\\?pasted_content\b[^>]*>[\s\S]*?(<\\?\/pasted_content>|$)/g, " ").replace(/\[Image #\d+\]/g, " ").replace(/\s+/g, " ").trim();
   const letters = own.replace(/[^\p{L}\s]/gu, "").replace(/\s+/g, "").length;
   return own.length >= 3 && letters / own.replace(/\s+/g, "").length >= 0.6 && !/(.)\1{5,}/.test(own) ? own : void 0;
@@ -7974,7 +7974,9 @@ function captureSession(snoutDir, projectDir, session, agent, facts, now = (/* @
     changed: facts.changed.filter((p) => !/^[A-Za-z]:|^\//.test(p)).slice(0, 20),
     test: facts.test,
     error: facts.error,
-    rules: facts.rules
+    rules: facts.rules,
+    missing: facts.missing.map((m) => m.name),
+    slow: facts.slow
   };
   writeCard(snoutDir, card);
   return card;
@@ -8072,6 +8074,54 @@ function renderRecall(hits, projectDir) {
 }
 function listCards(snoutDir) {
   return readCards(snoutDir).sort((a, b) => b.updated.localeCompare(a.updated));
+}
+var RECUR = 2;
+var MAX_BRIEF_FILES = 8;
+var BRIEF_CARDS = 200;
+var MAX_REPO_BRIEF_CHARS = 1600;
+function recurring(cards, values, key = (v) => v.toLowerCase()) {
+  const seen = /* @__PURE__ */ new Map();
+  for (const c of cards) {
+    for (const v of new Set(values(c))) {
+      const k = key(v);
+      const e = seen.get(k);
+      if (e) {
+        e.sessions += 1;
+        if (c.updated > e.last) {
+          e.last = c.updated;
+          e.value = v;
+        }
+      } else seen.set(k, { value: v, sessions: 1, last: c.updated });
+    }
+  }
+  return [...seen.values()].filter((e) => e.sessions >= RECUR).sort((a, b) => b.sessions - a.sessions || b.last.localeCompare(a.last));
+}
+function repoBrief(cards, opts = {}) {
+  const now = opts.now ?? Date.now();
+  const asOf = opts.asOf ? Date.parse(opts.asOf) : void 0;
+  const live = cards.filter((c) => asOf !== void 0 ? Date.parse(c.started) < asOf : now - Date.parse(c.updated) <= MAX_AGE_DAYS * 864e5).sort((a, b) => b.updated.localeCompare(a.updated)).slice(0, BRIEF_CARDS);
+  if (live.length < RECUR) return "";
+  const known = (opts.instructions ?? "").toLowerCase();
+  const fresh = (s) => !known.includes(s.toLowerCase());
+  const exists = (p) => !opts.projectDir || existsSync16(join20(opts.projectDir, p));
+  const lines = [];
+  const test = recurring(live, (c) => c.test ? [c.test.command] : [], (v) => v).find((t) => fresh(t.value));
+  if (test) lines.push(`- Tests run here with: \`${clip(test.value, 160)}\` (${test.sessions} sessions)`);
+  const missing = recurring(live, (c) => c.missing ?? []).filter((m) => fresh(m.value)).slice(0, 4);
+  if (missing.length) lines.push(`- Not installed here: ${missing.map((m) => clip(m.value, 40)).join(", ")}`);
+  const slow = recurring(live, (c) => c.slow ?? [], (v) => v).filter((s) => fresh(s.value)).slice(0, 2);
+  for (const s of slow) lines.push(`- Runs past the 2-minute tool limit (prefer narrower runs): \`${clip(s.value, 140)}\``);
+  const files = recurring(live, (c) => cardFiles(c), (v) => v).filter((f) => exists(f.value)).slice(0, MAX_BRIEF_FILES);
+  if (files.length) lines.push(`- Files most work here touches: ${files.map((f) => `${clip(f.value, 100)} (${f.sessions})`).join(", ")}`);
+  const rules = recurring(live, (c) => c.rules).filter((r) => fresh(r.value)).slice(0, 5);
+  for (const r of rules) lines.push(`- The user has said in ${r.sessions} sessions: "${clip(r.value, 200)}"`);
+  if (!lines.length) return "";
+  let text = [`Snout memory: what ${live.length} earlier sessions in this repo keep finding (local notes from their transcripts; check before relying on them).`, ...lines].join("\n");
+  while (text.length > MAX_REPO_BRIEF_CHARS && lines.length > 1) {
+    lines.pop();
+    text = [text.split("\n")[0], ...lines].join("\n");
+  }
+  return text;
 }
 
 // src/gate/repeat.ts
@@ -8559,13 +8609,37 @@ ${CONCISE_INSTRUCTION}` : text } });
       recordError("memory", err);
     }
   }
+  const brief = startBrief(input, paths, cfg, session);
+  const withBrief = (out) => brief ? { ...out, hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: brief } } : out;
   const s = summarizeLedger(readDecisions(paths.ledger, 5e3));
   const report = firstRunReport(paths, cfg, s);
-  if (report) return emit(withOutputStyle(cfg, { systemMessage: report }));
+  if (report) return emit(withBrief(withOutputStyle(cfg, { systemMessage: report })));
   const kept = s.today.heldBack ? ` \xB7 ~${fmtTokens(s.today.heldBack)} tokens kept out today` : "";
   const dash = liveDashboard(configDir(), paths.projectDir);
   const where = dash ? ` \xB7 dashboard http://127.0.0.1:${dash.port}/` : " \xB7 `snout dashboard` to watch it live";
-  emit(withOutputStyle(cfg, { systemMessage: `Snout is on (${cfg.mode})${kept}${where}${cfg.output === "concise" ? " \xB7 concise output on" : ""}` }));
+  emit(withBrief(withOutputStyle(cfg, { systemMessage: `Snout is on (${cfg.mode})${kept}${where}${cfg.output === "concise" ? " \xB7 concise output on" : ""}${brief ? " \xB7 memory brief loaded" : ""}` })));
+}
+var INSTRUCTION_FILES = ["CLAUDE.md", "CLAUDE.local.md", ".claude/CLAUDE.md", "AGENTS.md"];
+function instructionText(projectDir) {
+  return INSTRUCTION_FILES.map((f) => {
+    try {
+      return readFileSync20(join22(projectDir, f), "utf8");
+    } catch {
+      return "";
+    }
+  }).join("\n");
+}
+function startBrief(input, paths, cfg, session) {
+  const source = input.source ?? input.session_start_reason;
+  if (cfg.memory === false || cfg.mode === "observe" || source && source !== "startup" && source !== "clear") return "";
+  try {
+    const text = repoBrief(readCards(paths.snoutDir).filter((c) => c.session !== session), { projectDir: paths.projectDir, instructions: instructionText(paths.projectDir) });
+    if (text) appendRow(join22(paths.snoutDir, "recall.jsonl"), { ts: (/* @__PURE__ */ new Date()).toISOString(), session, turn: 0, kind: "brief", tokensEst: estimateTokens(Buffer.byteLength(text), "x.txt") });
+    return text;
+  } catch (err) {
+    recordError("repoBrief", err);
+    return "";
+  }
 }
 var CONCISE_INSTRUCTION = "Output style, set by the user through Snout: be concise. Skip recaps of what you just did, don't restate code you wrote or files you read, and prefer short answers and diffs over long explanations unless asked. Keep the quality of the code and its tests unchanged.";
 function withOutputStyle(cfg, out) {
@@ -8966,6 +9040,10 @@ function cmdMemory(paths, cfg, args) {
     setConfigKey(paths.config, "memory", v === "on");
     return say(v === "on" ? "Memory on. Each session leaves a card in .snout/memory (task, files changed, commits, test command, what failed), and a later prompt that bears on one gets a short brief. Local only; commit .snout/memory to share it with your team." : "Memory off. No new cards, and nothing is recalled. Existing cards stay in .snout/memory.");
   }
+  if (v === "brief") {
+    const text = repoBrief(readCards(paths.snoutDir), { projectDir: paths.projectDir, instructions: instructionText(paths.projectDir) });
+    return say(text || "No brief yet: a fact needs to show up in two or more sessions first.");
+  }
   if (v === "forget") {
     const id = args[1];
     if (!id) return say("Usage: snout memory forget <session>");
@@ -8974,7 +9052,7 @@ function cmdMemory(paths, cfg, args) {
   const cards = listCards(paths.snoutDir);
   const head = `Memory is ${cfg.memory === false ? "off" : "on"} \xB7 ${cards.length} card${cards.length === 1 ? "" : "s"} in ${toRel(join22(paths.snoutDir, "memory"), paths.projectDir)}`;
   const rows = cards.slice(0, 20).map((c) => `  ${c.updated.slice(0, 10)}  ${c.agent.padEnd(6)} ${safeText(c.session, 36)}  ${safeText(c.task ?? c.commits[0]?.subject ?? "", 70)}${c.commits.length ? `  [${c.commits.map((k) => k.sha.slice(0, 7)).join(" ")}]` : ""}`);
-  say([head, ...rows, "", 'Usage: snout memory on|off \xB7 snout memory forget <session> \xB7 snout recall "<request>"'].join("\n"));
+  say([head, ...rows, "", 'Usage: snout memory on|off \xB7 snout memory brief \xB7 snout memory forget <session> \xB7 snout recall "<request>"'].join("\n"));
 }
 function cmdRecall(paths, args) {
   const i = args.indexOf("--as-of");

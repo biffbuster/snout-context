@@ -26,6 +26,9 @@ export interface Card {
   test?: { command: string; result: string };
   error?: { line: string; command: string };
   rules: string[];
+  /** Tools the session found missing, and test commands too slow for the tool limit. */
+  missing?: string[];
+  slow?: string[];
   commits: Commit[];
 }
 
@@ -97,6 +100,8 @@ export function captureSession(snoutDir: string, projectDir: string, session: st
     test: facts.test,
     error: facts.error,
     rules: facts.rules,
+    missing: facts.missing.map((m) => m.name),
+    slow: facts.slow,
   };
   writeCard(snoutDir, card);
   return card;
@@ -229,4 +234,69 @@ export function renderRecall(hits: Recalled[], projectDir?: string): string {
 /** Cards a listing shows, newest first. */
 export function listCards(snoutDir: string): Card[] {
   return readCards(snoutDir).sort((a, b) => b.updated.localeCompare(a.updated));
+}
+
+// ---------- Repo brief ----------
+
+/** A fact counts as learned once this many separate sessions show it. */
+const RECUR = 2;
+const MAX_BRIEF_FILES = 8;
+/** Recent cards only: the brief describes how the repo works now. */
+const BRIEF_CARDS = 200;
+const MAX_REPO_BRIEF_CHARS = 1600;
+
+export interface BriefOptions {
+  now?: number;
+  asOf?: string;
+  projectDir?: string;
+  /** The instruction files the agent already loads (CLAUDE.md, AGENTS.md): what they say is not repeated. */
+  instructions?: string;
+}
+
+/** Each value with the number of distinct sessions that showed it, most first, then most recent. */
+function recurring(cards: Card[], values: (c: Card) => string[], key = (v: string) => v.toLowerCase()): { value: string; sessions: number }[] {
+  const seen = new Map<string, { value: string; sessions: number; last: string }>();
+  for (const c of cards) {
+    for (const v of new Set(values(c))) {
+      const k = key(v);
+      const e = seen.get(k);
+      if (e) { e.sessions += 1; if (c.updated > e.last) { e.last = c.updated; e.value = v; } }
+      else seen.set(k, { value: v, sessions: 1, last: c.updated });
+    }
+  }
+  return [...seen.values()].filter((e) => e.sessions >= RECUR).sort((a, b) => b.sessions - a.sessions || b.last.localeCompare(a.last));
+}
+
+/**
+ * What separate sessions in this repo keep finding, given once at session start so the agent doesn't
+ * rediscover it: the test command that works, tools that aren't installed, commands too slow for the
+ * tool limit, the files most work touches, and instructions the user has given more than once.
+ * Only facts two or more sessions showed, and none the instruction files already state.
+ */
+export function repoBrief(cards: Card[], opts: BriefOptions = {}): string {
+  const now = opts.now ?? Date.now();
+  const asOf = opts.asOf ? Date.parse(opts.asOf) : undefined;
+  const live = cards
+    .filter((c) => (asOf !== undefined ? Date.parse(c.started) < asOf : now - Date.parse(c.updated) <= MAX_AGE_DAYS * 86_400_000))
+    .sort((a, b) => b.updated.localeCompare(a.updated))
+    .slice(0, BRIEF_CARDS);
+  if (live.length < RECUR) return "";
+  const known = (opts.instructions ?? "").toLowerCase();
+  const fresh = (s: string) => !known.includes(s.toLowerCase());
+  const exists = (p: string) => !opts.projectDir || existsSync(join(opts.projectDir, p));
+  const lines: string[] = [];
+  const test = recurring(live, (c) => (c.test ? [c.test.command] : []), (v) => v).find((t) => fresh(t.value));
+  if (test) lines.push(`- Tests run here with: \`${clip(test.value, 160)}\` (${test.sessions} sessions)`);
+  const missing = recurring(live, (c) => c.missing ?? []).filter((m) => fresh(m.value)).slice(0, 4);
+  if (missing.length) lines.push(`- Not installed here: ${missing.map((m) => clip(m.value, 40)).join(", ")}`);
+  const slow = recurring(live, (c) => c.slow ?? [], (v) => v).filter((s) => fresh(s.value)).slice(0, 2);
+  for (const s of slow) lines.push(`- Runs past the 2-minute tool limit (prefer narrower runs): \`${clip(s.value, 140)}\``);
+  const files = recurring(live, (c) => cardFiles(c), (v) => v).filter((f) => exists(f.value)).slice(0, MAX_BRIEF_FILES);
+  if (files.length) lines.push(`- Files most work here touches: ${files.map((f) => `${clip(f.value, 100)} (${f.sessions})`).join(", ")}`);
+  const rules = recurring(live, (c) => c.rules).filter((r) => fresh(r.value)).slice(0, 5);
+  for (const r of rules) lines.push(`- The user has said in ${r.sessions} sessions: "${clip(r.value, 200)}"`);
+  if (!lines.length) return "";
+  let text = [`Snout memory: what ${live.length} earlier sessions in this repo keep finding (local notes from their transcripts; check before relying on them).`, ...lines].join("\n");
+  while (text.length > MAX_REPO_BRIEF_CHARS && lines.length > 1) { lines.pop(); text = [text.split("\n")[0]!, ...lines].join("\n"); }
+  return text;
 }

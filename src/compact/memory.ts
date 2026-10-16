@@ -151,7 +151,7 @@ export interface SessionFacts {
  */
 function requestText(text: string): string | undefined {
   const t = text.trim();
-  if (!t || /^<(command-|local-command|system-reminder)/.test(t)) return undefined;
+  if (!t || /^<(command-|local-command|system-reminder|task-notification)/.test(t)) return undefined;
   const own = t.replace(/<\\?pasted_content\b[^>]*>[\s\S]*?(<\\?\/pasted_content>|$)/g, " ").replace(/\[Image #\d+\]/g, " ").replace(/\s+/g, " ").trim();
   const letters = own.replace(/[^\p{L}\s]/gu, "").replace(/\s+/g, "").length;
   // Mostly letters, and no key held down (a run of one character).

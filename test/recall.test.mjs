@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFil
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { recall, renderRecall, terms } from "../dist/lib.mjs";
+import { recall, renderRecall, repoBrief, terms } from "../dist/lib.mjs";
 
 const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 const DAY = 86_400_000;
@@ -142,4 +142,52 @@ test("observe mode recalls nothing, and memory off captures nothing", () => {
   const other = repo();
   hook(other.dir, "stop", { session_id: "s1", transcript_path: other.transcript }, { SNOUT_MEMORY: "0" });
   assert.equal(existsSync(join(other.dir, ".snout", "memory")), false);
+});
+
+// ---------- Repo brief ----------
+
+const worked = (session, over = {}) => card({
+  session, task: `task ${session}`, test: { command: "npm test", result: "pass 40" }, missing: ["pytest"],
+  changed: ["src/billing/invoice.ts"], rules: ["Never push to main", `one-off rule ${session}`], ...over,
+});
+
+test("the brief keeps what two or more sessions found, and nothing a single session said", () => {
+  const text = repoBrief([worked("a"), worked("b"), worked("c", { test: undefined, changed: ["src/ui/settings.tsx"] })], { now });
+  assert.match(text, /^Snout memory: what 3 earlier sessions/);
+  assert.match(text, /Tests run here with: `npm test` \(2 sessions\)/);
+  assert.match(text, /Not installed here: pytest/);
+  assert.match(text, /Files most work here touches: src\/billing\/invoice\.ts \(2\)/);
+  assert.doesNotMatch(text, /settings\.tsx/);
+  assert.match(text, /The user has said in 3 sessions: "Never push to main"/);
+  assert.doesNotMatch(text, /one-off rule/);
+});
+
+test("no brief from one session, from stale cards, or for what CLAUDE.md already says", () => {
+  assert.equal(repoBrief([worked("a")], { now }), "");
+  assert.equal(repoBrief([worked("a"), worked("b")], { now: now + 120 * DAY }), "");
+  const text = repoBrief([worked("a"), worked("b")], { now, instructions: "# Rules\n- Never push to main\nRun `npm test`." });
+  assert.doesNotMatch(text, /Never push to main/);
+  assert.doesNotMatch(text, /npm test/);
+  assert.match(text, /pytest/);
+});
+
+test("a new session starts with the brief; a resumed one and observe mode don't", () => {
+  const { dir, transcript } = repo();
+  const t2 = join(dir, "t2.jsonl");
+  const rows = (id) => [
+    { type: "user", message: { content: `Task ${id}: tidy billing. Never change the public API.` } },
+    { type: "assistant", message: { content: [{ type: "tool_use", id: "b1", name: "Bash", input: { command: "python bin/test tests/test_billing.py" } }] } },
+    { type: "user", message: { content: [{ type: "tool_result", tool_use_id: "b1", content: "== tests finished: 12 passed, 1 skipped, in 0.4 seconds ==" }] } },
+  ].map((r) => JSON.stringify(r)).join("\n") + "\n";
+  writeFileSync(transcript, rows("one"));
+  writeFileSync(t2, rows("two"));
+  hook(dir, "stop", { session_id: "s1", transcript_path: transcript });
+  hook(dir, "stop", { session_id: "s2", transcript_path: t2 });
+  const out = hook(dir, "session-start", { session_id: "s3", source: "startup" });
+  assert.match(out?.hookSpecificOutput?.additionalContext ?? "", /Tests run here with: `python bin\/test tests\/test_billing\.py` \(2 sessions\)/);
+  assert.match(out.hookSpecificOutput.additionalContext, /The user has said in 2 sessions: "Never change the public API\."/);
+  assert.equal(hook(dir, "session-start", { session_id: "s3", source: "resume" })?.hookSpecificOutput, undefined);
+  assert.equal(hook(dir, "session-start", { session_id: "s4", source: "startup" }, { SNOUT_MODE: "observe" })?.hookSpecificOutput, undefined);
+  const cli = spawnSync(process.execPath, [CLI, "memory", "brief"], { cwd: dir, encoding: "utf8", env: { ...process.env, SNOUT_MODE: "enforce" } });
+  assert.match(cli.stdout, /python bin\/test/);
 });

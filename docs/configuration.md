@@ -51,7 +51,11 @@ on a card (two or more of its words match, or it names a file the session change
 a short brief of up to three earlier sessions, each offered once per session and at most ~600
 tokens in all; prompts that match nothing get nothing. Recall is active in enforce and advise
 mode; observe mode only writes cards. Cards older than 90 days are not recalled, and files that no
-longer exist are left out. `snout memory` lists the cards, `snout memory forget <session>` drops one,
+longer exist are left out. A new session (not a resumed one) also starts with a repo brief: what two
+or more earlier sessions found, such as the test command that works, tools that aren't installed,
+commands too slow for the tool limit, the files most work touches, and instructions the user has
+given more than once. Anything CLAUDE.md, CLAUDE.local.md or AGENTS.md already says is left out,
+and the brief stays under ~400 tokens; `snout memory brief` prints it. `snout memory` lists the cards, `snout memory forget <session>` drops one,
 and `snout recall "<request>" [--as-of <date>]` shows what a prompt would get. One file per card,
 so committing `.snout/memory/` shares it with a team without merge conflicts. Cards hold the
 start of your prompts: read them before you commit them. Whether recall lowers spend per task is

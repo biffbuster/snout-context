@@ -38,4 +38,4 @@ export { sessionFacts, codexSessionFacts, readPins, memoryText, testCommand, rea
 export { fromInternal } from "./agents/adapt.js";
 export { buildMap, candidates, renderCandidates, requestNames, codeNames, namedExactly, shouldSuggest, listFiles, entryFor, type RepoMap, type Candidate } from "./map/map.js";
 export { replaySession, totals as replayTotals, renderReplay, compactionWhatIf, COMPACTION_COSTS, type SessionReplay, type WhatIf } from "./replay/replay.js";
-export { captureSession, linkCommit, readCards, recall, renderRecall, terms, COMMITS, type Card } from "./memory/memory.js";
+export { captureSession, linkCommit, readCards, recall, renderRecall, repoBrief, terms, COMMITS, type Card } from "./memory/memory.js";

@@ -55,7 +55,7 @@ import { auditServers, disableHint } from "./audit/mcp-servers.js";
 import { archiveFiles, auditContext, listArchives, renderAudit, renderMap, restoreArchive, toJson } from "./audit/context.js";
 import { auditCi, renderCi } from "./audit/ci.js";
 import { docWindow, type DocWindow } from "./gate/longdoc.js";
-import { captureSession, COMMITS, forgetCard, linkCommit, listCards, readCards, recall, renderRecall } from "./memory/memory.js";
+import { captureSession, COMMITS, forgetCard, linkCommit, listCards, readCards, recall, renderRecall, repoBrief } from "./memory/memory.js";
 import { buildMap, candidates, renderCandidates, shouldSuggest, type RepoMap } from "./map/map.js";
 import { forgetReads, rememberRead, repeatOf, repeatOutput, requestedWindow, returnedWindow } from "./gate/repeat.js";
 
@@ -506,13 +506,36 @@ function onSessionStart(input: HookInput, paths: Paths, cfg: Config): void {
       recordError("memory", err);
     }
   }
+  const brief = startBrief(input, paths, cfg, session);
+  const withBrief = (out: Record<string, unknown>) => (brief ? { ...out, hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: brief } } : out);
   const s = summarizeLedger(readDecisions(paths.ledger, 5000));
   const report = firstRunReport(paths, cfg, s);
-  if (report) return emit(withOutputStyle(cfg, { systemMessage: report }));
+  if (report) return emit(withBrief(withOutputStyle(cfg, { systemMessage: report })));
   const kept = s.today.heldBack ? ` · ~${fmtTokens(s.today.heldBack)} tokens kept out today` : "";
   const dash = liveDashboard(configDir(), paths.projectDir);
   const where = dash ? ` · dashboard http://127.0.0.1:${dash.port}/` : " · `snout dashboard` to watch it live";
-  emit(withOutputStyle(cfg, { systemMessage: `Snout is on (${cfg.mode})${kept}${where}${cfg.output === "concise" ? " · concise output on" : ""}` }));
+  emit(withBrief(withOutputStyle(cfg, { systemMessage: `Snout is on (${cfg.mode})${kept}${where}${cfg.output === "concise" ? " · concise output on" : ""}${brief ? " · memory brief loaded" : ""}` })));
+}
+
+/** Instruction files the agent loads itself; the brief does not repeat what they say. */
+const INSTRUCTION_FILES = ["CLAUDE.md", "CLAUDE.local.md", ".claude/CLAUDE.md", "AGENTS.md"];
+
+function instructionText(projectDir: string): string {
+  return INSTRUCTION_FILES.map((f) => { try { return readFileSync(join(projectDir, f), "utf8"); } catch { return ""; } }).join("\n");
+}
+
+/** The repo brief (memory/memory.ts) for a new or cleared session, or "". A resumed session already has it. */
+function startBrief(input: HookInput, paths: Paths, cfg: Config, session: string): string {
+  const source = input.source ?? input.session_start_reason;
+  if (cfg.memory === false || cfg.mode === "observe" || (source && source !== "startup" && source !== "clear")) return "";
+  try {
+    const text = repoBrief(readCards(paths.snoutDir).filter((c) => c.session !== session), { projectDir: paths.projectDir, instructions: instructionText(paths.projectDir) });
+    if (text) appendRow(join(paths.snoutDir, "recall.jsonl"), { ts: new Date().toISOString(), session, turn: 0, kind: "brief", tokensEst: estimateTokens(Buffer.byteLength(text), "x.txt") });
+    return text;
+  } catch (err) {
+    recordError("repoBrief", err);
+    return "";
+  }
 }
 
 /**
@@ -928,6 +951,10 @@ function cmdMemory(paths: Paths, cfg: Config, args: string[]): void {
       ? "Memory on. Each session leaves a card in .snout/memory (task, files changed, commits, test command, what failed), and a later prompt that bears on one gets a short brief. Local only; commit .snout/memory to share it with your team."
       : "Memory off. No new cards, and nothing is recalled. Existing cards stay in .snout/memory.");
   }
+  if (v === "brief") {
+    const text = repoBrief(readCards(paths.snoutDir), { projectDir: paths.projectDir, instructions: instructionText(paths.projectDir) });
+    return say(text || "No brief yet: a fact needs to show up in two or more sessions first.");
+  }
   if (v === "forget") {
     const id = args[1];
     if (!id) return say("Usage: snout memory forget <session>");
@@ -936,7 +963,7 @@ function cmdMemory(paths: Paths, cfg: Config, args: string[]): void {
   const cards = listCards(paths.snoutDir);
   const head = `Memory is ${cfg.memory === false ? "off" : "on"} · ${cards.length} card${cards.length === 1 ? "" : "s"} in ${toRel(join(paths.snoutDir, "memory"), paths.projectDir)}`;
   const rows = cards.slice(0, 20).map((c) => `  ${c.updated.slice(0, 10)}  ${c.agent.padEnd(6)} ${safeText(c.session, 36)}  ${safeText(c.task ?? c.commits[0]?.subject ?? "", 70)}${c.commits.length ? `  [${c.commits.map((k) => k.sha.slice(0, 7)).join(" ")}]` : ""}`);
-  say([head, ...rows, "", 'Usage: snout memory on|off · snout memory forget <session> · snout recall "<request>"'].join("\n"));
+  say([head, ...rows, "", 'Usage: snout memory on|off · snout memory brief · snout memory forget <session> · snout recall "<request>"'].join("\n"));
 }
 
 /** `snout recall "<request>" [--as-of <date>]`: what a prompt would get from memory. */

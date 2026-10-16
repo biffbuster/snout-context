@@ -4211,7 +4211,7 @@ function projectModule(name, projectDir) {
 }
 function requestText(text) {
   const t = text.trim();
-  if (!t || /^<(command-|local-command|system-reminder)/.test(t)) return void 0;
+  if (!t || /^<(command-|local-command|system-reminder|task-notification)/.test(t)) return void 0;
   const own = t.replace(/<\\?pasted_content\b[^>]*>[\s\S]*?(<\\?\/pasted_content>|$)/g, " ").replace(/\[Image #\d+\]/g, " ").replace(/\s+/g, " ").trim();
   const letters = own.replace(/[^\p{L}\s]/gu, "").replace(/\s+/g, "").length;
   return own.length >= 3 && letters / own.replace(/\s+/g, "").length >= 0.6 && !/(.)\1{5,}/.test(own) ? own : void 0;
@@ -5118,7 +5118,9 @@ function captureSession(snoutDir, projectDir, session, agent, facts, now = (/* @
     changed: facts.changed.filter((p) => !/^[A-Za-z]:|^\//.test(p)).slice(0, 20),
     test: facts.test,
     error: facts.error,
-    rules: facts.rules
+    rules: facts.rules,
+    missing: facts.missing.map((m) => m.name),
+    slow: facts.slow
   };
   writeCard(snoutDir, card);
   return card;
@@ -5213,6 +5215,54 @@ function renderRecall(hits, projectDir) {
     text = lines.join("\n");
   }
   return text.length > MAX_BRIEF_CHARS ? `${text.slice(0, MAX_BRIEF_CHARS - 1)}\u2026` : text;
+}
+var RECUR = 2;
+var MAX_BRIEF_FILES = 8;
+var BRIEF_CARDS = 200;
+var MAX_REPO_BRIEF_CHARS = 1600;
+function recurring(cards, values, key = (v) => v.toLowerCase()) {
+  const seen = /* @__PURE__ */ new Map();
+  for (const c of cards) {
+    for (const v of new Set(values(c))) {
+      const k = key(v);
+      const e = seen.get(k);
+      if (e) {
+        e.sessions += 1;
+        if (c.updated > e.last) {
+          e.last = c.updated;
+          e.value = v;
+        }
+      } else seen.set(k, { value: v, sessions: 1, last: c.updated });
+    }
+  }
+  return [...seen.values()].filter((e) => e.sessions >= RECUR).sort((a, b) => b.sessions - a.sessions || b.last.localeCompare(a.last));
+}
+function repoBrief(cards, opts = {}) {
+  const now = opts.now ?? Date.now();
+  const asOf = opts.asOf ? Date.parse(opts.asOf) : void 0;
+  const live = cards.filter((c) => asOf !== void 0 ? Date.parse(c.started) < asOf : now - Date.parse(c.updated) <= MAX_AGE_DAYS * 864e5).sort((a, b) => b.updated.localeCompare(a.updated)).slice(0, BRIEF_CARDS);
+  if (live.length < RECUR) return "";
+  const known = (opts.instructions ?? "").toLowerCase();
+  const fresh = (s) => !known.includes(s.toLowerCase());
+  const exists = (p) => !opts.projectDir || existsSync11(join13(opts.projectDir, p));
+  const lines = [];
+  const test = recurring(live, (c) => c.test ? [c.test.command] : [], (v) => v).find((t) => fresh(t.value));
+  if (test) lines.push(`- Tests run here with: \`${clip(test.value, 160)}\` (${test.sessions} sessions)`);
+  const missing = recurring(live, (c) => c.missing ?? []).filter((m) => fresh(m.value)).slice(0, 4);
+  if (missing.length) lines.push(`- Not installed here: ${missing.map((m) => clip(m.value, 40)).join(", ")}`);
+  const slow = recurring(live, (c) => c.slow ?? [], (v) => v).filter((s) => fresh(s.value)).slice(0, 2);
+  for (const s of slow) lines.push(`- Runs past the 2-minute tool limit (prefer narrower runs): \`${clip(s.value, 140)}\``);
+  const files = recurring(live, (c) => cardFiles(c), (v) => v).filter((f) => exists(f.value)).slice(0, MAX_BRIEF_FILES);
+  if (files.length) lines.push(`- Files most work here touches: ${files.map((f) => `${clip(f.value, 100)} (${f.sessions})`).join(", ")}`);
+  const rules = recurring(live, (c) => c.rules).filter((r) => fresh(r.value)).slice(0, 5);
+  for (const r of rules) lines.push(`- The user has said in ${r.sessions} sessions: "${clip(r.value, 200)}"`);
+  if (!lines.length) return "";
+  let text = [`Snout memory: what ${live.length} earlier sessions in this repo keep finding (local notes from their transcripts; check before relying on them).`, ...lines].join("\n");
+  while (text.length > MAX_REPO_BRIEF_CHARS && lines.length > 1) {
+    lines.pop();
+    text = [text.split("\n")[0], ...lines].join("\n");
+  }
+  return text;
 }
 export {
   COMMITS,
@@ -5313,6 +5363,7 @@ export {
   renderStatusline,
   replaySession,
   totals2 as replayTotals,
+  repoBrief,
   requestNames,
   resolvePaths,
   responseBytes,

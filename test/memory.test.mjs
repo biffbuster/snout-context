@@ -322,3 +322,15 @@ test("current Codex CommandExecution rollout records restore exact command resul
   assert.deepEqual(facts.test, { command: "node --test --test-isolation=none test/bash.test.mjs", result: "ℹ pass 13" });
   assert.deepEqual(facts.missing, [{ name: "pytest", evidence: "No module named pytest" }]);
 });
+
+test("a background-task notice is not the user's request or instruction", () => {
+  const dir = mkdtempSync(join(tmpdir(), "snout-notice-"));
+  const file = join(dir, "t.jsonl");
+  writeFileSync(file, [
+    prompt("Fix the flaky upload test"),
+    prompt("<task-notification>\n<summary>stopped</summary>\n<note>Do not start it again on your own, even if the work seems to need it.</note>\n</task-notification>"),
+  ].map((r) => JSON.stringify(r)).join("\n") + "\n");
+  const f = sessionFacts(file, dir);
+  assert.equal(f.request, "Fix the flaky upload test");
+  assert.deepEqual(f.rules, []);
+});

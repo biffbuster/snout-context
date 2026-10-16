@@ -50,6 +50,7 @@ second, mostly Node's startup.
 | Output of a passing test, install, build or search | The problems and the summary, grouped by file; the full log is saved |
 | Generated, vendored and built files | The first lines, an outline, and a search hint |
 | `.env` and key files | Snout asks you first |
+| A new session starts | A short repo brief: what earlier sessions keep finding (the test command that works, missing tools, the files most work touches, what you have said more than once). Nothing until a fact shows up twice |
 | Your request bears on an earlier session in this repo | A short brief: what that session was asked, the files it changed, its commits, the test command that worked, what the user told it. Nothing when nothing matches |
 | Your request names code in the repo (opt-in: `snout map on`) | Up to four paths that declare or use it, so the agent opens them instead of searching; never file contents |
 
