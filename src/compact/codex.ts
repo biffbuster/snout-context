@@ -65,6 +65,11 @@ export function codexRows(lines: Iterable<string>): string[] {
       if (text.trim() && !/^\s*(?:# AGENTS\.md instructions for |<[a-z_-]+[\s>])/.test(text)) push({ type: "user", message: { content: text } });
       continue;
     }
+    if (p.type === "message" && p.role === "assistant") {
+      const text = Array.isArray(p.content) ? p.content.filter((c: any) => c?.type === "output_text").map((c: any) => c.text ?? "").join(" ") : "";
+      if (text.trim()) push({ type: "assistant", message: { content: [{ type: "text", text }] } });
+      continue;
+    }
     if (p.type === "function_call_output" || p.type === "custom_tool_call_output") {
       push(result(p.call_id, outputText(p.output)));
       continue;

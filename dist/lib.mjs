@@ -1691,7 +1691,7 @@ function renderReport(rows, turns, mode, opts = {}) {
   if (mode === "observe") {
     out.push("  Observe mode withholds nothing, so all of it reached the agent.");
   } else {
-    out.push(`  ${tok(withheld)} tokens were withheld; the rest you allowed or overrode.`);
+    out.push(`  ~${tok(withheld)} tokens were withheld, estimated from file sizes (not a billed saving); the rest you allowed or overrode.`);
   }
   out.push("");
   out.push("  COVERAGE");
@@ -4007,6 +4007,11 @@ function codexRows(lines) {
       if (text.trim() && !/^\s*(?:# AGENTS\.md instructions for |<[a-z_-]+[\s>])/.test(text)) push({ type: "user", message: { content: text } });
       continue;
     }
+    if (p.type === "message" && p.role === "assistant") {
+      const text = Array.isArray(p.content) ? p.content.filter((c) => c?.type === "output_text").map((c) => c.text ?? "").join(" ") : "";
+      if (text.trim()) push({ type: "assistant", message: { content: [{ type: "text", text }] } });
+      continue;
+    }
     if (p.type === "function_call_output" || p.type === "custom_tool_call_output") {
       push(result(p.call_id, outputText(p.output)));
       continue;
@@ -4226,6 +4231,7 @@ function errorLine(out) {
   return void 0;
 }
 var RULE_CHARS = 1600;
+var OUTCOME_CHARS = 600;
 function instructions(request) {
   return request.split(/(?<=[.!?])\s+|\n+/).map((x) => x.trim()).filter((x) => x.length >= 15 && x.length <= 300 && !x.endsWith("?") && INSTRUCTION.test(x));
 }
@@ -4271,6 +4277,10 @@ function factsFromClaudeRows(lines, projectDir, first) {
       }
     }
     if (!Array.isArray(content)) continue;
+    if (o.type === "assistant") {
+      const said = content.filter((b) => b.type === "text" && typeof b.text === "string").map((b) => b.text).join(" ").trim();
+      if (said.length >= 20) facts.outcome = oneLine(said, OUTCOME_CHARS);
+    }
     for (const b of content) {
       if (b.type === "tool_use") {
         uses.set(b.id, b);
@@ -5059,7 +5069,7 @@ function renderReplay(rows) {
 
 // src/memory/memory.ts
 import { existsSync as existsSync11, mkdirSync as mkdirSync6, readdirSync as readdirSync5, readFileSync as readFileSync11, unlinkSync as unlinkSync2 } from "node:fs";
-import { join as join13 } from "node:path";
+import { isAbsolute as isAbsolute10, join as join13, relative as relative7, sep as sep6 } from "node:path";
 import { spawnSync as spawnSync2 } from "node:child_process";
 var MEMORY_DIR = "memory";
 var MAX_AGE_DAYS = 90;
@@ -5119,6 +5129,7 @@ function captureSession(snoutDir, projectDir, session, agent, facts, now = (/* @
     test: facts.test,
     error: facts.error,
     rules: facts.rules,
+    outcome: facts.outcome ?? prev?.outcome,
     missing: facts.missing.map((m) => m.name),
     slow: facts.slow
   };
@@ -5152,17 +5163,20 @@ function terms(text) {
   return out;
 }
 function cardText(c) {
-  return [c.task, c.request, ...c.changed, ...c.commits.flatMap((k) => [k.subject, ...k.files]), c.error?.line, c.branch].filter(Boolean).join(" ");
+  return [c.task, c.request, c.outcome, ...c.changed, ...c.commits.flatMap((k) => [k.subject, ...k.files]), c.error?.line, c.branch].filter(Boolean).join(" ");
 }
 var cardFiles = (c) => [.../* @__PURE__ */ new Set([...c.changed, ...c.commits.flatMap((k) => k.files)])];
-function recall(cards, prompt, opts = {}) {
+function liveCards(cards, opts) {
   const now = opts.now ?? Date.now();
   const asOf = opts.asOf ? Date.parse(opts.asOf) : void 0;
-  const live = cards.filter((c) => {
+  return cards.filter((c) => {
     if (c.session === opts.session) return false;
     if (asOf !== void 0) return Date.parse(c.started) < asOf;
     return now - Date.parse(c.updated) <= MAX_AGE_DAYS * 864e5;
   }).map((c) => asOf === void 0 ? c : { ...c, commits: c.commits.filter((k) => Date.parse(k.ts) < asOf) });
+}
+function recall(cards, prompt, opts = {}) {
+  const live = liveCards(cards, opts);
   if (!live.length) return [];
   const q = [...new Set(terms(prompt))];
   if (!q.length) return [];
@@ -5192,8 +5206,34 @@ function recall(cards, prompt, opts = {}) {
     if (opts.projectDir) files = files.filter((p) => existsSync11(join13(opts.projectDir, p)));
     out.push({ card, score, matched, files });
   });
-  return out.sort((a, b) => b.score - a.score).slice(0, MAX_CARDS);
+  return out.sort((a, b) => b.score - a.score).slice(0, opts.limit ?? MAX_CARDS);
 }
+function embedText(c) {
+  return [c.task, c.outcome, ...c.commits.map((k) => k.subject), ...cardFiles(c).slice(0, 20)].filter(Boolean).join(" ").replace(/\s+/g, " ").slice(0, 1e3);
+}
+var HYBRID_CUT = 0.0321;
+var RRF_K = 60;
+var dot = (a, b) => {
+  let s = 0;
+  for (let i = 0; i < a.length; i++) s += a[i] * b[i];
+  return s;
+};
+function hybridRecall(cards, prompt, vectors, opts = {}) {
+  const words = recall(cards, prompt, { ...opts, limit: 50 });
+  const meaning = liveCards(cards, opts).filter((c) => vectors.cards.has(c.id)).map((c) => ({ c, s: dot(vectors.query, vectors.cards.get(c.id)) })).sort((a, b) => b.s - a.s).slice(0, 50);
+  const fused = /* @__PURE__ */ new Map();
+  words.forEach((h, i) => fused.set(h.card.id, { ...h, score: 1 / (RRF_K + i) }));
+  meaning.forEach(({ c }, i) => {
+    const h = fused.get(c.id) ?? { card: c, score: 0, matched: [], files: [] };
+    fused.set(c.id, { ...h, score: h.score + 1 / (RRF_K + i) });
+  });
+  return [...fused.values()].filter((h) => h.score >= HYBRID_CUT || h.files.length > 0).sort((a, b) => b.score - a.score).slice(0, opts.limit ?? MAX_CARDS);
+}
+var packVector = (v) => Buffer.from(Float32Array.from(v).buffer).toString("base64");
+var unpackVector = (s) => {
+  const b = Buffer.from(s, "base64");
+  return new Float32Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
+};
 var clip = (s, n) => safeText(s.replace(/\s+/g, " ").trim(), n);
 function renderRecall(hits, projectDir) {
   if (!hits.length) return "";
@@ -5201,6 +5241,7 @@ function renderRecall(hits, projectDir) {
   const lines = ["Snout memory: earlier sessions in this repo that bear on this request (local notes from their transcripts and commits; check before relying on them)."];
   for (const { card: c } of hits) {
     const parts2 = [`- ${c.started.slice(0, 10)} \xB7 ${c.agent}${c.branch ? ` \xB7 ${clip(c.branch, 60)}` : ""}: "${clip(c.task ?? c.commits[0]?.subject ?? "untitled", 160)}"`];
+    if (c.outcome) parts2.push(`  how it ended: ${clip(c.outcome, 400)}`);
     const files = cardFiles(c).filter(exists).slice(0, 8);
     if (files.length) parts2.push(`  files: ${files.map((f) => clip(f, 120)).join(", ")}`);
     if (c.commits.length) parts2.push(`  commits: ${c.commits.slice(-3).map((k) => `${k.sha.replace(/[^0-9a-f]/gi, "").slice(0, 7)} "${clip(k.subject, 80)}"`).join("; ")}`);
@@ -5264,12 +5305,38 @@ function repoBrief(cards, opts = {}) {
   }
   return text;
 }
+function shareMemory(projectDir, snoutDir) {
+  const rel = relative7(projectDir, dirOf(snoutDir)).split(sep6).join("/");
+  if (!rel || rel.startsWith("..") || isAbsolute10(rel)) return { ok: false, reason: "Snout's records are kept outside this project (SNOUT_DIR), so git can't share them from here." };
+  if (git(projectDir, ["rev-parse", "--is-inside-work-tree"]) !== "true") return { ok: false, reason: "This project isn't a git repository." };
+  const probe = `${rel}/card.json`;
+  const ignored = () => spawnSync2("git", ["check-ignore", "-q", "--no-index", probe], { cwd: projectDir, timeout: 2e3, windowsHide: true }).status === 0;
+  if (!ignored()) return { ok: true, changedGitignore: false, dir: rel };
+  const file = join13(projectDir, ".gitignore");
+  let text = "";
+  try {
+    text = readFileSync11(file, "utf8");
+  } catch {
+  }
+  const top = rel.split("/")[0];
+  const nl = text.includes("\r\n") ? "\r\n" : "\n";
+  const lines = text.split(/\r?\n/);
+  const i = lines.findIndex((l) => new RegExp(`^/?${top.replace(/\./g, ".")}/?s*$`).test(l));
+  if (i < 0) {
+    const why = git(projectDir, ["check-ignore", "-v", "--no-index", probe]);
+    return { ok: false, reason: `${rel} is ignored by a rule Snout won't edit${why ? ` (${why.split("	")[0]})` : ""}. Add \`!${rel}/\` after it to share memory.` };
+  }
+  lines.splice(i, 1, `${top}/*`, `!${rel}/`);
+  writeAtomic(file, lines.join(nl));
+  return ignored() ? { ok: false, reason: `Updated .gitignore, but another rule still ignores ${rel}.` } : { ok: true, changedGitignore: true, dir: rel };
+}
 export {
   COMMITS,
   COMPACTION_COSTS,
   DEFAULTS,
   DEFAULT_LIMIT,
   HINT_SCORE,
+  HYBRID_CUT,
   JEV_USD_PER_MTOK,
   LABELS,
   MAX_LIMIT,
@@ -5309,6 +5376,7 @@ export {
   decide,
   dropEchoes,
   dumpTargets,
+  embedText,
   ensureDir,
   entryFor,
   estimateTokens,
@@ -5318,6 +5386,7 @@ export {
   fromInternal,
   gateEntries,
   harnessOf,
+  hybridRecall,
   ignoredOutputDirIn,
   isValidMode,
   kindOf,
@@ -5335,6 +5404,7 @@ export {
   normalize,
   outline,
   overlap,
+  packVector,
   parseGitignore,
   parseYaml,
   percentile,
@@ -5379,6 +5449,7 @@ export {
   searchHint,
   sessionFacts,
   sessionStartMs,
+  shareMemory,
   shingles,
   shouldSuggest,
   sizeOf,
@@ -5401,6 +5472,7 @@ export {
   totals,
   totalsOf,
   trimMcp,
+  unpackVector,
   withOverride,
   writeAtomic
 };

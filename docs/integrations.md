@@ -7,7 +7,7 @@ it do.
 | --- | --- | --- | --- |
 | Claude Code | Plugin hooks | Trims bulk reads, attaches an outline | Tested live |
 | Gemini CLI | `BeforeTool` / `AfterTool` hooks | Trims bulk reads by rewriting offset and limit | Tested against the documented hook format |
-| Codex CLI | `PreToolUse` / `PostToolUse` / `SessionStart` hooks | Denies ambiguous bulk prints; trims a single literal PowerShell generated/vendored read; restores bounded context after compaction | Deny, 60-line trim and manual compaction tested live on Windows |
+| Codex CLI | `PreToolUse` / `PostToolUse` / `SessionStart` / `UserPromptSubmit` / `Stop` hooks | Denies ambiguous bulk prints; trims a single literal PowerShell generated/vendored read; restores bounded context after compaction; session memory | Deny, 60-line trim and manual compaction tested live on Windows |
 | Cursor | `beforeReadFile` / `beforeShellExecution` hooks | Denies bulk reads (Cursor hooks can't trim) | Tested against the documented hook format |
 | Copilot, Windsurf, Cline, Zed and other MCP clients | MCP server | Offers `snout_read`, which returns bulk files as head plus outline | Tested with a scripted MCP session |
 
@@ -36,11 +36,13 @@ cd your-project
 snout init codex         # writes .codex/hooks.json
 ```
 
-`snout init codex` installs PreToolUse, PostToolUse, and SessionStart. It removes older
-Snout-owned UserPromptSubmit and Stop entries if re-run, while preserving other tools' hooks.
-Codex loads project hooks only in a trusted folder, and runs a new hook only after you
-approve it. Open Codex in the project once, trust the folder, and approve these three Snout
-hooks with `/hooks`. Until then the hooks are skipped without any error.
+`snout init codex` installs PreToolUse, PostToolUse, SessionStart, UserPromptSubmit and Stop.
+The last two carry memory: Stop writes the session's card from its transcript, and
+UserPromptSubmit adds the brief of earlier sessions when a prompt bears on one. Re-running it
+replaces Snout's own entries and keeps other tools' hooks. Codex loads project hooks only in a
+trusted folder, and runs a new hook only after you approve it. Open Codex in the project once,
+trust the folder, and approve the five Snout hooks with `/hooks`. Until then the hooks are skipped
+without any error. A `codex exec --ephemeral` session has no transcript, so it leaves no card.
 
 Codex reads files through shell commands, so Snout gates whole-file prints such as
 `cat package-lock.json` and points the agent to a targeted search. On Windows, a single

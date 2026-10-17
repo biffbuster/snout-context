@@ -278,7 +278,7 @@ export function renderReport(
   if (mode === "observe") {
     out.push("  Observe mode withholds nothing, so all of it reached the agent.");
   } else {
-    out.push(`  ${tok(withheld)} tokens were withheld; the rest you allowed or overrode.`);
+    out.push(`  ~${tok(withheld)} tokens were withheld, estimated from file sizes (not a billed saving); the rest you allowed or overrode.`);
   }
   out.push("");
 

@@ -96,6 +96,8 @@ export interface DecisionRow {
 export interface TurnRow {
   ts: string;
   session: string;
+  /** The agent whose turn it was. Rows from before 2026-10-16 have none (Claude Code). */
+  agent?: "claude" | "codex";
   turn: number;
   goalHash: string;
   decisions: Record<Verdict, number>;

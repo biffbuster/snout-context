@@ -268,9 +268,14 @@ test("init writes each agent's config, is safe to re-run, and keeps other hooks"
   assert.match(codex.hooks.PreToolUse[0].hooks[0].command, /hook codex PreToolUse$/);
   assert.equal(codex.hooks.PostToolUse.length, 1);
   assert.equal(codex.hooks.SessionStart.length, 1);
-  assert.equal(codex.hooks.UserPromptSubmit.length, 1, "keep only the other agent's prompt hook");
-  assert.equal(codex.hooks.UserPromptSubmit[0].hooks[0].command, "./other-prompt.sh");
-  assert.equal(codex.hooks.Stop, undefined, "remove the old Snout Stop hook");
+  // Prompt and Stop carry memory: an old Snout entry is replaced, another tool's hook is kept.
+  const prompt = codex.hooks.UserPromptSubmit.flatMap((g) => g.hooks.map((h) => h.command));
+  assert.deepEqual(prompt.filter((c) => /snout/.test(c)).length, 1);
+  assert.ok(prompt.some((c) => /hook codex UserPromptSubmit$/.test(c) && !c.includes("C:/old")));
+  assert.ok(prompt.includes("./other-prompt.sh"));
+  assert.equal(codex.hooks.Stop.length, 1);
+  assert.match(codex.hooks.Stop[0].hooks[0].command, /hook codex Stop$/);
+  assert.doesNotMatch(codex.hooks.Stop[0].hooks[0].command, /C:\/old/);
 });
 
 test("init --remove takes out only Snout's hooks, for every agent", () => {

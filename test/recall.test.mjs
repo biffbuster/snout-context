@@ -1,12 +1,12 @@
 // Cross-session memory: a card per session, commits linked to it, recalled when a later prompt bears on it.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { recall, renderRecall, repoBrief, terms } from "../dist/lib.mjs";
+import { HYBRID_CUT, hybridRecall, packVector, recall, renderRecall, repoBrief, terms, unpackVector } from "../dist/lib.mjs";
 
 const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 const DAY = 86_400_000;
@@ -118,7 +118,9 @@ test("a session leaves a card at Stop, its commit is linked, and the next sessio
   assert.deepEqual(c.changed, ["src/billing.js"]);
   assert.deepEqual(c.rules, ["Never change the public API."]);
 
-  const out = hook(dir, "prompt-submit", { session_id: "s2", prompt: "invoice totals rounding is off by a cent again" });
+  const vague = hook(dir, "prompt-submit", { session_id: "s2", prompt: "invoice totals rounding is off by a cent again" });
+  assert.equal(vague?.hookSpecificOutput?.additionalContext, undefined, "word overlap alone is not enough: nothing in the code agrees");
+  const out = hook(dir, "prompt-submit", { session_id: "s2", prompt: "invoice rounding in billing.js is off by a cent again" });
   const ctx = out?.hookSpecificOutput?.additionalContext ?? "";
   assert.match(ctx, /Fix the invoice rounding in billing totals/);
   assert.match(ctx, /files: src\/billing\.js/);
@@ -126,7 +128,7 @@ test("a session leaves a card at Stop, its commit is linked, and the next sessio
   assert.match(ctx, /the user said: "Never change the public API\."/);
   assert.ok(existsSync(join(dir, ".snout", "recall.jsonl")), "each brief is logged so its cost is counted");
 
-  const again = hook(dir, "prompt-submit", { session_id: "s2", prompt: "invoice totals rounding, still off" });
+  const again = hook(dir, "prompt-submit", { session_id: "s2", prompt: "invoice rounding in billing.js, still off" });
   assert.equal(again?.hookSpecificOutput?.additionalContext, undefined, "a card is offered once per session");
 
   const cli = spawnSync(process.execPath, [CLI, "recall", "invoice rounding in billing"], { cwd: dir, encoding: "utf8" });
@@ -190,4 +192,110 @@ test("a new session starts with the brief; a resumed one and observe mode don't"
   assert.equal(hook(dir, "session-start", { session_id: "s4", source: "startup" }, { SNOUT_MODE: "observe" })?.hookSpecificOutput, undefined);
   const cli = spawnSync(process.execPath, [CLI, "memory", "brief"], { cwd: dir, encoding: "utf8", env: { ...process.env, SNOUT_MODE: "enforce" } });
   assert.match(cli.stdout, /python bin\/test/);
+});
+
+// ---------- The why, and sharing ----------
+
+test("a card keeps how the session ended, in the agent's own last words, and recall shows it", () => {
+  const { dir, transcript } = repo();
+  writeFileSync(transcript, readFileSync(transcript, "utf8") + JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "Rounded invoice totals to cents in billing.js; kept the public API as asked because two callers depend on it." }] } }) + "\n");
+  hook(dir, "stop", { session_id: "s1", transcript_path: transcript });
+  const c = JSON.parse(readFileSync(join(dir, ".snout", "memory", "s1.json"), "utf8"));
+  assert.match(c.outcome, /two callers depend on it/);
+  const out = hook(dir, "prompt-submit", { session_id: "s2", prompt: "why is the invoice API in billing.js frozen?" });
+  assert.match(out?.hookSpecificOutput?.additionalContext ?? "", /how it ended: Rounded invoice totals .* two callers depend on it\./);
+});
+
+test("share lets git track .snout/memory and nothing else under .snout, and never stages anything", () => {
+  const { dir, transcript } = repo();
+  writeFileSync(join(dir, ".gitignore"), "node_modules\n.snout/\n");
+  hook(dir, "stop", { session_id: "s1", transcript_path: transcript });
+  const r = spawnSync(process.execPath, [CLI, "memory", "share"], { cwd: dir, encoding: "utf8" });
+  assert.match(r.stdout, /Updated \.gitignore/);
+  assert.equal(readFileSync(join(dir, ".gitignore"), "utf8"), "node_modules\n.snout/*\n!.snout/memory/\n");
+  const untracked = git(dir, "status", "--porcelain", "--untracked-files=all");
+  assert.match(untracked, /\.snout\/memory\/s1\.json/);
+  assert.doesNotMatch(untracked, /\.snout\/(state|hooks|ledger)/);
+  assert.doesNotMatch(untracked, /^A/m, "nothing staged");
+  const again = spawnSync(process.execPath, [CLI, "memory", "share"], { cwd: dir, encoding: "utf8" });
+  assert.match(again.stdout, /git already tracks \.snout\/memory\//);
+});
+
+// ---------- The optional memory model ----------
+
+test("hybrid recall keeps a card only when words and meaning both rank it near the top", () => {
+  const unit = (i) => Float32Array.from({ length: 8 }, (_, j) => (j === i ? 1 : 0));
+  const pool = [
+    card({ session: "both", task: "Invoice tax rounding for discounted orders", changed: ["src/billing/invoice.ts"] }),
+    card({ session: "words", task: "Invoice tax export for discounted orders" }),
+    card({ session: "meaning", task: "Customers charged twice by a retried webhook" }),
+    ...[1, 2, 3, 4, 5].map((n) => card({ session: `other${n}`, task: `Unrelated chore ${n}` })),
+  ];
+  // Query points at "both" and "meaning"; "words" is last by meaning.
+  const vec = { both: unit(0), meaning: unit(0), other1: unit(1), other2: unit(2), other3: unit(3), other4: unit(4), other5: unit(5), words: unit(0).map((x) => -x) };
+  const v = { query: unit(0), cards: new Map(Object.entries(vec)) };
+  const hits = hybridRecall(pool, "invoice tax rounding for discounted orders", v, { now });
+  assert.deepEqual(hits.map((h) => h.card.session), ["both"]);
+  assert.ok(hits[0].score >= HYBRID_CUT);
+  assert.equal(unpackVector(packVector([0.5, -1, 2])).join(","), "0.5,-1,2");
+});
+
+const fakeModel = (dir) => ({ SNOUT_EMBED_FAKE: "1", SNOUT_CONFIG_DIR: join(dir, "cfg"), SNOUT_PORT: String(40000 + Math.floor(Math.random() * 9000)) });
+const health = async (env) => fetch(`http://127.0.0.1:${env.SNOUT_PORT}/snout/v1/health`).then((r) => r.ok, () => false);
+const until = async (ok) => { for (let i = 0; i < 100 && !(await ok()); i++) await new Promise((r) => setTimeout(r, 50)); };
+const shutdown = (env) => fetch(`http://127.0.0.1:${env.SNOUT_PORT}/snout/v1/shutdown`, { method: "POST" }).catch(() => {});
+
+test("with the model installed, a prompt is ranked by words and meaning from snout serve, and card vectors stay local", async () => {
+  const { dir, transcript } = repo();
+  const env = fakeModel(dir);
+  hook(dir, "stop", { session_id: "s1", transcript_path: transcript }, env);
+  const serve = spawn(process.execPath, [CLI, "serve"], { env: { ...process.env, ...env }, stdio: "ignore" });
+  try {
+    await until(() => health(env));
+    const out = hook(dir, "prompt-submit", { session_id: "s2", prompt: "invoice rounding in billing.js is off by a cent again" }, env);
+    assert.match(out?.hookSpecificOutput?.additionalContext ?? "", /Fix the invoice rounding in billing totals/);
+    const row = JSON.parse(readFileSync(join(dir, ".snout", "recall.jsonl"), "utf8").trim().split("\n").pop());
+    assert.equal(row.ranker, "hybrid");
+    const vectors = JSON.parse(readFileSync(join(dir, ".snout", "memory-vectors.json"), "utf8"));
+    assert.deepEqual(Object.keys(vectors.cards), ["s1"]);
+    assert.ok(!readdirSync(join(dir, ".snout", "memory")).some((f) => f.includes("vector")), "vectors are not in the shared memory folder");
+    // Codex's prompt hook takes the same path.
+    const codex = spawnSync(process.execPath, [CLI, "hook", "codex", "UserPromptSubmit"], {
+      input: JSON.stringify({ cwd: dir, session_id: "s3", hook_event_name: "UserPromptSubmit", prompt: "invoice rounding in billing.js is off by a cent again" }),
+      encoding: "utf8", env: { ...process.env, SNOUT_MODE: "enforce", ...env },
+    });
+    assert.match(codex.stdout, /Fix the invoice rounding in billing totals/);
+    const last = JSON.parse(readFileSync(join(dir, ".snout", "recall.jsonl"), "utf8").trim().split("\n").pop());
+    assert.deepEqual([last.session, last.ranker], ["s3", "hybrid"]);
+  } finally {
+    serve.kill();
+  }
+});
+
+test("with the model installed but snout serve down, a prompt falls back to words and starts the server", async () => {
+  const { dir, transcript } = repo();
+  const env = fakeModel(dir);
+  hook(dir, "stop", { session_id: "s1", transcript_path: transcript }, env);
+  try {
+    const out = hook(dir, "prompt-submit", { session_id: "s2", prompt: "invoice rounding in billing.js is off by a cent again" }, env);
+    assert.match(out?.hookSpecificOutput?.additionalContext ?? "", /Fix the invoice rounding in billing totals/);
+    const row = JSON.parse(readFileSync(join(dir, ".snout", "recall.jsonl"), "utf8").trim().split("\n").pop());
+    assert.equal(row.ranker, "words");
+    await until(() => health(env));
+    assert.ok(await health(env), "the server is up for the next prompt");
+  } finally {
+    await shutdown(env);
+  }
+});
+
+test("every completed turn leaves one turn row, reads or not, tagged with its agent", () => {
+  const { dir } = repo();
+  hook(dir, "prompt-submit", { session_id: "t1", prompt: "explain the build" });
+  hook(dir, "stop", { session_id: "t1" });
+  hook(dir, "stop", { session_id: "t1" }); // a second Stop for the same turn adds nothing
+  const codex = spawnSync(process.execPath, [CLI, "hook", "codex", "UserPromptSubmit"], { input: JSON.stringify({ cwd: dir, session_id: "t2", hook_event_name: "UserPromptSubmit", prompt: "and the tests?" }), encoding: "utf8" });
+  assert.equal(codex.status, 0);
+  spawnSync(process.execPath, [CLI, "hook", "codex", "Stop"], { input: JSON.stringify({ cwd: dir, session_id: "t2", hook_event_name: "Stop", last_assistant_message: "done" }), encoding: "utf8" });
+  const rows = readFileSync(join(dir, ".snout", "turns.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
+  assert.deepEqual(rows.map((r) => [r.session, r.turn, r.agent, r.decisions.allow + r.decisions.ask + r.decisions.deny]), [["t1", 1, "claude", 0], ["t2", 1, "codex", 0]]);
 });

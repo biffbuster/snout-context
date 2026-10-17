@@ -55,7 +55,8 @@ import { auditServers, disableHint } from "./audit/mcp-servers.js";
 import { archiveFiles, auditContext, listArchives, renderAudit, renderMap, restoreArchive, toJson } from "./audit/context.js";
 import { auditCi, renderCi } from "./audit/ci.js";
 import { docWindow, type DocWindow } from "./gate/longdoc.js";
-import { captureSession, COMMITS, forgetCard, linkCommit, listCards, readCards, recall, renderRecall, repoBrief } from "./memory/memory.js";
+import { captureSession, COMMITS, embedKey, embedText, forgetCard, hybridRecall, linkCommit, listCards, packVector, readCards, readVectors, recall, renderRecall, repoBrief, shareMemory, unpackVector, writeVectors, type Vectors } from "./memory/memory.js";
+import { installModel, loadEmbedder, MODEL, modelDir, modelReady, QUERY_PREFIX, removeModel } from "./memory/embed.js";
 import { buildMap, candidates, renderCandidates, shouldSuggest, type RepoMap } from "./map/map.js";
 import { forgetReads, rememberRead, repeatOf, repeatOutput, requestedWindow, returnedWindow } from "./gate/repeat.js";
 
@@ -75,6 +76,9 @@ const RECORDING_HOOKS = ["session-start", "prompt-submit", "post-tool", "pre-com
 /** Tools whose reads we classify. Grep/Glob are observed but never gated in Phase 0. */
 const GATED_TOOLS = new Set(["Read", "NotebookRead"]);
 
+/** Set when main leaves async work running; it then ends the process itself. */
+let pending = false;
+
 function main(): void {
   const command = process.argv[2] ?? "status";
   // The MCP server owns stdin for its whole life, so it must start before the one-shot read.
@@ -93,10 +97,30 @@ function main(): void {
     void cmdAudit(process.argv.slice(3)).catch((err) => recordError("audit", err)).finally(() => process.exit(0));
     return;
   }
+  if (command === "memory" && process.argv[3] === "model") {
+    pending = true;
+    void cmdMemoryModel(process.argv[4]).catch((err) => say(`snout memory model: ${safeText((err as Error).message, 200)}`)).finally(() => process.exit(0));
+    return;
+  }
   const input = readHookInput();
-  if (command === "hook") return onAgentHook(process.argv[3], process.argv[4] ?? "", input as Record<string, unknown>);
   if (command === "init") return cmdInit(process.argv[3], input.cwd);
-  dispatch(command, input);
+  const run = () => (command === "hook" ? onAgentHook(process.argv[3], process.argv[4] ?? "", input as Record<string, unknown>) : dispatch(command, input));
+  // With the memory model installed, a prompt first gets its vectors from `snout serve` (memory/embed.ts).
+  const agent = process.argv[3];
+  const event = command !== "hook" ? { command, input } : isAgent(agent) && Object.keys(input).length ? toInternal(agent, process.argv[4] ?? "", input as Record<string, unknown>) : null;
+  if (event?.command === "prompt-submit" && modelReady()) {
+    pending = true;
+    void promptVectors(event.input, remoteEmbed).catch((err) => recordError("memoryVectors", err)).finally(() => {
+      try {
+        run();
+      } catch (err) {
+        recordError("main", err);
+      }
+      process.exit(0);
+    });
+    return;
+  }
+  run();
 }
 
 /**
@@ -491,6 +515,14 @@ function onSessionStart(input: HookInput, paths: Paths, cfg: Config): void {
       } catch (err) {
         recordError("ensureServer", err);
       }
+    }
+  }
+  // The memory model lives in `snout serve`: start it now (it exits at once if one is already up) and it warms the model.
+  if (cfg.mode !== "observe" && cfg.memory !== false && !replayDir && modelReady() && !(!client && fastGateInstalled(paths))) {
+    try {
+      spawn(process.execPath, [BIN, "serve"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+    } catch (err) {
+      recordError("memoryServe", err);
     }
   }
   // Right after a compaction: put back the exact facts the summary may have lost, and the agent's own
@@ -896,7 +928,7 @@ function onPromptSubmit(input: HookInput, paths: Paths, cfg: Config): void {
   state.goalHash = createHash("sha256").update(input.prompt ?? "").digest("hex").slice(0, 12);
   const tip = coachPrompt(input.prompt ?? "", paths, cfg, state);
   const files = cfg.repoMap ? suggestFiles(input.prompt ?? "", paths, cfg, state) : "";
-  const brief = cfg.memory !== false && cfg.mode !== "observe" ? recallBrief(input.prompt ?? "", paths, state) : "";
+  const brief = cfg.memory !== false && cfg.mode !== "observe" ? recallBrief(input.prompt ?? "", paths, cfg, state) : "";
   saveState(paths.state, state);
   const context = [brief, files].filter(Boolean).join("\n\n");
   emit({
@@ -905,22 +937,81 @@ function onPromptSubmit(input: HookInput, paths: Paths, cfg: Config): void {
   });
 }
 
+/** This prompt's vectors and its cards', when the memory model answered in time; recall is words-only without. */
+let vectors: Vectors | null = null;
+
+type EmbedFn = (texts: string[]) => Promise<Float32Array[]>;
+/** Cards embedded per prompt at most: a freshly pulled shared memory catches up over a few prompts. */
+const EMBED_BATCH = 64;
+
+/** Asks the warm `snout serve` for vectors, and starts it for the next prompt when it isn't up. */
+const remoteEmbed: EmbedFn = async (texts) => {
+  try {
+    const r = await fetch(`http://127.0.0.1:${HOOK_PORT}/snout/v1/embed`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ texts }), signal: AbortSignal.timeout(2500),
+    });
+    if (!r.ok) throw new Error(`embed: HTTP ${r.status}`);
+    return ((await r.json()) as { vectors: string[] }).vectors.map(unpackVector);
+  } catch (err) {
+    if ((err as { cause?: { code?: string } }).cause?.code === "ECONNREFUSED") {
+      spawn(process.execPath, [BIN, "serve"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+    }
+    throw err;
+  }
+};
+
+/** Embeds the prompt and any card whose text changed since its vector; card vectors stay in `.snout/`. */
+async function promptVectors(input: HookInput, embed: EmbedFn): Promise<void> {
+  vectors = null;
+  const prompt = input.prompt ?? "";
+  if (!prompt.trim() || replayDir) return;
+  const paths = resolvePaths(input.cwd);
+  const cfg = loadConfig(paths);
+  if (cfg.memory === false || cfg.mode === "observe") return;
+  const cards = readCards(paths.snoutDir);
+  if (!cards.length) return;
+  const cache = readVectors(paths.snoutDir, MODEL);
+  const stale = cards.filter((c) => cache.cards[c.id]?.k !== embedKey(c)).slice(0, EMBED_BATCH);
+  const [query, ...got] = await embed([QUERY_PREFIX + prompt.slice(0, 2000), ...stale.map(embedText)]);
+  if (!query) return;
+  if (stale.length) {
+    stale.forEach((c, i) => { if (got[i]) cache.cards[c.id] = { k: embedKey(c), v: packVector(got[i]!) }; });
+    const ids = new Set(cards.map((c) => c.id));
+    for (const id of Object.keys(cache.cards)) if (!ids.has(id)) delete cache.cards[id];
+    writeVectors(paths.snoutDir, cache);
+  }
+  vectors = { query, cards: new Map(cards.filter((c) => cache.cards[c.id]?.k === embedKey(c)).map((c) => [c.id, unpackVector(cache.cards[c.id]!.v)])) };
+}
+
+/** Recall must agree with one of the repo map's top files for the prompt (bench/recalleval.mjs gates). */
+const RECALL_AGREE = 3;
+
 const agentName = (): "claude" | "codex" => (client === "codex" ? "codex" : "claude");
 
 /**
  * Earlier sessions that bear on this prompt (memory/memory.ts), each offered once per session, or "".
+ * Word overlap alone was right about half the time on 485 SWE-bench tasks, with no score that told
+ * which half (bench/recalleval.mjs), so a card is offered only when something else agrees: it touched
+ * one of the repo map's top files for this prompt (75% precision), or the prompt names one of its files.
  * Logged with its size like map suggestions, so its cost is counted.
  */
-function recallBrief(prompt: string, paths: Paths, state: SessionState): string {
+function recallBrief(prompt: string, paths: Paths, cfg: Config, state: SessionState): string {
   if (!prompt.trim()) return "";
   try {
     const seen = new Set(state.recalled ?? []);
-    const hits = recall(readCards(paths.snoutDir), prompt, { session: state.session, projectDir: paths.projectDir }).filter((h) => !seen.has(h.card.id));
+    const cards = readCards(paths.snoutDir);
+    const opts = { session: state.session, projectDir: paths.projectDir };
+    const ranker = vectors ? "hybrid" : "words";
+    let hits = (vectors ? hybridRecall(cards, prompt, vectors, opts) : recall(cards, prompt, opts)).filter((h) => !seen.has(h.card.id));
+    if (hits.length) {
+      const top = new Set(candidates(refreshMap(paths, cfg), prompt, RECALL_AGREE).map((c) => c.path));
+      hits = hits.filter((h) => h.files.length > 0 || [...h.card.changed, ...h.card.commits.flatMap((k) => k.files)].some((f) => top.has(f)));
+    }
     const text = renderRecall(hits, paths.projectDir);
     if (!text) return "";
     state.recalled = [...seen, ...hits.map((h) => h.card.id)].slice(-50);
     appendRow(join(paths.snoutDir, "recall.jsonl"), {
-      ts: new Date().toISOString(), session: state.session, turn: state.turn,
+      ts: new Date().toISOString(), session: state.session, turn: state.turn, ranker,
       cards: hits.map((h) => h.card.id), scores: hits.map((h) => Math.round(h.score * 100) / 100),
       tokensEst: estimateTokens(Buffer.byteLength(text), "x.txt"),
     });
@@ -942,6 +1033,32 @@ function captureCard(input: HookInput, paths: Paths, cfg: Config, session: strin
   }
 }
 
+/** `snout memory model [install|remove]`: the optional local embedding model that lets recall match by meaning. */
+async function cmdMemoryModel(v: string | undefined): Promise<void> {
+  if (v === "install") {
+    await installModel((line) => say(line));
+    const paths = resolvePaths(process.cwd());
+    const cards = readCards(paths.snoutDir);
+    const t0 = Date.now();
+    const embed = await loadEmbedder();
+    const got = await embed(cards.map(embedText));
+    if (cards.length) {
+      const cache = readVectors(paths.snoutDir, MODEL);
+      cards.forEach((c, i) => { cache.cards[c.id] = { k: embedKey(c), v: packVector(got[i]!) }; });
+      writeVectors(paths.snoutDir, cache);
+    }
+    return say([
+      `Memory model ready: ${MODEL} (q8), local, in ${modelDir()}.`,
+      cards.length ? `Embedded this repo's ${cards.length} card${cards.length === 1 ? "" : "s"} in ${Date.now() - t0} ms.` : "No cards in this repo yet.",
+      "Recall now ranks past sessions by words and meaning together. `snout serve` keeps the model loaded; without it a prompt falls back to words.",
+    ].join("\n"));
+  }
+  if (v === "remove") return say(removeModel() ? `Removed ${modelDir()}. Recall is back to words only.` : "No memory model installed.");
+  say(modelReady()
+    ? `Memory model installed: ${MODEL} in ${modelDir()}. Recall ranks by words and meaning. Remove with: snout memory model remove`
+    : "No memory model. Recall ranks past sessions by words, checked against the repo map.\nInstall the optional local model (bge-small, ~34 MB, plus its runtime from npm) with: snout memory model install");
+}
+
 /** `snout memory [on|off|forget <session>]`: list the cards, toggle memory, or drop one card. */
 function cmdMemory(paths: Paths, cfg: Config, args: string[]): void {
   const v = args[0];
@@ -950,6 +1067,17 @@ function cmdMemory(paths: Paths, cfg: Config, args: string[]): void {
     return say(v === "on"
       ? "Memory on. Each session leaves a card in .snout/memory (task, files changed, commits, test command, what failed), and a later prompt that bears on one gets a short brief. Local only; commit .snout/memory to share it with your team."
       : "Memory off. No new cards, and nothing is recalled. Existing cards stay in .snout/memory.");
+  }
+  if (v === "share") {
+    const r = shareMemory(paths.projectDir, paths.snoutDir);
+    if (!r.ok) return say(`Memory not shared: ${r.reason}`);
+    const n = listCards(paths.snoutDir).length;
+    return say([
+      `${r.changedGitignore ? `Updated .gitignore so git tracks ${r.dir}/ and still ignores the rest of Snout's records.` : `git already tracks ${r.dir}/.`}`,
+      `${n} card${n === 1 ? "" : "s"} there now. Each holds the start of a request, files, commits, rules and the git user name: read them first, then`,
+      `  git add ${r.dir} && git commit -m "Share agent memory"`,
+      "Teammates who pull get your sessions in their recall and repo brief, and theirs reach you the same way.",
+    ].join("\n"));
   }
   if (v === "brief") {
     const text = repoBrief(readCards(paths.snoutDir), { projectDir: paths.projectDir, instructions: instructionText(paths.projectDir) });
@@ -963,7 +1091,8 @@ function cmdMemory(paths: Paths, cfg: Config, args: string[]): void {
   const cards = listCards(paths.snoutDir);
   const head = `Memory is ${cfg.memory === false ? "off" : "on"} · ${cards.length} card${cards.length === 1 ? "" : "s"} in ${toRel(join(paths.snoutDir, "memory"), paths.projectDir)}`;
   const rows = cards.slice(0, 20).map((c) => `  ${c.updated.slice(0, 10)}  ${c.agent.padEnd(6)} ${safeText(c.session, 36)}  ${safeText(c.task ?? c.commits[0]?.subject ?? "", 70)}${c.commits.length ? `  [${c.commits.map((k) => k.sha.slice(0, 7)).join(" ")}]` : ""}`);
-  say([head, ...rows, "", 'Usage: snout memory on|off · snout memory brief · snout memory forget <session> · snout recall "<request>"'].join("\n"));
+  const ranks = modelReady() ? "words and meaning (memory model installed)" : "words (snout memory model install adds meaning)";
+  say([head, `Recall ranks by ${ranks}`, ...rows, "", 'Usage: snout memory on|off · snout memory brief · snout memory share · snout memory forget <session> · snout memory model [install|remove] · snout recall "<request>"'].join("\n"));
 }
 
 /** `snout recall "<request>" [--as-of <date>]`: what a prompt would get from memory. */
@@ -1080,6 +1209,9 @@ function startServer(): void {
       res.writeHead(200).end();
       return void setImmediate(() => process.exit(0));
     }
+    if (req.method === "POST" && url === "/snout/v1/embed" && String(req.headers["content-type"] ?? "").includes("application/json")) {
+      return void serveEmbed(req, res);
+    }
     const event = url.startsWith("/snout/v1/") ? url.slice("/snout/v1/".length) : "";
     if (req.method !== "POST" || !HOOK_EVENTS.has(event) || !String(req.headers["content-type"] ?? "").includes("application/json")) {
       return void res.writeHead(404).end();
@@ -1090,11 +1222,13 @@ function startServer(): void {
       size += c.length;
       if (size <= 16 * 1024 * 1024) chunks.push(c);
     });
-    req.on("end", () => {
+    req.on("end", async () => {
       let body = "";
       try {
         const input = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}") as HookInput;
         requestStart = performance.now();
+        vectors = null;
+        if (event === "prompt-submit" && modelReady()) await promptVectors(input, async (t) => (await loadEmbedder())(t)).catch((err) => recordError("memoryVectors", err));
         capturing = true;
         captured = null;
         client = undefined;
@@ -1120,6 +1254,31 @@ function startServer(): void {
     } else process.exit(0);
   });
   server.listen(HOOK_PORT, "127.0.0.1");
+  // Warm the memory model now, so the first prompt doesn't wait for it to load.
+  if (modelReady()) void loadEmbedder().catch((err) => recordError("memoryModel", err));
+}
+
+/** POST /snout/v1/embed {texts}: vectors from the local memory model, as base64 Float32. */
+function serveEmbed(req: import("node:http").IncomingMessage, res: import("node:http").ServerResponse): void {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  req.on("data", (c: Buffer) => {
+    size += c.length;
+    if (size <= 4 * 1024 * 1024) chunks.push(c);
+  });
+  req.on("end", async () => {
+    try {
+      const { texts } = JSON.parse(Buffer.concat(chunks).toString("utf8")) as { texts?: unknown };
+      if (!modelReady() || !Array.isArray(texts) || texts.length > 4 * EMBED_BATCH || !texts.every((t) => typeof t === "string")) return void res.writeHead(400).end();
+      const out = await (await loadEmbedder())(texts.map((t: string) => t.slice(0, 4000)));
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ vectors: out.map(packVector) }));
+    } catch (err) {
+      recordError("serveEmbed", err);
+      if (!res.headersSent) res.writeHead(500);
+      res.end();
+    }
+  });
 }
 
 /** `snout map on|off` toggles suggestions; `snout map "<request>"` shows what a prompt would get. */
@@ -1758,7 +1917,10 @@ function onStop(input: HookInput, paths: Paths, cfg: Config): void {
   const rows = readDecisions(paths.ledger, 2000).filter(
     (r) => r.session === state.session && r.turn === state.turn && r.rule !== "reversal",
   );
-  if (rows.length === 0) {
+  // One row per completed turn, including turns with no reads, so per-turn numbers have the right
+  // denominator. A second Stop for the same turn (a hook that made the agent continue) adds nothing.
+  const recorded = readTurns(paths.turns, 50).some((r) => r.session === state.session && r.turn === state.turn);
+  if ((state.turn === 0 && rows.length === 0) || recorded || replayDir) {
     emit({});
     return;
   }
@@ -1769,6 +1931,7 @@ function onStop(input: HookInput, paths: Paths, cfg: Config): void {
   appendRow(paths.turns, {
     ts: new Date().toISOString(),
     session: state.session,
+    agent: agentName(),
     turn: state.turn,
     goalHash: state.goalHash,
     decisions: { allow: t.allow, ask: t.ask, deny: t.deny },
@@ -1972,8 +2135,8 @@ function cmdReport(paths: Paths, cfg: Config, args: string[]): void {
     const sp = summarizeSpend([...readSpend(paths.projectDir, spendCache(paths), configDir()).values()].flat(), since);
     if (sp.requests) {
       const held = dailyAggregates(rows, since).reduce((a, d) => a + d.heldBack, 0);
-      out += `\n\n  SPEND (last 30 days, API list prices, from the agents' own logs)\n    $${sp.costUsd.toFixed(2)} across ${sp.requests.toLocaleString()} requests · top model ${sp.byModel[0]?.key ?? "?"}`;
-      if (held) out += `\n    Snout kept ~${fmtTokens(held)} tokens out: about $${((held * sp.inputRate) / 1e6).toFixed(2)} at your blended input rate`;
+      out += `\n\n  SPEND (last 30 days of this project, every session, API list prices, from the agents' own logs)\n    $${sp.costUsd.toFixed(2)} across ${sp.requests.toLocaleString()} requests · top model ${sp.byModel[0]?.key ?? "?"}`;
+      if (held) out += `\n    Snout kept an estimated ~${fmtTokens(held)} tokens out: about $${((held * sp.inputRate) / 1e6).toFixed(2)} at your blended input rate, if each would have been billed once`;
       out += "\n    Every project on this machine: snout spend --all";
     }
   } catch (err) {
@@ -2807,4 +2970,4 @@ try {
 }
 // The MCP server keeps running until its client closes stdin; everything else is one-shot.
 // So does the dashboard, until Ctrl-C.
-if (!["mcp", "dashboard", "audit", "serve"].includes(process.argv[2] ?? "")) process.exit(0);
+if (!pending && !["mcp", "dashboard", "audit", "serve"].includes(process.argv[2] ?? "")) process.exit(0);

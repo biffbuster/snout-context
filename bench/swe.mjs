@@ -20,6 +20,8 @@
  *   node bench/swe.mjs --grade bench/ab-results/swe-<ts>.json
  *   node bench/swe.mjs --summarize bench/ab-results/swe-<ts>.json
  *   node bench/swe.mjs --n 1 --arms off,enforce,map --tasks a,b   # repo map on its own (arm "map")
+ *   node bench/swe.mjs --select-memory               # memory pilot draw → bench/swe-memory-tasks.json
+ *   SWE_TASKS_FILE=bench/swe-memory-tasks.json node bench/swe.mjs --arms plain,enforce,memory   # memory pilot
  *   node bench/swe.mjs --resume bench/ab-results/swe-<ts>.json --n 2 --arms off,map   # rerun infra rows, finish the plan
  *   options: --jobs 2  --budget 2.00 (per session)  --max-spend 40 (whole run)  --keep  --api (bill ANTHROPIC_API_KEY from .env.local)  --min-mem-gb 5.5
  *
@@ -108,6 +110,8 @@ const PER_REPO = Number(args["per-repo"] ?? 5);
  * Every issue an earlier run touched, so a new draw is held out: the task manifests in bench/ and
  * every task named in the results under bench/ab-results/ (published and local).
  */
+// Offline evals (sessioneval, recalleval, mapeval-heldout) score every issue without running
+// an agent on it, so they do not use a task up.
 function usedTasks() {
   const used = new Set();
   const scan = (v) => {
@@ -120,7 +124,7 @@ function usedTasks() {
   };
   const files = [join(REPO, "bench/swe-tasks.json"), join(REPO, "bench/codex-heldout-tasks.json")];
   const results = join(REPO, "bench/ab-results");
-  if (existsSync(results)) for (const f of readdirSync(results)) if (f.endsWith(".json")) files.push(join(results, f));
+  if (existsSync(results)) for (const f of readdirSync(results)) if (f.endsWith(".json") && !/^(sessioneval|recalleval|mapeval-heldout)-/.test(f)) files.push(join(results, f));
   for (const f of files) { try { scan(JSON.parse(readFileSync(f, "utf8"))); } catch { /* not JSON */ } }
   return used;
 }
@@ -197,6 +201,57 @@ print(json.dumps([{k: d[k] for k in keep} for d in ds]))
   writeFileSync(TASKS_FILE, JSON.stringify({ dataset: DATASET, seed: SEED, count: COUNT, perRepo: PER_REPO, excludedUsed: [...used].sort(), eligible: pool.length, tasks: picked }, null, 2) + "\n");
   console.log(`${picked.length} of ${pool.length} eligible (seed ${SEED}) → ${TASKS_FILE}`);
   for (const t of picked) console.log(`  ${t.instance_id.padEnd(34)} ${t.difficulty}`);
+}
+
+/** Every Verified issue with its date and its fix's files, for the memory pilot's draw and seeding. */
+let ISSUES = null;
+export function issues() {
+  if (!ISSUES) {
+    const r = spawnSync(SWE_PY, sweArgs(["-c", `
+import json, re
+from swebench.harness.utils import load_swebench_dataset
+ds = load_swebench_dataset(${JSON.stringify(DATASET)}, "test")
+keep = ("instance_id", "repo", "base_commit", "problem_statement", "difficulty", "image", "created_at")
+print(json.dumps([{**{k: d[k] for k in keep}, "gold": sorted(set(re.findall(r"^diff --git a/(\\S+) b/", d["patch"], re.M)))} for d in ds]))
+`]), { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+    if (r.status !== 0) throw new Error(r.stderr.slice(-2000));
+    ISSUES = JSON.parse(r.stdout);
+  }
+  return ISSUES;
+}
+
+/**
+ * The memory pilot's draw (bench/memseed.mjs seeds the memory arm). Held out like --select. Of COUNT
+ * tasks, all but RELATED_OFF have related prior work: an earlier issue of the same repository whose
+ * fix touched a file this fix touches (the case memory is for); the rest have none, to check that
+ * memory costs nothing when nothing in it applies. Each task needs 10 or more earlier issues.
+ */
+function selectMemory() {
+  const all = issues().sort((a, b) => a.instance_id.localeCompare(b.instance_id));
+  const used = usedTasks();
+  const count = Number(args.count ?? 20), unrelatedCount = Number(args.unrelated ?? 4), perRepo = Number(args["per-repo"] ?? 6);
+  const earlier = (t) => all.filter((d) => d.repo === t.repo && d.created_at < t.created_at);
+  const related = (t) => earlier(t).some((d) => d.gold.some((f) => t.gold.includes(f)));
+  const pool = all.filter((t) => ELIGIBLE.has(t.repo) && t.difficulty !== ">4 hours" && !used.has(t.instance_id) && earlier(t).length >= 10);
+  const rand = rng(Number(args.seed ?? 20261016));
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  const perRepoN = {}, picked = [];
+  const want = { related: count - unrelatedCount, unrelated: unrelatedCount };
+  for (const t of pool) {
+    const kind = related(t) ? "related" : "unrelated";
+    if (want[kind] === 0 || (perRepoN[t.repo] ?? 0) >= perRepo) continue;
+    want[kind]--;
+    perRepoN[t.repo] = (perRepoN[t.repo] ?? 0) + 1;
+    const { gold, ...task } = t;
+    picked.push({ ...task, priorWork: kind, earlierIssues: earlier(t).length });
+  }
+  const file = join(REPO, "bench/swe-memory-tasks.json");
+  writeFileSync(file, JSON.stringify({ dataset: DATASET, seed: Number(args.seed ?? 20261016), count, unrelated: unrelatedCount, perRepo, excludedUsed: [...used].sort(), eligible: pool.length, tasks: picked }, null, 2) + "\n");
+  console.log(`${picked.length} of ${pool.length} eligible → ${file}`);
+  for (const t of picked) console.log(`  ${t.instance_id.padEnd(34)} ${t.priorWork.padEnd(9)} ${String(t.earlierIssues).padStart(4)} earlier  ${t.difficulty}`);
 }
 
 // ------------------------------------------------------------------ docker health
@@ -393,7 +448,7 @@ export function armSettings(dir, arm) {
   }
   const post = { type: "command", command: `node "${SNOUT_BIN}" post-tool`, timeout: 10, async: true };
   const hooks = { PostToolUse: [{ matcher: "Read|NotebookRead|Bash|Grep|Glob|WebFetch|WebSearch|mcp__.*", hooks: [post] }] };
-  if (arm === "enforce" || arm === "map") {
+  if (arm === "enforce" || arm === "map" || arm === "memory") {
     hooks.SessionStart = [{ hooks: [{ type: "command", command: `node "${SNOUT_BIN}" session-start`, timeout: 10 }] }];
     hooks.PreToolUse = gateEntries(SNOUT_BIN);
     hooks.PostToolUse.push(...squeezeEntries(SNOUT_BIN));
@@ -401,19 +456,55 @@ export function armSettings(dir, arm) {
   }
   // "map" is enforce plus repo-map suggestions on the prompt, to measure the map on its own.
   if (arm === "map") hooks.UserPromptSubmit = [{ hooks: [{ type: "command", command: `node "${SNOUT_BIN}" prompt-submit`, timeout: 10 }] }];
+  // "memory" is enforce plus the memory lifecycle: recall on the prompt, a card at every Stop. Its
+  // workspace starts with the team's earlier sessions on this repository (bench/memseed.mjs).
+  if (arm === "memory") {
+    hooks.UserPromptSubmit = [{ hooks: [{ type: "command", command: `node "${SNOUT_BIN}" prompt-submit`, timeout: 10 }] }];
+    hooks.Stop = [{ hooks: [{ type: "command", command: `node "${SNOUT_BIN}" stop`, timeout: 30 }] }];
+  }
   mkdirSync(join(dir, ".claude"), { recursive: true });
   writeFileSync(join(dir, ".claude/settings.json"), JSON.stringify({ hooks }, null, 2));
   writeFileSync(join(dir, ".mcp.json"), JSON.stringify({ mcpServers: {} }));
   mkdirSync(join(dir, ".snout"), { recursive: true });
-  writeFileSync(join(dir, ".snout/config.json"), JSON.stringify({ mode: arm === "off" ? "observe" : "enforce", ...(arm === "map" ? { repoMap: true } : {}) }) + "\n");
+  writeFileSync(join(dir, ".snout/config.json"), JSON.stringify({ mode: arm === "off" ? "observe" : "enforce", memory: arm === "memory", ...(arm === "map" ? { repoMap: true } : {}) }) + "\n");
 }
 
-function makeWorkspace(task, arm) {
+async function makeWorkspace(task, arm) {
   const dir = mkdtempSync(join(workBase(), "snout-swe-"));
   prepareCheckout(task, dir);
   writeShims(dir);
   armSettings(dir, arm);
-  return dir;
+  let seeded;
+  if (arm === "memory") {
+    const { seedMemory } = await import("./memseed.mjs");
+    const t = issues().find((d) => d.instance_id === task.instance_id);
+    seeded = seedMemory({ ...task, created_at: task.created_at ?? t.created_at }, dir, issues(), SNOUT_BIN);
+  }
+  return { dir, seeded };
+}
+
+/**
+ * What memory did in a session: the cards it started with, what reached the agent (a brief at the
+ * start, recalls on the prompt), which recalled cards came from a Codex session, and the files the
+ * briefs named. In any other arm, memory reaching the agent is a harness fault.
+ */
+function memoryFacts(dir, seeded) {
+  const rows = [];
+  try { for (const l of readFileSync(join(dir, ".snout/recall.jsonl"), "utf8").split("\n")) if (l.trim()) rows.push(JSON.parse(l)); } catch { /* none */ }
+  const recalled = rows.filter((r) => r.kind !== "brief").flatMap((r) => r.cards ?? []);
+  const files = new Set();
+  for (const id of recalled) {
+    try {
+      const c = JSON.parse(readFileSync(join(dir, ".snout/memory", `${id.replace(/[^\w.-]/g, "_").slice(0, 80)}.json`), "utf8"));
+      for (const f of [...c.changed, ...c.commits.flatMap((k) => k.files)]) files.add(f);
+    } catch { /* gone */ }
+  }
+  return {
+    seededClaude: seeded?.claude ?? 0, seededCodex: seeded?.codex ?? 0,
+    briefs: rows.filter((r) => r.kind === "brief").length, recalls: rows.filter((r) => r.kind !== "brief").length,
+    recalled, recalledCodex: recalled.filter((id) => seeded?.codexSessions?.includes(id)).length,
+    memoryTokens: rows.reduce((a, r) => a + (r.tokensEst ?? 0), 0), recalledFiles: [...files],
+  };
 }
 
 const prompt = (task) => `Resolve the GitHub issue below in the repository in the current directory, by editing its source code.
@@ -465,8 +556,8 @@ function runClaude(dir, text, goldPatch) {
 
 async function runOne(task, arm, rep) {
   const started = Date.now();
-  let dir;
-  try { dir = makeWorkspace(task, arm); } catch (e) { return { task: task.instance_id, arm, rep, infra: String(e.message).slice(0, 300) }; }
+  let dir, seeded;
+  try { ({ dir, seeded } = await makeWorkspace(task, arm)); } catch (e) { return { task: task.instance_id, arm, rep, infra: String(e.message).slice(0, 300) }; }
   const gold = `${dir}.gold.patch`;
   if (FAKE) writeFileSync(gold, goldPatch(task.instance_id));
   const r = await runClaude(dir, prompt(task), gold);
@@ -493,12 +584,16 @@ async function runOne(task, arm, rep) {
     followUps: facts.followUps, followUpTokens: facts.followUpTokens, jevUsd: facts.jevUsd,
     peak: peak?.peak,
     ...(arm === "map" ? { map: mf } : {}),
+    memory: memoryFacts(dir, seeded),
+    readPaths: readPaths(join(dir, ".snout/ledger.jsonl")),
     patch,
     seconds: Math.round((Date.now() - started) / 1000),
   };
   const left = leftovers(`snout-swe=${basename(dir)}`);
   removeContainers(left);
   if (r.timedOut) row.infra = `session hit the ${SESSION_LIMIT_MS / 60_000}-minute limit`;
+  // Memory must reach the memory arm and nothing else.
+  else if (arm !== "memory" && (row.memory.recalls || row.memory.briefs)) { row.infra = "memory reached a non-memory arm"; row.memoryLeak = true; }
   // Did it even happen: a Snout arm whose session ran but left no ledger rows had no Snout in it.
   else if (arm !== "plain" && !row.error && facts.rows === 0) { row.infra = "Snout recorded nothing: its hooks did not run"; row.snoutMissing = true; }
   else if (leftovers(`snout-swe=${basename(dir)}`).length) row.infra = "session container could not be removed (Docker hang)";
@@ -546,14 +641,15 @@ function summarize(saved) {
   const tasks = [...new Set(rows.map((r) => r.task))];
   console.log(`\nSWE-bench Verified A/B, claude ${saved.model}, n=${saved.n}, ${tasks.length} tasks\n`);
   console.log("  task                                arm       resolved   input tok   output   turns     cost   kept out");
-  for (const t of tasks) for (const a of ["plain", "off", "enforce", "map"]) {
+  for (const t of tasks) for (const a of ["plain", "off", "enforce", "map", "memory"]) {
     const rs = rows.filter((r) => r.task === t && r.arm === a);
     if (!rs.length) continue;
     const avg = (k) => sum(rs, k) / rs.length;
     const res = rs.some((r) => r.resolved !== undefined) ? `${rs.filter((r) => r.resolved).length}/${rs.length}` : "?";
     console.log(`  ${t.padEnd(35)} ${a.padEnd(9)} ${res.padStart(8)} ${String(Math.round(avg("inputTokens"))).padStart(11)} ${String(Math.round(avg("outputTokens"))).padStart(8)} ${avg("turns").toFixed(1).padStart(7)}   $${avg("costUsd").toFixed(3)} ${String(Math.round(avg("withheld"))).padStart(9)}`);
   }
-  for (const [base, arm] of [["plain", "enforce"], ["off", "enforce"], ["off", "map"], ["enforce", "map"]]) compareArms(rows, tasks, base, arm, sum, pct);
+  for (const [base, arm] of [["plain", "enforce"], ["off", "enforce"], ["off", "map"], ["enforce", "map"], ["plain", "memory"], ["enforce", "memory"]]) compareArms(rows, tasks, base, arm, sum, pct);
+  memorySummary(rows);
   const infra = saved.rows.filter((r) => r.infra);
   if (infra.length) console.log(`  infrastructure failures (excluded): ${infra.map((r) => `${r.task}/${r.arm}/${r.rep}`).join(", ")}`);
 }
@@ -588,10 +684,39 @@ function compareArms(rows, tasks, base, arm, sum, pct) {
   }
 }
 
+/** Paths the agent read, from the ledger: to count reads of files a brief named that the fix didn't need. */
+function readPaths(ledgerFile) {
+  const out = new Set();
+  try { for (const l of readFileSync(ledgerFile, "utf8").split("\n")) { if (!l.trim()) continue; const r = JSON.parse(l); if (r.path && r.tool !== "Bash") out.add(r.path); } } catch { /* none */ }
+  return [...out];
+}
+
+/**
+ * The memory arm on its own: how often memory reached the agent, how often from a Codex session,
+ * whether the files it named were the ones the fix needed, and reads it sent the agent on that the
+ * fix didn't need (wrong-memory follow-ups). Gold files come from the dataset, after the run.
+ */
+function memorySummary(rows) {
+  const mem = rows.filter((r) => r.arm === "memory" && r.memory);
+  if (!mem.length) return;
+  const gold = new Map(issues().map((d) => [d.instance_id, d.gold]));
+  const n = mem.length;
+  const reached = mem.filter((r) => r.memory.recalls > 0);
+  const useful = reached.filter((r) => r.memory.recalledFiles.some((f) => gold.get(r.task)?.includes(f)));
+  const wrongReads = mem.reduce((a, r) => a + r.memory.recalledFiles.filter((f) => r.readPaths?.includes(f) && !gold.get(r.task)?.includes(f)).length, 0);
+  const t = (k) => mem.reduce((a, r) => a + (r.memory[k] ?? 0), 0);
+  console.log(`\n  memory arm (${n} sessions): started with ${Math.round(t("seededClaude") / n)} Claude Code + ${Math.round(t("seededCodex") / n)} Codex cards on average`);
+  console.log(`    brief at start ${mem.filter((r) => r.memory.briefs).length}/${n} · recall on the prompt ${reached.length}/${n} · from a Codex session ${mem.filter((r) => r.memory.recalledCodex).length}/${n} · ~${Math.round(t("memoryTokens") / n)} memory tokens per session`);
+  console.log(`    recalls naming a file the fix needed ${useful.length}/${reached.length} · reads of recalled files the fix didn't need: ${wrongReads}`);
+  const leaks = rows.filter((r) => r.arm !== "memory" && (r.memory?.recalls || r.memory?.briefs));
+  if (leaks.length) console.log(`    MEMORY LEAK into ${leaks.length} non-memory session(s)`);
+}
+
 // ------------------------------------------------------------------ main
 
 async function main() {
   if (args.select) return select();
+  if (args["select-memory"]) return selectMemory();
   if (typeof args.grade === "string") { grade(args.grade); return summarize(JSON.parse(readFileSync(args.grade, "utf8"))); }
   if (typeof args.summarize === "string") return summarize(JSON.parse(readFileSync(args.summarize, "utf8")));
   if (!existsSync(TASKS_FILE)) throw new Error("no bench/swe-tasks.json: run --select first");
@@ -648,6 +773,6 @@ async function main() {
   summarize(JSON.parse(readFileSync(outFile, "utf8")));
 }
 
-export { sh, sweArgs, ensureImage, preflight, leftovers, removeContainers, dockerHealthy, grade, startContainer, goldPatch, SWE_PY, DATASET, SNOUT_BIN, REPO, FAKE, CLEAN_HOME, API_REFUSED };
+export { selectMemory, sh, sweArgs, ensureImage, preflight, leftovers, removeContainers, dockerHealthy, grade, startContainer, goldPatch, SWE_PY, DATASET, SNOUT_BIN, REPO, FAKE, CLEAN_HOME, API_REFUSED };
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) main().catch((e) => { console.error(e); process.exit(1); });

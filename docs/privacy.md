@@ -68,15 +68,17 @@ semantic tier.
 | `config.json` | Only what you changed. |
 | `state.json` | Turn counter and a hash of the current prompt. |
 | `errors.jsonl` | Anything that went wrong. |
-| `memory/<session>.json` | One card per session: the start of your first and last request, files changed, commits (sha, subject, files), test command, last error, instructions you gave, branch and git user name. `snout memory off` stops it. |
+| `memory/<session>.json` | One card per session: the start of your first and last request, the agent's last message, files changed, commits (sha, subject, files), test command, last error, instructions you gave, branch and git user name. `snout memory off` stops it. |
 | `recall.jsonl` | Which cards were recalled into which prompt, and their size. No prompt text. |
+| `memory-vectors.json` | Only with `snout memory model install`: a vector per card, computed on this machine. Not shared. |
 
 **File paths are recorded. File contents are not**, except the request text a memory card keeps.
 Add `.snout/` to your `.gitignore` — paths alone can reveal more about a private codebase than you
 would want in a commit. To share memory with a team, commit only `.snout/memory/`, after reading it.
 
 Nothing is uploaded, and there is no telemetry. `telemetry: "local-only"` is the only
-permitted value.
+permitted value. `snout memory model install` is the one command that downloads (the library from
+npm, the model from Hugging Face), and only when you run it.
 
 ## TypeSafe's side
 

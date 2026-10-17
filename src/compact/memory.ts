@@ -143,6 +143,8 @@ export interface SessionFacts {
   missing: { name: string; evidence: string }[];
   changed: string[];
   todos: string[];
+  /** The agent's last message: its own account of what it did and why, verbatim. */
+  outcome?: string;
 }
 
 /**
@@ -179,6 +181,7 @@ function errorLine(out: string): string | undefined {
   return undefined;
 }
 const RULE_CHARS = 1600;
+const OUTCOME_CHARS = 600;
 
 function instructions(request: string): string[] {
   return request.split(/(?<=[.!?])\s+|\n+/).map((x) => x.trim()).filter((x) => x.length >= 15 && x.length <= 300 && !x.endsWith("?") && INSTRUCTION.test(x));
@@ -229,6 +232,10 @@ function factsFromClaudeRows(lines: Iterable<string>, projectDir: string, first?
       }
     }
     if (!Array.isArray(content)) continue;
+    if (o.type === "assistant") {
+      const said = content.filter((b: any) => b.type === "text" && typeof b.text === "string").map((b: any) => b.text).join(" ").trim();
+      if (said.length >= 20) facts.outcome = oneLine(said, OUTCOME_CHARS);
+    }
     for (const b of content) {
       if (b.type === "tool_use") {
         uses.set(b.id, b);

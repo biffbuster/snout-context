@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join, relative, sep } from "node:path";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import type { SessionFacts } from "../compact/memory.js";
 import { writeAtomic } from "../util/atomic.js";
 import { safeText } from "../util/safe.js";
@@ -22,6 +23,8 @@ export interface Card {
   author?: string;
   task?: string;
   request?: string;
+  /** How the session ended, in the agent's own last words: what it did and why. */
+  outcome?: string;
   changed: string[];
   test?: { command: string; result: string };
   error?: { line: string; command: string };
@@ -100,6 +103,7 @@ export function captureSession(snoutDir: string, projectDir: string, session: st
     test: facts.test,
     error: facts.error,
     rules: facts.rules,
+    outcome: facts.outcome ?? prev?.outcome,
     missing: facts.missing.map((m) => m.name),
     slow: facts.slow,
   };
@@ -144,7 +148,7 @@ export function terms(text: string): string[] {
 }
 
 function cardText(c: Card): string {
-  return [c.task, c.request, ...c.changed, ...c.commits.flatMap((k) => [k.subject, ...k.files]), c.error?.line, c.branch].filter(Boolean).join(" ");
+  return [c.task, c.request, c.outcome, ...c.changed, ...c.commits.flatMap((k) => [k.subject, ...k.files]), c.error?.line, c.branch].filter(Boolean).join(" ");
 }
 
 const cardFiles = (c: Card) => [...new Set([...c.changed, ...c.commits.flatMap((k) => k.files)])];
@@ -158,6 +162,19 @@ export interface RecallOptions {
   asOf?: string;
   now?: number;
   projectDir?: string;
+  /** How many to return (the hook shows 3; the offline eval scores more). */
+  limit?: number;
+}
+
+/** The cards a prompt may be offered: not its own session's, and before `asOf` or else not expired. */
+function liveCards(cards: Card[], opts: RecallOptions): Card[] {
+  const now = opts.now ?? Date.now();
+  const asOf = opts.asOf ? Date.parse(opts.asOf) : undefined;
+  return cards.filter((c) => {
+    if (c.session === opts.session) return false;
+    if (asOf !== undefined) return Date.parse(c.started) < asOf;
+    return now - Date.parse(c.updated) <= MAX_AGE_DAYS * 86_400_000;
+  }).map((c) => (asOf === undefined ? c : { ...c, commits: c.commits.filter((k) => Date.parse(k.ts) < asOf) }));
 }
 
 /**
@@ -167,13 +184,7 @@ export interface RecallOptions {
  * can't tell when it is right costs tokens on every turn that follows.
  */
 export function recall(cards: Card[], prompt: string, opts: RecallOptions = {}): Recalled[] {
-  const now = opts.now ?? Date.now();
-  const asOf = opts.asOf ? Date.parse(opts.asOf) : undefined;
-  const live = cards.filter((c) => {
-    if (c.session === opts.session) return false;
-    if (asOf !== undefined) return Date.parse(c.started) < asOf;
-    return now - Date.parse(c.updated) <= MAX_AGE_DAYS * 86_400_000;
-  }).map((c) => (asOf === undefined ? c : { ...c, commits: c.commits.filter((k) => Date.parse(k.ts) < asOf) }));
+  const live = liveCards(cards, opts);
   if (!live.length) return [];
   const q = [...new Set(terms(prompt))];
   if (!q.length) return [];
@@ -205,8 +216,73 @@ export function recall(cards: Card[], prompt: string, opts: RecallOptions = {}):
     if (opts.projectDir) files = files.filter((p) => existsSync(join(opts.projectDir!, p)));
     out.push({ card, score, matched, files });
   });
-  return out.sort((a, b) => b.score - a.score).slice(0, MAX_CARDS);
+  return out.sort((a, b) => b.score - a.score).slice(0, opts.limit ?? MAX_CARDS);
 }
+
+/** What a card's embedding is computed from: what the session set out to do, how it ended, its commits and files. */
+export function embedText(c: Card): string {
+  return [c.task, c.outcome, ...c.commits.map((k) => k.subject), ...cardFiles(c).slice(0, 20)].filter(Boolean).join(" ").replace(/\s+/g, " ").slice(0, 1000);
+}
+
+/** A card's vector is reused until the text it came from changes. */
+export const embedKey = (c: Card): string => createHash("sha256").update(embedText(c)).digest("hex").slice(0, 16);
+
+/** A card makes the hybrid brief only when it sits near the top of both rankings (bench/recalleval.mjs, 87% precision). */
+export const HYBRID_CUT = 0.0321;
+const RRF_K = 60;
+
+export interface Vectors { query: ArrayLike<number>; cards: Map<string, ArrayLike<number>> }
+
+const dot = (a: ArrayLike<number>, b: ArrayLike<number>) => {
+  let s = 0;
+  for (let i = 0; i < a.length; i++) s += a[i]! * b[i]!;
+  return s;
+};
+
+/**
+ * Words and meaning together: reciprocal-rank fusion of the BM25 ranking and the embedding ranking,
+ * keeping a card only when both put it near the top (or the prompt names one of its files). On 485
+ * SWE-bench tasks this named a needed file in 64% of briefs against 54% for words alone, and with the
+ * cut and the map's agreement it was right 87% of the times it spoke.
+ */
+export function hybridRecall(cards: Card[], prompt: string, vectors: Vectors, opts: RecallOptions = {}): Recalled[] {
+  const words = recall(cards, prompt, { ...opts, limit: 50 });
+  const meaning = liveCards(cards, opts).filter((c) => vectors.cards.has(c.id))
+    .map((c) => ({ c, s: dot(vectors.query, vectors.cards.get(c.id)!) })).sort((a, b) => b.s - a.s).slice(0, 50);
+  const fused = new Map<string, Recalled>();
+  words.forEach((h, i) => fused.set(h.card.id, { ...h, score: 1 / (RRF_K + i) }));
+  meaning.forEach(({ c }, i) => {
+    const h = fused.get(c.id) ?? { card: c, score: 0, matched: [], files: [] };
+    fused.set(c.id, { ...h, score: h.score + 1 / (RRF_K + i) });
+  });
+  return [...fused.values()].filter((h) => h.score >= HYBRID_CUT || h.files.length > 0)
+    .sort((a, b) => b.score - a.score).slice(0, opts.limit ?? MAX_CARDS);
+}
+
+/** Card vectors, local to this machine (`.snout/memory-vectors.json`, never shared): id → text key and vector. */
+export interface VectorCache { model: string; cards: Record<string, { k: string; v: string }> }
+
+const vectorFile = (snoutDir: string) => join(snoutDir, "memory-vectors.json");
+
+export function readVectors(snoutDir: string, model: string): VectorCache {
+  try {
+    const c = JSON.parse(readFileSync(vectorFile(snoutDir), "utf8")) as VectorCache;
+    if (c.model === model && c.cards && typeof c.cards === "object") return c;
+  } catch { /* none yet, or unreadable: start over */ }
+  return { model, cards: {} };
+}
+
+export function writeVectors(snoutDir: string, cache: VectorCache): void {
+  mkdirSync(snoutDir, { recursive: true });
+  writeAtomic(vectorFile(snoutDir), JSON.stringify(cache));
+}
+
+/** Float32 vectors as base64: a 384-wide vector is 2 KB instead of 7 KB of JSON numbers. */
+export const packVector = (v: ArrayLike<number>): string => Buffer.from(Float32Array.from(v).buffer).toString("base64");
+export const unpackVector = (s: string): Float32Array => {
+  const b = Buffer.from(s, "base64");
+  return new Float32Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
+};
 
 /** One line, no control characters or backticks: a card may come from a teammate's commit, so its text is untrusted. */
 const clip = (s: string, n: number) => safeText(s.replace(/\s+/g, " ").trim(), n);
@@ -218,6 +294,7 @@ export function renderRecall(hits: Recalled[], projectDir?: string): string {
   const lines = ["Snout memory: earlier sessions in this repo that bear on this request (local notes from their transcripts and commits; check before relying on them)."];
   for (const { card: c } of hits) {
     const parts = [`- ${c.started.slice(0, 10)} · ${c.agent}${c.branch ? ` · ${clip(c.branch, 60)}` : ""}: "${clip(c.task ?? c.commits[0]?.subject ?? "untitled", 160)}"`];
+    if (c.outcome) parts.push(`  how it ended: ${clip(c.outcome, 400)}`);
     const files = cardFiles(c).filter(exists).slice(0, 8);
     if (files.length) parts.push(`  files: ${files.map((f) => clip(f, 120)).join(", ")}`);
     if (c.commits.length) parts.push(`  commits: ${c.commits.slice(-3).map((k) => `${k.sha.replace(/[^0-9a-f]/gi, "").slice(0, 7)} "${clip(k.subject, 80)}"`).join("; ")}`);
@@ -299,4 +376,38 @@ export function repoBrief(cards: Card[], opts: BriefOptions = {}): string {
   let text = [`Snout memory: what ${live.length} earlier sessions in this repo keep finding (local notes from their transcripts; check before relying on them).`, ...lines].join("\n");
   while (text.length > MAX_REPO_BRIEF_CHARS && lines.length > 1) { lines.pop(); text = [text.split("\n")[0]!, ...lines].join("\n"); }
   return text;
+}
+
+// ---------- Sharing ----------
+
+export type ShareResult =
+  | { ok: true; changedGitignore: boolean; dir: string }
+  | { ok: false; reason: string };
+
+/**
+ * Lets git track `.snout/memory/` while the rest of `.snout/` stays ignored: the usual `.snout/`
+ * line becomes `.snout/*` plus `!.snout/memory/` (git can't re-include a file inside an ignored
+ * directory). Never stages or commits anything: what gets shared is the user's call.
+ */
+export function shareMemory(projectDir: string, snoutDir: string): ShareResult {
+  const rel = relative(projectDir, dirOf(snoutDir)).split(sep).join("/");
+  if (!rel || rel.startsWith("..") || isAbsolute(rel)) return { ok: false, reason: "Snout's records are kept outside this project (SNOUT_DIR), so git can't share them from here." };
+  if (git(projectDir, ["rev-parse", "--is-inside-work-tree"]) !== "true") return { ok: false, reason: "This project isn't a git repository." };
+  const probe = `${rel}/card.json`;
+  const ignored = () => spawnSync("git", ["check-ignore", "-q", "--no-index", probe], { cwd: projectDir, timeout: 2000, windowsHide: true }).status === 0;
+  if (!ignored()) return { ok: true, changedGitignore: false, dir: rel };
+  const file = join(projectDir, ".gitignore");
+  let text = "";
+  try { text = readFileSync(file, "utf8"); } catch { /* none */ }
+  const top = rel.split("/")[0]!;
+  const nl = text.includes("\r\n") ? "\r\n" : "\n";
+  const lines = text.split(/\r?\n/);
+  const i = lines.findIndex((l) => new RegExp(`^/?${top.replace(/\./g, "\.")}/?\s*$`).test(l));
+  if (i < 0) {
+    const why = git(projectDir, ["check-ignore", "-v", "--no-index", probe]);
+    return { ok: false, reason: `${rel} is ignored by a rule Snout won't edit${why ? ` (${why.split("\t")[0]})` : ""}. Add \`!${rel}/\` after it to share memory.` };
+  }
+  lines.splice(i, 1, `${top}/*`, `!${rel}/`);
+  writeAtomic(file, lines.join(nl));
+  return ignored() ? { ok: false, reason: `Updated .gitignore, but another rule still ignores ${rel}.` } : { ok: true, changedGitignore: true, dir: rel };
 }

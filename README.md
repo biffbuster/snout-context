@@ -4,35 +4,49 @@
 [![CI](https://github.com/biffbuster/snout-context/actions/workflows/ci.yml/badge.svg)](https://github.com/biffbuster/snout-context/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**Context gating and token optimization for coding agents.** Everything your agent reads stays in
-its context and is paid for again on every message: long markdown docs, logs, command output, MCP
-results, files it already read. Snout gates what goes in, so the agent gets what it needs, sessions
-last longer and every task costs less. Your own code always comes through in full.
+**Your coding agent, minus the junk.** Everything your agent reads stays in its context and is paid
+for again on every message: lockfiles, generated code, long docs, logs, command output, MCP results,
+files it already read. Snout keeps the clutter out and lets your code in, so every task costs fewer
+tokens, sessions last longer and your plan goes further. Your own code always comes through in full.
 
-```bash
-npm install -g usesnout
-snout scan              # how much of this repo would crowd your agent's context
-```
+Free. Runs on your machine. Your code never leaves it. No account needed.
 
-Free and local: no account, and your code never leaves your machine. Works with Claude Code, Codex,
-Cursor, Gemini CLI and any MCP agent. Agent hooks differ: Claude Code can shorten successful tool
-output, while Codex currently gates shell reads and records output usage. See [agent
-capabilities](docs/integrations.md).
+Works with Claude Code and Codex, plus Cursor, Gemini CLI and any MCP agent. What Snout can do
+depends on each agent's hooks: Claude Code can shorten tool output, while Codex gates shell reads and
+records usage. See [agent capabilities](docs/integrations.md).
 
 ## Install
 
+Claude Code, in a minute:
+
 ```bash
-# Claude Code
 claude plugin marketplace add biffbuster/snout-context
 claude plugin install snout@snout-context
+```
 
-# Codex, Cursor, Gemini CLI
+Then, inside Claude Code:
+
+```
+/snout:report           # what it saw and what it would have saved
+/snout:mode enforce     # turn trimming on
+```
+
+Codex, Cursor, Gemini CLI:
+
+```bash
 npm install -g usesnout
 snout init codex        # or cursor, gemini
 ```
 
-Snout starts in **observe** mode and only records. After your first session it tells you what it
-would have saved; `snout mode enforce` turns it on.
+## What you'll see
+
+Snout starts in **observe** mode: it records and changes nothing. After your first session it tells
+you what it would have kept out and what that would have saved. From then on:
+
+- `/snout:report` or `snout report`: what was read, kept out and saved, with spend
+- `snout dashboard`: the same, live in your browser
+- `/snout:statusline`: a token counter on screen
+- `snout memory`: what earlier sessions left for the next one
 
 ## How it works
 
@@ -84,6 +98,7 @@ snout scan              # what in this repo would crowd your agent's context
 snout audit             # MCP servers: which are used, what each one's results cost and saved
 snout audit context     # instructions, skills and AI-written docs: per-session cost, last use, dead weight
 snout memory            # what earlier sessions left: task, files, commits (`snout recall "<q>"` to test a prompt)
+snout memory model install  # optional local model: recall by meaning as well as words
 snout map on            # opt-in: suggest the files your prompt names (paths only)
 snout report            # what was read, kept out and saved, with spend
 snout dashboard         # live savings in your browser
@@ -106,12 +121,22 @@ snout init codex --remove                   # or cursor, gemini
 npm uninstall -g usesnout
 ```
 
-Snout's records live in `.snout/` in each project; delete the folder to remove them.
+Snout's records live in `.snout/` in each project; delete the folder to remove them. Settings and the
+optional local model live in `~/.config/snout` (`%APPDATA%\snout` on Windows).
+
+## Memory between sessions
+
+Each finished session leaves a short card in `.snout/memory/`: what was asked, the files it changed,
+its commits, the test command that worked and what you told it. When a later prompt bears on one,
+in Claude Code or in Codex, the agent gets that card. A session started in Codex can pick up from
+one finished in Claude Code, and the reverse. After a compaction, Snout restores the exact facts the
+summary tends to lose. Recall stays silent when nothing matches.
 
 ## Plans
 
-Everything above is free and local: trimming, memory after compaction, spend tracking, project
-audits and the local dashboard. Team plans, with memory shared across a team, are coming next.
+Everything above is free and local: trimming, session memory, memory after compaction, spend
+tracking, project audits and the local dashboard. Team plans, with memory shared across a team, are
+coming next.
 
 ## Privacy
 
@@ -130,14 +155,5 @@ Details: [SECURITY.md](SECURITY.md) · [docs/privacy.md](docs/privacy.md).
 | [Benchmark](docs/benchmark.md) | How the results were measured |
 | [Troubleshooting](docs/troubleshooting.md) | When something doesn't look right |
 | [Development](docs/development.md) | Repo layout, evals, limits, contributing |
-
-## Uninstall
-
-```bash
-snout mode observe && snout logout
-claude plugin uninstall snout@snout-context
-npm uninstall -g usesnout
-rm -rf .snout ~/.config/snout
-```
 
 MIT licensed.

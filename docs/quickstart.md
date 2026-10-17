@@ -9,7 +9,7 @@ claude plugin install snout@snout-context
 
 Restart Claude Code, or run `/reload-plugins`.
 
-No API key. No configuration. No network calls.
+No account, no API key, no configuration. No network calls.
 
 ## Check it is working
 
@@ -39,23 +39,27 @@ This edits your `~/.claude/settings.json`, because the status line is a user set
 than something a plugin can claim on its own. If you already have one, you will be asked
 before anything is changed.
 
-## Start acting on it
+## Turn it on
 
-The default mode records but never blocks, and costs your session nothing: the plugin
-ships only non-blocking hooks. Move up when you trust the numbers:
+The default mode, observe, records but never changes what the agent sees. After your first session
+Snout tells you what it would have kept out. When you trust the numbers:
 
 ```
-/snout:mode advise     # ask before a low-value read
-/snout:mode enforce    # deny a low-value read outright
+/snout:mode enforce    # trim low-value reads and results; your code still comes through whole
 ```
 
-Either of those installs a `PreToolUse` hook into your project's `.claude/settings.json` —
-Claude will do it and show you the change. That hook is what makes blocking possible, and
-it is also what costs latency: a short-lived Node process per gated read, 50 ms on a fast
-machine and around 150 ms on an older laptop.
+Snout installs its gate hook itself, in your project's `.claude/settings.local.json`; there is
+nothing to edit. New sessions pick it up, a running one after `/reload-plugins`. Each gated call is
+a short Node process, around 70 ms on a fast machine, most of it Node starting.
 
-`/snout:mode observe` removes it again. `/snout:doctor` tells you whether it is installed and
+`/snout:mode observe` removes the hook again. `/snout:doctor` tells you whether it is installed and
 whether that matches your mode.
+
+## Memory between sessions
+
+Nothing to set up. Each finished session leaves a card in `.snout/memory/`, and a later prompt that
+bears on one gets it. `snout memory` lists the cards; `snout recall "<prompt>"` shows what a prompt
+would get. Using Codex in the same project too? `snout init codex` gives it the same memory.
 
 ## When it gets something wrong
 

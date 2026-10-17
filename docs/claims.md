@@ -52,6 +52,31 @@ What these rows can and can't show:
 - **The test projects were built to contain the bulk Snout trims.** The bulk-path rows show what
   Snout saves when that bulk is on the agent's path, not on an average repository.
 
+## Memory recall, offline
+
+| Claim | Result | Data |
+| --- | --- | --- |
+| Recall brief names a file the fix needed, words checked against the repo map | **75.2%** of the 58.1% of tasks where it speaks | `recalleval-1792170581701.json` |
+| — with the optional memory model (words and meaning, cut and map agreement) | **86.8%** of the 35.9% of tasks where it speaks | same file |
+
+485 SWE-bench Verified tasks; each task's memory is the repository's last 3000 commits before the
+issue was opened, one card per commit. Free and local: no agent runs, no API call. Rebuild with
+`node bench/recallfloor.mjs bench/ab-results/recalleval-1792170581701.json` (from the rows) or
+`node bench/recalleval.mjs --embed` (from scratch; needs the dataset, git clones and the model).
+
+| Same, memory = real agent sessions on earlier issues, words and map | **52.2%** of the 33.2% of tasks where it speaks | `sessioneval-1792173191076.json` |
+| — with the memory model | **60.5%** of the 25.6% of tasks where it speaks | same file |
+
+The session rows use the public trajectories of one agent (mini-SWE-agent, Claude Sonnet 4.5,
+`bash-only/20260217_mini-v2.0.0_claude-4-5-sonnet-high`) as cards: for each task, the sessions on
+earlier issues of the same repository, never its own. A median of 33 sessions per task, against 3000
+commits, and only 42.7% of tasks had an earlier session that touched a file the fix needed (the
+ceiling). Rebuild with `node bench/sessioneval.mjs --embed` (downloads the trajectories, ~240 MB, free).
+
+What it can't show: a brief that names the right file is not proof the agent then spends less or
+finishes sooner, and on these sessions recall fused with the repo map found the needed files no
+more often than the map alone (62.3% against 62.9% within five files). Neither saving is measured yet.
+
 ## Results not yet rebuildable from this repository
 
 | Claim | Where stated | Status |

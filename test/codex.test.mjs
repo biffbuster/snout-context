@@ -65,3 +65,12 @@ test("codex desktop: code-mode cells are read for commands, patches and the plan
   assert.deepEqual(f.changed, ["README.md", "src/export.ts"]);
   assert.deepEqual(f.test, { command: "npm.cmd test", result: "Tests: 12 passed, 12 total" });
 });
+
+test("codex: the agent's last message is the session's outcome", () => {
+  const { dir, file } = rollout([
+    said("Fix the rounding bug in src/money.js"),
+    line("response_item", { type: "message", role: "assistant", content: [{ type: "output_text", text: "Looking at money.js first." }] }),
+    line("response_item", { type: "message", role: "assistant", content: [{ type: "output_text", text: "Fixed: round half to even in money.js, since the ledger sums cents." }] }),
+  ]);
+  assert.equal(codexSessionFacts(file, dir).outcome, "Fixed: round half to even in money.js, since the ledger sums cents.");
+});

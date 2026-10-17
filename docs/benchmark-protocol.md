@@ -631,3 +631,49 @@ The target is a narrow interval: the headline is the point estimate with its 95%
 - **Publication.** Per the publication standard, both arms and every attempt are published. The
   headline "N% lower cost per solved task (95% interval A–B), same solve rate" is used only if both
   rules pass.
+
+## Memory pilot on held-out SWE-bench Verified (`bench/swe.mjs`, `bench/memseed.mjs`), fixed 2026-10-16 before it runs
+
+- **Question.** Does memory of a team's earlier work on the repository, kept by Snout's own hooks and
+  shared between Claude Code and Codex, change the cost per solved task or the solve rate, beyond
+  what the gate alone does? This is a pilot: it sizes a later study and gives no public claim.
+- **Tasks.** `bench/swe-memory-tasks.json`, drawn by `node bench/swe.mjs --select-memory` (seed
+  20261016): 20 tasks from 9 repositories, at most 6 per repository, none over 4 hours, each with 10 or
+  more earlier issues in its repository, none used in an earlier agent run. 16 have related prior
+  work (an earlier issue whose fix touched a file this fix touches); 4 have none, to check that
+  memory costs nothing when nothing in it applies. Offline evaluations (sessioneval, recalleval,
+  mapeval-heldout) scored nearly every Verified issue without running an agent, so they do not
+  exclude a task; no Verified task is unseen by Snout's offline tuning.
+- **Arms.** `plain` (no Snout), `enforce` (the gate), `memory` (the gate plus the memory hooks:
+  recall on the prompt, a card at every Stop). Only the memory arm starts with prior work: one card
+  for each of the newest 150 earlier issues of the repository (created before this one, never this
+  one), made by Snout's shipped Stop hook from the public trajectory of that issue. Which agent
+  worked an earlier issue is fixed by a hash of its id: half Claude Sonnet 4.5 sessions written as
+  Claude Code transcripts, half GPT-5.2-Codex sessions written as Codex rollouts. A recalled Codex card in
+  a Claude Code session is the cross-agent handoff case. Transcripts are kept outside the workspace,
+  so prior work reaches the agent only through memory. Memory reaching another arm is flagged as a
+  harness fault. No arm here gives the agent's own native memory the same prior work; that
+  baseline is for the later study.
+- **Agent, model, limits, build.** As in the Claude Code confirmation protocol of 2026-10-14:
+  headless Claude Code, `--model claude-sonnet-5-5`, API billing, an empty config folder per session,
+  the same prompt in every arm, $2.00 and 30 minutes per session, arms interleaved, the committed
+  build recorded in every result file.
+- **Free gate before any paid session.** The memory arm runs once on all 20 tasks with the stand-in
+  agent (`SWE_FAKE_AGENT=1`), which sends the same prompt. The paid run starts only if recall at the
+  prompt names a file of the fix on 5 or more of the 16 related tasks. Otherwise recall is fixed
+  first, with no paid sessions.
+- **Stage A.** 20 tasks × 3 arms × 1 attempt = 60 sessions, `--max-spend 8`. Projected cost: earlier
+  Sonnet sessions on this harness averaged $0.055 (36 sessions, 2026-10-15), so about $3.50–5.
+- **Gate before stage B.** Stage B (a second attempt of the same 60) runs only if none of these hold:
+  memory resolves 2 or more fewer tasks than enforce; memory's cost per resolved task is more than
+  20% above enforce's; 2 or more sessions failed for infrastructure reasons; memory reached another
+  arm. Stage B's `--max-spend` keeps the pilot's total at or below $15.
+- **Primary metric.** Billed cost per resolved attempt, memory vs enforce (what memory adds) and
+  memory vs plain, tasks paired, 95% bootstrap over tasks (`bench/report.mjs`). Resolved = the
+  official SWE-bench grader on the final diff.
+- **Secondary, reported whatever they show.** Resolved attempts per arm; turns; input, cache and
+  output tokens; wall time; for the memory arm: sessions where recall fired, recalls that named a
+  file the fix needed, reads of recalled files the fix did not need, recalls of Codex cards, memory
+  tokens. The 4 unrelated tasks are reported on their own.
+- **Use.** All rows are kept and published with the later study. The pilot sets that study's size
+  and decides whether memory goes into it; it is not quoted as a result.

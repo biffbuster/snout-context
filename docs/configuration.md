@@ -44,10 +44,11 @@ Whether that lowers agent spend is not measured yet, which is why it is off by d
 
 `memory` (default on; `snout memory on|off`, or `SNOUT_MEMORY=0|1`): at the end of each turn Snout
 writes one card per session to `.snout/memory/<session>.json` from the session's own transcript, with
-no model call: the task as the user first stated it, the files it changed, the test command that
+no model call: the task as the user first stated it, how the session ended in the agent's own last
+words (what it did and why), the files it changed, the test command that
 worked, an error left unresolved, standing instructions the user gave, and the branch. A `git
 commit` the agent runs is linked to the card with its subject and files. When a later prompt bears
-on a card (two or more of its words match, or it names a file the session changed), the agent gets
+on a card (its words match, and the card touched one of the files the repo map ranks first for the prompt, or the prompt names one of its files), the agent gets
 a short brief of up to three earlier sessions, each offered once per session and at most ~600
 tokens in all; prompts that match nothing get nothing. Recall is active in enforce and advise
 mode; observe mode only writes cards. Cards older than 90 days are not recalled, and files that no
@@ -57,9 +58,23 @@ commands too slow for the tool limit, the files most work touches, and instructi
 given more than once. Anything CLAUDE.md, CLAUDE.local.md or AGENTS.md already says is left out,
 and the brief stays under ~400 tokens; `snout memory brief` prints it. `snout memory` lists the cards, `snout memory forget <session>` drops one,
 and `snout recall "<request>" [--as-of <date>]` shows what a prompt would get. One file per card,
-so committing `.snout/memory/` shares it with a team without merge conflicts. Cards hold the
+so committing `.snout/memory/` shares it with a team without merge conflicts: `snout memory share`
+changes a `.snout/` line in `.gitignore` to `.snout/*` plus `!.snout/memory/` and stages nothing. Cards hold the
 start of your prompts: read them before you commit them. Whether recall lowers spend per task is
 not measured yet.
+
+`snout memory model install` (optional) adds a local embedding model, bge-small-en-v1.5 (q8, about
+34 MB), so recall matches by meaning as well as words. It installs `@huggingface/transformers` with
+npm (its ONNX runtime takes a few hundred MB) and the model files from Hugging Face into the per-user
+config folder; nothing downloads unless you run it, and `snout memory model remove` deletes it. The
+model stays loaded in `snout serve`, which starts with the session; each prompt asks it for a vector
+(about 125 ms in all on a laptop) and falls back to words when it doesn't answer. A card is then
+offered only when both the word ranking and the meaning ranking put it near the top, and the repo
+map agrees. On 485 SWE-bench Verified tasks with commit history as memory, briefs that met that bar
+named a file the fix needed 87% of the time, against 75% for words with the map's agreement
+(`bench/recalleval.mjs --embed`); with real agent sessions on earlier issues as memory, 61% against
+52% (`bench/sessioneval.mjs --embed`). Card vectors are kept in `.snout/memory-vectors.json`, not in the
+shared `memory/` folder, and are recomputed when a card changes.
 
 That is every key the shipped code reads. Keys for later phases — a model name, a tier-2
 budget, context-injection limits — are deliberately **absent** rather than present and
