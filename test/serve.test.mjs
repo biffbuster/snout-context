@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,6 +11,7 @@ import { gateEntries, installGate, refreshGate, squeezeEntries, starterEntries }
 const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 const PORT = String(47000 + Math.floor(Math.random() * 900));
 const env = { ...process.env, SNOUT_PORT: PORT, SNOUT_CONFIG_DIR: mkdtempSync(join(tmpdir(), "snout-serve-cfg-")) };
+process.env.SNOUT_CONFIG_DIR = env.SNOUT_CONFIG_DIR; // installGate in this process writes the starter here, not in the real config dir
 const base = `http://127.0.0.1:${PORT}/snout/v1`;
 
 function project() {
@@ -186,10 +187,32 @@ test("the fast gate carries its own starter, so the server comes up even when th
   // The starter's command, run as Claude Code would run it, brings the server up.
   await fetch(`${base}/shutdown`, { method: "POST" }).catch(() => {});
   assert.ok(await waitHealth(false), "down");
-  const [, cmd] = starterEntries(CLI)[0].hooks[0].command.match(/^node "(.+)" serve --ensure$/);
-  spawnSync(process.execPath, [cmd, "serve", "--ensure"], { cwd: dir, input: "{}", env: { ...env, CLAUDE_PROJECT_DIR: dir } });
+  const [, starter, bin] = starterEntries(CLI)[0].hooks[0].command.match(/^node "(.+)" "(.+)" serve --ensure$/);
+  assert.ok(existsSync(starter), "the starter script is written with the gate");
+  spawnSync(process.execPath, [starter, bin, "serve", "--ensure"], { cwd: dir, input: "{}", env: { ...env, CLAUDE_PROJECT_DIR: dir } });
   try {
     assert.ok(await waitHealth(true), "the starter brought it up");
+  } finally {
+    await fetch(`${base}/shutdown`, { method: "POST" }).catch(() => {});
+  }
+});
+
+test("the starter follows a plugin update: a gate naming an old plugin folder starts the bundle installed now", async () => {
+  const dir = project();
+  const claudeDir = mkdtempSync(join(tmpdir(), "snout-claude-"));
+  // The old version's folder is still there, with a bundle that does nothing: the starter must not settle for it.
+  const oldBin = join(claudeDir, ".claude", "plugins", "cache", "snout-context", "snout", "0.0.1", "dist", "snout.mjs");
+  mkdirSync(join(oldBin, ".."), { recursive: true });
+  writeFileSync(oldBin, "process.exit(0);\n");
+  mkdirSync(join(claudeDir, "plugins"), { recursive: true });
+  writeFileSync(join(claudeDir, "plugins", "installed_plugins.json"), JSON.stringify({ version: 2, plugins: { "snout@snout-context": [{ scope: "local", installPath: join(CLI, "..", "..") }] } }));
+  installGate(dir, oldBin, true);
+  const [, starter, bin] = JSON.parse(readFileSync(join(dir, ".claude/settings.local.json"), "utf8")).hooks.SessionStart[0].hooks[0].command.match(/^node "(.+)" "(.+)" serve --ensure$/);
+  await fetch(`${base}/shutdown`, { method: "POST" }).catch(() => {});
+  assert.ok(await waitHealth(false), "down");
+  spawnSync(process.execPath, [starter, bin, "serve", "--ensure"], { cwd: dir, env: { ...env, CLAUDE_PROJECT_DIR: dir, CLAUDE_CONFIG_DIR: claudeDir } });
+  try {
+    assert.ok(await waitHealth(true), "started from the bundle Claude Code has installed now");
   } finally {
     await fetch(`${base}/shutdown`, { method: "POST" }).catch(() => {});
   }

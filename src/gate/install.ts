@@ -13,6 +13,7 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { writeAtomic } from "../util/atomic.js";
+import { configDir } from "../config.js";
 import { SQUEEZE_IFS } from "../squeeze/squeeze.js";
 
 /** Bash commands that can print a whole file. Anything else is never gated. */
@@ -63,7 +64,47 @@ export function gateEntries(bin: string, fast = false): Entry[] {
  */
 const ENSURE = "serve --ensure";
 export function starterEntries(bin: string): Entry[] {
-  return [{ hooks: [{ type: "command", command: `node "${bin}" ${ENSURE}`, timeout: 5 }] }];
+  return [{ hooks: [{ type: "command", command: `node "${starterPath()}" "${bin}" ${ENSURE}`, timeout: 5 }] }];
+}
+
+/**
+ * The starter goes through a small script at a fixed path, not straight to `bin`: a plugin
+ * update moves the bundle to a new versioned folder and may delete the old one, and when the
+ * plugin's own hooks don't run nothing re-points the gate. The script runs the current plugin
+ * bundle (from Claude Code's install record) when `bin` was a plugin bundle, else `bin`, else
+ * whichever of the two still exists.
+ */
+export const starterPath = (): string => join(configDir(), "snout-starter.mjs");
+const STARTER = `// Written by Snout (snout fast on). Starts the local Snout server for the fast gate.
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { spawnSync } from "node:child_process";
+const [bin, ...args] = process.argv.slice(2);
+function plugin() {
+  try {
+    const j = JSON.parse(readFileSync(join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"), "plugins", "installed_plugins.json"), "utf8"));
+    for (const e of (j.plugins ?? j)["snout@snout-context"] ?? []) {
+      const p = e?.installPath && join(e.installPath, "dist", "snout.mjs");
+      if (p && existsSync(p)) return p;
+    }
+  } catch {}
+  return null;
+}
+const inPlugin = /[\\\\/]\\.claude[\\\\/]plugins[\\\\/]/.test(bin ?? "");
+const run = (inPlugin ? plugin() : null) ?? (bin && existsSync(bin) ? bin : null) ?? plugin();
+if (run) spawnSync(process.execPath, [run, ...args], { stdio: "ignore", timeout: 4000, windowsHide: true });
+`;
+
+function writeStarter(): void {
+  const file = starterPath();
+  try {
+    if (readFileSync(file, "utf8") === STARTER) return;
+  } catch {
+    // not written yet
+  }
+  mkdirSync(configDir(), { recursive: true });
+  writeAtomic(file, STARTER);
 }
 const STARTER_EVENTS = ["SessionStart", "UserPromptSubmit"] as const;
 
@@ -110,6 +151,7 @@ export function installGate(projectDir: string, bin: string, fast = false): stri
   settings.hooks ??= {};
   settings.hooks.PreToolUse = [...(settings.hooks.PreToolUse ?? []), ...gateEntries(bin, fast)];
   settings.hooks.PostToolUse = [...(settings.hooks.PostToolUse ?? []), ...squeezeEntries(bin, fast)];
+  if (fast) writeStarter();
   if (fast) for (const ev of STARTER_EVENTS) settings.hooks[ev] = [...(settings.hooks[ev] ?? []), ...starterEntries(bin)];
   write(file, settings);
   return file;

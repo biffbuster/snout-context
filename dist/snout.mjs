@@ -4,7 +4,7 @@
 import { copyFileSync, existsSync as existsSync19, mkdirSync as mkdirSync11, mkdtempSync as mkdtempSync2, readdirSync as readdirSync7, readFileSync as readFileSync20, readSync as readSync4, rmSync as rmSync3, statSync as statSync17, writeFileSync as writeFileSync6, writeSync } from "node:fs";
 import { createHash as createHash4 } from "node:crypto";
 import { spawn as spawn2, spawnSync as spawnSync5 } from "node:child_process";
-import { basename as basename5, dirname as dirname9, isAbsolute as isAbsolute14, join as join23, resolve as resolve13 } from "node:path";
+import { basename as basename5, dirname as dirname9, isAbsolute as isAbsolute14, join as join24, resolve as resolve13 } from "node:path";
 import { homedir as homedir5, tmpdir as tmpdir2 } from "node:os";
 
 // src/config.ts
@@ -153,14 +153,14 @@ function adoptLegacyDir(legacy, current) {
     recordError("adoptLegacyDir", err);
   }
 }
-function readLayer(file2) {
-  if (!existsSync2(file2)) return {};
+function readLayer(file3) {
+  if (!existsSync2(file3)) return {};
   try {
-    const raw = JSON.parse(readFileSync(file2, "utf8"));
+    const raw = JSON.parse(readFileSync(file3, "utf8"));
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("config must be a JSON object");
     for (const k of ["alwaysAllow", "alwaysDeny", "redact", "redactExempt"]) {
       if (raw[k] !== void 0 && !Array.isArray(raw[k])) {
-        recordError("loadConfig", new Error(`${file2}: ${k} must be an array; ignoring it`));
+        recordError("loadConfig", new Error(`${file3}: ${k} must be an array; ignoring it`));
         delete raw[k];
       }
     }
@@ -1472,8 +1472,8 @@ function responseText(response, depth = 0) {
   if (Array.isArray(response)) return response.map((r) => responseText(r, depth + 1)).join("\n");
   if (typeof response !== "object") return "";
   const o = response;
-  const file2 = o.file;
-  if (file2 && typeof file2.content === "string") return file2.content;
+  const file3 = o.file;
+  if (file3 && typeof file3.content === "string") return file3.content;
   if (typeof o.stdout === "string") return o.stdout + (typeof o.stderr === "string" ? o.stderr : "");
   if (typeof o.text === "string") return o.text;
   if (typeof o.content === "string") return o.content;
@@ -2134,8 +2134,8 @@ var OURS = /snout[\s\S]*\bhook (gemini|cursor|codex)\b/;
 function initAgent(agent, projectDir, cmd = selfCommand()) {
   const hook = (event) => `${cmd} hook ${agent} ${event}`;
   if (agent === "cursor") {
-    const file3 = join6(projectDir, ".cursor", "hooks.json");
-    const cfg2 = load(file3);
+    const file4 = join6(projectDir, ".cursor", "hooks.json");
+    const cfg2 = load(file4);
     cfg2.version ??= 1;
     cfg2.hooks ??= {};
     const events = ["beforeReadFile", "beforeShellExecution"];
@@ -2143,11 +2143,11 @@ function initAgent(agent, projectDir, cmd = selfCommand()) {
       cfg2.hooks[e] = (Array.isArray(cfg2.hooks[e]) ? cfg2.hooks[e] : []).filter((h) => !OURS.test(String(h?.command ?? "")));
       cfg2.hooks[e].push({ command: hook(e), timeout: 10 });
     }
-    save(file3, cfg2);
-    return { file: file3, events };
+    save(file4, cfg2);
+    return { file: file4, events };
   }
-  const file2 = agent === "gemini" ? join6(projectDir, ".gemini", "settings.json") : join6(projectDir, ".codex", "hooks.json");
-  const cfg = load(file2);
+  const file3 = agent === "gemini" ? join6(projectDir, ".gemini", "settings.json") : join6(projectDir, ".codex", "hooks.json");
+  const cfg = load(file3);
   cfg.hooks ??= {};
   const groups = agent === "gemini" ? [["BeforeTool", "read_file|run_shell_command"], ["AfterTool", ".*"], ["SessionStart", void 0]] : [["PreToolUse", "^Bash$"], ["PostToolUse", ".*"], ["SessionStart", void 0], ["UserPromptSubmit", void 0], ["Stop", void 0]];
   for (const [e, matcher] of groups) {
@@ -2157,13 +2157,13 @@ function initAgent(agent, projectDir, cmd = selfCommand()) {
     kept.push({ ...matcher ? { matcher } : {}, hooks: [entry] });
     cfg.hooks[e] = kept;
   }
-  save(file2, cfg);
-  return { file: file2, events: groups.map(([e]) => e) };
+  save(file3, cfg);
+  return { file: file3, events: groups.map(([e]) => e) };
 }
 function removeAgent(agent, projectDir) {
-  const file2 = agent === "cursor" ? join6(projectDir, ".cursor", "hooks.json") : agent === "gemini" ? join6(projectDir, ".gemini", "settings.json") : join6(projectDir, ".codex", "hooks.json");
-  if (!existsSync6(file2)) return { file: file2, removed: 0 };
-  const cfg = load(file2);
+  const file3 = agent === "cursor" ? join6(projectDir, ".cursor", "hooks.json") : agent === "gemini" ? join6(projectDir, ".gemini", "settings.json") : join6(projectDir, ".codex", "hooks.json");
+  if (!existsSync6(file3)) return { file: file3, removed: 0 };
+  const cfg = load(file3);
   let removed = 0;
   for (const [e, list] of Object.entries(cfg.hooks ?? {})) {
     if (!Array.isArray(list)) continue;
@@ -2175,8 +2175,8 @@ function removeAgent(agent, projectDir) {
     if (kept.length) cfg.hooks[e] = kept;
     else delete cfg.hooks[e];
   }
-  if (removed) save(file2, cfg);
-  return { file: file2, removed };
+  if (removed) save(file3, cfg);
+  return { file: file3, removed };
 }
 function withoutSnoutHooks(groups) {
   if (!Array.isArray(groups)) return [];
@@ -2186,15 +2186,15 @@ function withoutSnoutHooks(groups) {
     return hooks.length ? [{ ...group, hooks }] : [];
   });
 }
-function load(file2) {
-  if (!existsSync6(file2)) return {};
-  const parsed = JSON.parse(readFileSync4(file2, "utf8"));
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(`${file2} is not a JSON object`);
+function load(file3) {
+  if (!existsSync6(file3)) return {};
+  const parsed = JSON.parse(readFileSync4(file3, "utf8"));
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(`${file3} is not a JSON object`);
   return parsed;
 }
-function save(file2, cfg) {
-  mkdirSync3(dirname4(file2), { recursive: true });
-  writeAtomic(file2, JSON.stringify(cfg, null, 2) + "\n");
+function save(file3, cfg) {
+  mkdirSync3(dirname4(file3), { recursive: true });
+  writeAtomic(file3, JSON.stringify(cfg, null, 2) + "\n");
 }
 
 // src/mcp.ts
@@ -2436,10 +2436,10 @@ function readClaudeTranscript(text, u, since, fallbackTs) {
     for (const c of content) {
       if (c?.type !== "tool_use" || typeof c.name !== "string") continue;
       const input = c.input ?? {};
-      const file2 = typeof input.file_path === "string" ? input.file_path : typeof input.notebook_path === "string" ? input.notebook_path : null;
-      if (/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(c.name) && file2) u.writes.add(resolve4(file2));
+      const file3 = typeof input.file_path === "string" ? input.file_path : typeof input.notebook_path === "string" ? input.notebook_path : null;
+      if (/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(c.name) && file3) u.writes.add(resolve4(file3));
       if (ts < since) continue;
-      if (c.name === "Read" && file2) bump(u.reads, resolve4(file2), ts);
+      if (c.name === "Read" && file3) bump(u.reads, resolve4(file3), ts);
       else if (c.name === "Skill" && typeof input.skill === "string") bump(u.skills, input.skill.toLowerCase().split(":").pop(), ts);
       else if ((c.name === "Agent" || c.name === "Task") && typeof input.subagent_type === "string") bump(u.agents, input.subagent_type.toLowerCase().split(":").pop(), ts);
       else if (c.name === "SlashCommand" && typeof input.command === "string") bump(u.commands, input.command.replace(/^\//, "").split(/\s/)[0].toLowerCase(), ts);
@@ -2532,8 +2532,8 @@ function authorOf(git2, agentWrote) {
   return ai ? "ai" : "human";
 }
 var normalize = (text) => text.replace(/^---\r?\n[\s\S]*?\r?\n---/, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-function shingles(norm, k = 5) {
-  const w = norm.split(" ").filter(Boolean);
+function shingles(norm2, k = 5) {
+  const w = norm2.split(" ").filter(Boolean);
   const out = /* @__PURE__ */ new Set();
   for (let i = 0; i + k <= w.length; i++) out.add(w.slice(i, i + k).join(" "));
   if (!out.size && w.length) out.add(w.join(" "));
@@ -2547,9 +2547,9 @@ function overlap(a, b) {
   return { jaccard: inter / (a.size + b.size - inter), containment: inter / small.size };
 }
 var STOP = new Set("the a an and or of to in for on with is are be by it this that as at from use when if not you your do does can should must will any all each only into than then so no".split(" "));
-function topTerms(norm, n = 40) {
+function topTerms(norm2, n = 40) {
   const counts = /* @__PURE__ */ new Map();
-  for (const w of norm.split(" ")) if (w.length > 3 && !STOP.has(w) && !/^\d+$/.test(w)) counts.set(w, (counts.get(w) ?? 0) + 1);
+  for (const w of norm2.split(" ")) if (w.length > 3 && !STOP.has(w) && !/^\d+$/.test(w)) counts.set(w, (counts.get(w) ?? 0) + 1);
   return new Set([...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([w]) => w));
 }
 function staleRefs(text, fileAbs, projectDir, everExisted, workspaceScripts) {
@@ -2730,11 +2730,11 @@ function auditContext(projectDir, opts = {}) {
   const agentContext = (f) => f.kind !== "on-demand" || f.role !== "doc" || f.agents[0] !== "any" || REPORT_NAME.test(basename2(f.path).replace(MD, "")) || !f.path.includes("/");
   const tail2 = (p) => p.replace(/^\.[a-z]+\//i, "");
   const mirror = (a, b) => a.path !== b.path && tail2(a.path) === tail2(b.path) && !shared(a, b);
-  const norm = new Map(comparable.map((f) => [f.abs, normalize(texts.get(f.abs))]));
-  const sh = new Map(comparable.map((f) => [f.abs, shingles(norm.get(f.abs))]));
+  const norm2 = new Map(comparable.map((f) => [f.abs, normalize(texts.get(f.abs))]));
+  const sh = new Map(comparable.map((f) => [f.abs, shingles(norm2.get(f.abs))]));
   const hash = /* @__PURE__ */ new Map();
   for (const f of comparable) {
-    const h = createHash("sha256").update(norm.get(f.abs)).digest("hex");
+    const h = createHash("sha256").update(norm2.get(f.abs)).digest("hex");
     const first2 = hash.get(h);
     if (!first2) {
       hash.set(h, f);
@@ -5188,17 +5188,17 @@ function loadCache(path) {
     return {};
   }
 }
-function fileRows(file2, client2, cache2, configDir2) {
+function fileRows(file3, client2, cache2, configDir2) {
   let st;
   try {
-    st = statSync10(file2);
+    st = statSync10(file3);
   } catch {
     return null;
   }
   const stamp = `${st.size}:${st.mtimeMs}`;
-  const hit = cache2[file2];
+  const hit = cache2[file3];
   if (hit && hit.stamp === stamp) return hit;
-  const text = readFileSync8(file2, "utf8");
+  const text = readFileSync8(file3, "utf8");
   let entry;
   if (client2 === "claude") {
     const reqs = claudeRequests(text);
@@ -5207,7 +5207,7 @@ function fileRows(file2, client2, cache2, configDir2) {
     const { cwd, reqs } = codexRequests(text);
     entry = { stamp, client: client2, cwd, rows: rollup(reqs, client2, configDir2) };
   }
-  cache2[file2] = entry;
+  cache2[file3] = entry;
   return entry;
 }
 var inside = (child, parent) => !!child && (child === parent || child.startsWith(parent + sep2));
@@ -5635,8 +5635,8 @@ function measureServer(s, timeoutMs = MEASURE_TIMEOUT_MS) {
       done(r);
     };
     const viaCmd = process.platform === "win32" && !/[\\/]|\.(exe|com)$/i.test(s.command);
-    const [file2, argv] = viaCmd ? [process.env.ComSpec || "cmd.exe", ["/d", "/c", s.command, ...s.args ?? []]] : [s.command, s.args ?? []];
-    const child = spawn(file2, argv, { env: { ...process.env, ...s.env ?? {} }, stdio: ["pipe", "pipe", "ignore"], windowsHide: true });
+    const [file3, argv] = viaCmd ? [process.env.ComSpec || "cmd.exe", ["/d", "/c", s.command, ...s.args ?? []]] : [s.command, s.args ?? []];
+    const child = spawn(file3, argv, { env: { ...process.env, ...s.env ?? {} }, stdio: ["pipe", "pipe", "ignore"], windowsHide: true });
     const timer = setTimeout(() => finish2({ error: `no tool list within ${timeoutMs / 1e3}s` }), timeoutMs);
     child.on("error", (e) => finish2({ error: e.message.slice(0, 80) }));
     child.on("close", () => finish2({ error: "server exited before returning a tool list" }));
@@ -6389,9 +6389,9 @@ var MISSING = [
   [/command not found: ([\w.-]+)/, (m) => m[1]]
 ];
 var EDITS = /* @__PURE__ */ new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
-function firstRequest(file2) {
-  const fd = openSync3(file2, "r");
-  const buf = Buffer.alloc(Math.min(HEAD_BYTES4, statSync15(file2).size));
+function firstRequest(file3) {
+  const fd = openSync3(file3, "r");
+  const buf = Buffer.alloc(Math.min(HEAD_BYTES4, statSync15(file3).size));
   try {
     readSync3(fd, buf, 0, buf.length, 0);
   } finally {
@@ -6410,11 +6410,11 @@ function firstRequest(file2) {
   }
   return void 0;
 }
-function tail(file2) {
-  const size = statSync15(file2).size;
+function tail(file3) {
+  const size = statSync15(file3).size;
   const start = Math.max(0, size - TAIL_BYTES);
   const buf = Buffer.alloc(size - start);
-  const fd = openSync3(file2, "r");
+  const fd = openSync3(file3, "r");
   try {
     readSync3(fd, buf, 0, buf.length, start);
   } finally {
@@ -6503,9 +6503,9 @@ function factsFromClaudeRows(lines, projectDir, first2) {
     for (const b of content) {
       if (b.type === "tool_use") {
         uses.set(b.id, b);
-        const file2 = b.input?.file_path ?? b.input?.notebook_path;
-        if (EDITS.has(b.name) && typeof file2 === "string") {
-          const p = rel(file2);
+        const file3 = b.input?.file_path ?? b.input?.notebook_path;
+        if (EDITS.has(b.name) && typeof file3 === "string") {
+          const p = rel(file3);
           facts.changed = [p, ...facts.changed.filter((x) => x !== p)];
         }
         if (b.name === "TodoWrite" && Array.isArray(b.input?.todos)) facts.todos = b.input.todos.filter((t) => t?.status !== "completed").map((t) => oneLine(String(t.content ?? ""), 120));
@@ -6564,10 +6564,10 @@ function codexSessionFacts(transcriptPath, projectDir) {
   return factsFromClaudeRows(codexRows(tail(transcriptPath).split(/\n/)), projectDir);
 }
 function readPins(projectDir, snoutDir) {
-  const file2 = join16(snoutDir, "pins.md");
-  if (!existsSync12(file2)) return [];
+  const file3 = join16(snoutDir, "pins.md");
+  if (!existsSync12(file3)) return [];
   const pins = [];
-  for (const raw of readFileSync14(file2, "utf8").split("\n")) {
+  for (const raw of readFileSync14(file3, "utf8").split("\n")) {
     const m = raw.match(/^\s*[-*]\s+(.*\S)\s*$/);
     if (!m) continue;
     const text = m[1];
@@ -6607,7 +6607,7 @@ function pinLines(pins, projectDir, secrets) {
 }
 var PROGRESS_FILE = "progress.md";
 var PROGRESS_MAX_CHARS = 1500;
-var progressAsk = (file2) => `- Keep \`${file2}\` current while you work, at most 10 lines: the goal, your current approach, what failed and why, the next step. Snout restores it verbatim after the next compaction.`;
+var progressAsk = (file3) => `- Keep \`${file3}\` current while you work, at most 10 lines: the goal, your current approach, what failed and why, the next step. Snout restores it verbatim after the next compaction.`;
 function sessionStartMs(transcriptPath) {
   try {
     const fd = openSync3(transcriptPath, "r");
@@ -6625,10 +6625,10 @@ function sessionStartMs(transcriptPath) {
   }
 }
 function readProgress(snoutDir, sinceMs) {
-  const file2 = join16(snoutDir, PROGRESS_FILE);
+  const file3 = join16(snoutDir, PROGRESS_FILE);
   try {
-    if (statSync15(file2).mtimeMs < sinceMs) return void 0;
-    const text = readFileSync14(file2, "utf8").trim();
+    if (statSync15(file3).mtimeMs < sinceMs) return void 0;
+    const text = readFileSync14(file3, "utf8").trim();
     return text ? text.length > PROGRESS_MAX_CHARS ? `${text.slice(0, PROGRESS_MAX_CHARS - 1)}\u2026` : text : void 0;
   } catch {
     return void 0;
@@ -6674,9 +6674,9 @@ var tokens = (text) => estimateTokens(Buffer.byteLength(text), "output.txt");
 var textOf = (content) => typeof content === "string" ? content : Array.isArray(content) ? content.map((p) => typeof p?.text === "string" ? p.text : "").join("\n") : "";
 var EDITS2 = /* @__PURE__ */ new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
 var withoutCd = (c) => c.replace(/^\s*cd\s+("[^"]*"|'[^']*'|\S+)\s*(&&|;)\s*/, "");
-function readLines(file2) {
+function readLines(file3) {
   const out = [];
-  for (const raw of readFileSync15(file2, "utf8").split("\n")) {
+  for (const raw of readFileSync15(file3, "utf8").split("\n")) {
     if (!raw) continue;
     try {
       out.push({ o: JSON.parse(raw), raw });
@@ -6713,8 +6713,8 @@ function shadowProject(lines, projectDir) {
   }
   return { root, files: best.size };
 }
-function replaySession(file2, run) {
-  const lines = readLines(file2).filter(({ o }) => !o.isSidechain);
+function replaySession(file3, run) {
+  const lines = readLines(file3).filter(({ o }) => !o.isSidechain);
   const projectDir = projectOf(lines);
   const shadow = existsSync13(projectDir) ? null : shadowProject(lines, projectDir);
   const onDisk = (v) => {
@@ -6724,7 +6724,7 @@ function replaySession(file2, run) {
     if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, onDisk(x)]));
     return v;
   };
-  const session = String(lines.find(({ o }) => o.sessionId)?.o.sessionId ?? file2);
+  const session = String(lines.find(({ o }) => o.sessionId)?.o.sessionId ?? file3);
   const rel = (p) => {
     if (!isAbsolute12(p)) return p;
     const r2 = relative8(projectDir, p);
@@ -6732,7 +6732,7 @@ function replaySession(file2, run) {
   };
   const r = {
     session,
-    file: file2,
+    file: file3,
     projectDir,
     rebuilt: shadow?.files ?? 0,
     calls: 0,
@@ -6788,7 +6788,7 @@ function replaySession(file2, run) {
       if (b?.type === "tool_use") {
         r.calls++;
         callIndex++;
-        const input = { hook_event_name: "PreToolUse", session_id: session, cwd: onDisk(o.cwd ?? projectDir), tool_name: b.name, tool_input: onDisk(b.input ?? {}), tool_use_id: b.id, transcript_path: file2 };
+        const input = { hook_event_name: "PreToolUse", session_id: session, cwd: onDisk(o.cwd ?? projectDir), tool_name: b.name, tool_input: onDisk(b.input ?? {}), tool_use_id: b.id, transcript_path: file3 };
         const path2 = typeof b.input?.file_path === "string" ? b.input.file_path : typeof b.input?.notebook_path === "string" ? b.input.notebook_path : void 0;
         if (path2 && heldPaths.has(path2)) {
           r.regrets++;
@@ -6824,9 +6824,9 @@ function replaySession(file2, run) {
       }
       const upd = pre?.updatedInput;
       if (pre?.permissionDecision === "allow" && upd && typeof upd.limit === "number" && path) {
-        const file3 = o.toolUseResult?.file;
-        const full = typeof file3?.content === "string" ? file3.content : resultText2;
-        const from = Math.max(0, (Number(upd.offset) || 1) - (Number(file3?.startLine) || 1));
+        const file4 = o.toolUseResult?.file;
+        const full = typeof file4?.content === "string" ? file4.content : resultText2;
+        const from = Math.max(0, (Number(upd.offset) || 1) - (Number(file4?.startLine) || 1));
         const slice = full.split("\n").slice(from, from + upd.limit).join("\n");
         const note = typeof pre.additionalContext === "string" ? pre.additionalContext : "";
         const saved = tokens(full) - tokens(slice) - tokens(note);
@@ -6844,7 +6844,7 @@ function replaySession(file2, run) {
       if (typeof pre?.additionalContext === "string") r.added += tokens(pre.additionalContext);
       if (pre?.permissionDecision === "ask") r.asked++;
       const response = o.toolUseResult ?? { stdout: resultText2, stderr: "", interrupted: false, isImage: false };
-      const postInput = { hook_event_name: "PostToolUse", session_id: session, cwd: onDisk(o.cwd ?? projectDir), tool_name: use.name, tool_input: onDisk(use.input), tool_use_id: b.tool_use_id, tool_response: onDisk(response), transcript_path: file2 };
+      const postInput = { hook_event_name: "PostToolUse", session_id: session, cwd: onDisk(o.cwd ?? projectDir), tool_name: use.name, tool_input: onDisk(use.input), tool_use_id: b.tool_use_id, tool_response: onDisk(response), transcript_path: file3 };
       if (use.name === "Bash" || use.name.startsWith("mcp__")) {
         const sq = run.squeeze(postInput)?.hookSpecificOutput;
         const updated = sq?.updatedToolOutput;
@@ -6914,8 +6914,8 @@ function requestsOf(lines) {
 var W = 1.25;
 var R = 0.1;
 var O = 5;
-function compactionWhatIf(file2, cap2, costs) {
-  const reqs = requestsOf(readLines(file2).filter(({ o }) => !o.isSidechain));
+function compactionWhatIf(file3, cap2, costs) {
+  const reqs = requestsOf(readLines(file3).filter(({ o }) => !o.isSidechain));
   const prefix = reqs.length ? reqs[0].written + reqs[0].cached : 0;
   let base = 0, sim = 0, ctx = 0, prev = 0, compactions = 0, peak = 0, rewrite = false;
   for (const q of reqs) {
@@ -7100,24 +7100,24 @@ function squeezeSearch(output, savedTo) {
   if (matchShare >= 0.6) {
     const files = /* @__PURE__ */ new Map();
     lines.forEach((l, i) => {
-      const file2 = matched[i]?.[1] ?? "(other)";
-      const list = files.get(file2);
+      const file3 = matched[i]?.[1] ?? "(other)";
+      const list = files.get(file3);
       if (list) list.push(l);
-      else files.set(file2, [l]);
+      else files.set(file3, [l]);
     });
     let shown = 0;
     let hiddenFiles = 0, hiddenMatches = 0;
     const named = [];
-    for (const [file2, hits] of files) {
+    for (const [file3, hits] of files) {
       if (shown >= FILES_LISTED) {
         hiddenFiles++;
         hiddenMatches += hits.length;
-        if (named.length < FILES_NAMED) named.push(`${file2} (${hits.length})`);
+        if (named.length < FILES_NAMED) named.push(`${file3} (${hits.length})`);
         continue;
       }
       shown++;
       out.push(...hits.slice(0, MATCHES_PER_FILE));
-      if (hits.length > MATCHES_PER_FILE) out.push(`  (+${hits.length - MATCHES_PER_FILE} more in ${file2})`);
+      if (hits.length > MATCHES_PER_FILE) out.push(`  (+${hits.length - MATCHES_PER_FILE} more in ${file3})`);
     }
     if (hiddenFiles) {
       out.push(`  \u2026 ${hiddenFiles} more file${hiddenFiles === 1 ? "" : "s"} with ${hiddenMatches} match${hiddenMatches === 1 ? "" : "es"}, lines not shown:`);
@@ -7224,23 +7224,53 @@ function gateEntries(bin, fast = false) {
 }
 var ENSURE = "serve --ensure";
 function starterEntries(bin) {
-  return [{ hooks: [{ type: "command", command: `node "${bin}" ${ENSURE}`, timeout: 5 }] }];
+  return [{ hooks: [{ type: "command", command: `node "${starterPath()}" "${bin}" ${ENSURE}`, timeout: 5 }] }];
+}
+var starterPath = () => join18(configDir(), "snout-starter.mjs");
+var STARTER = `// Written by Snout (snout fast on). Starts the local Snout server for the fast gate.
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { spawnSync } from "node:child_process";
+const [bin, ...args] = process.argv.slice(2);
+function plugin() {
+  try {
+    const j = JSON.parse(readFileSync(join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"), "plugins", "installed_plugins.json"), "utf8"));
+    for (const e of (j.plugins ?? j)["snout@snout-context"] ?? []) {
+      const p = e?.installPath && join(e.installPath, "dist", "snout.mjs");
+      if (p && existsSync(p)) return p;
+    }
+  } catch {}
+  return null;
+}
+const inPlugin = /[\\\\/]\\.claude[\\\\/]plugins[\\\\/]/.test(bin ?? "");
+const run = (inPlugin ? plugin() : null) ?? (bin && existsSync(bin) ? bin : null) ?? plugin();
+if (run) spawnSync(process.execPath, [run, ...args], { stdio: "ignore", timeout: 4000, windowsHide: true });
+`;
+function writeStarter() {
+  const file3 = starterPath();
+  try {
+    if (readFileSync16(file3, "utf8") === STARTER) return;
+  } catch {
+  }
+  mkdirSync8(configDir(), { recursive: true });
+  writeAtomic(file3, STARTER);
 }
 var STARTER_EVENTS = ["SessionStart", "UserPromptSubmit"];
 var ours = (h, event) => typeof h.command === "string" && h.command.includes(MARK) && h.command.includes(event) || typeof h.url === "string" && h.url.includes(URL_MARK + event);
 var isGate = (e) => (e.hooks ?? []).some((h) => ours(h, "pre-tool"));
 var isSqueeze = (e) => (e.hooks ?? []).some((h) => ours(h, "squeeze"));
 var isStarter = (e) => (e.hooks ?? []).some((h) => typeof h.command === "string" && h.command.includes(MARK) && h.command.includes(ENSURE));
-function read2(file2) {
+function read2(file3) {
   try {
-    return JSON.parse(readFileSync16(file2, "utf8"));
+    return JSON.parse(readFileSync16(file3, "utf8"));
   } catch {
     return {};
   }
 }
-function write(file2, settings) {
-  mkdirSync8(join18(file2, ".."), { recursive: true });
-  writeAtomic(file2, JSON.stringify(settings, null, 2) + "\n");
+function write(file3, settings) {
+  mkdirSync8(join18(file3, ".."), { recursive: true });
+  writeAtomic(file3, JSON.stringify(settings, null, 2) + "\n");
 }
 function strip(settings) {
   let changed = false;
@@ -7258,23 +7288,24 @@ function strip(settings) {
 }
 function installGate(projectDir, bin, fast = false) {
   removeGate(projectDir);
-  const file2 = join18(projectDir, ".claude", "settings.local.json");
-  const settings = read2(file2);
+  const file3 = join18(projectDir, ".claude", "settings.local.json");
+  const settings = read2(file3);
   settings.hooks ??= {};
   settings.hooks.PreToolUse = [...settings.hooks.PreToolUse ?? [], ...gateEntries(bin, fast)];
   settings.hooks.PostToolUse = [...settings.hooks.PostToolUse ?? [], ...squeezeEntries(bin, fast)];
+  if (fast) writeStarter();
   if (fast) for (const ev of STARTER_EVENTS) settings.hooks[ev] = [...settings.hooks[ev] ?? [], ...starterEntries(bin)];
-  write(file2, settings);
-  return file2;
+  write(file3, settings);
+  return file3;
 }
 function removeGate(projectDir) {
   let removed = false;
   for (const name of SETTINGS) {
-    const file2 = join18(projectDir, ".claude", name);
-    if (!existsSync14(file2)) continue;
-    const settings = read2(file2);
+    const file3 = join18(projectDir, ".claude", name);
+    if (!existsSync14(file3)) continue;
+    const settings = read2(file3);
     if (strip(settings)) {
-      write(file2, settings);
+      write(file3, settings);
       removed = true;
     }
   }
@@ -7282,9 +7313,9 @@ function removeGate(projectDir) {
 }
 function refreshGate(projectDir, bin) {
   for (const name of SETTINGS) {
-    const file2 = join18(projectDir, ".claude", name);
-    if (!existsSync14(file2)) continue;
-    const hooks = read2(file2).hooks ?? {};
+    const file3 = join18(projectDir, ".claude", name);
+    if (!existsSync14(file3)) continue;
+    const hooks = read2(file3).hooks ?? {};
     const gate = (hooks.PreToolUse ?? []).filter(isGate);
     if (!gate.length) continue;
     const fast = gate.some((e) => (e.hooks ?? []).some((h) => isSnoutUrl(h.url)));
@@ -7725,12 +7756,12 @@ function auditCi(projectDir, opts = {}) {
   const steps = [];
   const unreadable = [];
   const files = existsSync15(wfDir) ? readdirSync5(wfDir).filter((f) => /\.ya?ml$/i.test(f)).sort() : [];
-  for (const file2 of files) {
+  for (const file3 of files) {
     let doc;
     try {
-      doc = asMap(parseYaml(readFileSync17(join19(wfDir, file2), "utf8")));
+      doc = asMap(parseYaml(readFileSync17(join19(wfDir, file3), "utf8")));
     } catch (e) {
-      unreadable.push({ file: file2, error: String(e.message ?? e) });
+      unreadable.push({ file: file3, error: String(e.message ?? e) });
       continue;
     }
     const { triggers, events } = triggersOf(doc.on ?? doc.true ?? null);
@@ -7772,9 +7803,9 @@ function auditCi(projectDir, opts = {}) {
         }
         if (!found) return;
         const conditions = [jobIf, asStr(step.if)].join(" ");
-        const s = { workflow: file2, job: jobId, step: name, ...found, triggers, scheduledPerMonth: sched.length ? sched.reduce((a, b) => a + b, 0) : null, flags: [] };
+        const s = { workflow: file3, job: jobId, step: name, ...found, triggers, scheduledPerMonth: sched.length ? sched.reduce((a, b) => a + b, 0) : null, flags: [] };
         flagStep(s, events, conditions, concurrency, Number(asStr(job["timeout-minutes"])) || null);
-        if (/\.lock\.ya?ml$/i.test(file2)) for (const f of s.flags) f.fix += ` (in ${file2.replace(/\.lock\.ya?ml$/i, ".md")}, then recompile)`;
+        if (/\.lock\.ya?ml$/i.test(file3)) for (const f of s.flags) f.fix += ` (in ${file3.replace(/\.lock\.ya?ml$/i, ".md")}, then recompile)`;
         steps.push(s);
       });
     }
@@ -8190,10 +8221,10 @@ function shareMemory(projectDir, snoutDir) {
   const probe = `${rel}/card.json`;
   const ignored = () => spawnSync3("git", ["check-ignore", "-q", "--no-index", probe], { cwd: projectDir, timeout: 2e3, windowsHide: true }).status === 0;
   if (!ignored()) return { ok: true, changedGitignore: false, dir: rel };
-  const file2 = join20(projectDir, ".gitignore");
+  const file3 = join20(projectDir, ".gitignore");
   let text = "";
   try {
-    text = readFileSync18(file2, "utf8");
+    text = readFileSync18(file3, "utf8");
   } catch {
   }
   const top = rel.split("/")[0];
@@ -8205,13 +8236,59 @@ function shareMemory(projectDir, snoutDir) {
     return { ok: false, reason: `${rel} is ignored by a rule Snout won't edit${why ? ` (${why.split("	")[0]})` : ""}. Add \`!${rel}/\` after it to share memory.` };
   }
   lines.splice(i, 1, `${top}/*`, `!${rel}/`);
-  writeAtomic(file2, lines.join(nl));
+  writeAtomic(file3, lines.join(nl));
   return ignored() ? { ok: false, reason: `Updated .gitignore, but another rule still ignores ${rel}.` } : { ok: true, changedGitignore: true, dir: rel };
+}
+
+// src/memory/receipts.ts
+import { join as join21 } from "node:path";
+var file2 = (snoutDir) => join21(snoutDir, "decisions.jsonl");
+function recordRecallDecision(snoutDir, row) {
+  const path = file2(snoutDir);
+  rotateIfLarge(path);
+  appendRow(path, { ...row, kind: "recall", cands: row.cands.slice(0, 10).map((c) => ({ ...c, files: c.files.slice(0, 8) })) });
+}
+function readRecallDecisions(snoutDir) {
+  return readRows(file2(snoutDir)).filter((r) => r?.kind === "recall" && Array.isArray(r.cands));
+}
+var norm = (p) => p.replace(/\\/g, "/").replace(/^\.\//, "");
+function recallOutcomes(decisions, cards, reads) {
+  const changedBy = /* @__PURE__ */ new Map();
+  for (const c of cards) changedBy.set(c.session, new Set([...c.changed, ...c.commits.flatMap((k) => k.files)].map(norm)));
+  const readsBy = /* @__PURE__ */ new Map();
+  for (const r of reads) (readsBy.get(r.session) ?? readsBy.set(r.session, []).get(r.session)).push(r);
+  return decisions.map((d) => {
+    const changed = changedBy.get(d.session) ?? /* @__PURE__ */ new Set();
+    const kept = new Set(d.cands.filter((c) => c.kept).flatMap((c) => c.files.map(norm)));
+    const dropped = new Set(d.cands.filter((c) => !c.kept).flatMap((c) => c.files.map(norm)));
+    const later = new Set((readsBy.get(d.session) ?? []).filter((r) => r.ts >= d.ts).map((r) => norm(r.path)));
+    return {
+      ...d,
+      opened: d.spoke ? [...kept].filter((f) => later.has(f)) : [],
+      changed: d.spoke ? [...kept].filter((f) => changed.has(f)) : [],
+      missed: d.spoke ? [] : [...dropped].filter((f) => changed.has(f))
+    };
+  });
+}
+function summarizeRecall(outcomes) {
+  const byReason = { spoke: 0, "no-match": 0, "already-recalled": 0, "map-gate": 0 };
+  for (const o of outcomes) byReason[o.reason] = (byReason[o.reason] ?? 0) + 1;
+  const spoke = outcomes.filter((o) => o.spoke);
+  const silent = outcomes.filter((o) => !o.spoke);
+  return {
+    prompts: outcomes.length,
+    spoke: spoke.length,
+    opened: spoke.filter((o) => o.opened.length).length,
+    changed: spoke.filter((o) => o.changed.length).length,
+    silent: silent.length,
+    missed: silent.filter((o) => o.missed.length).length,
+    byReason
+  };
 }
 
 // src/memory/embed.ts
 import { existsSync as existsSync17, mkdirSync as mkdirSync10, renameSync as renameSync4, rmSync as rmSync2, writeFileSync as writeFileSync5 } from "node:fs";
-import { join as join21 } from "node:path";
+import { join as join22 } from "node:path";
 import { spawnSync as spawnSync4 } from "node:child_process";
 import { createRequire as createRequire2 } from "node:module";
 import { pathToFileURL } from "node:url";
@@ -8219,12 +8296,12 @@ var MODEL = "Xenova/bge-small-en-v1.5";
 var LIBRARY = "@huggingface/transformers@3.8.1";
 var MODEL_FILES = ["config.json", "tokenizer.json", "tokenizer_config.json", "special_tokens_map.json", "onnx/model_quantized.onnx"];
 var QUERY_PREFIX = "Represent this sentence for searching relevant passages: ";
-var modelDir = () => join21(configDir(), "model");
-var modelPath = (dir = modelDir()) => join21(dir, "models", ...MODEL.split("/"));
+var modelDir = () => join22(configDir(), "model");
+var modelPath = (dir = modelDir()) => join22(dir, "models", ...MODEL.split("/"));
 var fake = () => process.env.SNOUT_EMBED_FAKE === "1";
 function modelReady(dir = modelDir()) {
   if (fake()) return true;
-  return existsSync17(join21(modelPath(dir), "onnx", "model_quantized.onnx")) && existsSync17(join21(dir, "node_modules", "@huggingface", "transformers", "package.json"));
+  return existsSync17(join22(modelPath(dir), "onnx", "model_quantized.onnx")) && existsSync17(join22(dir, "node_modules", "@huggingface", "transformers", "package.json"));
 }
 var loading = null;
 function loadEmbedder(dir = modelDir()) {
@@ -8235,10 +8312,10 @@ function loadEmbedder(dir = modelDir()) {
   return loading;
 }
 async function realEmbedder(dir) {
-  const entry = createRequire2(join21(dir, "package.json")).resolve("@huggingface/transformers");
+  const entry = createRequire2(join22(dir, "package.json")).resolve("@huggingface/transformers");
   const mod = await import(pathToFileURL(entry).href);
   const m = mod.env ? mod : mod.default;
-  m.env.localModelPath = join21(dir, "models") + "/";
+  m.env.localModelPath = join22(dir, "models") + "/";
   m.env.allowRemoteModels = false;
   const pipe = await m.pipeline("feature-extraction", MODEL, { dtype: "q8" });
   return async (texts) => {
@@ -8261,32 +8338,32 @@ var fakeEmbed = async (texts) => texts.map((t) => {
   const n = Math.hypot(...v) || 1;
   return v.map((x) => x / n);
 });
-async function download(url, file2) {
+async function download(url, file3) {
   try {
     const r = await fetch(url, { signal: AbortSignal.timeout(6e4) });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    writeFileSync5(file2, Buffer.from(await r.arrayBuffer()));
+    writeFileSync5(file3, Buffer.from(await r.arrayBuffer()));
     return;
   } catch {
   }
-  const c = spawnSync4("curl", ["-sSfL", "--max-time", "300", "-o", file2, url], { stdio: "ignore", windowsHide: true });
+  const c = spawnSync4("curl", ["-sSfL", "--max-time", "300", "-o", file3, url], { stdio: "ignore", windowsHide: true });
   if (c.status !== 0) throw new Error(`could not download ${url}`);
 }
 async function installModel(log, dir = modelDir()) {
   mkdirSync10(dir, { recursive: true });
-  if (!existsSync17(join21(dir, "package.json"))) writeFileSync5(join21(dir, "package.json"), '{ "name": "snout-model", "private": true }\n');
-  if (!existsSync17(join21(dir, "node_modules", "@huggingface", "transformers", "package.json"))) {
+  if (!existsSync17(join22(dir, "package.json"))) writeFileSync5(join22(dir, "package.json"), '{ "name": "snout-model", "private": true }\n');
+  if (!existsSync17(join22(dir, "node_modules", "@huggingface", "transformers", "package.json"))) {
     log(`Installing ${LIBRARY} into ${dir} ...`);
     const npm = spawnSync4("npm", ["install", LIBRARY, "--no-audit", "--no-fund", "--loglevel=error"], { cwd: dir, stdio: "inherit", shell: process.platform === "win32", windowsHide: true });
     if (npm.status !== 0) throw new Error("npm install failed (is npm on PATH?)");
   }
   for (const f of MODEL_FILES) {
-    const file2 = join21(modelPath(dir), ...f.split("/"));
-    if (existsSync17(file2)) continue;
-    mkdirSync10(join21(file2, ".."), { recursive: true });
+    const file3 = join22(modelPath(dir), ...f.split("/"));
+    if (existsSync17(file3)) continue;
+    mkdirSync10(join22(file3, ".."), { recursive: true });
     log(`Downloading ${MODEL}/${f} ...`);
-    await download(`https://huggingface.co/${MODEL}/resolve/main/${f}`, `${file2}.part`);
-    renameSync4(`${file2}.part`, file2);
+    await download(`https://huggingface.co/${MODEL}/resolve/main/${f}`, `${file3}.part`);
+    renameSync4(`${file3}.part`, file3);
   }
 }
 function removeModel(dir = modelDir()) {
@@ -8297,11 +8374,11 @@ function removeModel(dir = modelDir()) {
 
 // src/gate/repeat.ts
 import { existsSync as existsSync18, readFileSync as readFileSync19, statSync as statSync16 } from "node:fs";
-import { join as join22 } from "node:path";
+import { join as join23 } from "node:path";
 import { createHash as createHash3 } from "node:crypto";
 var MAX_ENTRIES = 2e3;
 var MAX_WINDOWS = 20;
-var storePath = (snoutDir) => join22(snoutDir, "reads.json");
+var storePath = (snoutDir) => join23(snoutDir, "reads.json");
 function load2(snoutDir, session) {
   try {
     const s = JSON.parse(readFileSync19(storePath(snoutDir), "utf8"));
@@ -8330,12 +8407,12 @@ function requestedWindow(toolInput) {
   return `${offset}:${limit}`;
 }
 function returnedWindow(toolResponse) {
-  const file2 = toolResponse?.file;
-  if (!file2 || typeof file2.numLines !== "number") return null;
-  const start = Number(file2.startLine) || 1;
-  const total = Number(file2.totalLines) || file2.numLines;
-  if (start <= 1 && file2.numLines >= total) return "full";
-  return `${start}:${file2.numLines}`;
+  const file3 = toolResponse?.file;
+  if (!file3 || typeof file3.numLines !== "number") return null;
+  const start = Number(file3.startLine) || 1;
+  const total = Number(file3.totalLines) || file3.numLines;
+  if (start <= 1 && file3.numLines >= total) return "full";
+  return `${start}:${file3.numLines}`;
 }
 var span = (w) => {
   const [s, n] = w.split(":").map(Number);
@@ -8398,7 +8475,7 @@ function forgetReads(snoutDir, session) {
 }
 
 // src/cli.ts
-var VERSION2 = "0.2.2";
+var VERSION2 = "0.3.0";
 var BIN = resolve13(process.argv[1] ?? "dist/snout.mjs");
 var requestStart = 0;
 var elapsedMs = () => Math.round(performance.now() - requestStart);
@@ -8467,7 +8544,7 @@ function onAgentHook(agent, event, raw) {
   const text = fromInternal(agent, event, out);
   if (text) writeOut(text);
 }
-var spendCache = (paths) => existsSync19(paths.snoutDir) ? join23(paths.snoutDir, "spend-cache.json") : null;
+var spendCache = (paths) => existsSync19(paths.snoutDir) ? join24(paths.snoutDir, "spend-cache.json") : null;
 function cmdStatus(paths, cfg) {
   const rows = readDecisions(paths.ledger, 2e4);
   const s = summarizeLedger(rows);
@@ -8496,7 +8573,7 @@ function cmdSpend(paths, args) {
   const i = args.indexOf("--days");
   const days = i >= 0 ? Math.max(1, Number(args[i + 1]) || 30) : 30;
   const since = new Date(Date.now() - (days - 1) * 864e5).toISOString().slice(0, 10);
-  const spend = readSpend(all ? null : paths.projectDir, all ? join23(configDir(), "spend-cache.json") : join23(paths.snoutDir, "spend-cache.json"), configDir());
+  const spend = readSpend(all ? null : paths.projectDir, all ? join24(configDir(), "spend-cache.json") : join24(paths.snoutDir, "spend-cache.json"), configDir());
   const s = summarizeSpend([...spend.values()].flat(), since);
   const held = all ? 0 : dailyAggregates(readDecisions(paths.ledger, 2e4), since).reduce((a, d) => a + d.heldBack, 0);
   const projects = [...spend.entries()].map(([dir, r]) => ({ dir, s: summarizeSpend(r, since) })).filter((p) => p.s.requests > 0).sort((a, b) => b.s.costUsd - a.s.costUsd);
@@ -8521,7 +8598,7 @@ function cmdSpend(paths, args) {
     const rest = projects.slice(10);
     if (rest.length) lines.push(`    ${pad(`${rest.length} more`, 42, true)}${pad(usd(rest.reduce((a, p) => a + p.s.costUsd, 0)), 11)}`);
   }
-  if (s.unpriced.length) lines.push("", `  No list price for ${s.unpriced.map((m) => safeText(m, 40)).join(", ")}: tokens counted, cost left out. Add it to ${join23(configDir(), "prices.json")}.`);
+  if (s.unpriced.length) lines.push("", `  No list price for ${s.unpriced.map((m) => safeText(m, 40)).join(", ")}: tokens counted, cost left out. Add it to ${join24(configDir(), "prices.json")}.`);
   lines.push("", "  A Claude or ChatGPT subscription is not billed per token; this is what the same work costs on the API.");
   say(lines.join("\n"));
 }
@@ -8576,8 +8653,8 @@ function cmdInit(agent, cwd) {
 Sets that agent up in this project so it runs Snout on every read.`);
   const paths = resolvePaths(cwd);
   try {
-    const { file: file2, events } = initAgent(agent, paths.projectDir);
-    say(`snout init ${agent}: wrote ${toRel(file2, paths.projectDir)} (${events.join(", ")}).`);
+    const { file: file3, events } = initAgent(agent, paths.projectDir);
+    say(`snout init ${agent}: wrote ${toRel(file3, paths.projectDir)} (${events.join(", ")}).`);
     if (agent === "codex") say("Codex loads project hooks only in a trusted folder: open Codex here, trust the folder, then approve Snout's hooks with /hooks.");
     const mode = loadConfig(paths).mode;
     say(mode === "observe" ? "Mode: observe (records only). `snout mode enforce` makes it act; `snout report` shows what it saw." : `Mode: ${mode}. \`snout report\` shows what it saw.`);
@@ -8599,8 +8676,8 @@ ${rest}`);
   if (!isAgent(agent)) return say(`Usage: snout init <claude|${AGENTS.join("|")}> --remove`);
   const paths = resolvePaths(cwd);
   try {
-    const { file: file2, removed } = removeAgent(agent, paths.projectDir);
-    say(removed ? `Removed Snout's ${removed} hook entr${removed === 1 ? "y" : "ies"} from ${toRel(file2, paths.projectDir)}; other hooks are untouched. ${rest}` : `No Snout hooks in ${toRel(file2, paths.projectDir)}. ${rest}`);
+    const { file: file3, removed } = removeAgent(agent, paths.projectDir);
+    say(removed ? `Removed Snout's ${removed} hook entr${removed === 1 ? "y" : "ies"} from ${toRel(file3, paths.projectDir)}; other hooks are untouched. ${rest}` : `No Snout hooks in ${toRel(file3, paths.projectDir)}. ${rest}`);
   } catch (err) {
     recordError("init", err);
     say(`snout init ${agent} --remove failed: ${safeText(err.message, 200)}`);
@@ -8730,14 +8807,14 @@ function sessionWithoutPlugin(paths) {
   return newest && !newest[1].recording && newest[0] !== "unknown" ? newest[0] : null;
 }
 var pluginNotice = null;
-var sessionsDir = (paths) => join23(paths.snoutDir, "sessions");
-var markerOf = (paths, session) => join23(sessionsDir(paths), session.replace(/[^\w.-]/g, "_").slice(0, 80));
+var sessionsDir = (paths) => join24(paths.snoutDir, "sessions");
+var markerOf = (paths, session) => join24(sessionsDir(paths), session.replace(/[^\w.-]/g, "_").slice(0, 80));
 function markPluginStarted(paths, session) {
   try {
     mkdirSync11(sessionsDir(paths), { recursive: true });
     writeFileSync6(markerOf(paths, session), "");
-    const all = readdirSync7(sessionsDir(paths)).map((f) => ({ f, t: statSync17(join23(sessionsDir(paths), f)).mtimeMs })).sort((a, b) => b.t - a.t);
-    for (const { f } of all.slice(50)) rmSync3(join23(sessionsDir(paths), f), { force: true });
+    const all = readdirSync7(sessionsDir(paths)).map((f) => ({ f, t: statSync17(join24(sessionsDir(paths), f)).mtimeMs })).sort((a, b) => b.t - a.t);
+    for (const { f } of all.slice(50)) rmSync3(join24(sessionsDir(paths), f), { force: true });
   } catch (err) {
     recordError("markPluginStarted", err);
   }
@@ -8798,7 +8875,7 @@ function onSessionStart(input, paths, cfg) {
     try {
       const progress = readProgress(paths.snoutDir, sessionStartMs(input.transcript_path));
       const facts = client === "codex" ? codexSessionFacts(input.transcript_path, paths.projectDir) : sessionFacts(input.transcript_path, paths.projectDir);
-      const progressFile = toRel(join23(paths.snoutDir, PROGRESS_FILE), paths.projectDir);
+      const progressFile = toRel(join24(paths.snoutDir, PROGRESS_FILE), paths.projectDir);
       const text = memoryText(facts, readPins(paths.projectDir, paths.snoutDir), paths.projectDir, cfg, progress, progressFile);
       if (text) return emit({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: cfg.output === "concise" ? `${text}
 
@@ -8821,7 +8898,7 @@ var INSTRUCTION_FILES = ["CLAUDE.md", "CLAUDE.local.md", ".claude/CLAUDE.md", "A
 function instructionText(projectDir) {
   return INSTRUCTION_FILES.map((f) => {
     try {
-      return readFileSync20(join23(projectDir, f), "utf8");
+      return readFileSync20(join24(projectDir, f), "utf8");
     } catch {
       return "";
     }
@@ -8832,7 +8909,7 @@ function startBrief(input, paths, cfg, session) {
   if (cfg.memory === false || cfg.mode === "observe" || source && source !== "startup" && source !== "clear") return "";
   try {
     const text = repoBrief(readCards(paths.snoutDir).filter((c) => c.session !== session), { projectDir: paths.projectDir, instructions: instructionText(paths.projectDir) });
-    if (text) appendRow(join23(paths.snoutDir, "recall.jsonl"), { ts: (/* @__PURE__ */ new Date()).toISOString(), session, turn: 0, kind: "brief", tokensEst: estimateTokens(Buffer.byteLength(text), "x.txt") });
+    if (text) appendRow(join24(paths.snoutDir, "recall.jsonl"), { ts: (/* @__PURE__ */ new Date()).toISOString(), session, turn: 0, kind: "brief", tokensEst: estimateTokens(Buffer.byteLength(text), "x.txt") });
     return text;
   } catch (err) {
     recordError("repoBrief", err);
@@ -8957,7 +9034,7 @@ function cmdOutput(paths, cfg, args) {
 }
 var FIRST_RUN_MIN_READS = 3;
 function firstRunReport(paths, cfg, s) {
-  const flag = join23(paths.snoutDir, "first-run.json");
+  const flag = join24(paths.snoutDir, "first-run.json");
   if (cfg.mode !== "observe" || existsSync19(flag) || s.reads < FIRST_RUN_MIN_READS || s.couldHoldBack <= 0) return null;
   let usd = "";
   try {
@@ -9007,17 +9084,17 @@ function dashboardActions(paths) {
 var SQUEEZE_LOGS_KEPT = 30;
 function firstForCall(paths, id) {
   if (!id) return true;
-  const dir = join23(paths.snoutDir, "calls");
+  const dir = join24(paths.snoutDir, "calls");
   try {
     mkdirSync11(dir, { recursive: true });
-    writeFileSync6(join23(dir, createHash4("sha256").update(id).digest("hex").slice(0, 24)), "", { flag: "wx" });
+    writeFileSync6(join24(dir, createHash4("sha256").update(id).digest("hex").slice(0, 24)), "", { flag: "wx" });
   } catch (err) {
     if (err.code === "EEXIST") return false;
     return true;
   }
   try {
     const all = readdirSync7(dir);
-    if (all.length > 400) for (const f of all.map((f2) => ({ f: f2, t: statSync17(join23(dir, f2)).mtimeMs })).sort((a, b) => a.t - b.t).slice(0, all.length - 200)) rmSync3(join23(dir, f.f), { force: true });
+    if (all.length > 400) for (const f of all.map((f2) => ({ f: f2, t: statSync17(join24(dir, f2)).mtimeMs })).sort((a, b) => a.t - b.t).slice(0, all.length - 200)) rmSync3(join24(dir, f.f), { force: true });
   } catch {
   }
   return true;
@@ -9086,14 +9163,14 @@ ${stderr}` : resp.stdout;
 }
 var squeezeLogName = (command) => `${(/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-")}-${createHash4("sha256").update(command).digest("hex").slice(0, 8)}.log`;
 function saveSqueezeLog(paths, logName, command, full) {
-  const dir = join23(paths.snoutDir, "squeeze");
+  const dir = join24(paths.snoutDir, "squeeze");
   try {
     mkdirSync11(dir, { recursive: true });
-    writeAtomic(join23(dir, logName), `$ ${command}
+    writeAtomic(join24(dir, logName), `$ ${command}
 
 ${full}`);
     const logs = readdirSync7(dir).filter((f) => f.endsWith(".log")).sort();
-    for (const old of logs.slice(0, Math.max(0, logs.length - SQUEEZE_LOGS_KEPT))) rmSync3(join23(dir, old), { force: true });
+    for (const old of logs.slice(0, Math.max(0, logs.length - SQUEEZE_LOGS_KEPT))) rmSync3(join24(dir, old), { force: true });
     return true;
   } catch (err) {
     recordError("squeeze log", err);
@@ -9141,7 +9218,7 @@ function onMcpTrim(input, paths, cfg, started) {
       return emit({ hookSpecificOutput: { hookEventName: "PostToolUse", updatedToolOutput: [{ type: "text", text: note }] } });
     }
   }
-  const dir = join23(paths.snoutDir, "squeeze");
+  const dir = join24(paths.snoutDir, "squeeze");
   const logName = `${(/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-")}-${createHash4("sha256").update(tool).digest("hex").slice(0, 8)}.json`;
   const t = trimMcp(input.tool_response, `.snout/squeeze/${logName}`);
   if (!t) {
@@ -9150,9 +9227,9 @@ function onMcpTrim(input, paths, cfg, started) {
   }
   try {
     mkdirSync11(dir, { recursive: true });
-    writeAtomic(join23(dir, logName), JSON.stringify({ tool, input: input.tool_input ?? null, output: input.tool_response }, null, 1));
+    writeAtomic(join24(dir, logName), JSON.stringify({ tool, input: input.tool_input ?? null, output: input.tool_response }, null, 1));
     const logs = readdirSync7(dir).sort();
-    for (const old of logs.slice(0, Math.max(0, logs.length - SQUEEZE_LOGS_KEPT))) rmSync3(join23(dir, old), { force: true });
+    for (const old of logs.slice(0, Math.max(0, logs.length - SQUEEZE_LOGS_KEPT))) rmSync3(join24(dir, old), { force: true });
   } catch (err) {
     recordError("mcp trim log", err);
     return emit({});
@@ -9252,15 +9329,44 @@ function recallBrief(prompt, paths, cfg, state) {
     const cards = readCards(paths.snoutDir);
     const opts = { session: state.session, projectDir: paths.projectDir };
     const ranker = vectors ? "hybrid" : "words";
-    let hits = (vectors ? hybridRecall(cards, prompt, vectors, opts) : recall(cards, prompt, opts)).filter((h) => !seen.has(h.card.id));
+    const raw = vectors ? hybridRecall(cards, prompt, vectors, opts) : recall(cards, prompt, opts);
+    let hits = raw.filter((h) => !seen.has(h.card.id));
+    const fresh = hits.length;
+    let top = null;
     if (hits.length) {
-      const top = new Set(candidates(refreshMap(paths, cfg), prompt, RECALL_AGREE).map((c) => c.path));
-      hits = hits.filter((h) => h.files.length > 0 || [...h.card.changed, ...h.card.commits.flatMap((k) => k.files)].some((f) => top.has(f)));
+      top = new Set(candidates(refreshMap(paths, cfg), prompt, RECALL_AGREE).map((c) => c.path));
+      hits = hits.filter((h) => h.files.length > 0 || cardFiles(h.card).some((f) => top.has(f)));
     }
     const text = renderRecall(hits, paths.projectDir);
+    if (cards.length) {
+      const kept = new Set(text ? hits.map((h) => h.card.id) : []);
+      const reason = text ? "spoke" : !raw.length ? "no-match" : !fresh ? "already-recalled" : "map-gate";
+      try {
+        recordRecallDecision(paths.snoutDir, {
+          ts: (/* @__PURE__ */ new Date()).toISOString(),
+          session: state.session,
+          turn: state.turn,
+          ranker,
+          spoke: !!text,
+          reason,
+          cands: raw.map((h) => ({
+            id: h.card.id,
+            agent: h.card.agent,
+            score: Math.round(h.score * 1e4) / 1e4,
+            named: h.files.length,
+            mapAgree: top ? cardFiles(h.card).some((f) => top.has(f)) : null,
+            kept: kept.has(h.card.id),
+            files: cardFiles(h.card)
+          })),
+          ...text ? { tokensEst: estimateTokens(Buffer.byteLength(text), "x.txt") } : {}
+        });
+      } catch (err) {
+        recordError("recallDecision", err);
+      }
+    }
     if (!text) return "";
     state.recalled = [...seen, ...hits.map((h) => h.card.id)].slice(-50);
-    appendRow(join23(paths.snoutDir, "recall.jsonl"), {
+    appendRow(join24(paths.snoutDir, "recall.jsonl"), {
       ts: (/* @__PURE__ */ new Date()).toISOString(),
       session: state.session,
       turn: state.turn,
@@ -9335,10 +9441,20 @@ function cmdMemory(paths, cfg, args) {
     return say(forgetCard(paths.snoutDir, id) ? `Forgot ${safeText(id, 80)}.` : `No card for ${safeText(id, 80)}.`);
   }
   const cards = listCards(paths.snoutDir);
-  const head = `Memory is ${cfg.memory === false ? "off" : "on"} \xB7 ${cards.length} card${cards.length === 1 ? "" : "s"} in ${toRel(join23(paths.snoutDir, "memory"), paths.projectDir)}`;
+  const head = `Memory is ${cfg.memory === false ? "off" : "on"} \xB7 ${cards.length} card${cards.length === 1 ? "" : "s"} in ${toRel(join24(paths.snoutDir, "memory"), paths.projectDir)}`;
   const rows = cards.slice(0, 20).map((c) => `  ${c.updated.slice(0, 10)}  ${c.agent.padEnd(6)} ${safeText(c.session, 36)}  ${safeText(c.task ?? c.commits[0]?.subject ?? "", 70)}${c.commits.length ? `  [${c.commits.map((k) => k.sha.slice(0, 7)).join(" ")}]` : ""}`);
   const ranks = modelReady() ? "words and meaning (memory model installed)" : "words (snout memory model install adds meaning)";
-  say([head, `Recall ranks by ${ranks}`, ...rows, "", 'Usage: snout memory on|off \xB7 snout memory brief \xB7 snout memory share \xB7 snout memory forget <session> \xB7 snout memory model [install|remove] \xB7 snout recall "<request>"'].join("\n"));
+  say([head, `Recall ranks by ${ranks}`, ...recallStatsLines(paths, cards), ...rows, "", 'Usage: snout memory on|off \xB7 snout memory brief \xB7 snout memory share \xB7 snout memory forget <session> \xB7 snout memory model [install|remove] \xB7 snout recall "<request>"'].join("\n"));
+}
+function recallStatsLines(paths, cards) {
+  const decisions = readRecallDecisions(paths.snoutDir);
+  if (!decisions.length) return [];
+  const reads = readDecisions(paths.ledger).map((r) => ({ session: r.session, ts: r.ts, path: toRel(r.path, paths.projectDir) }));
+  const s = summarizeRecall(recallOutcomes(decisions, cards, reads));
+  return [
+    `Recall spoke on ${s.spoke} of ${s.prompts} prompts with cards to weigh: its files were opened after ${s.opened}, changed after ${s.changed}.`,
+    `Stayed silent on ${s.silent} (no match ${s.byReason["no-match"]}, already shown ${s.byReason["already-recalled"]}, no map agreement ${s.byReason["map-gate"]}); a dropped card named a file the session then changed in ${s.missed}.`
+  ];
 }
 function cmdRecall(paths, args) {
   const i = args.indexOf("--as-of");
@@ -9357,7 +9473,7 @@ function refreshMap(paths, cfg) {
   }
   const lowValue = (rel) => {
     try {
-      return decide({ absPath: join23(paths.projectDir, rel), projectDir: paths.projectDir, cfg }).value === 0;
+      return decide({ absPath: join24(paths.projectDir, rel), projectDir: paths.projectDir, cfg }).value === 0;
     } catch {
       return false;
     }
@@ -9375,7 +9491,7 @@ function suggestFiles(prompt, paths, cfg, state) {
     const cs = candidates(refreshMap(paths, cfg), prompt, MAP_CANDIDATES);
     if (!shouldSuggest(cs, prompt)) return "";
     const line = renderCandidates(cs.map((c) => ({ ...c, path: safePath(c.path) })));
-    appendRow(join23(paths.snoutDir, "map-suggestions.jsonl"), {
+    appendRow(join24(paths.snoutDir, "map-suggestions.jsonl"), {
       ts: (/* @__PURE__ */ new Date()).toISOString(),
       session: state.session,
       turn: state.turn,
@@ -9396,7 +9512,7 @@ function cmdFast(paths, cfg, v) {
 }
 var SERVE_IDLE_MS = Number(process.env.SNOUT_SERVE_IDLE_MS) || 30 * 6e4;
 var healthUrl = () => `http://127.0.0.1:${HOOK_PORT}/snout/v1/health`;
-var servePidFile = () => join23(configDir(), `serve-${HOOK_PORT}.pid`);
+var servePidFile = () => join24(configDir(), `serve-${HOOK_PORT}.pid`);
 function reviveServer(paths, cfg) {
   if (client || capturing || cfg.mode === "observe" || !fastGateInstalled(paths)) return;
   try {
@@ -9552,7 +9668,7 @@ function coachPrompt(prompt, paths, cfg, state) {
     const tip = c.tip && !quiet ? c.tip : null;
     if (tip) state.lastCoachTurn = state.turn;
     if (c.taskLike) {
-      appendRow(join23(paths.snoutDir, "prompts.jsonl"), {
+      appendRow(join24(paths.snoutDir, "prompts.jsonl"), {
         ts: (/* @__PURE__ */ new Date()).toISOString(),
         session: state.session,
         turn: state.turn,
@@ -9628,7 +9744,7 @@ function onPreTool(input, paths, cfg) {
     emit({});
     return;
   }
-  const absPath = isAbsolute14(filePath) ? filePath : join23(paths.projectDir, filePath);
+  const absPath = isAbsolute14(filePath) ? filePath : join24(paths.projectDir, filePath);
   const state = loadState(paths.state, input.session_id ?? "unknown");
   if (tool === "Read" && cfg.repeatReads !== false) {
     const rel = toRel(absPath, paths.projectDir);
@@ -9980,7 +10096,7 @@ function onPostTool(input, paths, cfg) {
   if (input.tool_name === "Read" && filePath) {
     const window = returnedWindow(input.tool_response);
     if (window) {
-      const abs = isAbsolute14(filePath) ? filePath : join23(paths.projectDir, filePath);
+      const abs = isAbsolute14(filePath) ? filePath : join24(paths.projectDir, filePath);
       rememberRead(paths.snoutDir, state.session, agentOf2(input).agentId, abs, toRel(abs, paths.projectDir), window, state.turn);
     }
   } else if (input.tool_name === "Bash") {
@@ -10152,7 +10268,7 @@ function recordToolOutput(input, paths, state, bytes) {
   });
 }
 function recordObservation(input, paths, cfg, filePath, state, bytesHint) {
-  const absPath = isAbsolute14(filePath) ? filePath : join23(paths.projectDir, filePath);
+  const absPath = isAbsolute14(filePath) ? filePath : join24(paths.projectDir, filePath);
   const rel = toRel(absPath, paths.projectDir);
   const d = decide({ absPath, projectDir: paths.projectDir, cfg });
   const returned = bytesHint ?? responseBytes(input.tool_response);
@@ -10187,7 +10303,7 @@ function recordObservation(input, paths, cfg, filePath, state, bytesHint) {
   });
 }
 function hasPreToolRow(paths, state, filePath, agentId) {
-  const rel = toRel(isAbsolute14(filePath) ? filePath : join23(paths.projectDir, filePath), paths.projectDir);
+  const rel = toRel(isAbsolute14(filePath) ? filePath : join24(paths.projectDir, filePath), paths.projectDir);
   return readDecisions(paths.ledger, 12).some(
     (r) => r.path === rel && r.turn === state.turn && r.session === state.session && r.agentId === agentId && !r.observedOnly
   );
@@ -10275,11 +10391,11 @@ function cmdAllow(paths, cfg, target) {
   setConfigKey(paths.config, "alwaysAllow", [...cfg.alwaysAllow, target]);
   say(`Added ${target} to always-allow. It will never be flagged again.`);
 }
-var appliedPath = (paths) => join23(paths.snoutDir, "applied.jsonl");
+var appliedPath = (paths) => join24(paths.snoutDir, "applied.jsonl");
 function currentTips(paths, cfg) {
   let claudeMd = "";
   try {
-    claudeMd = readFileSync20(join23(paths.projectDir, "CLAUDE.md"), "utf8");
+    claudeMd = readFileSync20(join24(paths.projectDir, "CLAUDE.md"), "utf8");
   } catch {
   }
   return tipsOf(readDecisions(paths.ledger, 5e3), {
@@ -10309,14 +10425,14 @@ function cmdApply(paths, cfg, args) {
   const tip = tips[n - 1];
   if (!tip) return say(`No tip ${n}. Run snout apply to list them.`);
   const toUser = args.includes("--user") && tip.kind !== "claude-md";
-  const file2 = tip.kind === "claude-md" ? join23(paths.projectDir, "CLAUDE.md") : toUser ? userConfigPath() : paths.config;
+  const file3 = tip.kind === "claude-md" ? join24(paths.projectDir, "CLAUDE.md") : toUser ? userConfigPath() : paths.config;
   if (!args.includes("--yes")) {
     const lines = [
       `${n}. ${safeText(tip.title, 90)}`,
       `  seen      ${safeText(tip.evidence, 110)}`,
       // Shown exactly as it will be written: tipsOf only offers paths that need no escaping.
       `  change    ${tip.change}`,
-      `  file      ${safeText(file2, 140)}`,
+      `  file      ${safeText(file3, 140)}`,
       `  effect    ${safeText(tip.effect, 110)}`,
       `  undo      snout apply --undo`,
       "",
@@ -10324,18 +10440,18 @@ function cmdApply(paths, cfg, args) {
     ];
     return say(lines.join("\n"));
   }
-  const row = { ts: (/* @__PURE__ */ new Date()).toISOString(), id: tip.id, kind: tip.kind, target: tip.target, file: file2 };
+  const row = { ts: (/* @__PURE__ */ new Date()).toISOString(), id: tip.id, kind: tip.kind, target: tip.target, file: file3 };
   if (tip.kind === "claude-md") {
     const line = claudeMdLine(tip.target, tip.rule ?? "");
-    const existed = existsSync19(file2);
-    const prev = existed ? readFileSync20(file2, "utf8") : "";
-    writeAtomic(file2, prev + (prev === "" || prev.endsWith("\n") ? "" : "\n") + line + "\n");
+    const existed = existsSync19(file3);
+    const prev = existed ? readFileSync20(file3, "utf8") : "";
+    writeAtomic(file3, prev + (prev === "" || prev.endsWith("\n") ? "" : "\n") + line + "\n");
     Object.assign(row, { line, created: !existed });
   } else {
     const key = tip.kind === "mode" ? "mode" : "alwaysAllow";
-    const before = readLayer(file2)[key];
+    const before = readLayer(file3)[key];
     const value = key === "mode" ? tip.target : [...cfg.alwaysAllow, tip.target];
-    setConfigKey(file2, key, value);
+    setConfigKey(file3, key, value);
     Object.assign(row, { key, before });
   }
   appendRow(appliedPath(paths), row);
@@ -10388,7 +10504,7 @@ function cmdExplain(paths, cfg, args) {
     say("Usage: /snout:explain <path> [--json]");
     return;
   }
-  const absPath = isAbsolute14(target) ? target : join23(paths.projectDir, target);
+  const absPath = isAbsolute14(target) ? target : join24(paths.projectDir, target);
   const rel = toRel(absPath, paths.projectDir);
   const bytes = sizeOf(absPath);
   const tokens2 = estimateTokens(bytes, rel);
@@ -10485,7 +10601,7 @@ function cmdScan(paths, cfg, args) {
   const topN = Math.max(0, Math.min(100, Number(flag("--top") ?? 10) || 10));
   const valued = /* @__PURE__ */ new Set(["--deny", "--ask", "--mode", "--top"]);
   const target = args.find((a, i) => !a.startsWith("--") && !valued.has(args[i - 1] ?? ""));
-  const root = target ? isAbsolute14(target) ? target : join23(paths.projectDir, target) : paths.projectDir;
+  const root = target ? isAbsolute14(target) ? target : join24(paths.projectDir, target) : paths.projectDir;
   const started = Date.now();
   const files = [];
   let truncated = false;
@@ -10500,7 +10616,7 @@ function cmdScan(paths, cfg, args) {
         truncated = true;
         break;
       }
-      const abs = join23(root, rel);
+      const abs = join24(root, rel);
       if (isRegularFile(abs)) add(abs);
     }
   }
@@ -10516,7 +10632,7 @@ function cmdScan(paths, cfg, args) {
         truncated = true;
         return;
       }
-      const abs = join23(dir, e.name);
+      const abs = join24(dir, e.name);
       if (e.isDirectory()) {
         if (!SCAN_SKIP.has(e.name)) walk2(abs);
       } else if (e.isFile()) {
@@ -10729,7 +10845,7 @@ function recordRow(path, row) {
   let model = r.model;
   if (!model) {
     try {
-      const st = JSON.parse(readFileSync20(join23(dirname9(path), "state.json"), "utf8"));
+      const st = JSON.parse(readFileSync20(join24(dirname9(path), "state.json"), "utf8"));
       if (st.model && st.session === r.session) model = st.model;
     } catch {
     }
@@ -10738,7 +10854,7 @@ function recordRow(path, row) {
 }
 var replayDir = null;
 function rebase(p, dir) {
-  return { ...p, snoutDir: dir, config: join23(dir, "config.json"), thresholds: join23(dir, "thresholds.json"), ledger: join23(dir, "ledger.jsonl"), turns: join23(dir, "turns.jsonl"), errors: join23(dir, "errors.jsonl"), hooks: join23(dir, "hooks.jsonl"), state: join23(dir, "state.json"), map: join23(dir, "map.json") };
+  return { ...p, snoutDir: dir, config: join24(dir, "config.json"), thresholds: join24(dir, "thresholds.json"), ledger: join24(dir, "ledger.jsonl"), turns: join24(dir, "turns.jsonl"), errors: join24(dir, "errors.jsonl"), hooks: join24(dir, "hooks.jsonl"), state: join24(dir, "state.json"), map: join24(dir, "map.json") };
 }
 function runHook(command, input) {
   captured = null;
@@ -10760,8 +10876,8 @@ function cmdReplay(paths, args) {
   const last = lastAt >= 0 ? Math.max(1, Number(args[lastAt + 1]) || 20) : 20;
   let files = args.filter((a, i) => a.endsWith(".jsonl") && args[i - 1] !== "--last");
   if (!files.length) {
-    const dir = join23(process.env.CLAUDE_CONFIG_DIR || join23(homedir5(), ".claude"), "projects", resolve13(paths.projectDir).replace(/[^A-Za-z0-9]/g, "-"));
-    files = existsSync19(dir) ? readdirSync7(dir).filter((f) => f.endsWith(".jsonl")).map((f) => join23(dir, f)).sort((a, b) => statSync17(b).mtimeMs - statSync17(a).mtimeMs).slice(0, last) : [];
+    const dir = join24(process.env.CLAUDE_CONFIG_DIR || join24(homedir5(), ".claude"), "projects", resolve13(paths.projectDir).replace(/[^A-Za-z0-9]/g, "-"));
+    files = existsSync19(dir) ? readdirSync7(dir).filter((f) => f.endsWith(".jsonl")).map((f) => join24(dir, f)).sort((a, b) => statSync17(b).mtimeMs - statSync17(a).mtimeMs).slice(0, last) : [];
   }
   if (!files.length) return say("snout replay: no Claude Code sessions found for this project. Pass transcript files (.jsonl) to replay others.");
   const rows = [];
@@ -10770,15 +10886,15 @@ function cmdReplay(paths, args) {
     squeeze: (input) => runHook("squeeze", input),
     post: (input) => void runHook("post-tool", input)
   };
-  for (const file2 of files) {
-    const dir = mkdtempSync2(join23(tmpdir2(), "snout-replay-"));
+  for (const file3 of files) {
+    const dir = mkdtempSync2(join24(tmpdir2(), "snout-replay-"));
     for (const name of ["config.json", "thresholds.json"]) {
-      const from = join23(paths.snoutDir, name);
-      if (existsSync19(from)) copyFileSync(from, join23(dir, name));
+      const from = join24(paths.snoutDir, name);
+      if (existsSync19(from)) copyFileSync(from, join24(dir, name));
     }
     replayDir = dir;
     try {
-      rows.push(replaySession(file2, run));
+      rows.push(replaySession(file3, run));
     } catch (err) {
       recordError("replay", err);
     } finally {
@@ -10856,7 +10972,7 @@ function fastGateInstalled(paths) {
 function fastGateIn(projectDir) {
   for (const f of ["settings.json", "settings.local.json"]) {
     try {
-      const pre = JSON.parse(readFileSync20(join23(projectDir, ".claude", f), "utf8")).hooks?.PreToolUse ?? [];
+      const pre = JSON.parse(readFileSync20(join24(projectDir, ".claude", f), "utf8")).hooks?.PreToolUse ?? [];
       if (pre.some((e) => (e.hooks ?? []).some((h) => isSnoutUrl(h.url)))) return true;
     } catch {
     }
@@ -10877,7 +10993,7 @@ function gateMatcher(paths) {
   const tools = /* @__PURE__ */ new Set();
   let found = false;
   for (const f of ["settings.json", "settings.local.json"]) {
-    const p = join23(paths.projectDir, ".claude", f);
+    const p = join24(paths.projectDir, ".claude", f);
     if (!existsSync19(p)) continue;
     try {
       const settings = JSON.parse(readFileSync20(p, "utf8"));
@@ -10893,13 +11009,13 @@ function gateMatcher(paths) {
   }
   return found ? [...tools].join("|") : null;
 }
-function setConfigKey(file2, key, value) {
+function setConfigKey(file3, key, value) {
   try {
-    const layer = readLayer(file2);
+    const layer = readLayer(file3);
     if (value === void 0) delete layer[key];
     else layer[key] = value;
-    mkdirSync11(dirname9(file2), { recursive: true });
-    writeAtomic(file2, JSON.stringify(layer, null, 2) + "\n");
+    mkdirSync11(dirname9(file3), { recursive: true });
+    writeAtomic(file3, JSON.stringify(layer, null, 2) + "\n");
   } catch (err) {
     recordError("writeConfig", err);
   }
