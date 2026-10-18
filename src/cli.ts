@@ -284,7 +284,7 @@ function cmdInit(agent: string | undefined, cwd?: string): void {
 
 /** `snout init <agent> --remove`: undoes `snout init` for that agent in this project. */
 function cmdRemove(agent: string | undefined, cwd?: string): void {
-  const rest = "Snout's records stay in .snout/ until you delete that folder; the local fast-hook server, if running, stops after 30 idle minutes.";
+  const rest = "Snout's records stay in .snout/ until you delete that folder; the local fast-hook server, if running, stops after 30 idle minutes and starts again with the next prompt.";
   if (agent === "claude" || agent === "claude-code") {
     return say(`To remove Snout from Claude Code:\n\n  snout mode observe                        # takes out the gate in .claude/settings.local.json\n  claude plugin uninstall snout@snout-context\n\n${rest}`);
   }
@@ -922,6 +922,7 @@ function onMcpTrim(input: HookInput, paths: Paths, cfg: Config, started: number)
 }
 
 function onPromptSubmit(input: HookInput, paths: Paths, cfg: Config): void {
+  reviveServer(paths, cfg);
   const session = input.session_id ?? "unknown";
   const state = loadState(paths.state, session);
   state.turn += 1;
@@ -1155,12 +1156,38 @@ function cmdFast(paths: Paths, cfg: Config, v?: string): void {
   setConfigKey(paths.config, "fastHooks", v === "on");
   if (cfg.mode !== "observe") installGate(paths.projectDir, BIN, v === "on");
   say(v === "on"
-    ? `Fast hooks on. Gated calls go to a local Snout server on 127.0.0.1:${HOOK_PORT} instead of starting Node each time; it starts with the next session and stops after 30 idle minutes. If it is down, the agent carries on ungated.`
+    ? `Fast hooks on. Gated calls go to a local Snout server on 127.0.0.1:${HOOK_PORT} instead of starting Node each time; it starts with the next session, stops after 30 idle minutes and starts again with your next prompt. If it is down, the agent carries on ungated.`
     : "Fast hooks off. Each gated call runs its own Snout process.");
 }
 
 const SERVE_IDLE_MS = 30 * 60_000;
 const healthUrl = () => `http://127.0.0.1:${HOOK_PORT}/snout/v1/health`;
+/** The running `snout serve` writes its pid here, per user like its port. */
+const servePidFile = () => join(configDir(), `serve-${HOOK_PORT}.pid`);
+
+/**
+ * Brings `snout serve` back when the fast gate needs it and it is gone (the idle exit, a crash, a
+ * killed process): otherwise every gated call fails with "connection refused" until the next
+ * session. Checks the recorded pid, with no network call; a start takes about 100 ms, so the
+ * server is up before the agent's first tool call.
+ */
+function reviveServer(paths: Paths, cfg: Config): void {
+  if (client || capturing || cfg.mode === "observe" || !fastGateInstalled(paths)) return;
+  try {
+    const pid = Number(readFileSync(servePidFile(), "utf8"));
+    if (pid > 0) {
+      process.kill(pid, 0); // throws when no such process
+      return;
+    }
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "EPERM") return; // alive, owned by someone else
+  }
+  try {
+    spawn(process.execPath, [BIN, "serve"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+  } catch (err) {
+    recordError("reviveServer", err);
+  }
+}
 
 async function serverVersion(): Promise<string | null> {
   try {
@@ -1252,6 +1279,14 @@ function startServer(): void {
       await fetch(`http://127.0.0.1:${HOOK_PORT}/snout/v1/shutdown`, { method: "POST" }).catch(() => {});
       setTimeout(() => server.listen(HOOK_PORT, "127.0.0.1"), 200);
     } else process.exit(0);
+  });
+  server.on("listening", () => {
+    try {
+      ensureDir(configDir());
+      writeAtomic(servePidFile(), String(process.pid));
+    } catch (err) {
+      recordError("servePid", err);
+    }
   });
   server.listen(HOOK_PORT, "127.0.0.1");
   // Warm the memory model now, so the first prompt doesn't wait for it to load.

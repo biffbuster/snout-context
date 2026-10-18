@@ -10,7 +10,7 @@ import { gateEntries, squeezeEntries } from "../dist/lib.mjs";
 
 const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 const PORT = String(47000 + Math.floor(Math.random() * 900));
-const env = { ...process.env, SNOUT_PORT: PORT };
+const env = { ...process.env, SNOUT_PORT: PORT, SNOUT_CONFIG_DIR: mkdtempSync(join(tmpdir(), "snout-serve-cfg-")) };
 const base = `http://127.0.0.1:${PORT}/snout/v1`;
 
 function project() {
@@ -90,4 +90,28 @@ test("snout fast on installs HTTP gate hooks; off puts command hooks back", () =
   run("fast", "off");
   pre = JSON.parse(readFileSync(join(dir, ".claude/settings.local.json"), "utf8")).hooks.PreToolUse;
   assert.ok(pre.every((e) => e.hooks.every((h) => h.type === "command")), "back to command hooks, none left over");
+});
+
+test("a prompt brings back a fast-gate server that has gone, so gated calls don't fail until the next session", async () => {
+  const dir = project();
+  const run = (...a) => spawnSync(process.execPath, [CLI, ...a], { cwd: dir, encoding: "utf8", env: { ...env, CLAUDE_PROJECT_DIR: dir } });
+  run("mode", "enforce");
+  run("fast", "on");
+  await ensureUp();
+  try {
+    await fetch(`${base}/shutdown`, { method: "POST" }).catch(() => {});
+    let down = false;
+    for (let i = 0; i < 50 && !down; i++) {
+      try { await fetch(`${base}/health`); await new Promise((r) => setTimeout(r, 100)); } catch { down = true; }
+    }
+    assert.ok(down, "the server stopped");
+    spawnSync(process.execPath, [CLI, "prompt-submit"], { cwd: dir, input: JSON.stringify({ session_id: "s", cwd: dir, hook_event_name: "UserPromptSubmit", prompt: "fix the build" }), encoding: "utf8", env: { ...env, CLAUDE_PROJECT_DIR: dir } });
+    let up = false;
+    for (let i = 0; i < 150 && !up; i++) {
+      try { up = (await fetch(`${base}/health`)).ok; } catch { await new Promise((r) => setTimeout(r, 100)); }
+    }
+    assert.ok(up, "the prompt hook started the server again");
+  } finally {
+    await fetch(`${base}/shutdown`, { method: "POST" }).catch(() => {});
+  }
 });

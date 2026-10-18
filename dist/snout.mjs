@@ -8575,7 +8575,7 @@ Sets that agent up in this project so it runs Snout on every read.`);
   }
 }
 function cmdRemove(agent, cwd) {
-  const rest = "Snout's records stay in .snout/ until you delete that folder; the local fast-hook server, if running, stops after 30 idle minutes.";
+  const rest = "Snout's records stay in .snout/ until you delete that folder; the local fast-hook server, if running, stops after 30 idle minutes and starts again with the next prompt.";
   if (agent === "claude" || agent === "claude-code") {
     return say(`To remove Snout from Claude Code:
 
@@ -9174,6 +9174,7 @@ function onMcpTrim(input, paths, cfg, started) {
   emit({ hookSpecificOutput: { hookEventName: "PostToolUse", updatedToolOutput: t.output } });
 }
 function onPromptSubmit(input, paths, cfg) {
+  reviveServer(paths, cfg);
   const session = input.session_id ?? "unknown";
   const state = loadState(paths.state, session);
   state.turn += 1;
@@ -9379,10 +9380,28 @@ function cmdFast(paths, cfg, v) {
   if (v !== "on" && v !== "off") return say(`Fast hooks are ${cfg.fastHooks !== false ? "on" : "off"}. Usage: snout fast on|off`);
   setConfigKey(paths.config, "fastHooks", v === "on");
   if (cfg.mode !== "observe") installGate(paths.projectDir, BIN, v === "on");
-  say(v === "on" ? `Fast hooks on. Gated calls go to a local Snout server on 127.0.0.1:${HOOK_PORT} instead of starting Node each time; it starts with the next session and stops after 30 idle minutes. If it is down, the agent carries on ungated.` : "Fast hooks off. Each gated call runs its own Snout process.");
+  say(v === "on" ? `Fast hooks on. Gated calls go to a local Snout server on 127.0.0.1:${HOOK_PORT} instead of starting Node each time; it starts with the next session, stops after 30 idle minutes and starts again with your next prompt. If it is down, the agent carries on ungated.` : "Fast hooks off. Each gated call runs its own Snout process.");
 }
 var SERVE_IDLE_MS = 30 * 6e4;
 var healthUrl = () => `http://127.0.0.1:${HOOK_PORT}/snout/v1/health`;
+var servePidFile = () => join23(configDir(), `serve-${HOOK_PORT}.pid`);
+function reviveServer(paths, cfg) {
+  if (client || capturing || cfg.mode === "observe" || !fastGateInstalled(paths)) return;
+  try {
+    const pid = Number(readFileSync20(servePidFile(), "utf8"));
+    if (pid > 0) {
+      process.kill(pid, 0);
+      return;
+    }
+  } catch (err) {
+    if (err.code === "EPERM") return;
+  }
+  try {
+    spawn2(process.execPath, [BIN, "serve"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+  } catch (err) {
+    recordError("reviveServer", err);
+  }
+}
 async function serverVersion() {
   try {
     const r = await fetch(healthUrl(), { signal: AbortSignal.timeout(300) });
@@ -9460,6 +9479,14 @@ function startServer() {
       });
       setTimeout(() => server.listen(HOOK_PORT, "127.0.0.1"), 200);
     } else process.exit(0);
+  });
+  server.on("listening", () => {
+    try {
+      ensureDir(configDir());
+      writeAtomic(servePidFile(), String(process.pid));
+    } catch (err) {
+      recordError("servePid", err);
+    }
   });
   server.listen(HOOK_PORT, "127.0.0.1");
   if (modelReady()) void loadEmbedder().catch((err) => recordError("memoryModel", err));
