@@ -28,7 +28,7 @@ export { costOf, priceOf, modelKey, PRICES, PRICES_AS_OF } from "./spend/prices.
 export { summarizeSpend } from "./spend/summary.js";
 export { scorePrompt } from "./coach/coach.js";
 export { squeeze, kindOf, SQUEEZE_IFS } from "./squeeze/squeeze.js";
-export { gateEntries, squeezeEntries } from "./gate/install.js";
+export { gateEntries, squeezeEntries, starterEntries, installGate, refreshGate } from "./gate/install.js";
 export { trimMcp } from "./squeeze/mcp.js";
 export { auditContext, classifyContextPath, claudeImports, staleRefs, normalize, shingles, overlap, authorOf, readClaudeTranscript, renderAudit, renderMap, toJson, totals, archiveFiles, restoreArchive, listArchives, OVERSIZED_TOKENS } from "./audit/context.js";
 export { auditCi, renderCi, cronPerMonth } from "./audit/ci.js";

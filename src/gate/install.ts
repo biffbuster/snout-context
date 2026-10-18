@@ -54,10 +54,24 @@ export function gateEntries(bin: string, fast = false): Entry[] {
   ];
 }
 
+/**
+ * The fast gate's own starter: `snout serve --ensure` at session start and on each prompt. HTTP
+ * hooks can't start the server they call, and the plugin's hooks may not run (an npm install
+ * with no plugin, a host that doesn't load plugins), so without this nothing brings the server
+ * up and every gated call fails with "connection refused". When it is already up this is one
+ * health check.
+ */
+const ENSURE = "serve --ensure";
+export function starterEntries(bin: string): Entry[] {
+  return [{ hooks: [{ type: "command", command: `node "${bin}" ${ENSURE}`, timeout: 5 }] }];
+}
+const STARTER_EVENTS = ["SessionStart", "UserPromptSubmit"] as const;
+
 const ours = (h: Hook, event: string) =>
   (typeof h.command === "string" && h.command.includes(MARK) && h.command.includes(event)) || (typeof h.url === "string" && h.url.includes(URL_MARK + event));
 const isGate = (e: Entry) => (e.hooks ?? []).some((h) => ours(h, "pre-tool"));
 const isSqueeze = (e: Entry) => (e.hooks ?? []).some((h) => ours(h, "squeeze"));
+const isStarter = (e: Entry) => (e.hooks ?? []).some((h) => typeof h.command === "string" && h.command.includes(MARK) && h.command.includes(ENSURE));
 
 function read(file: string): Record<string, any> {
   try {
@@ -75,7 +89,7 @@ function write(file: string, settings: Record<string, any>): void {
 /** Removes Snout's gate and squeeze hooks from a settings object, leaving every other hook alone. */
 function strip(settings: Record<string, any>): boolean {
   let changed = false;
-  for (const [event, mine] of [["PreToolUse", isGate], ["PostToolUse", isSqueeze]] as const) {
+  for (const [event, mine] of [["PreToolUse", isGate], ["PostToolUse", isSqueeze], ...STARTER_EVENTS.map((ev) => [ev, isStarter] as const)] as const) {
     const list: Entry[] | undefined = settings.hooks?.[event];
     if (!Array.isArray(list)) continue;
     const kept = list.filter((e) => !mine(e));
@@ -96,6 +110,7 @@ export function installGate(projectDir: string, bin: string, fast = false): stri
   settings.hooks ??= {};
   settings.hooks.PreToolUse = [...(settings.hooks.PreToolUse ?? []), ...gateEntries(bin, fast)];
   settings.hooks.PostToolUse = [...(settings.hooks.PostToolUse ?? []), ...squeezeEntries(bin, fast)];
+  if (fast) for (const ev of STARTER_EVENTS) settings.hooks[ev] = [...(settings.hooks[ev] ?? []), ...starterEntries(bin)];
   write(file, settings);
   return file;
 }
@@ -115,16 +130,23 @@ export function removeGate(projectDir: string): boolean {
   return removed;
 }
 
-/** Re-points an installed gate at `bin` when a plugin update has moved the bundle. */
+/**
+ * Re-points an installed gate at `bin` when a plugin update has moved the bundle, and gives an
+ * HTTP gate installed before it had one its starter. Keeps the gate's kind (command or HTTP).
+ */
 export function refreshGate(projectDir: string, bin: string): boolean {
   for (const name of SETTINGS) {
     const file = join(projectDir, ".claude", name);
     if (!existsSync(file)) continue;
-    const pre: Entry[] = read(file).hooks?.PreToolUse ?? [];
-    // An HTTP gate names no bundle path, so a plugin update never makes it stale.
-    const stale = pre.some((e) => isGate(e) && (e.hooks ?? []).some((h) => typeof h.command === "string" && h.command.includes(MARK) && !h.command.includes(`"${bin}"`)));
+    const hooks: Record<string, Entry[]> = read(file).hooks ?? {};
+    const gate = (hooks.PreToolUse ?? []).filter(isGate);
+    if (!gate.length) continue;
+    const fast = gate.some((e) => (e.hooks ?? []).some((h) => isSnoutUrl(h.url)));
+    const elsewhere = (e: Entry) => (e.hooks ?? []).some((h) => typeof h.command === "string" && h.command.includes(MARK) && !h.command.includes(`"${bin}"`));
+    const starters = STARTER_EVENTS.map((ev) => (hooks[ev] ?? []).filter(isStarter));
+    const stale = gate.some(elsewhere) || starters.some((l) => l.some(elsewhere)) || (fast && starters.some((l) => !l.length));
     if (stale) {
-      installGate(projectDir, bin);
+      installGate(projectDir, bin, fast);
       return true;
     }
   }

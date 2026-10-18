@@ -6,7 +6,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { gateEntries, squeezeEntries } from "../dist/lib.mjs";
+import { gateEntries, installGate, refreshGate, squeezeEntries, starterEntries } from "../dist/lib.mjs";
 
 const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 const PORT = String(47000 + Math.floor(Math.random() * 900));
@@ -111,6 +111,85 @@ test("a prompt brings back a fast-gate server that has gone, so gated calls don'
       try { up = (await fetch(`${base}/health`)).ok; } catch { await new Promise((r) => setTimeout(r, 100)); }
     }
     assert.ok(up, "the prompt hook started the server again");
+  } finally {
+    await fetch(`${base}/shutdown`, { method: "POST" }).catch(() => {});
+  }
+});
+
+async function waitHealth(want, tries = 150) {
+  for (let i = 0; i < tries; i++) {
+    const ok = await fetch(`${base}/health`).then((r) => r.ok, () => false);
+    if (ok === want) return true;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return false;
+}
+
+test("any tool call brings back a server that has gone mid-turn, without waiting for a prompt", async () => {
+  const dir = project();
+  const run = (...a) => spawnSync(process.execPath, [CLI, ...a], { cwd: dir, encoding: "utf8", env: { ...env, CLAUDE_PROJECT_DIR: dir } });
+  run("mode", "enforce");
+  run("fast", "on");
+  await ensureUp();
+  try {
+    await fetch(`${base}/shutdown`, { method: "POST" }).catch(() => {});
+    assert.ok(await waitHealth(false), "the server stopped");
+    spawnSync(process.execPath, [CLI, "post-tool"], { cwd: dir, input: JSON.stringify({ session_id: "s", cwd: dir, hook_event_name: "PostToolUse", tool_name: "Bash", tool_use_id: "t1", tool_input: { command: "ls" }, tool_response: { stdout: "" } }), encoding: "utf8", env: { ...env, CLAUDE_PROJECT_DIR: dir } });
+    assert.ok(await waitHealth(true), "the post-tool hook started the server again");
+  } finally {
+    await fetch(`${base}/shutdown`, { method: "POST" }).catch(() => {});
+  }
+});
+
+test("the server outlives its idle time while a project's fast gate points at it, and exits once none does", async () => {
+  const dir = project();
+  const idleEnv = { ...env, CLAUDE_PROJECT_DIR: dir, SNOUT_SERVE_IDLE_MS: "300" };
+  const run = (...a) => spawnSync(process.execPath, [CLI, ...a], { cwd: dir, encoding: "utf8", env: idleEnv });
+  run("mode", "enforce");
+  run("fast", "on");
+  await fetch(`${base}/shutdown`, { method: "POST" }).catch(() => {});
+  await waitHealth(false);
+  run("serve", "--ensure");
+  try {
+    assert.ok(await waitHealth(true), "started");
+    await new Promise((r) => setTimeout(r, 1500)); // five idle periods with no calls
+    assert.ok(await fetch(`${base}/health`).then((r) => r.ok, () => false), "still up: the gate needs it");
+    run("fast", "off");
+    await new Promise((r) => setTimeout(r, 1000)); // quiet: a health check counts as a call
+    assert.ok(!(await fetch(`${base}/health`).then((r) => r.ok, () => false)), "exits once no served project has the fast gate");
+  } finally {
+    await fetch(`${base}/shutdown`, { method: "POST" }).catch(() => {});
+  }
+});
+
+test("the fast gate carries its own starter, so the server comes up even when the plugin's hooks never run", async () => {
+  const dir = project();
+  const settings = () => JSON.parse(readFileSync(join(dir, ".claude/settings.local.json"), "utf8")).hooks;
+  installGate(dir, CLI, true);
+  for (const ev of ["SessionStart", "UserPromptSubmit"]) assert.deepEqual(settings()[ev], starterEntries(CLI), `${ev} starts the server`);
+  installGate(dir, CLI, true);
+  assert.equal(settings().SessionStart.length, 1, "reinstalling does not stack starters");
+  installGate(dir, CLI, false);
+  assert.equal(settings().SessionStart, undefined, "a command gate needs no server");
+
+  // A fast gate written before starters existed gets them at the next session start.
+  installGate(dir, CLI, true);
+  const s = JSON.parse(readFileSync(join(dir, ".claude/settings.local.json"), "utf8"));
+  delete s.hooks.SessionStart;
+  delete s.hooks.UserPromptSubmit;
+  writeFileSync(join(dir, ".claude/settings.local.json"), JSON.stringify(s));
+  assert.equal(refreshGate(dir, CLI), true);
+  assert.deepEqual(settings().SessionStart, starterEntries(CLI));
+  assert.ok(settings().PreToolUse.every((e) => e.hooks.every((h) => h.type === "http")), "and stays an HTTP gate");
+  assert.equal(refreshGate(dir, CLI), false, "nothing to do the second time");
+
+  // The starter's command, run as Claude Code would run it, brings the server up.
+  await fetch(`${base}/shutdown`, { method: "POST" }).catch(() => {});
+  assert.ok(await waitHealth(false), "down");
+  const [, cmd] = starterEntries(CLI)[0].hooks[0].command.match(/^node "(.+)" serve --ensure$/);
+  spawnSync(process.execPath, [cmd, "serve", "--ensure"], { cwd: dir, input: "{}", env: { ...env, CLAUDE_PROJECT_DIR: dir } });
+  try {
+    assert.ok(await waitHealth(true), "the starter brought it up");
   } finally {
     await fetch(`${base}/shutdown`, { method: "POST" }).catch(() => {});
   }
