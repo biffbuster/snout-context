@@ -7222,9 +7222,15 @@ function gateEntries(bin, fast = false) {
     { matcher: "Bash", hooks: PRINTING_COMMANDS.map((c) => hookFor(bin, "pre-tool", fast, { if: `Bash(${c} *)` })) }
   ];
 }
+var ENSURE = "serve --ensure";
+function starterEntries(bin) {
+  return [{ hooks: [{ type: "command", command: `node "${bin}" ${ENSURE}`, timeout: 5 }] }];
+}
+var STARTER_EVENTS = ["SessionStart", "UserPromptSubmit"];
 var ours = (h, event) => typeof h.command === "string" && h.command.includes(MARK) && h.command.includes(event) || typeof h.url === "string" && h.url.includes(URL_MARK + event);
 var isGate = (e) => (e.hooks ?? []).some((h) => ours(h, "pre-tool"));
 var isSqueeze = (e) => (e.hooks ?? []).some((h) => ours(h, "squeeze"));
+var isStarter = (e) => (e.hooks ?? []).some((h) => typeof h.command === "string" && h.command.includes(MARK) && h.command.includes(ENSURE));
 function read2(file2) {
   try {
     return JSON.parse(readFileSync16(file2, "utf8"));
@@ -7238,7 +7244,7 @@ function write(file2, settings) {
 }
 function strip(settings) {
   let changed = false;
-  for (const [event, mine] of [["PreToolUse", isGate], ["PostToolUse", isSqueeze]]) {
+  for (const [event, mine] of [["PreToolUse", isGate], ["PostToolUse", isSqueeze], ...STARTER_EVENTS.map((ev) => [ev, isStarter])]) {
     const list = settings.hooks?.[event];
     if (!Array.isArray(list)) continue;
     const kept = list.filter((e) => !mine(e));
@@ -7257,6 +7263,7 @@ function installGate(projectDir, bin, fast = false) {
   settings.hooks ??= {};
   settings.hooks.PreToolUse = [...settings.hooks.PreToolUse ?? [], ...gateEntries(bin, fast)];
   settings.hooks.PostToolUse = [...settings.hooks.PostToolUse ?? [], ...squeezeEntries(bin, fast)];
+  if (fast) for (const ev of STARTER_EVENTS) settings.hooks[ev] = [...settings.hooks[ev] ?? [], ...starterEntries(bin)];
   write(file2, settings);
   return file2;
 }
@@ -7277,10 +7284,15 @@ function refreshGate(projectDir, bin) {
   for (const name of SETTINGS) {
     const file2 = join18(projectDir, ".claude", name);
     if (!existsSync14(file2)) continue;
-    const pre = read2(file2).hooks?.PreToolUse ?? [];
-    const stale = pre.some((e) => isGate(e) && (e.hooks ?? []).some((h) => typeof h.command === "string" && h.command.includes(MARK) && !h.command.includes(`"${bin}"`)));
+    const hooks = read2(file2).hooks ?? {};
+    const gate = (hooks.PreToolUse ?? []).filter(isGate);
+    if (!gate.length) continue;
+    const fast = gate.some((e) => (e.hooks ?? []).some((h) => isSnoutUrl(h.url)));
+    const elsewhere = (e) => (e.hooks ?? []).some((h) => typeof h.command === "string" && h.command.includes(MARK) && !h.command.includes(`"${bin}"`));
+    const starters = STARTER_EVENTS.map((ev) => (hooks[ev] ?? []).filter(isStarter));
+    const stale = gate.some(elsewhere) || starters.some((l) => l.some(elsewhere)) || fast && starters.some((l) => !l.length);
     if (stale) {
-      installGate(projectDir, bin);
+      installGate(projectDir, bin, fast);
       return true;
     }
   }
@@ -8575,7 +8587,7 @@ Sets that agent up in this project so it runs Snout on every read.`);
   }
 }
 function cmdRemove(agent, cwd) {
-  const rest = "Snout's records stay in .snout/ until you delete that folder; the local fast-hook server, if running, stops after 30 idle minutes and starts again with the next prompt.";
+  const rest = "Snout's records stay in .snout/ until you delete that folder; the local fast-hook server, if running, stops after 30 idle minutes once no project still sends it gated calls.";
   if (agent === "claude" || agent === "claude-code") {
     return say(`To remove Snout from Claude Code:
 
@@ -8769,7 +8781,7 @@ function onSessionStart(input, paths, cfg) {
     }
     if (cfg.mode !== "observe" && fastGateInstalled(paths)) {
       try {
-        spawnSync5(process.execPath, [BIN, "serve", "--ensure"], { stdio: "ignore", timeout: 3e3 });
+        spawnSync5(process.execPath, [BIN, "serve", "--ensure"], { cwd: paths.projectDir, stdio: "ignore", timeout: 3e3 });
       } catch (err) {
         recordError("ensureServer", err);
       }
@@ -9380,9 +9392,9 @@ function cmdFast(paths, cfg, v) {
   if (v !== "on" && v !== "off") return say(`Fast hooks are ${cfg.fastHooks !== false ? "on" : "off"}. Usage: snout fast on|off`);
   setConfigKey(paths.config, "fastHooks", v === "on");
   if (cfg.mode !== "observe") installGate(paths.projectDir, BIN, v === "on");
-  say(v === "on" ? `Fast hooks on. Gated calls go to a local Snout server on 127.0.0.1:${HOOK_PORT} instead of starting Node each time; it starts with the next session, stops after 30 idle minutes and starts again with your next prompt. If it is down, the agent carries on ungated.` : "Fast hooks off. Each gated call runs its own Snout process.");
+  say(v === "on" ? `Fast hooks on. Gated calls go to a local Snout server on 127.0.0.1:${HOOK_PORT} instead of starting Node each time; it starts with the next session, stays up while a project uses it, and comes back on its own if it stops. If it is down, the agent carries on ungated.` : "Fast hooks off. Each gated call runs its own Snout process.");
 }
-var SERVE_IDLE_MS = 30 * 6e4;
+var SERVE_IDLE_MS = Number(process.env.SNOUT_SERVE_IDLE_MS) || 30 * 6e4;
 var healthUrl = () => `http://127.0.0.1:${HOOK_PORT}/snout/v1/health`;
 var servePidFile = () => join23(configDir(), `serve-${HOOK_PORT}.pid`);
 function reviveServer(paths, cfg) {
@@ -9397,7 +9409,7 @@ function reviveServer(paths, cfg) {
     if (err.code === "EPERM") return;
   }
   try {
-    spawn2(process.execPath, [BIN, "serve"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+    spawn2(process.execPath, [BIN, "serve"], { cwd: paths.projectDir, detached: true, stdio: "ignore", windowsHide: true }).unref();
   } catch (err) {
     recordError("reviveServer", err);
   }
@@ -9421,11 +9433,13 @@ async function ensureServer() {
 }
 function startServer() {
   const hosts = /* @__PURE__ */ new Set([`127.0.0.1:${HOOK_PORT}`, `localhost:${HOOK_PORT}`]);
-  let idle = setTimeout(() => process.exit(0), SERVE_IDLE_MS);
+  const served = /* @__PURE__ */ new Set([resolvePaths(process.cwd()).projectDir]);
+  const onIdle = () => [...served].some(fastGateIn) ? idle = setTimeout(onIdle, SERVE_IDLE_MS) : process.exit(0);
+  let idle = setTimeout(onIdle, SERVE_IDLE_MS);
   const { createServer } = createRequire3(import.meta.url)("node:http");
   const server = createServer((req, res) => {
     clearTimeout(idle);
-    idle = setTimeout(() => process.exit(0), SERVE_IDLE_MS);
+    idle = setTimeout(onIdle, SERVE_IDLE_MS);
     const url = req.url ?? "";
     if (!hosts.has(req.headers.host ?? "")) return void res.writeHead(403).end();
     if (req.method === "GET" && url === "/snout/v1/health") {
@@ -9453,6 +9467,7 @@ function startServer() {
       let body = "";
       try {
         const input = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
+        if (typeof input.cwd === "string" && input.cwd) served.add(resolvePaths(input.cwd).projectDir);
         requestStart = performance.now();
         vectors = null;
         if (event === "prompt-submit" && modelReady()) await promptVectors(input, async (t) => (await loadEmbedder())(t)).catch((err) => recordError("memoryVectors", err));
@@ -9956,6 +9971,7 @@ function agentSearchHint(rule, rel, oneLine2) {
   return client === "codex" && powerShellRead && hint ? powerShellSearchHint(rel) : hint;
 }
 function onPostTool(input, paths, cfg) {
+  reviveServer(paths, cfg);
   const state = loadState(paths.state, input.session_id ?? "unknown");
   const pending2 = state;
   const id = input.tool_use_id;
@@ -10835,9 +10851,12 @@ function runningBundle() {
   return `${self}  (${kind})`;
 }
 function fastGateInstalled(paths) {
+  return fastGateIn(paths.projectDir);
+}
+function fastGateIn(projectDir) {
   for (const f of ["settings.json", "settings.local.json"]) {
     try {
-      const pre = JSON.parse(readFileSync20(join23(paths.projectDir, ".claude", f), "utf8")).hooks?.PreToolUse ?? [];
+      const pre = JSON.parse(readFileSync20(join23(projectDir, ".claude", f), "utf8")).hooks?.PreToolUse ?? [];
       if (pre.some((e) => (e.hooks ?? []).some((h) => isSnoutUrl(h.url)))) return true;
     } catch {
     }

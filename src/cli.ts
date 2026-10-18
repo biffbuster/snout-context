@@ -284,7 +284,7 @@ function cmdInit(agent: string | undefined, cwd?: string): void {
 
 /** `snout init <agent> --remove`: undoes `snout init` for that agent in this project. */
 function cmdRemove(agent: string | undefined, cwd?: string): void {
-  const rest = "Snout's records stay in .snout/ until you delete that folder; the local fast-hook server, if running, stops after 30 idle minutes and starts again with the next prompt.";
+  const rest = "Snout's records stay in .snout/ until you delete that folder; the local fast-hook server, if running, stops after 30 idle minutes once no project still sends it gated calls.";
   if (agent === "claude" || agent === "claude-code") {
     return say(`To remove Snout from Claude Code:\n\n  snout mode observe                        # takes out the gate in .claude/settings.local.json\n  claude plugin uninstall snout@snout-context\n\n${rest}`);
   }
@@ -511,7 +511,7 @@ function onSessionStart(input: HookInput, paths: Paths, cfg: Config): void {
     // The fast path needs `snout serve` up before the first gated Claude call.
     if (cfg.mode !== "observe" && fastGateInstalled(paths)) {
       try {
-        spawnSync(process.execPath, [BIN, "serve", "--ensure"], { stdio: "ignore", timeout: 3000 });
+        spawnSync(process.execPath, [BIN, "serve", "--ensure"], { cwd: paths.projectDir, stdio: "ignore", timeout: 3000 });
       } catch (err) {
         recordError("ensureServer", err);
       }
@@ -1156,11 +1156,11 @@ function cmdFast(paths: Paths, cfg: Config, v?: string): void {
   setConfigKey(paths.config, "fastHooks", v === "on");
   if (cfg.mode !== "observe") installGate(paths.projectDir, BIN, v === "on");
   say(v === "on"
-    ? `Fast hooks on. Gated calls go to a local Snout server on 127.0.0.1:${HOOK_PORT} instead of starting Node each time; it starts with the next session, stops after 30 idle minutes and starts again with your next prompt. If it is down, the agent carries on ungated.`
+    ? `Fast hooks on. Gated calls go to a local Snout server on 127.0.0.1:${HOOK_PORT} instead of starting Node each time; it starts with the next session, stays up while a project uses it, and comes back on its own if it stops. If it is down, the agent carries on ungated.`
     : "Fast hooks off. Each gated call runs its own Snout process.");
 }
 
-const SERVE_IDLE_MS = 30 * 60_000;
+const SERVE_IDLE_MS = Number(process.env.SNOUT_SERVE_IDLE_MS) || 30 * 60_000; // the override is for tests
 const healthUrl = () => `http://127.0.0.1:${HOOK_PORT}/snout/v1/health`;
 /** The running `snout serve` writes its pid here, per user like its port. */
 const servePidFile = () => join(configDir(), `serve-${HOOK_PORT}.pid`);
@@ -1183,7 +1183,7 @@ function reviveServer(paths: Paths, cfg: Config): void {
     if ((err as NodeJS.ErrnoException).code === "EPERM") return; // alive, owned by someone else
   }
   try {
-    spawn(process.execPath, [BIN, "serve"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+    spawn(process.execPath, [BIN, "serve"], { cwd: paths.projectDir, detached: true, stdio: "ignore", windowsHide: true }).unref();
   } catch (err) {
     recordError("reviveServer", err);
   }
@@ -1219,13 +1219,18 @@ async function ensureServer(): Promise<void> {
  */
 function startServer(): void {
   const hosts = new Set([`127.0.0.1:${HOOK_PORT}`, `localhost:${HOOK_PORT}`]);
-  let idle = setTimeout(() => process.exit(0), SERVE_IDLE_MS);
+  // Projects whose hooks reached this server, starting with the one that started it. After 30
+  // idle minutes it exits only if none of them still sends gated calls here: an idle exit under
+  // an installed fast gate turns every gated call into "connection refused".
+  const served = new Set<string>([resolvePaths(process.cwd()).projectDir]);
+  const onIdle = () => ([...served].some(fastGateIn) ? (idle = setTimeout(onIdle, SERVE_IDLE_MS)) : process.exit(0));
+  let idle = setTimeout(onIdle, SERVE_IDLE_MS);
   // Loaded here, not imported at the top: see dashboard/server.ts (an ESM import of node:http
   // loads undici into every hook process).
   const { createServer } = createRequire(import.meta.url)("node:http") as typeof import("node:http");
   const server = createServer((req, res) => {
     clearTimeout(idle);
-    idle = setTimeout(() => process.exit(0), SERVE_IDLE_MS);
+    idle = setTimeout(onIdle, SERVE_IDLE_MS);
     const url = req.url ?? "";
     if (!hosts.has(req.headers.host ?? "")) return void res.writeHead(403).end();
     if (req.method === "GET" && url === "/snout/v1/health") {
@@ -1253,6 +1258,7 @@ function startServer(): void {
       let body = "";
       try {
         const input = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}") as HookInput;
+        if (typeof input.cwd === "string" && input.cwd) served.add(resolvePaths(input.cwd).projectDir);
         requestStart = performance.now();
         vectors = null;
         if (event === "prompt-submit" && modelReady()) await promptVectors(input, async (t) => (await loadEmbedder())(t)).catch((err) => recordError("memoryVectors", err));
@@ -1850,6 +1856,9 @@ function agentSearchHint(rule: string, rel: string, oneLine: boolean): string {
  * so `tokensReadEst` here is derived from the actual result rather than from a `stat`.
  */
 function onPostTool(input: HookInput, paths: Paths, cfg: Config): void {
+  // A server gone mid-turn (crash, killed, a reboot of its process) comes back after one call,
+  // not at the next prompt: this hook runs as its own process after every tool call.
+  reviveServer(paths, cfg);
   const state = loadState(paths.state, input.session_id ?? "unknown");
   const pending = state as SessionState & { pending?: Record<string, { path: string; decision: Verdict }> };
   const id = input.tool_use_id;
@@ -2925,9 +2934,13 @@ function runningBundle(): string {
 
 /** True when the installed gate is the fast path: HTTP hooks to `snout serve`. */
 function fastGateInstalled(paths: Paths): boolean {
+  return fastGateIn(paths.projectDir);
+}
+
+function fastGateIn(projectDir: string): boolean {
   for (const f of ["settings.json", "settings.local.json"]) {
     try {
-      const pre = (JSON.parse(readFileSync(join(paths.projectDir, ".claude", f), "utf8")) as { hooks?: { PreToolUse?: Array<{ hooks?: Array<{ url?: string }> }> } }).hooks?.PreToolUse ?? [];
+      const pre = (JSON.parse(readFileSync(join(projectDir, ".claude", f), "utf8")) as { hooks?: { PreToolUse?: Array<{ hooks?: Array<{ url?: string }> }> } }).hooks?.PreToolUse ?? [];
       if (pre.some((e) => (e.hooks ?? []).some((h) => isSnoutUrl(h.url)))) return true;
     } catch {
       // no file or not JSON: not ours to judge here
