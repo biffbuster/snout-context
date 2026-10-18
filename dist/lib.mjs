@@ -1385,6 +1385,11 @@ function loadConfig(paths) {
 function isValidMode(v) {
   return v === "observe" || v === "advise" || v === "enforce";
 }
+function configDir() {
+  if (process.env.SNOUT_CONFIG_DIR) return process.env.SNOUT_CONFIG_DIR;
+  if (process.platform === "win32" && process.env.APPDATA) return join4(process.env.APPDATA, "snout");
+  return join4(process.env.XDG_CONFIG_HOME || join4(homedir(), ".config"), "snout");
+}
 
 // src/ledger/store.ts
 import { appendFileSync as appendFileSync2, existsSync as existsSync5, mkdirSync as mkdirSync2, readFileSync as readFileSync3, statSync as statSync7 } from "node:fs";
@@ -2206,22 +2211,22 @@ function modelKey(model) {
   return model.toLowerCase().replace(/-\d{8}$/, "").replace(/\[.*\]$/, "");
 }
 var overrides = null;
-function userPrices(configDir) {
+function userPrices(configDir2) {
   if (overrides) return overrides;
   try {
-    overrides = JSON.parse(readFileSync4(join6(configDir, "prices.json"), "utf8"));
+    overrides = JSON.parse(readFileSync4(join6(configDir2, "prices.json"), "utf8"));
   } catch {
     overrides = {};
   }
   return overrides;
 }
-function priceOf(model, configDir) {
+function priceOf(model, configDir2) {
   const key = modelKey(model);
-  const user = configDir ? userPrices(configDir) : {};
+  const user = configDir2 ? userPrices(configDir2) : {};
   return user[key] ?? PRICES[key] ?? null;
 }
-function costOf(model, u, configDir) {
-  const p = priceOf(model, configDir);
+function costOf(model, u, configDir2) {
+  const p = priceOf(model, configDir2);
   if (!p) return null;
   const scale = u.fast && p.fast ? p.fast.input / p.input : 1;
   const output = u.fast && p.fast ? p.fast.output : p.output;
@@ -2315,7 +2320,7 @@ function codexRequests(text) {
   if (!sawRecords) for (const [id, ts, u] of fallback) add(id, ts, u);
   return { cwd, reqs: [...byId.values()].filter((r) => r.day) };
 }
-function rollup(reqs, client, configDir) {
+function rollup(reqs, client, configDir2) {
   const m = /* @__PURE__ */ new Map();
   for (const r of reqs) {
     const key = `${r.day}\0${r.model}`;
@@ -2325,7 +2330,7 @@ function rollup(reqs, client, configDir) {
     s.cacheWrite += r.cacheWrite5m + r.cacheWrite1h;
     s.cacheRead += r.cacheRead;
     s.output += r.output;
-    const c = costOf(r.model, r, configDir);
+    const c = costOf(r.model, r, configDir2);
     s.costUsd = c === null || s.costUsd === null ? null : s.costUsd + c;
     m.set(key, s);
   }
@@ -2338,7 +2343,7 @@ function loadCache(path) {
     return {};
   }
 }
-function fileRows(file2, client, cache2, configDir) {
+function fileRows(file2, client, cache2, configDir2) {
   let st;
   try {
     st = statSync8(file2);
@@ -2352,16 +2357,16 @@ function fileRows(file2, client, cache2, configDir) {
   let entry;
   if (client === "claude") {
     const reqs = claudeRequests(text);
-    entry = { stamp, client, cwd: reqs.find((r) => r.cwd)?.cwd ?? null, rows: rollup(reqs, client, configDir) };
+    entry = { stamp, client, cwd: reqs.find((r) => r.cwd)?.cwd ?? null, rows: rollup(reqs, client, configDir2) };
   } else {
     const { cwd, reqs } = codexRequests(text);
-    entry = { stamp, client, cwd, rows: rollup(reqs, client, configDir) };
+    entry = { stamp, client, cwd, rows: rollup(reqs, client, configDir2) };
   }
   cache2[file2] = entry;
   return entry;
 }
 var inside = (child, parent) => !!child && (child === parent || child.startsWith(parent + sep));
-function readSpend(projectDir, cachePath, configDir) {
+function readSpend(projectDir, cachePath, configDir2) {
   const cache2 = cachePath ? loadCache(cachePath) : {};
   const out = /* @__PURE__ */ new Map();
   const push = (cwd, rows) => out.set(cwd, [...out.get(cwd) ?? [], ...rows]);
@@ -2369,13 +2374,13 @@ function readSpend(projectDir, cachePath, configDir) {
   const claudeDirs = root ? [join7(claudeRoot(), claudeSlug(root))] : existsSync6(claudeRoot()) ? readdirSync(claudeRoot()).map((d) => join7(claudeRoot(), d)) : [];
   for (const dir of claudeDirs) {
     for (const f of jsonlFiles(dir)) {
-      const e = fileRows(f, "claude", cache2, configDir);
+      const e = fileRows(f, "claude", cache2, configDir2);
       if (!e || !e.rows.length) continue;
       push(root ?? e.cwd ?? dir, e.rows);
     }
   }
   for (const f of jsonlFiles(codexRoot())) {
-    const e = fileRows(f, "codex", cache2, configDir);
+    const e = fileRows(f, "codex", cache2, configDir2);
     if (!e || !e.rows.length) continue;
     if (root && !inside(e.cwd, root)) continue;
     push(root ?? e.cwd ?? "unknown", e.rows);
@@ -2749,7 +2754,37 @@ function gateEntries(bin, fast = false) {
 }
 var ENSURE = "serve --ensure";
 function starterEntries(bin) {
-  return [{ hooks: [{ type: "command", command: `node "${bin}" ${ENSURE}`, timeout: 5 }] }];
+  return [{ hooks: [{ type: "command", command: `node "${starterPath()}" "${bin}" ${ENSURE}`, timeout: 5 }] }];
+}
+var starterPath = () => join8(configDir(), "snout-starter.mjs");
+var STARTER = `// Written by Snout (snout fast on). Starts the local Snout server for the fast gate.
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { spawnSync } from "node:child_process";
+const [bin, ...args] = process.argv.slice(2);
+function plugin() {
+  try {
+    const j = JSON.parse(readFileSync(join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"), "plugins", "installed_plugins.json"), "utf8"));
+    for (const e of (j.plugins ?? j)["snout@snout-context"] ?? []) {
+      const p = e?.installPath && join(e.installPath, "dist", "snout.mjs");
+      if (p && existsSync(p)) return p;
+    }
+  } catch {}
+  return null;
+}
+const inPlugin = /[\\\\/]\\.claude[\\\\/]plugins[\\\\/]/.test(bin ?? "");
+const run = (inPlugin ? plugin() : null) ?? (bin && existsSync(bin) ? bin : null) ?? plugin();
+if (run) spawnSync(process.execPath, [run, ...args], { stdio: "ignore", timeout: 4000, windowsHide: true });
+`;
+function writeStarter() {
+  const file2 = starterPath();
+  try {
+    if (readFileSync6(file2, "utf8") === STARTER) return;
+  } catch {
+  }
+  mkdirSync4(configDir(), { recursive: true });
+  writeAtomic(file2, STARTER);
 }
 var STARTER_EVENTS = ["SessionStart", "UserPromptSubmit"];
 var ours = (h, event) => typeof h.command === "string" && h.command.includes(MARK) && h.command.includes(event) || typeof h.url === "string" && h.url.includes(URL_MARK + event);
@@ -2788,6 +2823,7 @@ function installGate(projectDir, bin, fast = false) {
   settings.hooks ??= {};
   settings.hooks.PreToolUse = [...settings.hooks.PreToolUse ?? [], ...gateEntries(bin, fast)];
   settings.hooks.PostToolUse = [...settings.hooks.PostToolUse ?? [], ...squeezeEntries(bin, fast)];
+  if (fast) writeStarter();
   if (fast) for (const ev of STARTER_EVENTS) settings.hooks[ev] = [...settings.hooks[ev] ?? [], ...starterEntries(bin)];
   write(file2, settings);
   return file2;

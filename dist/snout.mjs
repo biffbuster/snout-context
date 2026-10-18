@@ -7224,7 +7224,37 @@ function gateEntries(bin, fast = false) {
 }
 var ENSURE = "serve --ensure";
 function starterEntries(bin) {
-  return [{ hooks: [{ type: "command", command: `node "${bin}" ${ENSURE}`, timeout: 5 }] }];
+  return [{ hooks: [{ type: "command", command: `node "${starterPath()}" "${bin}" ${ENSURE}`, timeout: 5 }] }];
+}
+var starterPath = () => join18(configDir(), "snout-starter.mjs");
+var STARTER = `// Written by Snout (snout fast on). Starts the local Snout server for the fast gate.
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { spawnSync } from "node:child_process";
+const [bin, ...args] = process.argv.slice(2);
+function plugin() {
+  try {
+    const j = JSON.parse(readFileSync(join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"), "plugins", "installed_plugins.json"), "utf8"));
+    for (const e of (j.plugins ?? j)["snout@snout-context"] ?? []) {
+      const p = e?.installPath && join(e.installPath, "dist", "snout.mjs");
+      if (p && existsSync(p)) return p;
+    }
+  } catch {}
+  return null;
+}
+const inPlugin = /[\\\\/]\\.claude[\\\\/]plugins[\\\\/]/.test(bin ?? "");
+const run = (inPlugin ? plugin() : null) ?? (bin && existsSync(bin) ? bin : null) ?? plugin();
+if (run) spawnSync(process.execPath, [run, ...args], { stdio: "ignore", timeout: 4000, windowsHide: true });
+`;
+function writeStarter() {
+  const file3 = starterPath();
+  try {
+    if (readFileSync16(file3, "utf8") === STARTER) return;
+  } catch {
+  }
+  mkdirSync8(configDir(), { recursive: true });
+  writeAtomic(file3, STARTER);
 }
 var STARTER_EVENTS = ["SessionStart", "UserPromptSubmit"];
 var ours = (h, event) => typeof h.command === "string" && h.command.includes(MARK) && h.command.includes(event) || typeof h.url === "string" && h.url.includes(URL_MARK + event);
@@ -7263,6 +7293,7 @@ function installGate(projectDir, bin, fast = false) {
   settings.hooks ??= {};
   settings.hooks.PreToolUse = [...settings.hooks.PreToolUse ?? [], ...gateEntries(bin, fast)];
   settings.hooks.PostToolUse = [...settings.hooks.PostToolUse ?? [], ...squeezeEntries(bin, fast)];
+  if (fast) writeStarter();
   if (fast) for (const ev of STARTER_EVENTS) settings.hooks[ev] = [...settings.hooks[ev] ?? [], ...starterEntries(bin)];
   write(file3, settings);
   return file3;
@@ -8444,7 +8475,7 @@ function forgetReads(snoutDir, session) {
 }
 
 // src/cli.ts
-var VERSION2 = "0.2.2";
+var VERSION2 = "0.3.0";
 var BIN = resolve13(process.argv[1] ?? "dist/snout.mjs");
 var requestStart = 0;
 var elapsedMs = () => Math.round(performance.now() - requestStart);
