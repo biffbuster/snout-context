@@ -1149,8 +1149,8 @@ function responseText(response, depth = 0) {
   if (Array.isArray(response)) return response.map((r) => responseText(r, depth + 1)).join("\n");
   if (typeof response !== "object") return "";
   const o = response;
-  const file = o.file;
-  if (file && typeof file.content === "string") return file.content;
+  const file2 = o.file;
+  if (file2 && typeof file2.content === "string") return file2.content;
   if (typeof o.stdout === "string") return o.stdout + (typeof o.stderr === "string" ? o.stderr : "");
   if (typeof o.text === "string") return o.text;
   if (typeof o.content === "string") return o.content;
@@ -1355,14 +1355,14 @@ function adoptLegacyDir(legacy, current) {
     recordError("adoptLegacyDir", err);
   }
 }
-function readLayer(file) {
-  if (!existsSync4(file)) return {};
+function readLayer(file2) {
+  if (!existsSync4(file2)) return {};
   try {
-    const raw = JSON.parse(readFileSync2(file, "utf8"));
+    const raw = JSON.parse(readFileSync2(file2, "utf8"));
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("config must be a JSON object");
     for (const k of ["alwaysAllow", "alwaysDeny", "redact", "redactExempt"]) {
       if (raw[k] !== void 0 && !Array.isArray(raw[k])) {
-        recordError("loadConfig", new Error(`${file}: ${k} must be an array; ignoring it`));
+        recordError("loadConfig", new Error(`${file2}: ${k} must be an array; ignoring it`));
         delete raw[k];
       }
     }
@@ -2338,17 +2338,17 @@ function loadCache(path) {
     return {};
   }
 }
-function fileRows(file, client, cache2, configDir) {
+function fileRows(file2, client, cache2, configDir) {
   let st;
   try {
-    st = statSync8(file);
+    st = statSync8(file2);
   } catch {
     return null;
   }
   const stamp = `${st.size}:${st.mtimeMs}`;
-  const hit = cache2[file];
+  const hit = cache2[file2];
   if (hit && hit.stamp === stamp) return hit;
-  const text = readFileSync5(file, "utf8");
+  const text = readFileSync5(file2, "utf8");
   let entry;
   if (client === "claude") {
     const reqs = claudeRequests(text);
@@ -2357,7 +2357,7 @@ function fileRows(file, client, cache2, configDir) {
     const { cwd, reqs } = codexRequests(text);
     entry = { stamp, client, cwd, rows: rollup(reqs, client, configDir) };
   }
-  cache2[file] = entry;
+  cache2[file2] = entry;
   return entry;
 }
 var inside = (child, parent) => !!child && (child === parent || child.startsWith(parent + sep));
@@ -2623,24 +2623,24 @@ function squeezeSearch(output, savedTo) {
   if (matchShare >= 0.6) {
     const files = /* @__PURE__ */ new Map();
     lines.forEach((l, i) => {
-      const file = matched[i]?.[1] ?? "(other)";
-      const list = files.get(file);
+      const file2 = matched[i]?.[1] ?? "(other)";
+      const list = files.get(file2);
       if (list) list.push(l);
-      else files.set(file, [l]);
+      else files.set(file2, [l]);
     });
     let shown = 0;
     let hiddenFiles = 0, hiddenMatches = 0;
     const named = [];
-    for (const [file, hits] of files) {
+    for (const [file2, hits] of files) {
       if (shown >= FILES_LISTED) {
         hiddenFiles++;
         hiddenMatches += hits.length;
-        if (named.length < FILES_NAMED) named.push(`${file} (${hits.length})`);
+        if (named.length < FILES_NAMED) named.push(`${file2} (${hits.length})`);
         continue;
       }
       shown++;
       out.push(...hits.slice(0, MATCHES_PER_FILE));
-      if (hits.length > MATCHES_PER_FILE) out.push(`  (+${hits.length - MATCHES_PER_FILE} more in ${file})`);
+      if (hits.length > MATCHES_PER_FILE) out.push(`  (+${hits.length - MATCHES_PER_FILE} more in ${file2})`);
     }
     if (hiddenFiles) {
       out.push(`  \u2026 ${hiddenFiles} more file${hiddenFiles === 1 ? "" : "s"} with ${hiddenMatches} match${hiddenMatches === 1 ? "" : "es"}, lines not shown:`);
@@ -2756,16 +2756,16 @@ var ours = (h, event) => typeof h.command === "string" && h.command.includes(MAR
 var isGate = (e) => (e.hooks ?? []).some((h) => ours(h, "pre-tool"));
 var isSqueeze = (e) => (e.hooks ?? []).some((h) => ours(h, "squeeze"));
 var isStarter = (e) => (e.hooks ?? []).some((h) => typeof h.command === "string" && h.command.includes(MARK) && h.command.includes(ENSURE));
-function read(file) {
+function read(file2) {
   try {
-    return JSON.parse(readFileSync6(file, "utf8"));
+    return JSON.parse(readFileSync6(file2, "utf8"));
   } catch {
     return {};
   }
 }
-function write(file, settings) {
-  mkdirSync4(join8(file, ".."), { recursive: true });
-  writeAtomic(file, JSON.stringify(settings, null, 2) + "\n");
+function write(file2, settings) {
+  mkdirSync4(join8(file2, ".."), { recursive: true });
+  writeAtomic(file2, JSON.stringify(settings, null, 2) + "\n");
 }
 function strip(settings) {
   let changed = false;
@@ -2783,23 +2783,23 @@ function strip(settings) {
 }
 function installGate(projectDir, bin, fast = false) {
   removeGate(projectDir);
-  const file = join8(projectDir, ".claude", "settings.local.json");
-  const settings = read(file);
+  const file2 = join8(projectDir, ".claude", "settings.local.json");
+  const settings = read(file2);
   settings.hooks ??= {};
   settings.hooks.PreToolUse = [...settings.hooks.PreToolUse ?? [], ...gateEntries(bin, fast)];
   settings.hooks.PostToolUse = [...settings.hooks.PostToolUse ?? [], ...squeezeEntries(bin, fast)];
   if (fast) for (const ev of STARTER_EVENTS) settings.hooks[ev] = [...settings.hooks[ev] ?? [], ...starterEntries(bin)];
-  write(file, settings);
-  return file;
+  write(file2, settings);
+  return file2;
 }
 function removeGate(projectDir) {
   let removed = false;
   for (const name of SETTINGS) {
-    const file = join8(projectDir, ".claude", name);
-    if (!existsSync7(file)) continue;
-    const settings = read(file);
+    const file2 = join8(projectDir, ".claude", name);
+    if (!existsSync7(file2)) continue;
+    const settings = read(file2);
     if (strip(settings)) {
-      write(file, settings);
+      write(file2, settings);
       removed = true;
     }
   }
@@ -2807,9 +2807,9 @@ function removeGate(projectDir) {
 }
 function refreshGate(projectDir, bin) {
   for (const name of SETTINGS) {
-    const file = join8(projectDir, ".claude", name);
-    if (!existsSync7(file)) continue;
-    const hooks = read(file).hooks ?? {};
+    const file2 = join8(projectDir, ".claude", name);
+    if (!existsSync7(file2)) continue;
+    const hooks = read(file2).hooks ?? {};
     const gate = (hooks.PreToolUse ?? []).filter(isGate);
     if (!gate.length) continue;
     const fast = gate.some((e) => (e.hooks ?? []).some((h) => isSnoutUrl(h.url)));
@@ -3143,10 +3143,10 @@ function readClaudeTranscript(text, u, since, fallbackTs) {
     for (const c of content) {
       if (c?.type !== "tool_use" || typeof c.name !== "string") continue;
       const input = c.input ?? {};
-      const file = typeof input.file_path === "string" ? input.file_path : typeof input.notebook_path === "string" ? input.notebook_path : null;
-      if (/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(c.name) && file) u.writes.add(resolve5(file));
+      const file2 = typeof input.file_path === "string" ? input.file_path : typeof input.notebook_path === "string" ? input.notebook_path : null;
+      if (/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(c.name) && file2) u.writes.add(resolve5(file2));
       if (ts < since) continue;
-      if (c.name === "Read" && file) bump2(u.reads, resolve5(file), ts);
+      if (c.name === "Read" && file2) bump2(u.reads, resolve5(file2), ts);
       else if (c.name === "Skill" && typeof input.skill === "string") bump2(u.skills, input.skill.toLowerCase().split(":").pop(), ts);
       else if ((c.name === "Agent" || c.name === "Task") && typeof input.subagent_type === "string") bump2(u.agents, input.subagent_type.toLowerCase().split(":").pop(), ts);
       else if (c.name === "SlashCommand" && typeof input.command === "string") bump2(u.commands, input.command.replace(/^\//, "").split(/\s/)[0].toLowerCase(), ts);
@@ -3239,8 +3239,8 @@ function authorOf(git2, agentWrote) {
   return ai ? "ai" : "human";
 }
 var normalize = (text) => text.replace(/^---\r?\n[\s\S]*?\r?\n---/, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-function shingles(norm, k = 5) {
-  const w = norm.split(" ").filter(Boolean);
+function shingles(norm2, k = 5) {
+  const w = norm2.split(" ").filter(Boolean);
   const out = /* @__PURE__ */ new Set();
   for (let i = 0; i + k <= w.length; i++) out.add(w.slice(i, i + k).join(" "));
   if (!out.size && w.length) out.add(w.join(" "));
@@ -3254,9 +3254,9 @@ function overlap(a, b) {
   return { jaccard: inter / (a.size + b.size - inter), containment: inter / small.size };
 }
 var STOP = new Set("the a an and or of to in for on with is are be by it this that as at from use when if not you your do does can should must will any all each only into than then so no".split(" "));
-function topTerms(norm, n = 40) {
+function topTerms(norm2, n = 40) {
   const counts = /* @__PURE__ */ new Map();
-  for (const w of norm.split(" ")) if (w.length > 3 && !STOP.has(w) && !/^\d+$/.test(w)) counts.set(w, (counts.get(w) ?? 0) + 1);
+  for (const w of norm2.split(" ")) if (w.length > 3 && !STOP.has(w) && !/^\d+$/.test(w)) counts.set(w, (counts.get(w) ?? 0) + 1);
   return new Set([...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([w]) => w));
 }
 function staleRefs(text, fileAbs, projectDir, everExisted, workspaceScripts) {
@@ -3437,11 +3437,11 @@ function auditContext(projectDir, opts = {}) {
   const agentContext = (f) => f.kind !== "on-demand" || f.role !== "doc" || f.agents[0] !== "any" || REPORT_NAME.test(basename2(f.path).replace(MD, "")) || !f.path.includes("/");
   const tail2 = (p) => p.replace(/^\.[a-z]+\//i, "");
   const mirror = (a, b) => a.path !== b.path && tail2(a.path) === tail2(b.path) && !shared(a, b);
-  const norm = new Map(comparable.map((f) => [f.abs, normalize(texts.get(f.abs))]));
-  const sh = new Map(comparable.map((f) => [f.abs, shingles(norm.get(f.abs))]));
+  const norm2 = new Map(comparable.map((f) => [f.abs, normalize(texts.get(f.abs))]));
+  const sh = new Map(comparable.map((f) => [f.abs, shingles(norm2.get(f.abs))]));
   const hash = /* @__PURE__ */ new Map();
   for (const f of comparable) {
-    const h = createHash("sha256").update(norm.get(f.abs)).digest("hex");
+    const h = createHash("sha256").update(norm2.get(f.abs)).digest("hex");
     const first = hash.get(h);
     if (!first) {
       hash.set(h, f);
@@ -3929,12 +3929,12 @@ function auditCi(projectDir, opts = {}) {
   const steps = [];
   const unreadable = [];
   const files = existsSync9(wfDir) ? readdirSync3(wfDir).filter((f) => /\.ya?ml$/i.test(f)).sort() : [];
-  for (const file of files) {
+  for (const file2 of files) {
     let doc;
     try {
-      doc = asMap(parseYaml(readFileSync8(join10(wfDir, file), "utf8")));
+      doc = asMap(parseYaml(readFileSync8(join10(wfDir, file2), "utf8")));
     } catch (e) {
-      unreadable.push({ file, error: String(e.message ?? e) });
+      unreadable.push({ file: file2, error: String(e.message ?? e) });
       continue;
     }
     const { triggers, events } = triggersOf(doc.on ?? doc.true ?? null);
@@ -3976,9 +3976,9 @@ function auditCi(projectDir, opts = {}) {
         }
         if (!found) return;
         const conditions = [jobIf, asStr(step.if)].join(" ");
-        const s = { workflow: file, job: jobId, step: name, ...found, triggers, scheduledPerMonth: sched.length ? sched.reduce((a, b) => a + b, 0) : null, flags: [] };
+        const s = { workflow: file2, job: jobId, step: name, ...found, triggers, scheduledPerMonth: sched.length ? sched.reduce((a, b) => a + b, 0) : null, flags: [] };
         flagStep(s, events, conditions, concurrency, Number(asStr(job["timeout-minutes"])) || null);
-        if (/\.lock\.ya?ml$/i.test(file)) for (const f of s.flags) f.fix += ` (in ${file.replace(/\.lock\.ya?ml$/i, ".md")}, then recompile)`;
+        if (/\.lock\.ya?ml$/i.test(file2)) for (const f of s.flags) f.fix += ` (in ${file2.replace(/\.lock\.ya?ml$/i, ".md")}, then recompile)`;
         steps.push(s);
       });
     }
@@ -4251,9 +4251,9 @@ var MISSING = [
   [/command not found: ([\w.-]+)/, (m) => m[1]]
 ];
 var EDITS = /* @__PURE__ */ new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
-function firstRequest(file) {
-  const fd = openSync3(file, "r");
-  const buf = Buffer.alloc(Math.min(HEAD_BYTES, statSync10(file).size));
+function firstRequest(file2) {
+  const fd = openSync3(file2, "r");
+  const buf = Buffer.alloc(Math.min(HEAD_BYTES, statSync10(file2).size));
   try {
     readSync3(fd, buf, 0, buf.length, 0);
   } finally {
@@ -4272,11 +4272,11 @@ function firstRequest(file) {
   }
   return void 0;
 }
-function tail(file) {
-  const size = statSync10(file).size;
+function tail(file2) {
+  const size = statSync10(file2).size;
   const start = Math.max(0, size - TAIL_BYTES);
   const buf = Buffer.alloc(size - start);
-  const fd = openSync3(file, "r");
+  const fd = openSync3(file2, "r");
   try {
     readSync3(fd, buf, 0, buf.length, start);
   } finally {
@@ -4365,9 +4365,9 @@ function factsFromClaudeRows(lines, projectDir, first) {
     for (const b of content) {
       if (b.type === "tool_use") {
         uses.set(b.id, b);
-        const file = b.input?.file_path ?? b.input?.notebook_path;
-        if (EDITS.has(b.name) && typeof file === "string") {
-          const p = rel(file);
+        const file2 = b.input?.file_path ?? b.input?.notebook_path;
+        if (EDITS.has(b.name) && typeof file2 === "string") {
+          const p = rel(file2);
           facts.changed = [p, ...facts.changed.filter((x) => x !== p)];
         }
         if (b.name === "TodoWrite" && Array.isArray(b.input?.todos)) facts.todos = b.input.todos.filter((t) => t?.status !== "completed").map((t) => oneLine(String(t.content ?? ""), 120));
@@ -4426,10 +4426,10 @@ function codexSessionFacts(transcriptPath, projectDir) {
   return factsFromClaudeRows(codexRows(tail(transcriptPath).split(/\n/)), projectDir);
 }
 function readPins(projectDir, snoutDir) {
-  const file = join11(snoutDir, "pins.md");
-  if (!existsSync10(file)) return [];
+  const file2 = join11(snoutDir, "pins.md");
+  if (!existsSync10(file2)) return [];
   const pins = [];
-  for (const raw of readFileSync9(file, "utf8").split("\n")) {
+  for (const raw of readFileSync9(file2, "utf8").split("\n")) {
     const m = raw.match(/^\s*[-*]\s+(.*\S)\s*$/);
     if (!m) continue;
     const text = m[1];
@@ -4469,7 +4469,7 @@ function pinLines(pins, projectDir, secrets) {
 }
 var PROGRESS_FILE = "progress.md";
 var PROGRESS_MAX_CHARS = 1500;
-var progressAsk = (file) => `- Keep \`${file}\` current while you work, at most 10 lines: the goal, your current approach, what failed and why, the next step. Snout restores it verbatim after the next compaction.`;
+var progressAsk = (file2) => `- Keep \`${file2}\` current while you work, at most 10 lines: the goal, your current approach, what failed and why, the next step. Snout restores it verbatim after the next compaction.`;
 function sessionStartMs(transcriptPath) {
   try {
     const fd = openSync3(transcriptPath, "r");
@@ -4487,10 +4487,10 @@ function sessionStartMs(transcriptPath) {
   }
 }
 function readProgress(snoutDir, sinceMs) {
-  const file = join11(snoutDir, PROGRESS_FILE);
+  const file2 = join11(snoutDir, PROGRESS_FILE);
   try {
-    if (statSync10(file).mtimeMs < sinceMs) return void 0;
-    const text = readFileSync9(file, "utf8").trim();
+    if (statSync10(file2).mtimeMs < sinceMs) return void 0;
+    const text = readFileSync9(file2, "utf8").trim();
     return text ? text.length > PROGRESS_MAX_CHARS ? `${text.slice(0, PROGRESS_MAX_CHARS - 1)}\u2026` : text : void 0;
   } catch {
     return void 0;
@@ -4832,9 +4832,9 @@ var tokens = (text) => estimateTokens(Buffer.byteLength(text), "output.txt");
 var textOf = (content) => typeof content === "string" ? content : Array.isArray(content) ? content.map((p) => typeof p?.text === "string" ? p.text : "").join("\n") : "";
 var EDITS2 = /* @__PURE__ */ new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
 var withoutCd = (c) => c.replace(/^\s*cd\s+("[^"]*"|'[^']*'|\S+)\s*(&&|;)\s*/, "");
-function readLines(file) {
+function readLines(file2) {
   const out = [];
-  for (const raw of readFileSync11(file, "utf8").split("\n")) {
+  for (const raw of readFileSync11(file2, "utf8").split("\n")) {
     if (!raw) continue;
     try {
       out.push({ o: JSON.parse(raw), raw });
@@ -4871,8 +4871,8 @@ function shadowProject(lines, projectDir) {
   }
   return { root, files: best.size };
 }
-function replaySession(file, run) {
-  const lines = readLines(file).filter(({ o }) => !o.isSidechain);
+function replaySession(file2, run) {
+  const lines = readLines(file2).filter(({ o }) => !o.isSidechain);
   const projectDir = projectOf(lines);
   const shadow = existsSync11(projectDir) ? null : shadowProject(lines, projectDir);
   const onDisk = (v) => {
@@ -4882,7 +4882,7 @@ function replaySession(file, run) {
     if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, onDisk(x)]));
     return v;
   };
-  const session = String(lines.find(({ o }) => o.sessionId)?.o.sessionId ?? file);
+  const session = String(lines.find(({ o }) => o.sessionId)?.o.sessionId ?? file2);
   const rel = (p) => {
     if (!isAbsolute9(p)) return p;
     const r2 = relative6(projectDir, p);
@@ -4890,7 +4890,7 @@ function replaySession(file, run) {
   };
   const r = {
     session,
-    file,
+    file: file2,
     projectDir,
     rebuilt: shadow?.files ?? 0,
     calls: 0,
@@ -4946,7 +4946,7 @@ function replaySession(file, run) {
       if (b?.type === "tool_use") {
         r.calls++;
         callIndex++;
-        const input = { hook_event_name: "PreToolUse", session_id: session, cwd: onDisk(o.cwd ?? projectDir), tool_name: b.name, tool_input: onDisk(b.input ?? {}), tool_use_id: b.id, transcript_path: file };
+        const input = { hook_event_name: "PreToolUse", session_id: session, cwd: onDisk(o.cwd ?? projectDir), tool_name: b.name, tool_input: onDisk(b.input ?? {}), tool_use_id: b.id, transcript_path: file2 };
         const path2 = typeof b.input?.file_path === "string" ? b.input.file_path : typeof b.input?.notebook_path === "string" ? b.input.notebook_path : void 0;
         if (path2 && heldPaths.has(path2)) {
           r.regrets++;
@@ -4982,9 +4982,9 @@ function replaySession(file, run) {
       }
       const upd = pre?.updatedInput;
       if (pre?.permissionDecision === "allow" && upd && typeof upd.limit === "number" && path) {
-        const file2 = o.toolUseResult?.file;
-        const full = typeof file2?.content === "string" ? file2.content : resultText2;
-        const from = Math.max(0, (Number(upd.offset) || 1) - (Number(file2?.startLine) || 1));
+        const file3 = o.toolUseResult?.file;
+        const full = typeof file3?.content === "string" ? file3.content : resultText2;
+        const from = Math.max(0, (Number(upd.offset) || 1) - (Number(file3?.startLine) || 1));
         const slice = full.split("\n").slice(from, from + upd.limit).join("\n");
         const note = typeof pre.additionalContext === "string" ? pre.additionalContext : "";
         const saved = tokens(full) - tokens(slice) - tokens(note);
@@ -5002,7 +5002,7 @@ function replaySession(file, run) {
       if (typeof pre?.additionalContext === "string") r.added += tokens(pre.additionalContext);
       if (pre?.permissionDecision === "ask") r.asked++;
       const response = o.toolUseResult ?? { stdout: resultText2, stderr: "", interrupted: false, isImage: false };
-      const postInput = { hook_event_name: "PostToolUse", session_id: session, cwd: onDisk(o.cwd ?? projectDir), tool_name: use.name, tool_input: onDisk(use.input), tool_use_id: b.tool_use_id, tool_response: onDisk(response), transcript_path: file };
+      const postInput = { hook_event_name: "PostToolUse", session_id: session, cwd: onDisk(o.cwd ?? projectDir), tool_name: use.name, tool_input: onDisk(use.input), tool_use_id: b.tool_use_id, tool_response: onDisk(response), transcript_path: file2 };
       if (use.name === "Bash" || use.name.startsWith("mcp__")) {
         const sq = run.squeeze(postInput)?.hookSpecificOutput;
         const updated = sq?.updatedToolOutput;
@@ -5072,8 +5072,8 @@ function requestsOf(lines) {
 var W = 1.25;
 var R = 0.1;
 var O = 5;
-function compactionWhatIf(file, cap, costs) {
-  const reqs = requestsOf(readLines(file).filter(({ o }) => !o.isSidechain));
+function compactionWhatIf(file2, cap, costs) {
+  const reqs = requestsOf(readLines(file2).filter(({ o }) => !o.isSidechain));
   const prefix = reqs.length ? reqs[0].written + reqs[0].cached : 0;
   let base = 0, sim = 0, ctx = 0, prev = 0, compactions = 0, peak = 0, rewrite = false;
   for (const q of reqs) {
@@ -5393,10 +5393,10 @@ function shareMemory(projectDir, snoutDir) {
   const probe = `${rel}/card.json`;
   const ignored = () => spawnSync2("git", ["check-ignore", "-q", "--no-index", probe], { cwd: projectDir, timeout: 2e3, windowsHide: true }).status === 0;
   if (!ignored()) return { ok: true, changedGitignore: false, dir: rel };
-  const file = join14(projectDir, ".gitignore");
+  const file2 = join14(projectDir, ".gitignore");
   let text = "";
   try {
-    text = readFileSync12(file, "utf8");
+    text = readFileSync12(file2, "utf8");
   } catch {
   }
   const top = rel.split("/")[0];
@@ -5408,8 +5408,49 @@ function shareMemory(projectDir, snoutDir) {
     return { ok: false, reason: `${rel} is ignored by a rule Snout won't edit${why ? ` (${why.split("	")[0]})` : ""}. Add \`!${rel}/\` after it to share memory.` };
   }
   lines.splice(i, 1, `${top}/*`, `!${rel}/`);
-  writeAtomic(file, lines.join(nl));
+  writeAtomic(file2, lines.join(nl));
   return ignored() ? { ok: false, reason: `Updated .gitignore, but another rule still ignores ${rel}.` } : { ok: true, changedGitignore: true, dir: rel };
+}
+
+// src/memory/receipts.ts
+import { join as join15 } from "node:path";
+var file = (snoutDir) => join15(snoutDir, "decisions.jsonl");
+function readRecallDecisions(snoutDir) {
+  return readRows(file(snoutDir)).filter((r) => r?.kind === "recall" && Array.isArray(r.cands));
+}
+var norm = (p) => p.replace(/\\/g, "/").replace(/^\.\//, "");
+function recallOutcomes(decisions, cards, reads) {
+  const changedBy = /* @__PURE__ */ new Map();
+  for (const c of cards) changedBy.set(c.session, new Set([...c.changed, ...c.commits.flatMap((k) => k.files)].map(norm)));
+  const readsBy = /* @__PURE__ */ new Map();
+  for (const r of reads) (readsBy.get(r.session) ?? readsBy.set(r.session, []).get(r.session)).push(r);
+  return decisions.map((d) => {
+    const changed = changedBy.get(d.session) ?? /* @__PURE__ */ new Set();
+    const kept = new Set(d.cands.filter((c) => c.kept).flatMap((c) => c.files.map(norm)));
+    const dropped = new Set(d.cands.filter((c) => !c.kept).flatMap((c) => c.files.map(norm)));
+    const later = new Set((readsBy.get(d.session) ?? []).filter((r) => r.ts >= d.ts).map((r) => norm(r.path)));
+    return {
+      ...d,
+      opened: d.spoke ? [...kept].filter((f) => later.has(f)) : [],
+      changed: d.spoke ? [...kept].filter((f) => changed.has(f)) : [],
+      missed: d.spoke ? [] : [...dropped].filter((f) => changed.has(f))
+    };
+  });
+}
+function summarizeRecall(outcomes) {
+  const byReason = { spoke: 0, "no-match": 0, "already-recalled": 0, "map-gate": 0 };
+  for (const o of outcomes) byReason[o.reason] = (byReason[o.reason] ?? 0) + 1;
+  const spoke = outcomes.filter((o) => o.spoke);
+  const silent = outcomes.filter((o) => !o.spoke);
+  return {
+    prompts: outcomes.length,
+    spoke: spoke.length,
+    opened: spoke.filter((o) => o.opened.length).length,
+    changed: spoke.filter((o) => o.changed.length).length,
+    silent: silent.length,
+    missed: silent.filter((o) => o.missed.length).length,
+    byReason
+  };
 }
 export {
   COMMITS,
@@ -5498,12 +5539,14 @@ export {
   readDecisions,
   readPins,
   readProgress,
+  readRecallDecisions,
   readRows,
   readSpend,
   readTargets,
   readTranscriptUsage,
   readTurns,
   recall,
+  recallOutcomes,
   redundancyOf,
   refreshGate,
   renderAudit,
@@ -5544,6 +5587,7 @@ export {
   starterEntries,
   summarize,
   summarizeLedger,
+  summarizeRecall,
   summarizeSpend,
   tailLines,
   terms,

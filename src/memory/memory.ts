@@ -151,7 +151,7 @@ function cardText(c: Card): string {
   return [c.task, c.request, c.outcome, ...c.changed, ...c.commits.flatMap((k) => [k.subject, ...k.files]), c.error?.line, c.branch].filter(Boolean).join(" ");
 }
 
-const cardFiles = (c: Card) => [...new Set([...c.changed, ...c.commits.flatMap((k) => k.files)])];
+export const cardFiles = (c: Card) => [...new Set([...c.changed, ...c.commits.flatMap((k) => k.files)])];
 
 export interface Recalled { card: Card; score: number; matched: string[]; files: string[] }
 

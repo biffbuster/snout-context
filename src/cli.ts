@@ -55,7 +55,8 @@ import { auditServers, disableHint } from "./audit/mcp-servers.js";
 import { archiveFiles, auditContext, listArchives, renderAudit, renderMap, restoreArchive, toJson } from "./audit/context.js";
 import { auditCi, renderCi } from "./audit/ci.js";
 import { docWindow, type DocWindow } from "./gate/longdoc.js";
-import { captureSession, COMMITS, embedKey, embedText, forgetCard, hybridRecall, linkCommit, listCards, packVector, readCards, readVectors, recall, renderRecall, repoBrief, shareMemory, unpackVector, writeVectors, type Vectors } from "./memory/memory.js";
+import { captureSession, cardFiles, COMMITS, embedKey, embedText, forgetCard, hybridRecall, linkCommit, listCards, packVector, readCards, readVectors, recall, renderRecall, repoBrief, shareMemory, unpackVector, writeVectors, type Vectors } from "./memory/memory.js";
+import { readRecallDecisions, recallOutcomes, recordRecallDecision, summarizeRecall, type RecallReason } from "./memory/receipts.js";
 import { installModel, loadEmbedder, MODEL, modelDir, modelReady, QUERY_PREFIX, removeModel } from "./memory/embed.js";
 import { buildMap, candidates, renderCandidates, shouldSuggest, type RepoMap } from "./map/map.js";
 import { forgetReads, rememberRead, repeatOf, repeatOutput, requestedWindow, returnedWindow } from "./gate/repeat.js";
@@ -1003,12 +1004,31 @@ function recallBrief(prompt: string, paths: Paths, cfg: Config, state: SessionSt
     const cards = readCards(paths.snoutDir);
     const opts = { session: state.session, projectDir: paths.projectDir };
     const ranker = vectors ? "hybrid" : "words";
-    let hits = (vectors ? hybridRecall(cards, prompt, vectors, opts) : recall(cards, prompt, opts)).filter((h) => !seen.has(h.card.id));
+    const raw = vectors ? hybridRecall(cards, prompt, vectors, opts) : recall(cards, prompt, opts);
+    let hits = raw.filter((h) => !seen.has(h.card.id));
+    const fresh = hits.length;
+    let top: Set<string> | null = null;
     if (hits.length) {
-      const top = new Set(candidates(refreshMap(paths, cfg), prompt, RECALL_AGREE).map((c) => c.path));
-      hits = hits.filter((h) => h.files.length > 0 || [...h.card.changed, ...h.card.commits.flatMap((k) => k.files)].some((f) => top.has(f)));
+      top = new Set(candidates(refreshMap(paths, cfg), prompt, RECALL_AGREE).map((c) => c.path));
+      hits = hits.filter((h) => h.files.length > 0 || cardFiles(h.card).some((f) => top!.has(f)));
     }
     const text = renderRecall(hits, paths.projectDir);
+    if (cards.length) {
+      const kept = new Set(text ? hits.map((h) => h.card.id) : []);
+      const reason: RecallReason = text ? "spoke" : !raw.length ? "no-match" : !fresh ? "already-recalled" : "map-gate";
+      try {
+        recordRecallDecision(paths.snoutDir, {
+          ts: new Date().toISOString(), session: state.session, turn: state.turn, ranker, spoke: !!text, reason,
+          cands: raw.map((h) => ({
+            id: h.card.id, agent: h.card.agent, score: Math.round(h.score * 10000) / 10000, named: h.files.length,
+            mapAgree: top ? cardFiles(h.card).some((f) => top!.has(f)) : null, kept: kept.has(h.card.id), files: cardFiles(h.card),
+          })),
+          ...(text ? { tokensEst: estimateTokens(Buffer.byteLength(text), "x.txt") } : {}),
+        });
+      } catch (err) {
+        recordError("recallDecision", err);
+      }
+    }
     if (!text) return "";
     state.recalled = [...seen, ...hits.map((h) => h.card.id)].slice(-50);
     appendRow(join(paths.snoutDir, "recall.jsonl"), {
@@ -1093,7 +1113,19 @@ function cmdMemory(paths: Paths, cfg: Config, args: string[]): void {
   const head = `Memory is ${cfg.memory === false ? "off" : "on"} · ${cards.length} card${cards.length === 1 ? "" : "s"} in ${toRel(join(paths.snoutDir, "memory"), paths.projectDir)}`;
   const rows = cards.slice(0, 20).map((c) => `  ${c.updated.slice(0, 10)}  ${c.agent.padEnd(6)} ${safeText(c.session, 36)}  ${safeText(c.task ?? c.commits[0]?.subject ?? "", 70)}${c.commits.length ? `  [${c.commits.map((k) => k.sha.slice(0, 7)).join(" ")}]` : ""}`);
   const ranks = modelReady() ? "words and meaning (memory model installed)" : "words (snout memory model install adds meaning)";
-  say([head, `Recall ranks by ${ranks}`, ...rows, "", 'Usage: snout memory on|off · snout memory brief · snout memory share · snout memory forget <session> · snout memory model [install|remove] · snout recall "<request>"'].join("\n"));
+  say([head, `Recall ranks by ${ranks}`, ...recallStatsLines(paths, cards), ...rows, "", 'Usage: snout memory on|off · snout memory brief · snout memory share · snout memory forget <session> · snout memory model [install|remove] · snout recall "<request>"'].join("\n"));
+}
+
+/** How recall has done in this repo: when it spoke, whether its files were used; when silent, what it missed. */
+function recallStatsLines(paths: Paths, cards: ReturnType<typeof readCards>): string[] {
+  const decisions = readRecallDecisions(paths.snoutDir);
+  if (!decisions.length) return [];
+  const reads = readDecisions(paths.ledger).map((r) => ({ session: r.session, ts: r.ts, path: toRel(r.path, paths.projectDir) }));
+  const s = summarizeRecall(recallOutcomes(decisions, cards, reads));
+  return [
+    `Recall spoke on ${s.spoke} of ${s.prompts} prompts with cards to weigh: its files were opened after ${s.opened}, changed after ${s.changed}.`,
+    `Stayed silent on ${s.silent} (no match ${s.byReason["no-match"]}, already shown ${s.byReason["already-recalled"]}, no map agreement ${s.byReason["map-gate"]}); a dropped card named a file the session then changed in ${s.missed}.`,
+  ];
 }
 
 /** `snout recall "<request>" [--as-of <date>]`: what a prompt would get from memory. */

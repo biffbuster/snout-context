@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFil
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { HYBRID_CUT, hybridRecall, packVector, recall, renderRecall, repoBrief, terms, unpackVector } from "../dist/lib.mjs";
+import { HYBRID_CUT, hybridRecall, packVector, readRecallDecisions, recall, recallOutcomes, renderRecall, repoBrief, summarizeRecall, terms, unpackVector } from "../dist/lib.mjs";
 
 const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 const DAY = 86_400_000;
@@ -298,4 +298,35 @@ test("every completed turn leaves one turn row, reads or not, tagged with its ag
   spawnSync(process.execPath, [CLI, "hook", "codex", "Stop"], { input: JSON.stringify({ cwd: dir, session_id: "t2", hook_event_name: "Stop", last_assistant_message: "done" }), encoding: "utf8" });
   const rows = readFileSync(join(dir, ".snout", "turns.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
   assert.deepEqual(rows.map((r) => [r.session, r.turn, r.agent, r.decisions.allow + r.decisions.ask + r.decisions.deny]), [["t1", 1, "claude", 0], ["t2", 1, "codex", 0]]);
+});
+
+test("every prompt with cards to weigh leaves a decision record: spoke, already shown, or no match", () => {
+  const { dir, transcript } = repo();
+  hook(dir, "stop", { session_id: "s1", transcript_path: transcript });
+  hook(dir, "prompt-submit", { session_id: "s2", prompt: "invoice rounding in billing.js is off by a cent again" });
+  hook(dir, "prompt-submit", { session_id: "s2", prompt: "invoice rounding in billing.js is off by a cent again" });
+  hook(dir, "prompt-submit", { session_id: "s2", prompt: "write a haiku about the sea" });
+  const rows = readRecallDecisions(join(dir, ".snout"));
+  assert.deepEqual(rows.map((r) => [r.spoke, r.reason]), [[true, "spoke"], [false, "already-recalled"], [false, "no-match"]]);
+  const first = rows[0].cands[0];
+  assert.deepEqual([first.id, first.kept, first.named, first.files], ["s1", true, 1, ["src/billing.js"]]);
+  assert.ok(!JSON.stringify(rows).includes("haiku"), "the prompt itself is not stored");
+});
+
+test("a recall's outcome: its files opened or changed after it; a silence that dropped a file the session then changed is a miss", () => {
+  const cand = (id, kept, files) => ({ id, agent: "codex", score: 0.03, named: 0, mapAgree: true, kept, files });
+  const decisions = [
+    { ts: "2026-10-18T10:00:00Z", session: "s2", turn: 1, kind: "recall", ranker: "words", spoke: true, reason: "spoke", cands: [cand("a", true, ["src/a.py", "src/b.py"])] },
+    { ts: "2026-10-18T11:00:00Z", session: "s3", turn: 1, kind: "recall", ranker: "words", spoke: false, reason: "map-gate", cands: [cand("b", false, ["src/c.py"])] },
+  ];
+  const cardsNow = [card({ session: "s2", changed: ["src/b.py"] }), card({ session: "s3", changed: ["src/c.py"] })];
+  const reads = [
+    { session: "s2", ts: "2026-10-18T09:00:00Z", path: "src/b.py" }, // before the recall: not caused by it
+    { session: "s2", ts: "2026-10-18T10:05:00Z", path: "src\\a.py" },
+  ];
+  const out = recallOutcomes(decisions, cardsNow, reads);
+  assert.deepEqual([out[0].opened, out[0].changed, out[0].missed], [["src/a.py"], ["src/b.py"], []]);
+  assert.deepEqual(out[1].missed, ["src/c.py"]);
+  const s = summarizeRecall(out);
+  assert.deepEqual([s.prompts, s.spoke, s.opened, s.changed, s.silent, s.missed, s.byReason["map-gate"]], [2, 1, 1, 1, 1, 1, 1]);
 });
