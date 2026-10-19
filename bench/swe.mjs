@@ -36,6 +36,7 @@ import { basename, delimiter, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { bootstrap } from "./long.mjs";
 import { reliabilityLines, costLines, ledgerFacts, peakContext, mapFacts } from "./stats.mjs";
+import { stamp } from "./stamp.mjs";
 
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, a, i, all) => (a.startsWith("--") ? [...acc, [a.slice(2), all[i + 1] && !all[i + 1].startsWith("--") ? all[i + 1] : true]] : acc), []),
@@ -742,7 +743,7 @@ async function main() {
   const frozen = frozenBuild();
   if (resumed && resumed.frozen.snoutCommit !== frozen.snoutCommit) throw new Error("--resume: a different Snout commit than the run started with");
   if (resumed && resumed.frozen.snoutDistSha256 !== frozen.snoutDistSha256) throw new Error("--resume: dist/snout.mjs changed since this run started; the arms would not be the same Snout");
-  const save = () => writeFileSync(outFile, JSON.stringify({ runId, model: MODEL, n: N, measuredAt: resumed?.measuredAt ?? new Date().toISOString(), ...(resumed ? { resumedAt: [...(resumed.resumedAt ?? []), new Date().toISOString()] } : {}), frozen, rows, ...(excluded.length ? { excluded } : {}) }, null, 2));
+  const save = () => writeFileSync(outFile, JSON.stringify({ runId, model: MODEL, n: N, measuredAt: resumed?.measuredAt ?? new Date().toISOString(), ...stamp(), ...(resumed ? { resumedAt: [...(resumed.resumedAt ?? []), new Date().toISOString()] } : {}), frozen, rows, ...(excluded.length ? { excluded } : {}) }, null, 2));
   console.error(`${plan.length} session(s): ${tasks.length} task(s) × ${ARMS.length} arm(s) × ${N}, model ${MODEL}, cap $${BUDGET}, ${JOBS} at a time → ${outFile}`);
   let next = 0, done = 0, halted = null;
   const worker = async () => {

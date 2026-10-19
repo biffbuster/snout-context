@@ -31,6 +31,9 @@ jobs:
           cp dist/snout.mjs /tmp/committed.mjs
           npm run build
           diff -q /tmp/committed.mjs dist/snout.mjs
+      # Every published number must be measured on this release line, not an older build.
+      - name: claims measured on this release
+        run: node scripts/check-claims.mjs --strict
       - name: tag matches package.json version
         run: test "v$(node -p 'require("./package.json").version')" = "${GITHUB_REF_NAME}"
       - run: npm publish --provenance --access public

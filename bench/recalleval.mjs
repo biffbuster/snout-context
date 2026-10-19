@@ -25,6 +25,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { stamp } from "./stamp.mjs";
 const { recall, terms } = await import(process.env.MAP_LIB || "../dist/lib.mjs");
 
 const REPO = fileURLToPath(new URL("..", import.meta.url)).replace(/\/$/, "");
@@ -197,5 +198,5 @@ for (const k of rankers) {
   console.log(`  ${k} gated, precision by top-score fifth (low → high): ${[0, 1, 2, 3, 4].map((i) => pct(q(i).map((x) => +x.briefHit))).join("  ")}`);
 }
 const file = join(resultsDir, `recalleval-${Date.now()}.json`);
-writeFileSync(file, JSON.stringify({ measuredAt: new Date().toISOString(), history: HISTORY, mapFile, model: embed ? MODEL : null, rows }, null, 1));
+writeFileSync(file, JSON.stringify({ measuredAt: new Date().toISOString(), ...stamp(), history: HISTORY, mapFile, model: embed ? MODEL : null, rows }, null, 1));
 console.log(`\n  rows: ${file}`);

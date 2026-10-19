@@ -56,15 +56,15 @@ What these rows can and can't show:
 
 | Claim | Result | Data |
 | --- | --- | --- |
-| Recall brief names a file the fix needed, words checked against the repo map | **75.2%** of the 58.1% of tasks where it speaks | `recalleval-1792170581701.json` |
+| Recall brief names a file the fix needed, words checked against the repo map | **75.2%** of the 58.1% of tasks where it speaks | `recalleval-1792376199878.json` |
 | — with the optional memory model (words and meaning, cut and map agreement) | **86.8%** of the 35.9% of tasks where it speaks | same file |
 
 485 SWE-bench Verified tasks; each task's memory is the repository's last 3000 commits before the
 issue was opened, one card per commit. Free and local: no agent runs, no API call. Rebuild with
-`node bench/recallfloor.mjs bench/ab-results/recalleval-1792170581701.json` (from the rows) or
+`node bench/recallfloor.mjs bench/ab-results/recalleval-1792376199878.json` (from the rows) or
 `node bench/recalleval.mjs --embed` (from scratch; needs the dataset, git clones and the model).
 
-| Same, memory = real agent sessions on earlier issues, words and map | **52.2%** of the 33.2% of tasks where it speaks | `sessioneval-1792173191076.json` |
+| Same, memory = real agent sessions on earlier issues, words and map | **52.2%** of the 33.2% of tasks where it speaks | `sessioneval-1792376222339.json` |
 | — with the memory model | **60.5%** of the 25.6% of tasks where it speaks | same file |
 
 The session rows use the public trajectories of one agent (mini-SWE-agent, Claude Sonnet 4.5,

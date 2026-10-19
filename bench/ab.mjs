@@ -32,6 +32,7 @@ import { tmpdir } from "node:os";
 import { dirname, basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gateEntries, squeezeEntries } from "../dist/lib.mjs";
+import { stamp } from "./stamp.mjs";
 
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, a, i, arr) => (a.startsWith("--") ? [...acc, [a.slice(2), arr[i + 1]?.startsWith("--") ? true : arr[i + 1] ?? true]] : acc), []),
@@ -408,7 +409,7 @@ function main() {
   const outDir = join(REPO, "bench/ab-results");
   mkdirSync(outDir, { recursive: true });
   const outFile = join(outDir, `run-${Date.now()}.json`);
-  writeFileSync(outFile, JSON.stringify({ agent: AGENT, model: MODEL, n: N, measuredAt: new Date().toISOString(), rows }, null, 2));
+  writeFileSync(outFile, JSON.stringify({ agent: AGENT, model: MODEL, n: N, measuredAt: new Date().toISOString(), ...stamp(), rows }, null, 2));
   console.log(`\nFull results: ${outFile}`);
   const broken = summarize(rows, tasks, MODEL, N);
   // A release score requires every selected run to complete its task. A failed baseline

@@ -28,6 +28,7 @@ import { dirname, join } from "node:path";
 import { gateEntries, squeezeEntries } from "../dist/lib.mjs";
 import { reliabilityLines, costLines, ledgerFacts, peakContext } from "./stats.mjs";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { stamp } from "./stamp.mjs";
 
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, a, i, all) => (a.startsWith("--") ? [...acc, [a.slice(2), all[i + 1] && !all[i + 1].startsWith("--") ? all[i + 1] : true]] : acc), []),
@@ -462,7 +463,7 @@ function main() {
     const row = runOne(t, a);
     rows.push(row);
     // Saved after every run, so an interrupted benchmark keeps what it measured.
-    writeFileSync(outFile, JSON.stringify({ model: MODEL, n: N, measuredAt: new Date().toISOString(), rows }, null, 2));
+    writeFileSync(outFile, JSON.stringify({ model: MODEL, n: N, measuredAt: new Date().toISOString(), ...stamp(), rows }, null, 2));
     process.stderr.write(`${row.pass ? "pass" : `FAIL(${row.own ? "" : "task "}${row.suite ? "" : "suite"})`} · ${Math.round(row.inputTokens / 1000)}k in · ${row.outputTokens} out · ${row.turns} turns · $${row.costUsd.toFixed(3)}${row.withheld ? ` · ~${Math.round(row.withheld / 1000)}k kept out` : ""}\n`);
   });
   console.log(`\nFull results: ${outFile}`);

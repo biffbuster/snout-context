@@ -343,7 +343,7 @@ function dispatch(command: string, input: HookInput): void {
     case "memory": return cmdMemory(paths, cfg, process.argv.slice(3));
     case "recall": return cmdRecall(paths, process.argv.slice(3));
     case "fast": return cmdFast(paths, cfg, process.argv[3]);
-    case "version": return say(`snout ${VERSION}`);
+    case "version": case "--version": case "-v": return say(`snout ${VERSION}`);
     case "status": return cmdStatus(paths, cfg);
     case "help": case "--help": case "-h": return say(HELP);
     default: return say(`snout: unknown command "${safeText(command, 30)}".\n\n${HELP}`);

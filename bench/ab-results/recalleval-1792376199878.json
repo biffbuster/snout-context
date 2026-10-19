@@ -1,7 +1,10 @@
 {
- "measuredAt": "2026-10-16T17:09:41.701Z",
+ "measuredAt": "2026-10-19T02:16:39.878Z",
+ "snoutVersion": "0.3.0",
+ "commit": "06a5971",
+ "dirty": true,
  "history": 3000,
- "mapFile": "mapeval-heldout-1792105066713.json",
+ "mapFile": "mapeval-heldout-1792375683439.json",
  "model": "Xenova/bge-small-en-v1.5",
  "rows": [
   {
@@ -50,7 +53,7 @@
     },
     "newHit": false
    },
-   "embedMs": 24,
+   "embedMs": 19,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -111,7 +114,7 @@
     "astropy/units/decorators.py"
    ],
    "cards": 3000,
-   "ms": 51,
+   "ms": 62,
    "queryTerms": 92,
    "mapTop": [
     "astropy/utils/decorators.py",
@@ -150,7 +153,7 @@
     },
     "newHit": false
    },
-   "embedMs": 23,
+   "embedMs": 22,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -211,7 +214,7 @@
     "astropy/units/core.py"
    ],
    "cards": 3000,
-   "ms": 40,
+   "ms": 47,
    "queryTerms": 49,
    "mapTop": [
     "astropy/units/core.py",
@@ -250,7 +253,7 @@
     },
     "newHit": false
    },
-   "embedMs": 19,
+   "embedMs": 21,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -311,7 +314,7 @@
     "astropy/utils/introspection.py"
    ],
    "cards": 3000,
-   "ms": 56,
+   "ms": 52,
    "queryTerms": 70,
    "mapTop": [
     "astropy/utils/introspection.py",
@@ -350,7 +353,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 27,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -412,7 +415,7 @@
     "astropy/io/fits/header.py"
    ],
    "cards": 3000,
-   "ms": 44,
+   "ms": 40,
    "queryTerms": 52,
    "mapTop": [
     "astropy/io/fits/header.py",
@@ -451,7 +454,7 @@
     },
     "newHit": true
    },
-   "embedMs": 17,
+   "embedMs": 18,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -512,7 +515,7 @@
     "astropy/units/quantity.py"
    ],
    "cards": 3000,
-   "ms": 42,
+   "ms": 50,
    "queryTerms": 26,
    "mapTop": [
     "astropy/io/misc/yaml.py",
@@ -551,7 +554,7 @@
     },
     "newHit": false
    },
-   "embedMs": 17,
+   "embedMs": 20,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -651,7 +654,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 21,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -712,7 +715,7 @@
     "astropy/timeseries/core.py"
    ],
    "cards": 3000,
-   "ms": 55,
+   "ms": 62,
    "queryTerms": 126,
    "mapTop": [
     "astropy/extern/jquery/data/js/jquery.dataTables.js",
@@ -751,7 +754,7 @@
     },
     "newHit": false
    },
-   "embedMs": 33,
+   "embedMs": 30,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -812,7 +815,7 @@
     "astropy/table/table.py"
    ],
    "cards": 3000,
-   "ms": 54,
+   "ms": 65,
    "queryTerms": 102,
    "mapTop": [
     "astropy/table/table.py",
@@ -851,7 +854,7 @@
     },
     "newHit": false
    },
-   "embedMs": 35,
+   "embedMs": 28,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -915,7 +918,7 @@
     "astropy/coordinates/builtin_frames/itrs_observed_transforms.py"
    ],
    "cards": 3000,
-   "ms": 64,
+   "ms": 77,
    "queryTerms": 220,
    "mapTop": [
     "astropy/coordinates/builtin_frames/icrs_observed_transforms.py",
@@ -954,7 +957,7 @@
     },
     "newHit": true
    },
-   "embedMs": 32,
+   "embedMs": 24,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -1015,7 +1018,7 @@
     "astropy/io/ascii/html.py"
    ],
    "cards": 3000,
-   "ms": 72,
+   "ms": 74,
    "queryTerms": 155,
    "mapTop": [
     "astropy/extern/jquery/data/js/jquery.dataTables.js",
@@ -1054,7 +1057,7 @@
     },
     "newHit": true
    },
-   "embedMs": 34,
+   "embedMs": 23,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -1215,7 +1218,7 @@
     "astropy/units/quantity.py"
    ],
    "cards": 3000,
-   "ms": 63,
+   "ms": 75,
    "queryTerms": 151,
    "mapTop": [
     "astropy/units/core.py",
@@ -1254,7 +1257,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 29,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -1315,7 +1318,7 @@
     "astropy/coordinates/sky_coordinate.py"
    ],
    "cards": 3000,
-   "ms": 55,
+   "ms": 68,
    "queryTerms": 65,
    "mapTop": [
     "astropy/coordinates/sky_coordinate.py",
@@ -1354,7 +1357,7 @@
     },
     "newHit": false
    },
-   "embedMs": 21,
+   "embedMs": 18,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -1415,7 +1418,7 @@
     "astropy/io/ascii/rst.py"
    ],
    "cards": 3000,
-   "ms": 62,
+   "ms": 64,
    "queryTerms": 80,
    "mapTop": [
     "astropy/io/ascii/core.py",
@@ -1454,7 +1457,7 @@
     },
     "newHit": true
    },
-   "embedMs": 31,
+   "embedMs": 29,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -1515,7 +1518,7 @@
     "astropy/io/fits/connect.py"
    ],
    "cards": 3000,
-   "ms": 82,
+   "ms": 72,
    "queryTerms": 194,
    "mapTop": [
     "astropy/io/registry/base.py",
@@ -1554,7 +1557,7 @@
     },
     "newHit": false
    },
-   "embedMs": 29,
+   "embedMs": 27,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -1615,7 +1618,7 @@
     "astropy/io/ascii/qdp.py"
    ],
    "cards": 3000,
-   "ms": 70,
+   "ms": 59,
    "queryTerms": 67,
    "mapTop": [
     "astropy/io/ascii/qdp.py",
@@ -1716,7 +1719,7 @@
     "astropy/units/format/cds_parsetab.py"
    ],
    "cards": 3000,
-   "ms": 68,
+   "ms": 61,
    "queryTerms": 93,
    "mapTop": [
     "astropy/io/ascii/mrt.py",
@@ -1755,7 +1758,7 @@
     },
     "newHit": false
    },
-   "embedMs": 29,
+   "embedMs": 23,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -1816,7 +1819,7 @@
     "astropy/io/fits/card.py"
    ],
    "cards": 3000,
-   "ms": 83,
+   "ms": 60,
    "queryTerms": 113,
    "mapTop": [
     "astropy/io/fits/card.py",
@@ -1855,7 +1858,7 @@
     },
     "newHit": false
    },
-   "embedMs": 28,
+   "embedMs": 26,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -1916,7 +1919,7 @@
     "astropy/io/fits/diff.py"
    ],
    "cards": 3000,
-   "ms": 54,
+   "ms": 63,
    "queryTerms": 84,
    "mapTop": [
     "astropy/io/fits/diff.py",
@@ -1955,7 +1958,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 24,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -2016,7 +2019,7 @@
     "astropy/io/fits/card.py"
    ],
    "cards": 3000,
-   "ms": 57,
+   "ms": 55,
    "queryTerms": 63,
    "mapTop": [
     "astropy/io/fits/card.py",
@@ -2116,7 +2119,7 @@
     "astropy/nddata/mixins/ndarithmetic.py"
    ],
    "cards": 3000,
-   "ms": 64,
+   "ms": 61,
    "queryTerms": 72,
    "mapTop": [
     "astropy/nddata/mixins/ndarithmetic.py",
@@ -2155,7 +2158,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 28,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -2216,7 +2219,7 @@
     "django/core/management/commands/makemigrations.py"
    ],
    "cards": 3000,
-   "ms": 61,
+   "ms": 68,
    "queryTerms": 36,
    "mapTop": [
     "js_tests/qunit/blanket.js",
@@ -2255,7 +2258,7 @@
     },
     "newHit": true
    },
-   "embedMs": 15,
+   "embedMs": 14,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -2316,7 +2319,7 @@
     "django/core/paginator.py"
    ],
    "cards": 3000,
-   "ms": 63,
+   "ms": 61,
    "queryTerms": 27,
    "mapTop": [
     "django/core/paginator.py",
@@ -2355,7 +2358,7 @@
     },
     "newHit": false
    },
-   "embedMs": 12,
+   "embedMs": 14,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -2416,7 +2419,7 @@
     "django/core/validators.py"
    ],
    "cards": 3000,
-   "ms": 114,
+   "ms": 90,
    "queryTerms": 92,
    "mapTop": [
     "django/core/validators.py",
@@ -2455,7 +2458,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 25,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -2517,7 +2520,7 @@
     "django/db/models/sql/query.py"
    ],
    "cards": 3000,
-   "ms": 88,
+   "ms": 84,
    "queryTerms": 115,
    "mapTop": [
     "django/db/models/query.py",
@@ -2556,7 +2559,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 24,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -2617,7 +2620,7 @@
     "django/db/models/aggregates.py"
    ],
    "cards": 3000,
-   "ms": 67,
+   "ms": 64,
    "queryTerms": 21,
    "mapTop": [
     "django/db/models/sql/query.py",
@@ -2717,7 +2720,7 @@
     "django/conf/global_settings.py"
    ],
    "cards": 3000,
-   "ms": 71,
+   "ms": 66,
    "queryTerms": 71,
    "mapTop": [
     "django/http/request.py",
@@ -2756,7 +2759,7 @@
     },
     "newHit": false
    },
-   "embedMs": 15,
+   "embedMs": 16,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -2817,7 +2820,7 @@
     "django/db/backends/postgresql/client.py"
    ],
    "cards": 3000,
-   "ms": 67,
+   "ms": 71,
    "queryTerms": 23,
    "mapTop": [
     "django/contrib/postgres/fields/array.py",
@@ -2856,7 +2859,7 @@
     },
     "newHit": false
    },
-   "embedMs": 10,
+   "embedMs": 11,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -2917,7 +2920,7 @@
     "django/utils/dateparse.py"
    ],
    "cards": 3000,
-   "ms": 61,
+   "ms": 63,
    "queryTerms": 34,
    "mapTop": [
     "django/utils/dateparse.py",
@@ -2956,7 +2959,7 @@
     },
     "newHit": false
    },
-   "embedMs": 19,
+   "embedMs": 22,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -3017,7 +3020,7 @@
     "django/contrib/contenttypes/management/__init__.py"
    ],
    "cards": 3000,
-   "ms": 75,
+   "ms": 77,
    "queryTerms": 111,
    "mapTop": [
     "django/contrib/contenttypes/management/__init__.py",
@@ -3056,7 +3059,7 @@
     },
     "newHit": false
    },
-   "embedMs": 28,
+   "embedMs": 33,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -3156,7 +3159,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 28,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -3217,7 +3220,7 @@
     "django/contrib/admin/options.py"
    ],
    "cards": 3000,
-   "ms": 58,
+   "ms": 59,
    "queryTerms": 24,
    "mapTop": [
     "django/contrib/admin/options.py",
@@ -3256,7 +3259,7 @@
     },
     "newHit": false
    },
-   "embedMs": 9,
+   "embedMs": 11,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -3317,7 +3320,7 @@
     "django/contrib/auth/validators.py"
    ],
    "cards": 3000,
-   "ms": 68,
+   "ms": 62,
    "queryTerms": 49,
    "mapTop": [
     "django/contrib/auth/validators.py",
@@ -3356,7 +3359,7 @@
     },
     "newHit": false
    },
-   "embedMs": 22,
+   "embedMs": 14,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -3417,7 +3420,7 @@
     "django/template/engine.py"
    ],
    "cards": 3000,
-   "ms": 61,
+   "ms": 59,
    "queryTerms": 22,
    "mapTop": [
     "django/template/engine.py",
@@ -3517,7 +3520,7 @@
     "django/http/response.py"
    ],
    "cards": 3000,
-   "ms": 63,
+   "ms": 61,
    "queryTerms": 33,
    "mapTop": [
     "django/db/models/fields/__init__.py",
@@ -3556,7 +3559,7 @@
     },
     "newHit": false
    },
-   "embedMs": 14,
+   "embedMs": 17,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -3620,7 +3623,7 @@
     "django/db/backends/sqlite3/operations.py"
    ],
    "cards": 3000,
-   "ms": 93,
+   "ms": 89,
    "queryTerms": 150,
    "mapTop": [
     "django/templatetags/tz.py",
@@ -3659,7 +3662,7 @@
     },
     "newHit": true
    },
-   "embedMs": 27,
+   "embedMs": 24,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -3720,7 +3723,7 @@
     "django/db/migrations/loader.py"
    ],
    "cards": 3000,
-   "ms": 67,
+   "ms": 62,
    "queryTerms": 53,
    "mapTop": [
     "django/core/management/__init__.py",
@@ -3759,7 +3762,7 @@
     },
     "newHit": false
    },
-   "embedMs": 16,
+   "embedMs": 13,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -3820,7 +3823,7 @@
     "django/contrib/admin/options.py"
    ],
    "cards": 3000,
-   "ms": 65,
+   "ms": 62,
    "queryTerms": 50,
    "mapTop": [
     "tests/queries/models.py",
@@ -3859,7 +3862,7 @@
     },
     "newHit": true
    },
-   "embedMs": 16,
+   "embedMs": 14,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -3920,7 +3923,7 @@
     "django/forms/models.py"
    ],
    "cards": 3000,
-   "ms": 61,
+   "ms": 60,
    "queryTerms": 23,
    "mapTop": [
     "django/forms/models.py",
@@ -4020,7 +4023,7 @@
     "django/db/models/deletion.py"
    ],
    "cards": 3000,
-   "ms": 61,
+   "ms": 55,
    "queryTerms": 18,
    "mapTop": [
     "django/template/backends/django.py",
@@ -4059,7 +4062,7 @@
     },
     "newHit": false
    },
-   "embedMs": 9,
+   "embedMs": 7,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -4120,7 +4123,7 @@
     "django/utils/numberformat.py"
    ],
    "cards": 3000,
-   "ms": 68,
+   "ms": 60,
    "queryTerms": 41,
    "mapTop": [
     "django/utils/formats.py",
@@ -4159,7 +4162,7 @@
     },
     "newHit": false
    },
-   "embedMs": 16,
+   "embedMs": 13,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -4220,7 +4223,7 @@
     "django/db/models/fields/__init__.py"
    ],
    "cards": 3000,
-   "ms": 73,
+   "ms": 66,
    "queryTerms": 77,
    "mapTop": [
     "tests/admin_views/models.py",
@@ -4259,7 +4262,7 @@
     },
     "newHit": false
    },
-   "embedMs": 16,
+   "embedMs": 15,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -4320,7 +4323,7 @@
     "django/db/backends/postgresql/client.py"
    ],
    "cards": 3000,
-   "ms": 70,
+   "ms": 68,
    "queryTerms": 63,
    "mapTop": [
     "django/db/utils.py",
@@ -4359,7 +4362,7 @@
     },
     "newHit": false
    },
-   "embedMs": 19,
+   "embedMs": 18,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -4420,7 +4423,7 @@
     "django/db/models/sql/query.py"
    ],
    "cards": 3000,
-   "ms": 84,
+   "ms": 83,
    "queryTerms": 144,
    "mapTop": [
     "django/db/models/sql/query.py",
@@ -4459,7 +4462,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 26,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -4520,7 +4523,7 @@
     "django/utils/html.py"
    ],
    "cards": 3000,
-   "ms": 64,
+   "ms": 63,
    "queryTerms": 63,
    "mapTop": [
     "django/utils/html.py",
@@ -4559,7 +4562,7 @@
     },
     "newHit": false
    },
-   "embedMs": 17,
+   "embedMs": 19,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -4620,7 +4623,7 @@
     "django/core/management/base.py"
    ],
    "cards": 3000,
-   "ms": 57,
+   "ms": 56,
    "queryTerms": 31,
    "mapTop": [
     "django/test/runner.py",
@@ -4659,7 +4662,7 @@
     },
     "newHit": false
    },
-   "embedMs": 9,
+   "embedMs": 11,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -4720,7 +4723,7 @@
     "django/db/models/sql/query.py"
    ],
    "cards": 3000,
-   "ms": 90,
+   "ms": 80,
    "queryTerms": 114,
    "mapTop": [
     "django/db/migrations/operations/models.py",
@@ -4759,7 +4762,7 @@
     },
     "newHit": false
    },
-   "embedMs": 24,
+   "embedMs": 23,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -4821,7 +4824,7 @@
     "django/urls/resolvers.py"
    ],
    "cards": 3000,
-   "ms": 69,
+   "ms": 86,
    "queryTerms": 86,
    "mapTop": [
     "django/urls/resolvers.py",
@@ -4923,7 +4926,7 @@
     "django/db/models/fields/reverse_related.py"
    ],
    "cards": 3000,
-   "ms": 63,
+   "ms": 62,
    "queryTerms": 43,
    "mapTop": [
     "django/contrib/admin/filters.py",
@@ -4962,7 +4965,7 @@
     },
     "newHit": true
    },
-   "embedMs": 16,
+   "embedMs": 14,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -5023,7 +5026,7 @@
     "django/forms/models.py"
    ],
    "cards": 3000,
-   "ms": 58,
+   "ms": 62,
    "queryTerms": 43,
    "mapTop": [
     "tests/backends/models.py",
@@ -5062,7 +5065,7 @@
     },
     "newHit": false
    },
-   "embedMs": 11,
+   "embedMs": 12,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -5123,7 +5126,7 @@
     "django/contrib/auth/backends.py"
    ],
    "cards": 3000,
-   "ms": 69,
+   "ms": 78,
    "queryTerms": 122,
    "mapTop": [
     "django/contrib/auth/backends.py",
@@ -5162,7 +5165,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 26,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -5223,7 +5226,7 @@
     "django/urls/resolvers.py"
    ],
    "cards": 3000,
-   "ms": 69,
+   "ms": 50,
    "queryTerms": 19,
    "mapTop": [
     "django/urls/__init__.py",
@@ -5323,7 +5326,7 @@
     "django/db/models/sql/compiler.py"
    ],
    "cards": 3000,
-   "ms": 58,
+   "ms": 51,
    "queryTerms": 23,
    "mapTop": [
     "django/db/models/query.py",
@@ -5427,7 +5430,7 @@
     "django/utils/html.py"
    ],
    "cards": 3000,
-   "ms": 74,
+   "ms": 75,
    "queryTerms": 111,
    "mapTop": [
     "django/core/mail/message.py",
@@ -5466,7 +5469,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 26,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -5527,7 +5530,7 @@
     "django/contrib/admin/checks.py"
    ],
    "cards": 3000,
-   "ms": 96,
+   "ms": 95,
    "queryTerms": 205,
    "mapTop": [
     "django/contrib/admin/checks.py",
@@ -5627,7 +5630,7 @@
     "django/db/models/sql/compiler.py"
    ],
    "cards": 3000,
-   "ms": 59,
+   "ms": 63,
    "queryTerms": 65,
    "mapTop": [
     "django/db/models/sql/query.py",
@@ -5666,7 +5669,7 @@
     },
     "newHit": false
    },
-   "embedMs": 12,
+   "embedMs": 16,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -5727,7 +5730,7 @@
     "django/db/models/aggregates.py"
    ],
    "cards": 3000,
-   "ms": 56,
+   "ms": 60,
    "queryTerms": 25,
    "mapTop": [
     "django/db/models/query.py",
@@ -5766,7 +5769,7 @@
     },
     "newHit": true
    },
-   "embedMs": 8,
+   "embedMs": 11,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -5827,7 +5830,7 @@
     "django/contrib/admindocs/utils.py"
    ],
    "cards": 3000,
-   "ms": 56,
+   "ms": 54,
    "queryTerms": 36,
    "mapTop": [
     "django/db/models/fields/related.py",
@@ -5929,7 +5932,7 @@
     "django/db/models/sql/query.py"
    ],
    "cards": 3000,
-   "ms": 62,
+   "ms": 54,
    "queryTerms": 41,
    "mapTop": [
     "django/db/models/expressions.py",
@@ -5968,7 +5971,7 @@
     },
     "newHit": true
    },
-   "embedMs": 18,
+   "embedMs": 16,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -6068,7 +6071,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 25,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -6168,7 +6171,7 @@
     },
     "newHit": false
    },
-   "embedMs": 20,
+   "embedMs": 19,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -6229,7 +6232,7 @@
     "django/contrib/auth/forms.py"
    ],
    "cards": 3000,
-   "ms": 58,
+   "ms": 60,
    "queryTerms": 38,
    "mapTop": [
     "django/contrib/auth/forms.py",
@@ -6268,7 +6271,7 @@
     },
     "newHit": false
    },
-   "embedMs": 12,
+   "embedMs": 16,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -6329,7 +6332,7 @@
     "django/db/migrations/serializer.py"
    ],
    "cards": 3000,
-   "ms": 67,
+   "ms": 63,
    "queryTerms": 62,
    "mapTop": [
     "django/utils/translation/trans_real.py",
@@ -6368,7 +6371,7 @@
     },
     "newHit": false
    },
-   "embedMs": 22,
+   "embedMs": 21,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -6429,7 +6432,7 @@
     "django/db/models/base.py"
    ],
    "cards": 3000,
-   "ms": 61,
+   "ms": 53,
    "queryTerms": 20,
    "mapTop": [
     "django/db/models/lookups.py",
@@ -6529,7 +6532,7 @@
     "django/utils/http.py"
    ],
    "cards": 3000,
-   "ms": 59,
+   "ms": 58,
    "queryTerms": 44,
    "mapTop": [
     "django/utils/http.py",
@@ -6568,7 +6571,7 @@
     },
     "newHit": false
    },
-   "embedMs": 12,
+   "embedMs": 13,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -6629,7 +6632,7 @@
     "django/forms/fields.py"
    ],
    "cards": 3000,
-   "ms": 61,
+   "ms": 58,
    "queryTerms": 68,
    "mapTop": [
     "django/db/models/fields/__init__.py",
@@ -6668,7 +6671,7 @@
     },
     "newHit": false
    },
-   "embedMs": 20,
+   "embedMs": 19,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -6769,7 +6772,7 @@
     },
     "newHit": false
    },
-   "embedMs": 19,
+   "embedMs": 18,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -6830,7 +6833,7 @@
     "django/db/models/query.py"
    ],
    "cards": 3000,
-   "ms": 56,
+   "ms": 58,
    "queryTerms": 42,
    "mapTop": [
     "django/db/models/query.py",
@@ -6869,7 +6872,7 @@
     },
     "newHit": false
    },
-   "embedMs": 18,
+   "embedMs": 15,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -6930,7 +6933,7 @@
     "django/db/models/enums.py"
    ],
    "cards": 3000,
-   "ms": 72,
+   "ms": 68,
    "queryTerms": 110,
    "mapTop": [
     "django/db/models/enums.py",
@@ -7030,7 +7033,7 @@
     "django/db/backends/ddl_references.py"
    ],
    "cards": 3000,
-   "ms": 68,
+   "ms": 62,
    "queryTerms": 73,
    "mapTop": [
     "django/db/backends/ddl_references.py",
@@ -7130,7 +7133,7 @@
     "django/db/models/sql/query.py"
    ],
    "cards": 3000,
-   "ms": 55,
+   "ms": 52,
    "queryTerms": 29,
    "mapTop": [
     "django/db/models/sql/query.py",
@@ -7169,7 +7172,7 @@
     },
     "newHit": false
    },
-   "embedMs": 11,
+   "embedMs": 9,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -7269,7 +7272,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 26,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -7330,7 +7333,7 @@
     "django/contrib/admin/options.py"
    ],
    "cards": 3000,
-   "ms": 64,
+   "ms": 71,
    "queryTerms": 102,
    "mapTop": [
     "django/contrib/admin/options.py",
@@ -7369,7 +7372,7 @@
     },
     "newHit": false
    },
-   "embedMs": 22,
+   "embedMs": 24,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -7470,7 +7473,7 @@
     },
     "newHit": false
    },
-   "embedMs": 14,
+   "embedMs": 13,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -7570,7 +7573,7 @@
     },
     "newHit": false
    },
-   "embedMs": 18,
+   "embedMs": 16,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -7631,7 +7634,7 @@
     "django/db/models/base.py"
    ],
    "cards": 3000,
-   "ms": 68,
+   "ms": 64,
    "queryTerms": 77,
    "mapTop": [
     "tests/model_forms/models.py",
@@ -7670,7 +7673,7 @@
     },
     "newHit": false
    },
-   "embedMs": 17,
+   "embedMs": 20,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -7731,7 +7734,7 @@
     "django/template/library.py"
    ],
    "cards": 3000,
-   "ms": 61,
+   "ms": 67,
    "queryTerms": 57,
    "mapTop": [
     "django/template/library.py",
@@ -7770,7 +7773,7 @@
     },
     "newHit": false
    },
-   "embedMs": 19,
+   "embedMs": 17,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -7870,7 +7873,7 @@
     },
     "newHit": false
    },
-   "embedMs": 19,
+   "embedMs": 15,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -7931,7 +7934,7 @@
     "django/forms/widgets.py"
    ],
    "cards": 3000,
-   "ms": 59,
+   "ms": 62,
    "queryTerms": 41,
    "mapTop": [
     "django/forms/widgets.py",
@@ -7970,7 +7973,7 @@
     },
     "newHit": false
    },
-   "embedMs": 17,
+   "embedMs": 14,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -8031,7 +8034,7 @@
     "django/db/models/enums.py"
    ],
    "cards": 3000,
-   "ms": 57,
+   "ms": 55,
    "queryTerms": 42,
    "mapTop": [
     "tests/model_enums/tests.py",
@@ -8070,7 +8073,7 @@
     },
     "newHit": false
    },
-   "embedMs": 16,
+   "embedMs": 15,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -8131,7 +8134,7 @@
     "django/contrib/admin/utils.py"
    ],
    "cards": 3000,
-   "ms": 57,
+   "ms": 56,
    "queryTerms": 34,
    "mapTop": [
     "django/forms/fields.py",
@@ -8170,7 +8173,7 @@
     },
     "newHit": false
    },
-   "embedMs": 12,
+   "embedMs": 10,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -8232,7 +8235,7 @@
     "django/db/models/options.py"
    ],
    "cards": 3000,
-   "ms": 60,
+   "ms": 63,
    "queryTerms": 53,
    "mapTop": [
     "tests/delete/models.py",
@@ -8271,7 +8274,7 @@
     },
     "newHit": false
    },
-   "embedMs": 14,
+   "embedMs": 15,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -8333,7 +8336,7 @@
     "django/forms/models.py"
    ],
    "cards": 3000,
-   "ms": 62,
+   "ms": 63,
    "queryTerms": 60,
    "mapTop": [
     "django/forms/widgets.py",
@@ -8372,7 +8375,7 @@
     },
     "newHit": true
    },
-   "embedMs": 20,
+   "embedMs": 19,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -8433,7 +8436,7 @@
     "django/conf/global_settings.py"
    ],
    "cards": 3000,
-   "ms": 60,
+   "ms": 57,
    "queryTerms": 54,
    "mapTop": [
     "tests/delete/models.py",
@@ -8533,7 +8536,7 @@
     "django/db/models/sql/query.py"
    ],
    "cards": 3000,
-   "ms": 78,
+   "ms": 76,
    "queryTerms": 129,
    "mapTop": [
     "django/db/models/sql/query.py",
@@ -8572,7 +8575,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 27,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -8633,7 +8636,7 @@
     "django/db/backends/base/schema.py"
    ],
    "cards": 3000,
-   "ms": 63,
+   "ms": 66,
    "queryTerms": 57,
    "mapTop": [
     "django/db/backends/base/schema.py",
@@ -8733,7 +8736,7 @@
     "django/contrib/admin/options.py"
    ],
    "cards": 3000,
-   "ms": 55,
+   "ms": 56,
    "queryTerms": 17,
    "mapTop": [
     "django/contrib/admin/options.py",
@@ -8772,7 +8775,7 @@
     },
     "newHit": false
    },
-   "embedMs": 10,
+   "embedMs": 9,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -8873,7 +8876,7 @@
     },
     "newHit": false
    },
-   "embedMs": 13,
+   "embedMs": 9,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -8934,7 +8937,7 @@
     "django/db/migrations/autodetector.py"
    ],
    "cards": 3000,
-   "ms": 61,
+   "ms": 59,
    "queryTerms": 51,
    "mapTop": [
     "django/db/migrations/operations/models.py",
@@ -8973,7 +8976,7 @@
     },
     "newHit": false
    },
-   "embedMs": 15,
+   "embedMs": 13,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -9034,7 +9037,7 @@
     "django/db/models/query.py"
    ],
    "cards": 3000,
-   "ms": 59,
+   "ms": 54,
    "queryTerms": 75,
    "mapTop": [
     "django/db/models/query.py",
@@ -9073,7 +9076,7 @@
     },
     "newHit": false
    },
-   "embedMs": 20,
+   "embedMs": 18,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -9134,7 +9137,7 @@
     "django/db/models/base.py"
    ],
    "cards": 3000,
-   "ms": 55,
+   "ms": 53,
    "queryTerms": 46,
    "mapTop": [
     "tests/lookup/models.py",
@@ -9234,7 +9237,7 @@
     "django/db/models/sql/compiler.py"
    ],
    "cards": 3000,
-   "ms": 71,
+   "ms": 66,
    "queryTerms": 88,
    "mapTop": [
     "tests/cache/tests.py",
@@ -9273,7 +9276,7 @@
     },
     "newHit": true
    },
-   "embedMs": 28,
+   "embedMs": 26,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -9334,7 +9337,7 @@
     "django/db/models/expressions.py"
    ],
    "cards": 3000,
-   "ms": 57,
+   "ms": 61,
    "queryTerms": 66,
    "mapTop": [
     "django/db/models/query.py",
@@ -9373,7 +9376,7 @@
     },
     "newHit": false
    },
-   "embedMs": 24,
+   "embedMs": 23,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -9434,7 +9437,7 @@
     "django/db/models/fields/__init__.py"
    ],
    "cards": 3000,
-   "ms": 56,
+   "ms": 54,
    "queryTerms": 43,
    "mapTop": [
     "django/contrib/admin/options.py",
@@ -9473,7 +9476,7 @@
     },
     "newHit": false
    },
-   "embedMs": 11,
+   "embedMs": 16,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -9534,7 +9537,7 @@
     "django/db/models/sql/query.py"
    ],
    "cards": 3000,
-   "ms": 74,
+   "ms": 67,
    "queryTerms": 141,
    "mapTop": [
     "django/db/models/sql/query.py",
@@ -9573,7 +9576,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 23,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -9634,7 +9637,7 @@
     "django/db/models/sql/compiler.py"
    ],
    "cards": 3000,
-   "ms": 92,
+   "ms": 72,
    "queryTerms": 129,
    "mapTop": [
     "tests/many_to_one/models.py",
@@ -9673,7 +9676,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 24,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -9734,7 +9737,7 @@
     "django/core/cache/backends/db.py"
    ],
    "cards": 3000,
-   "ms": 80,
+   "ms": 55,
    "queryTerms": 83,
    "mapTop": [
     "django/core/cache/backends/db.py",
@@ -9834,7 +9837,7 @@
     "django/db/models/fields/related.py"
    ],
    "cards": 3000,
-   "ms": 67,
+   "ms": 62,
    "queryTerms": 103,
    "mapTop": [
     "django/db/models/base.py",
@@ -9934,7 +9937,7 @@
     "django/db/models/fields/related.py"
    ],
    "cards": 3000,
-   "ms": 64,
+   "ms": 62,
    "queryTerms": 122,
    "mapTop": [
     "tests/admin_views/models.py",
@@ -10076,7 +10079,7 @@
     },
     "newHit": false
    },
-   "embedMs": 17,
+   "embedMs": 21,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -10237,7 +10240,7 @@
     "django/db/models/sql/query.py"
    ],
    "cards": 3000,
-   "ms": 57,
+   "ms": 58,
    "queryTerms": 68,
    "mapTop": [
     "django/forms/models.py",
@@ -10276,7 +10279,7 @@
     },
     "newHit": false
    },
-   "embedMs": 15,
+   "embedMs": 17,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -10339,7 +10342,7 @@
     "django/http/response.py"
    ],
    "cards": 3000,
-   "ms": 71,
+   "ms": 63,
    "queryTerms": 113,
    "mapTop": [
     "django/http/response.py",
@@ -10378,7 +10381,7 @@
     },
     "newHit": false
    },
-   "embedMs": 28,
+   "embedMs": 23,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -10440,7 +10443,7 @@
     "django/forms/fields.py"
    ],
    "cards": 3000,
-   "ms": 58,
+   "ms": 49,
    "queryTerms": 28,
    "mapTop": [
     "django/db/models/fields/__init__.py",
@@ -10540,7 +10543,7 @@
     "django/contrib/sessions/backends/base.py"
    ],
    "cards": 3000,
-   "ms": 52,
+   "ms": 68,
    "queryTerms": 29,
    "mapTop": [
     "django/conf/global_settings.py",
@@ -10579,7 +10582,7 @@
     },
     "newHit": false
    },
-   "embedMs": 17,
+   "embedMs": 13,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -10640,7 +10643,7 @@
     "django/views/generic/base.py"
    ],
    "cards": 3000,
-   "ms": 58,
+   "ms": 63,
    "queryTerms": 75,
    "mapTop": [
     "django/views/generic/base.py",
@@ -10679,7 +10682,7 @@
     },
     "newHit": false
    },
-   "embedMs": 23,
+   "embedMs": 22,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -10740,7 +10743,7 @@
     "django/forms/models.py"
    ],
    "cards": 3000,
-   "ms": 51,
+   "ms": 53,
    "queryTerms": 23,
    "mapTop": [
     "django/contrib/postgres/fields/array.py",
@@ -10779,7 +10782,7 @@
     },
     "newHit": false
    },
-   "embedMs": 10,
+   "embedMs": 8,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -10840,7 +10843,7 @@
     "django/db/models/fields/files.py"
    ],
    "cards": 3000,
-   "ms": 60,
+   "ms": 59,
    "queryTerms": 64,
    "mapTop": [
     "tests/file_storage/models.py",
@@ -10879,7 +10882,7 @@
     },
     "newHit": false
    },
-   "embedMs": 19,
+   "embedMs": 17,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -10942,7 +10945,7 @@
     "django/middleware/security.py"
    ],
    "cards": 3000,
-   "ms": 61,
+   "ms": 60,
    "queryTerms": 77,
    "mapTop": [
     "django/core/handlers/asgi.py",
@@ -10981,7 +10984,7 @@
     },
     "newHit": true
    },
-   "embedMs": 21,
+   "embedMs": 20,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -11042,7 +11045,7 @@
     "django/db/models/fields/json.py"
    ],
    "cards": 3000,
-   "ms": 55,
+   "ms": 59,
    "queryTerms": 46,
    "mapTop": [
     "django/template/smartif.py",
@@ -11081,7 +11084,7 @@
     },
     "newHit": true
    },
-   "embedMs": 13,
+   "embedMs": 12,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -11142,7 +11145,7 @@
     "django/db/models/functions/datetime.py"
    ],
    "cards": 3000,
-   "ms": 65,
+   "ms": 62,
    "queryTerms": 104,
    "mapTop": [
     "django/db/models/functions/datetime.py",
@@ -11181,7 +11184,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 27,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -11242,7 +11245,7 @@
     "django/db/models/fields/__init__.py"
    ],
    "cards": 3000,
-   "ms": 58,
+   "ms": 59,
    "queryTerms": 74,
    "mapTop": [
     "django/db/models/fields/__init__.py",
@@ -11281,7 +11284,7 @@
     },
     "newHit": false
    },
-   "embedMs": 18,
+   "embedMs": 20,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -11342,7 +11345,7 @@
     "django/db/models/query.py"
    ],
    "cards": 3000,
-   "ms": 73,
+   "ms": 70,
    "queryTerms": 153,
    "mapTop": [
     "django/db/models/query_utils.py",
@@ -11381,7 +11384,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 22,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -11442,7 +11445,7 @@
     "django/core/files/locks.py"
    ],
    "cards": 3000,
-   "ms": 58,
+   "ms": 56,
    "queryTerms": 64,
    "mapTop": [
     "django/core/files/locks.py",
@@ -11542,7 +11545,7 @@
     "django/db/models/query.py"
    ],
    "cards": 3000,
-   "ms": 56,
+   "ms": 53,
    "queryTerms": 46,
    "mapTop": [
     "django/db/models/query.py",
@@ -11581,7 +11584,7 @@
     },
     "newHit": false
    },
-   "embedMs": 18,
+   "embedMs": 19,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -11642,7 +11645,7 @@
     "django/db/models/expressions.py"
    ],
    "cards": 3000,
-   "ms": 92,
+   "ms": 87,
    "queryTerms": 198,
    "mapTop": [
     "django/db/models/query.py",
@@ -11681,7 +11684,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 23,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -11743,7 +11746,7 @@
     "django/forms/fields.py"
    ],
    "cards": 3000,
-   "ms": 52,
+   "ms": 55,
    "queryTerms": 41,
    "mapTop": [
     "tests/conditional_processing/tests.py",
@@ -11782,7 +11785,7 @@
     },
     "newHit": false
    },
-   "embedMs": 15,
+   "embedMs": 12,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -11843,7 +11846,7 @@
     "django/views/debug.py"
    ],
    "cards": 3000,
-   "ms": 59,
+   "ms": 55,
    "queryTerms": 63,
    "mapTop": [
     "django/views/debug.py",
@@ -11882,7 +11885,7 @@
     },
     "newHit": false
    },
-   "embedMs": 23,
+   "embedMs": 21,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -11943,7 +11946,7 @@
     "django/core/management/base.py"
    ],
    "cards": 3000,
-   "ms": 54,
+   "ms": 55,
    "queryTerms": 38,
    "mapTop": [
     "django/core/management/commands/flush.py",
@@ -12043,7 +12046,7 @@
     "django/contrib/auth/tokens.py"
    ],
    "cards": 3000,
-   "ms": 56,
+   "ms": 52,
    "queryTerms": 43,
    "mapTop": [
     "django/contrib/auth/tokens.py",
@@ -12082,7 +12085,7 @@
     },
     "newHit": false
    },
-   "embedMs": 16,
+   "embedMs": 14,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -12243,7 +12246,7 @@
     "django/db/models/functions/math.py"
    ],
    "cards": 3000,
-   "ms": 66,
+   "ms": 64,
    "queryTerms": 94,
    "mapTop": [
     "django/db/models/sql/compiler.py",
@@ -12282,7 +12285,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 22,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -12343,7 +12346,7 @@
     "django/db/models/sql/query.py"
    ],
    "cards": 3000,
-   "ms": 61,
+   "ms": 55,
    "queryTerms": 53,
    "mapTop": [
     "django/db/models/sql/query.py",
@@ -12382,7 +12385,7 @@
     },
     "newHit": false
    },
-   "embedMs": 19,
+   "embedMs": 17,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -12543,7 +12546,7 @@
     "django/utils/dateformat.py"
    ],
    "cards": 3000,
-   "ms": 68,
+   "ms": 53,
    "queryTerms": 38,
    "mapTop": [
     "tests/conditional_processing/tests.py",
@@ -12582,7 +12585,7 @@
     },
     "newHit": true
    },
-   "embedMs": 17,
+   "embedMs": 15,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -12643,7 +12646,7 @@
     "django/contrib/auth/forms.py"
    ],
    "cards": 3000,
-   "ms": 62,
+   "ms": 61,
    "queryTerms": 71,
    "mapTop": [
     "django/contrib/auth/forms.py",
@@ -12743,7 +12746,7 @@
     "django/db/migrations/operations/models.py"
    ],
    "cards": 3000,
-   "ms": 58,
+   "ms": 54,
    "queryTerms": 45,
    "mapTop": [
     "django/db/migrations/operations/models.py",
@@ -12843,7 +12846,7 @@
     "django/utils/functional.py"
    ],
    "cards": 3000,
-   "ms": 53,
+   "ms": 59,
    "queryTerms": 20,
    "mapTop": [
     "django/db/models/sql/query.py",
@@ -12882,7 +12885,7 @@
     },
     "newHit": false
    },
-   "embedMs": 9,
+   "embedMs": 8,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -12943,7 +12946,7 @@
     "django/db/backends/sqlite3/base.py"
    ],
    "cards": 3000,
-   "ms": 75,
+   "ms": 58,
    "queryTerms": 87,
    "mapTop": [
     "django/db/backends/sqlite3/base.py",
@@ -12982,7 +12985,7 @@
     },
     "newHit": false
    },
-   "embedMs": 24,
+   "embedMs": 21,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -13043,7 +13046,7 @@
     "django/core/management/commands/runserver.py"
    ],
    "cards": 3000,
-   "ms": 54,
+   "ms": 53,
    "queryTerms": 38,
    "mapTop": [
     "django/test/runner.py",
@@ -13143,7 +13146,7 @@
     "django/core/handlers/base.py"
    ],
    "cards": 3000,
-   "ms": 73,
+   "ms": 66,
    "queryTerms": 159,
    "mapTop": [
     "django/core/handlers/base.py",
@@ -13182,7 +13185,7 @@
     },
     "newHit": false
    },
-   "embedMs": 31,
+   "embedMs": 23,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -13243,7 +13246,7 @@
     "django/db/migrations/loader.py"
    ],
    "cards": 3000,
-   "ms": 64,
+   "ms": 65,
    "queryTerms": 114,
    "mapTop": [
     "django/db/migrations/loader.py",
@@ -13282,7 +13285,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 23,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -13382,7 +13385,7 @@
     },
     "newHit": false
    },
-   "embedMs": 10,
+   "embedMs": 14,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -13443,7 +13446,7 @@
     "django/utils/autoreload.py"
    ],
    "cards": 3000,
-   "ms": 66,
+   "ms": 61,
    "queryTerms": 98,
    "mapTop": [
     "django/utils/autoreload.py",
@@ -13543,7 +13546,7 @@
     "django/db/models/base.py"
    ],
    "cards": 3000,
-   "ms": 77,
+   "ms": 75,
    "queryTerms": 84,
    "mapTop": [
     "django/db/models/base.py",
@@ -13582,7 +13585,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 28,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -13682,7 +13685,7 @@
     },
     "newHit": false
    },
-   "embedMs": 18,
+   "embedMs": 19,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -13743,7 +13746,7 @@
     "django/db/models/base.py"
    ],
    "cards": 3000,
-   "ms": 62,
+   "ms": 60,
    "queryTerms": 91,
    "mapTop": [
     "tests/queries/models.py",
@@ -13782,7 +13785,7 @@
     },
     "newHit": false
    },
-   "embedMs": 24,
+   "embedMs": 23,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -13843,7 +13846,7 @@
     "django/db/models/sql/compiler.py"
    ],
    "cards": 3000,
-   "ms": 70,
+   "ms": 58,
    "queryTerms": 72,
    "mapTop": [
     "tests/postgres_tests/models.py",
@@ -13882,7 +13885,7 @@
     },
     "newHit": true
    },
-   "embedMs": 22,
+   "embedMs": 21,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -13944,7 +13947,7 @@
     "django/db/backends/sqlite3/features.py"
    ],
    "cards": 3000,
-   "ms": 65,
+   "ms": 64,
    "queryTerms": 114,
    "mapTop": [
     "django/test/testcases.py",
@@ -13983,7 +13986,7 @@
     },
     "newHit": false
    },
-   "embedMs": 22,
+   "embedMs": 27,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -14044,7 +14047,7 @@
     "django/db/models/query_utils.py"
    ],
    "cards": 3000,
-   "ms": 56,
+   "ms": 54,
    "queryTerms": 54,
    "mapTop": [
     "django/db/models/expressions.py",
@@ -14083,7 +14086,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 24,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -14144,7 +14147,7 @@
     "django/forms/boundfield.py"
    ],
    "cards": 3000,
-   "ms": 55,
+   "ms": 56,
    "queryTerms": 58,
    "mapTop": [
     "django/forms/fields.py",
@@ -14183,7 +14186,7 @@
     },
     "newHit": false
    },
-   "embedMs": 22,
+   "embedMs": 21,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -14244,7 +14247,7 @@
     "django/contrib/staticfiles/storage.py"
    ],
    "cards": 3000,
-   "ms": 76,
+   "ms": 70,
    "queryTerms": 151,
    "mapTop": [
     "django/contrib/staticfiles/storage.py",
@@ -14283,7 +14286,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 22,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -14344,7 +14347,7 @@
     "django/utils/datastructures.py"
    ],
    "cards": 3000,
-   "ms": 52,
+   "ms": 50,
    "queryTerms": 21,
    "mapTop": [
     "django/db/migrations/operations/special.py",
@@ -14383,7 +14386,7 @@
     },
     "newHit": false
    },
-   "embedMs": 9,
+   "embedMs": 11,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -14444,7 +14447,7 @@
     "django/db/models/sql/compiler.py"
    ],
    "cards": 3000,
-   "ms": 54,
+   "ms": 53,
    "queryTerms": 34,
    "mapTop": [
     "django/db/models/expressions.py",
@@ -14483,7 +14486,7 @@
     },
     "newHit": true
    },
-   "embedMs": 12,
+   "embedMs": 10,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -14544,7 +14547,7 @@
     "django/db/models/query_utils.py"
    ],
    "cards": 3000,
-   "ms": 74,
+   "ms": 58,
    "queryTerms": 68,
    "mapTop": [
     "django/contrib/auth/backends.py",
@@ -14583,7 +14586,7 @@
     },
     "newHit": false
    },
-   "embedMs": 22,
+   "embedMs": 17,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -14644,7 +14647,7 @@
     "django/urls/resolvers.py"
    ],
    "cards": 3000,
-   "ms": 54,
+   "ms": 49,
    "queryTerms": 38,
    "mapTop": [
     "django/urls/resolvers.py",
@@ -14683,7 +14686,7 @@
     },
     "newHit": false
    },
-   "embedMs": 13,
+   "embedMs": 12,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -14745,7 +14748,7 @@
     "django/db/models/lookups.py"
    ],
    "cards": 3000,
-   "ms": 64,
+   "ms": 66,
    "queryTerms": 75,
    "mapTop": [
     "django/db/models/sql/query.py",
@@ -14784,7 +14787,7 @@
     },
     "newHit": false
    },
-   "embedMs": 24,
+   "embedMs": 25,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -14845,7 +14848,7 @@
     "django/db/models/fields/__init__.py"
    ],
    "cards": 3000,
-   "ms": 68,
+   "ms": 65,
    "queryTerms": 114,
    "mapTop": [
     "django/db/models/fields/__init__.py",
@@ -14884,7 +14887,7 @@
     },
     "newHit": false
    },
-   "embedMs": 28,
+   "embedMs": 24,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -14984,7 +14987,7 @@
     },
     "newHit": true
    },
-   "embedMs": 15,
+   "embedMs": 23,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -15046,7 +15049,7 @@
     "django/db/backends/postgresql/client.py"
    ],
    "cards": 3000,
-   "ms": 55,
+   "ms": 51,
    "queryTerms": 37,
    "mapTop": [
     "django/db/backends/postgresql/client.py",
@@ -15085,7 +15088,7 @@
     },
     "newHit": false
    },
-   "embedMs": 16,
+   "embedMs": 14,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -15146,7 +15149,7 @@
     "django/core/validators.py"
    ],
    "cards": 3000,
-   "ms": 67,
+   "ms": 64,
    "queryTerms": 93,
    "mapTop": [
     "tests/validators/tests.py",
@@ -15246,7 +15249,7 @@
     "django/db/models/lookups.py"
    ],
    "cards": 3000,
-   "ms": 107,
+   "ms": 105,
    "queryTerms": 261,
    "mapTop": [
     "django/db/models/sql/query.py",
@@ -15285,7 +15288,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 24,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -15346,7 +15349,7 @@
     "django/utils/dateformat.py"
    ],
    "cards": 3000,
-   "ms": 51,
+   "ms": 47,
    "queryTerms": 19,
    "mapTop": [
     "django/utils/dateformat.py",
@@ -15385,7 +15388,7 @@
     },
     "newHit": false
    },
-   "embedMs": 10,
+   "embedMs": 7,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -15486,7 +15489,7 @@
     },
     "newHit": true
    },
-   "embedMs": 23,
+   "embedMs": 19,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -15547,7 +15550,7 @@
     "django/contrib/admin/sites.py"
    ],
    "cards": 3000,
-   "ms": 52,
+   "ms": 51,
    "queryTerms": 29,
    "mapTop": [
     "django/contrib/admin/sites.py",
@@ -15647,7 +15650,7 @@
     "django/db/backends/base/schema.py"
    ],
    "cards": 3000,
-   "ms": 59,
+   "ms": 50,
    "queryTerms": 21,
    "mapTop": [
     "django/db/backends/ddl_references.py",
@@ -15686,7 +15689,7 @@
     },
     "newHit": false
    },
-   "embedMs": 8,
+   "embedMs": 6,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -15747,7 +15750,7 @@
     "django/contrib/staticfiles/storage.py"
    ],
    "cards": 3000,
-   "ms": 60,
+   "ms": 59,
    "queryTerms": 75,
    "mapTop": [
     "django/contrib/staticfiles/storage.py",
@@ -15786,7 +15789,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 23,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -15847,7 +15850,7 @@
     "django/db/migrations/executor.py"
    ],
    "cards": 3000,
-   "ms": 52,
+   "ms": 54,
    "queryTerms": 18,
    "mapTop": [
     "tests/conditional_processing/tests.py",
@@ -15886,7 +15889,7 @@
     },
     "newHit": false
    },
-   "embedMs": 7,
+   "embedMs": 8,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -15947,7 +15950,7 @@
     "django/forms/boundfield.py"
    ],
    "cards": 3000,
-   "ms": 62,
+   "ms": 58,
    "queryTerms": 76,
    "mapTop": [
     "django/forms/boundfield.py",
@@ -15986,7 +15989,7 @@
     },
     "newHit": false
    },
-   "embedMs": 23,
+   "embedMs": 24,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -16047,7 +16050,7 @@
     "django/utils/html.py"
    ],
    "cards": 3000,
-   "ms": 52,
+   "ms": 50,
    "queryTerms": 18,
    "mapTop": [
     "django/template/defaultfilters.py",
@@ -16086,7 +16089,7 @@
     },
     "newHit": false
    },
-   "embedMs": 16,
+   "embedMs": 11,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -16186,7 +16189,7 @@
     },
     "newHit": false
    },
-   "embedMs": 12,
+   "embedMs": 15,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -16247,7 +16250,7 @@
     "django/db/migrations/serializer.py"
    ],
    "cards": 3000,
-   "ms": 61,
+   "ms": 59,
    "queryTerms": 71,
    "mapTop": [
     "django/contrib/flatpages/migrations/0001_initial.py",
@@ -16286,7 +16289,7 @@
     },
     "newHit": false
    },
-   "embedMs": 24,
+   "embedMs": 20,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -16347,7 +16350,7 @@
     "django/forms/formsets.py"
    ],
    "cards": 3000,
-   "ms": 54,
+   "ms": 55,
    "queryTerms": 34,
    "mapTop": [
     "tests/model_forms/models.py",
@@ -16386,7 +16389,7 @@
     },
     "newHit": true
    },
-   "embedMs": 16,
+   "embedMs": 14,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -16448,7 +16451,7 @@
     "django/forms/forms.py"
    ],
    "cards": 3000,
-   "ms": 62,
+   "ms": 60,
    "queryTerms": 80,
    "mapTop": [
     "django/forms/forms.py",
@@ -16487,7 +16490,7 @@
     },
     "newHit": false
    },
-   "embedMs": 19,
+   "embedMs": 20,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -16548,7 +16551,7 @@
     "django/db/models/fields/reverse_related.py"
    ],
    "cards": 3000,
-   "ms": 92,
+   "ms": 91,
    "queryTerms": 144,
    "mapTop": [
     "django/db/models/fields/reverse_related.py",
@@ -16587,7 +16590,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 23,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -16748,7 +16751,7 @@
     "django/contrib/admin/views/autocomplete.py"
    ],
    "cards": 3000,
-   "ms": 70,
+   "ms": 71,
    "queryTerms": 148,
    "mapTop": [
     "django/contrib/admin/views/autocomplete.py",
@@ -16848,7 +16851,7 @@
     "django/db/migrations/state.py"
    ],
    "cards": 3000,
-   "ms": 55,
+   "ms": 54,
    "queryTerms": 37,
    "mapTop": [
     "django/db/migrations/state.py",
@@ -16887,7 +16890,7 @@
     },
     "newHit": false
    },
-   "embedMs": 16,
+   "embedMs": 12,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -16948,7 +16951,7 @@
     "django/utils/autoreload.py"
    ],
    "cards": 3000,
-   "ms": 70,
+   "ms": 55,
    "queryTerms": 65,
    "mapTop": [
     "tests/admin_scripts/tests.py",
@@ -16987,7 +16990,7 @@
     },
     "newHit": false
    },
-   "embedMs": 23,
+   "embedMs": 18,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -17048,7 +17051,7 @@
     "django/utils/decorators.py"
    ],
    "cards": 3000,
-   "ms": 62,
+   "ms": 50,
    "queryTerms": 48,
    "mapTop": [
     "django/utils/autoreload.py",
@@ -17087,7 +17090,7 @@
     },
     "newHit": false
    },
-   "embedMs": 16,
+   "embedMs": 12,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -17148,7 +17151,7 @@
     "django/utils/timezone.py"
    ],
    "cards": 3000,
-   "ms": 61,
+   "ms": 57,
    "queryTerms": 65,
    "mapTop": [
     "django/db/models/functions/datetime.py",
@@ -17187,7 +17190,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 30,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -17287,7 +17290,7 @@
     },
     "newHit": false
    },
-   "embedMs": 19,
+   "embedMs": 17,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -17348,7 +17351,7 @@
     "django/forms/models.py"
    ],
    "cards": 3000,
-   "ms": 58,
+   "ms": 56,
    "queryTerms": 54,
    "mapTop": [
     "django/forms/widgets.py",
@@ -17387,7 +17390,7 @@
     },
     "newHit": false
    },
-   "embedMs": 20,
+   "embedMs": 18,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -17487,7 +17490,7 @@
     },
     "newHit": false
    },
-   "embedMs": 11,
+   "embedMs": 8,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -17587,7 +17590,7 @@
     },
     "newHit": false
    },
-   "embedMs": 15,
+   "embedMs": 11,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -17648,7 +17651,7 @@
     "django/utils/translation/trans_real.py"
    ],
    "cards": 3000,
-   "ms": 79,
+   "ms": 65,
    "queryTerms": 98,
    "mapTop": [
     "django/conf/global_settings.py",
@@ -17749,7 +17752,7 @@
     "django/utils/html.py"
    ],
    "cards": 3000,
-   "ms": 53,
+   "ms": 51,
    "queryTerms": 24,
    "mapTop": [
     "django/template/defaultfilters.py",
@@ -17788,7 +17791,7 @@
     },
     "newHit": false
    },
-   "embedMs": 9,
+   "embedMs": 8,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -17849,7 +17852,7 @@
     "django/db/migrations/autodetector.py"
    ],
    "cards": 3000,
-   "ms": 79,
+   "ms": 78,
    "queryTerms": 207,
    "mapTop": [
     "django/db/migrations/autodetector.py",
@@ -17888,7 +17891,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 33,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -17988,7 +17991,7 @@
     },
     "newHit": false
    },
-   "embedMs": 11,
+   "embedMs": 7,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -18049,7 +18052,7 @@
     "django/db/models/sql/query.py"
    ],
    "cards": 3000,
-   "ms": 79,
+   "ms": 67,
    "queryTerms": 138,
    "mapTop": [
     "django/db/models/sql/query.py",
@@ -18088,7 +18091,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 24,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -18188,7 +18191,7 @@
     },
     "newHit": false
    },
-   "embedMs": 13,
+   "embedMs": 10,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -18249,7 +18252,7 @@
     "django/db/migrations/executor.py"
    ],
    "cards": 3000,
-   "ms": 63,
+   "ms": 58,
    "queryTerms": 88,
    "mapTop": [
     "django/db/migrations/recorder.py",
@@ -18288,7 +18291,7 @@
     },
     "newHit": false
    },
-   "embedMs": 24,
+   "embedMs": 23,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -18349,7 +18352,7 @@
     "django/db/migrations/operations/models.py"
    ],
    "cards": 3000,
-   "ms": 63,
+   "ms": 62,
    "queryTerms": 55,
    "mapTop": [
     "django/db/migrations/operations/models.py",
@@ -18388,7 +18391,7 @@
     },
     "newHit": false
    },
-   "embedMs": 23,
+   "embedMs": 18,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -18449,7 +18452,7 @@
     "django/db/models/fields/__init__.py"
    ],
    "cards": 3000,
-   "ms": 73,
+   "ms": 70,
    "queryTerms": 149,
    "mapTop": [
     "django/core/validators.py",
@@ -18488,7 +18491,7 @@
     },
     "newHit": false
    },
-   "embedMs": 24,
+   "embedMs": 22,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -18549,7 +18552,7 @@
     "django/db/backends/sqlite3/schema.py"
    ],
    "cards": 3000,
-   "ms": 62,
+   "ms": 59,
    "queryTerms": 90,
    "mapTop": [
     "django/db/backends/sqlite3/base.py",
@@ -18588,7 +18591,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 29,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -18649,7 +18652,7 @@
     "django/db/models/fields/__init__.py"
    ],
    "cards": 3000,
-   "ms": 76,
+   "ms": 57,
    "queryTerms": 52,
    "mapTop": [
     "tests/annotations/models.py",
@@ -18688,7 +18691,7 @@
     },
     "newHit": false
    },
-   "embedMs": 18,
+   "embedMs": 19,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -18749,7 +18752,7 @@
     "django/db/models/query.py"
    ],
    "cards": 3000,
-   "ms": 89,
+   "ms": 58,
    "queryTerms": 70,
    "mapTop": [
     "django/db/models/query.py",
@@ -18788,7 +18791,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 24,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -18849,7 +18852,7 @@
     "django/db/models/aggregates.py"
    ],
    "cards": 3000,
-   "ms": 85,
+   "ms": 60,
    "queryTerms": 79,
    "mapTop": [
     "django/db/backends/sqlite3/base.py",
@@ -18888,7 +18891,7 @@
     },
     "newHit": false
    },
-   "embedMs": 23,
+   "embedMs": 21,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -18949,7 +18952,7 @@
     "django/db/migrations/autodetector.py"
    ],
    "cards": 3000,
-   "ms": 70,
+   "ms": 59,
    "queryTerms": 81,
    "mapTop": [
     "django/db/migrations/autodetector.py",
@@ -18988,7 +18991,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 21,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -19049,7 +19052,7 @@
     "django/db/models/expressions.py"
    ],
    "cards": 3000,
-   "ms": 69,
+   "ms": 50,
    "queryTerms": 32,
    "mapTop": [
     "django/db/models/expressions.py",
@@ -19088,7 +19091,7 @@
     },
     "newHit": false
    },
-   "embedMs": 21,
+   "embedMs": 10,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -19149,7 +19152,7 @@
     "django/contrib/admin/options.py"
    ],
    "cards": 3000,
-   "ms": 67,
+   "ms": 62,
    "queryTerms": 42,
    "mapTop": [
     "django/contrib/admin/options.py",
@@ -19188,7 +19191,7 @@
     },
     "newHit": false
    },
-   "embedMs": 18,
+   "embedMs": 17,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -19249,7 +19252,7 @@
     "django/db/migrations/operations/models.py"
    ],
    "cards": 3000,
-   "ms": 60,
+   "ms": 70,
    "queryTerms": 16,
    "mapTop": [
     "django/db/migrations/operations/models.py",
@@ -19349,7 +19352,7 @@
     "django/db/models/fields/json.py"
    ],
    "cards": 3000,
-   "ms": 81,
+   "ms": 68,
    "queryTerms": 93,
    "mapTop": [
     "django/db/models/fields/json.py",
@@ -19388,7 +19391,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 24,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -19449,7 +19452,7 @@
     "django/core/serializers/base.py"
    ],
    "cards": 3000,
-   "ms": 93,
+   "ms": 88,
    "queryTerms": 166,
    "mapTop": [
     "django/db/models/fields/related_descriptors.py",
@@ -19488,7 +19491,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 23,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -19549,7 +19552,7 @@
     "django/db/models/sql/query.py"
    ],
    "cards": 3000,
-   "ms": 70,
+   "ms": 64,
    "queryTerms": 72,
    "mapTop": [
     "django/views/decorators/http.py",
@@ -19689,7 +19692,7 @@
     },
     "newHit": true
    },
-   "embedMs": 10,
+   "embedMs": 8,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -19751,7 +19754,7 @@
     "django/db/models/sql/subqueries.py"
    ],
    "cards": 3000,
-   "ms": 84,
+   "ms": 66,
    "queryTerms": 69,
    "mapTop": [
     "tests/many_to_one/models.py",
@@ -19790,7 +19793,7 @@
     },
     "newHit": true
    },
-   "embedMs": 27,
+   "embedMs": 22,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -19851,7 +19854,7 @@
     "django/db/models/query_utils.py"
    ],
    "cards": 3000,
-   "ms": 67,
+   "ms": 58,
    "queryTerms": 42,
    "mapTop": [
     "django/db/models/query_utils.py",
@@ -19890,7 +19893,7 @@
     },
     "newHit": false
    },
-   "embedMs": 14,
+   "embedMs": 16,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -19951,7 +19954,7 @@
     "django/template/autoreload.py"
    ],
    "cards": 3000,
-   "ms": 83,
+   "ms": 66,
    "queryTerms": 73,
    "mapTop": [
     "django/template/autoreload.py",
@@ -19990,7 +19993,7 @@
     },
     "newHit": false
    },
-   "embedMs": 28,
+   "embedMs": 22,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -20054,7 +20057,7 @@
     "django/db/models/fields/related.py"
    ],
    "cards": 3000,
-   "ms": 74,
+   "ms": 71,
    "queryTerms": 88,
    "mapTop": [
     "django/db/backends/base/schema.py",
@@ -20093,7 +20096,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 22,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -20154,7 +20157,7 @@
     "django/db/migrations/operations/models.py"
    ],
    "cards": 3000,
-   "ms": 64,
+   "ms": 60,
    "queryTerms": 74,
    "mapTop": [
     "tests/migrations/test_operations.py",
@@ -20193,7 +20196,7 @@
     },
     "newHit": false
    },
-   "embedMs": 22,
+   "embedMs": 21,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -20254,7 +20257,7 @@
     "django/db/models/manager.py"
    ],
    "cards": 3000,
-   "ms": 67,
+   "ms": 76,
    "queryTerms": 84,
    "mapTop": [
     "django/db/models/query.py",
@@ -20354,7 +20357,7 @@
     "django/db/backends/base/schema.py"
    ],
    "cards": 3000,
-   "ms": 60,
+   "ms": 58,
    "queryTerms": 39,
    "mapTop": [
     "django/db/backends/base/schema.py",
@@ -20393,7 +20396,7 @@
     },
     "newHit": false
    },
-   "embedMs": 16,
+   "embedMs": 13,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -20454,7 +20457,7 @@
     "django/utils/formats.py"
    ],
    "cards": 3000,
-   "ms": 55,
+   "ms": 56,
    "queryTerms": 30,
    "mapTop": [
     "django/utils/formats.py",
@@ -20493,7 +20496,7 @@
     },
     "newHit": false
    },
-   "embedMs": 12,
+   "embedMs": 10,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -20554,7 +20557,7 @@
     "django/db/models/sql/query.py"
    ],
    "cards": 3000,
-   "ms": 74,
+   "ms": 91,
    "queryTerms": 128,
    "mapTop": [
     "django/db/models/query.py",
@@ -20593,7 +20596,7 @@
     },
     "newHit": false
    },
-   "embedMs": 28,
+   "embedMs": 26,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -20654,7 +20657,7 @@
     "django/db/backends/postgresql/client.py"
    ],
    "cards": 3000,
-   "ms": 61,
+   "ms": 60,
    "queryTerms": 40,
    "mapTop": [
     "docs/releases/1.2.txt",
@@ -20693,7 +20696,7 @@
     },
     "newHit": true
    },
-   "embedMs": 14,
+   "embedMs": 17,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -20754,7 +20757,7 @@
     "django/template/defaultfilters.py"
    ],
    "cards": 3000,
-   "ms": 61,
+   "ms": 57,
    "queryTerms": 41,
    "mapTop": [
     "django/template/backends/django.py",
@@ -20793,7 +20796,7 @@
     },
     "newHit": true
    },
-   "embedMs": 16,
+   "embedMs": 15,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -20854,7 +20857,7 @@
     "django/db/models/expressions.py"
    ],
    "cards": 3000,
-   "ms": 64,
+   "ms": 55,
    "queryTerms": 46,
    "mapTop": [
     "django/db/models/expressions.py",
@@ -20893,7 +20896,7 @@
     },
     "newHit": false
    },
-   "embedMs": 17,
+   "embedMs": 14,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -20954,7 +20957,7 @@
     "django/db/models/fields/related_descriptors.py"
    ],
    "cards": 3000,
-   "ms": 68,
+   "ms": 60,
    "queryTerms": 66,
    "mapTop": [
     "django/db/models/query.py",
@@ -20993,7 +20996,7 @@
     },
     "newHit": true
    },
-   "embedMs": 17,
+   "embedMs": 14,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -21054,7 +21057,7 @@
     "django/db/migrations/autodetector.py"
    ],
    "cards": 3000,
-   "ms": 96,
+   "ms": 93,
    "queryTerms": 194,
    "mapTop": [
     "django/db/migrations/executor.py",
@@ -21093,7 +21096,7 @@
     },
     "newHit": false
    },
-   "embedMs": 24,
+   "embedMs": 25,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -21154,7 +21157,7 @@
     "django/core/management/commands/loaddata.py"
    ],
    "cards": 3000,
-   "ms": 56,
+   "ms": 65,
    "queryTerms": 15,
    "mapTop": [
     "django/core/management/commands/loaddata.py",
@@ -21193,7 +21196,7 @@
     },
     "newHit": false
    },
-   "embedMs": 6,
+   "embedMs": 8,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -21255,7 +21258,7 @@
     "django/db/models/sql/query.py"
    ],
    "cards": 3000,
-   "ms": 58,
+   "ms": 55,
    "queryTerms": 55,
    "mapTop": [
     "tests/aggregation/tests.py",
@@ -21355,7 +21358,7 @@
     "django/db/models/expressions.py"
    ],
    "cards": 3000,
-   "ms": 61,
+   "ms": 57,
    "queryTerms": 24,
    "mapTop": [
     "django/db/models/expressions.py",
@@ -21394,7 +21397,7 @@
     },
     "newHit": false
    },
-   "embedMs": 10,
+   "embedMs": 9,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -21455,7 +21458,7 @@
     "django/contrib/admin/options.py"
    ],
    "cards": 3000,
-   "ms": 56,
+   "ms": 55,
    "queryTerms": 23,
    "mapTop": [
     "django/contrib/admin/options.py",
@@ -21494,7 +21497,7 @@
     },
     "newHit": false
    },
-   "embedMs": 10,
+   "embedMs": 7,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -21555,7 +21558,7 @@
     "django/core/management/commands/makemigrations.py"
    ],
    "cards": 3000,
-   "ms": 66,
+   "ms": 57,
    "queryTerms": 52,
    "mapTop": [
     "tests/admin_views/models.py",
@@ -21594,7 +21597,7 @@
     },
     "newHit": false
    },
-   "embedMs": 13,
+   "embedMs": 15,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -21655,7 +21658,7 @@
     "django/views/generic/base.py"
    ],
    "cards": 3000,
-   "ms": 76,
+   "ms": 68,
    "queryTerms": 106,
    "mapTop": [
     "django/core/handlers/base.py",
@@ -21694,7 +21697,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 27,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -21755,7 +21758,7 @@
     "django/contrib/auth/forms.py"
    ],
    "cards": 3000,
-   "ms": 68,
+   "ms": 64,
    "queryTerms": 74,
    "mapTop": [
     "django/contrib/auth/forms.py",
@@ -21855,7 +21858,7 @@
     "django/core/management/commands/runserver.py"
    ],
    "cards": 3000,
-   "ms": 59,
+   "ms": 56,
    "queryTerms": 28,
    "mapTop": [
     "django/utils/autoreload.py",
@@ -21894,7 +21897,7 @@
     },
     "newHit": false
    },
-   "embedMs": 16,
+   "embedMs": 12,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -21994,7 +21997,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 27,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -22056,7 +22059,7 @@
     "django/db/models/fields/related_descriptors.py"
    ],
    "cards": 3000,
-   "ms": 73,
+   "ms": 70,
    "queryTerms": 94,
    "mapTop": [
     "django/db/models/fields/related_descriptors.py",
@@ -22095,7 +22098,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 28,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -22159,7 +22162,7 @@
     "django/db/models/sql/where.py"
    ],
    "cards": 3000,
-   "ms": 58,
+   "ms": 54,
    "queryTerms": 41,
    "mapTop": [
     "tests/admin_views/models.py",
@@ -22198,7 +22201,7 @@
     },
     "newHit": true
    },
-   "embedMs": 14,
+   "embedMs": 12,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -22260,7 +22263,7 @@
     "django/db/models/sql/compiler.py"
    ],
    "cards": 3000,
-   "ms": 70,
+   "ms": 60,
    "queryTerms": 85,
    "mapTop": [
     "django/db/models/query.py",
@@ -22299,7 +22302,7 @@
     },
     "newHit": false
    },
-   "embedMs": 19,
+   "embedMs": 18,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -22360,7 +22363,7 @@
     "django/contrib/auth/forms.py"
    ],
    "cards": 3000,
-   "ms": 60,
+   "ms": 57,
    "queryTerms": 47,
    "mapTop": [
     "django/forms/models.py",
@@ -22399,7 +22402,7 @@
     },
     "newHit": false
    },
-   "embedMs": 15,
+   "embedMs": 11,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -22460,7 +22463,7 @@
     "django/utils/timesince.py"
    ],
    "cards": 3000,
-   "ms": 64,
+   "ms": 69,
    "queryTerms": 71,
    "mapTop": [
     "tests/utils_tests/test_timesince.py",
@@ -22499,7 +22502,7 @@
     },
     "newHit": false
    },
-   "embedMs": 22,
+   "embedMs": 23,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -22560,7 +22563,7 @@
     "django/core/management/base.py"
    ],
    "cards": 3000,
-   "ms": 73,
+   "ms": 72,
    "queryTerms": 114,
    "mapTop": [
     "django/core/management/base.py",
@@ -22599,7 +22602,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 23,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -22660,7 +22663,7 @@
     "django/template/defaultfilters.py"
    ],
    "cards": 3000,
-   "ms": 59,
+   "ms": 54,
    "queryTerms": 17,
    "mapTop": [
     "django/template/defaultfilters.py",
@@ -22699,7 +22702,7 @@
     },
     "newHit": false
    },
-   "embedMs": 12,
+   "embedMs": 9,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -22760,7 +22763,7 @@
     "django/db/models/fields/files.py"
    ],
    "cards": 3000,
-   "ms": 69,
+   "ms": 65,
    "queryTerms": 63,
    "mapTop": [
     "tests/file_storage/models.py",
@@ -22799,7 +22802,7 @@
     },
     "newHit": false
    },
-   "embedMs": 17,
+   "embedMs": 15,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -22860,7 +22863,7 @@
     "django/core/servers/basehttp.py"
    ],
    "cards": 3000,
-   "ms": 68,
+   "ms": 82,
    "queryTerms": 108,
    "mapTop": [
     "django/core/servers/basehttp.py",
@@ -22899,7 +22902,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 22,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -22960,7 +22963,7 @@
     "django/contrib/admin/templatetags/admin_modify.py"
    ],
    "cards": 3000,
-   "ms": 59,
+   "ms": 54,
    "queryTerms": 31,
    "mapTop": [
     "django/contrib/admin/options.py",
@@ -22999,7 +23002,7 @@
     },
     "newHit": false
    },
-   "embedMs": 14,
+   "embedMs": 12,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -23100,7 +23103,7 @@
     },
     "newHit": false
    },
-   "embedMs": 17,
+   "embedMs": 16,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -23161,7 +23164,7 @@
     "django/forms/formsets.py"
    ],
    "cards": 3000,
-   "ms": 71,
+   "ms": 72,
    "queryTerms": 89,
    "mapTop": [
     "django/forms/formsets.py",
@@ -23261,7 +23264,7 @@
     "django/db/migrations/operations/fields.py"
    ],
    "cards": 3000,
-   "ms": 65,
+   "ms": 62,
    "queryTerms": 58,
    "mapTop": [
     "django/db/migrations/operations/fields.py",
@@ -23362,7 +23365,7 @@
     "django/contrib/auth/base_user.py"
    ],
    "cards": 3000,
-   "ms": 63,
+   "ms": 60,
    "queryTerms": 58,
    "mapTop": [
     "django/contrib/auth/base_user.py",
@@ -23401,7 +23404,7 @@
     },
     "newHit": false
    },
-   "embedMs": 13,
+   "embedMs": 14,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -23462,7 +23465,7 @@
     "django/http/response.py"
    ],
    "cards": 3000,
-   "ms": 57,
+   "ms": 56,
    "queryTerms": 17,
    "mapTop": [
     "django/http/response.py",
@@ -23562,7 +23565,7 @@
     "django/contrib/admin/options.py"
    ],
    "cards": 3000,
-   "ms": 66,
+   "ms": 64,
    "queryTerms": 73,
    "mapTop": [
     "tests/one_to_one/models.py",
@@ -23601,7 +23604,7 @@
     },
     "newHit": true
    },
-   "embedMs": 21,
+   "embedMs": 20,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -23662,7 +23665,7 @@
     "django/db/migrations/writer.py"
    ],
    "cards": 3000,
-   "ms": 61,
+   "ms": 59,
    "queryTerms": 41,
    "mapTop": [
     "tests/generic_relations_regress/models.py",
@@ -23762,7 +23765,7 @@
     "django/forms/widgets.py"
    ],
    "cards": 3000,
-   "ms": 71,
+   "ms": 67,
    "queryTerms": 100,
    "mapTop": [
     "django/forms/widgets.py",
@@ -23801,7 +23804,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 22,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -23862,7 +23865,7 @@
     "django/db/models/fields/files.py"
    ],
    "cards": 3000,
-   "ms": 68,
+   "ms": 56,
    "queryTerms": 47,
    "mapTop": [
     "django/db/models/fields/files.py",
@@ -23901,7 +23904,7 @@
     },
     "newHit": false
    },
-   "embedMs": 15,
+   "embedMs": 17,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -23962,7 +23965,7 @@
     "django/db/migrations/operations/models.py"
    ],
    "cards": 3000,
-   "ms": 55,
+   "ms": 64,
    "queryTerms": 9,
    "mapTop": [
     "django/db/migrations/operations/models.py",
@@ -24001,7 +24004,7 @@
     },
     "newHit": false
    },
-   "embedMs": 6,
+   "embedMs": 5,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -24062,7 +24065,7 @@
     "django/template/defaultfilters.py"
    ],
    "cards": 3000,
-   "ms": 60,
+   "ms": 55,
    "queryTerms": 31,
    "mapTop": [
     "django/template/defaulttags.py",
@@ -24101,7 +24104,7 @@
     },
     "newHit": false
    },
-   "embedMs": 10,
+   "embedMs": 13,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -24162,7 +24165,7 @@
     "django/contrib/admin/checks.py"
    ],
    "cards": 3000,
-   "ms": 62,
+   "ms": 60,
    "queryTerms": 46,
    "mapTop": [
     "django/contrib/admin/options.py",
@@ -24262,7 +24265,7 @@
     "django/db/models/sql/where.py"
    ],
    "cards": 3000,
-   "ms": 61,
+   "ms": 60,
    "queryTerms": 38,
    "mapTop": [
     "tests/utils_tests/test_inspect.py",
@@ -24301,7 +24304,7 @@
     },
     "newHit": false
    },
-   "embedMs": 19,
+   "embedMs": 18,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -24402,7 +24405,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 23,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -24463,7 +24466,7 @@
     "django/forms/models.py"
    ],
    "cards": 3000,
-   "ms": 69,
+   "ms": 64,
    "queryTerms": 98,
    "mapTop": [
     "django/db/models/fields/__init__.py",
@@ -24563,7 +24566,7 @@
     "django/apps/registry.py"
    ],
    "cards": 3000,
-   "ms": 62,
+   "ms": 59,
    "queryTerms": 59,
    "mapTop": [
     "django/apps/registry.py",
@@ -24663,7 +24666,7 @@
     "django/db/models/sql/query.py"
    ],
    "cards": 3000,
-   "ms": 62,
+   "ms": 58,
    "queryTerms": 48,
    "mapTop": [
     "django/db/models/expressions.py",
@@ -24702,7 +24705,7 @@
     },
     "newHit": false
    },
-   "embedMs": 15,
+   "embedMs": 17,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -24763,7 +24766,7 @@
     "django/db/migrations/serializer.py"
    ],
    "cards": 3000,
-   "ms": 65,
+   "ms": 68,
    "queryTerms": 65,
    "mapTop": [
     "django/contrib/postgres/fields/array.py",
@@ -24802,7 +24805,7 @@
     },
     "newHit": false
    },
-   "embedMs": 16,
+   "embedMs": 18,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -24863,7 +24866,7 @@
     "lib/matplotlib/axes/_axes.py"
    ],
    "cards": 3000,
-   "ms": 55,
+   "ms": 50,
    "queryTerms": 99,
    "mapTop": [
     "setupext.py",
@@ -24902,7 +24905,7 @@
     },
     "newHit": true
    },
-   "embedMs": 25,
+   "embedMs": 27,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -24965,7 +24968,7 @@
     "lib/mpl_toolkits/mplot3d/axes3d.py"
    ],
    "cards": 3000,
-   "ms": 59,
+   "ms": 70,
    "queryTerms": 60,
    "mapTop": [
     "lib/matplotlib/scale.py",
@@ -25004,7 +25007,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 22,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -25065,7 +25068,7 @@
     "lib/matplotlib/image.py"
    ],
    "cards": 3000,
-   "ms": 58,
+   "ms": 63,
    "queryTerms": 84,
    "mapTop": [
     "lib/matplotlib/colors.py",
@@ -25104,7 +25107,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 28,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -25165,7 +25168,7 @@
     "lib/matplotlib/widgets.py"
    ],
    "cards": 3000,
-   "ms": 59,
+   "ms": 55,
    "queryTerms": 96,
    "mapTop": [
     "lib/matplotlib/widgets.py",
@@ -25204,7 +25207,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 26,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -25265,7 +25268,7 @@
     "lib/matplotlib/axis.py"
    ],
    "cards": 3000,
-   "ms": 64,
+   "ms": 57,
    "queryTerms": 130,
    "mapTop": [
     "lib/matplotlib/animation.py",
@@ -25304,7 +25307,7 @@
     },
     "newHit": false
    },
-   "embedMs": 29,
+   "embedMs": 25,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -25365,7 +25368,7 @@
     "lib/matplotlib/legend.py"
    ],
    "cards": 3000,
-   "ms": 66,
+   "ms": 65,
    "queryTerms": 145,
    "mapTop": [
     "lib/matplotlib/figure.py",
@@ -25404,7 +25407,7 @@
     },
     "newHit": false
    },
-   "embedMs": 29,
+   "embedMs": 27,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -25465,7 +25468,7 @@
     "lib/matplotlib/dates.py"
    ],
    "cards": 3000,
-   "ms": 79,
+   "ms": 51,
    "queryTerms": 73,
    "mapTop": [
     "lib/matplotlib/tests/test_dates.py",
@@ -25504,7 +25507,7 @@
     },
     "newHit": false
    },
-   "embedMs": 28,
+   "embedMs": 26,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -25565,7 +25568,7 @@
     "lib/matplotlib/category.py"
    ],
    "cards": 3000,
-   "ms": 96,
+   "ms": 89,
    "queryTerms": 241,
    "mapTop": [
     "lib/matplotlib/axes/_base.py",
@@ -25604,7 +25607,7 @@
     },
     "newHit": true
    },
-   "embedMs": 28,
+   "embedMs": 26,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -25665,7 +25668,7 @@
     "lib/matplotlib/colorbar.py"
    ],
    "cards": 3000,
-   "ms": 67,
+   "ms": 56,
    "queryTerms": 83,
    "mapTop": [
     "lib/matplotlib/colorbar.py",
@@ -25704,7 +25707,7 @@
     },
     "newHit": false
    },
-   "embedMs": 28,
+   "embedMs": 27,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -25765,7 +25768,7 @@
     "lib/matplotlib/dates.py"
    ],
    "cards": 3000,
-   "ms": 54,
+   "ms": 51,
    "queryTerms": 93,
    "mapTop": [
     "lib/matplotlib/dates.py",
@@ -25804,7 +25807,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 24,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -25865,7 +25868,7 @@
     "lib/matplotlib/__init__.py"
    ],
    "cards": 3000,
-   "ms": 53,
+   "ms": 56,
    "queryTerms": 76,
    "mapTop": [
     "lib/matplotlib/backend_bases.py",
@@ -25904,7 +25907,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 25,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -25965,7 +25968,7 @@
     "lib/mpl_toolkits/mplot3d/axes3d.py"
    ],
    "cards": 3000,
-   "ms": 58,
+   "ms": 52,
    "queryTerms": 47,
    "mapTop": [
     "lib/matplotlib/figure.py",
@@ -26004,7 +26007,7 @@
     },
     "newHit": false
    },
-   "embedMs": 18,
+   "embedMs": 17,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -26065,7 +26068,7 @@
     "lib/matplotlib/patches.py"
    ],
    "cards": 3000,
-   "ms": 57,
+   "ms": 56,
    "queryTerms": 93,
    "mapTop": [
     "lib/matplotlib/patches.py",
@@ -26165,7 +26168,7 @@
     "lib/matplotlib/figure.py"
    ],
    "cards": 3000,
-   "ms": 60,
+   "ms": 58,
    "queryTerms": 116,
    "mapTop": [
     "lib/matplotlib/figure.py",
@@ -26204,7 +26207,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 24,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -26265,7 +26268,7 @@
     "lib/matplotlib/stackplot.py"
    ],
    "cards": 3000,
-   "ms": 58,
+   "ms": 56,
    "queryTerms": 99,
    "mapTop": [
     "lib/matplotlib/rcsetup.py",
@@ -26304,7 +26307,7 @@
     },
     "newHit": false
    },
-   "embedMs": 28,
+   "embedMs": 30,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -26365,7 +26368,7 @@
     "lib/matplotlib/axes/_axes.py"
    ],
    "cards": 3000,
-   "ms": 67,
+   "ms": 59,
    "queryTerms": 160,
    "mapTop": [
     "lib/matplotlib/axes/_axes.py",
@@ -26404,7 +26407,7 @@
     },
     "newHit": false
    },
-   "embedMs": 29,
+   "embedMs": 27,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -26465,7 +26468,7 @@
     "lib/matplotlib/axes/_base.py"
    ],
    "cards": 3000,
-   "ms": 55,
+   "ms": 56,
    "queryTerms": 109,
    "mapTop": [
     "examples/statistics/histogram_multihist.py",
@@ -26504,7 +26507,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 24,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -26565,7 +26568,7 @@
     "lib/matplotlib/offsetbox.py"
    ],
    "cards": 3000,
-   "ms": 53,
+   "ms": 50,
    "queryTerms": 68,
    "mapTop": [
     "lib/matplotlib/offsetbox.py",
@@ -26665,7 +26668,7 @@
     "lib/matplotlib/axes/_base.py"
    ],
    "cards": 3000,
-   "ms": 59,
+   "ms": 51,
    "queryTerms": 20,
    "mapTop": [
     "doc/users/prev_whats_new/github_stats_3.0.0.rst",
@@ -26704,7 +26707,7 @@
     },
     "newHit": false
    },
-   "embedMs": 15,
+   "embedMs": 17,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -26765,7 +26768,7 @@
     "lib/matplotlib/offsetbox.py"
    ],
    "cards": 3000,
-   "ms": 58,
+   "ms": 56,
    "queryTerms": 121,
    "mapTop": [
     "lib/matplotlib/offsetbox.py",
@@ -26804,7 +26807,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 23,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -26866,7 +26869,7 @@
     "lib/matplotlib/tri/_tricontour.py"
    ],
    "cards": 3000,
-   "ms": 50,
+   "ms": 45,
    "queryTerms": 75,
    "mapTop": [
     "lib/matplotlib/widgets.py",
@@ -26905,7 +26908,7 @@
     },
     "newHit": false
    },
-   "embedMs": 21,
+   "embedMs": 23,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -26966,7 +26969,7 @@
     "lib/matplotlib/colors.py"
    ],
    "cards": 3000,
-   "ms": 60,
+   "ms": 57,
    "queryTerms": 75,
    "mapTop": [
     "lib/matplotlib/colors.py",
@@ -27005,7 +27008,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 27,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -27066,7 +27069,7 @@
     "lib/matplotlib/mlab.py"
    ],
    "cards": 3000,
-   "ms": 54,
+   "ms": 48,
    "queryTerms": 56,
    "mapTop": [
     "lib/matplotlib/mlab.py",
@@ -27105,7 +27108,7 @@
     },
     "newHit": false
    },
-   "embedMs": 23,
+   "embedMs": 19,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -27166,7 +27169,7 @@
     "lib/matplotlib/axis.py"
    ],
    "cards": 3000,
-   "ms": 84,
+   "ms": 52,
    "queryTerms": 92,
    "mapTop": [
     "lib/matplotlib/axis.py",
@@ -27205,7 +27208,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 33,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -27266,7 +27269,7 @@
     "lib/matplotlib/offsetbox.py"
    ],
    "cards": 3000,
-   "ms": 67,
+   "ms": 59,
    "queryTerms": 54,
    "mapTop": [
     "lib/matplotlib/legend.py",
@@ -27305,7 +27308,7 @@
     },
     "newHit": false
    },
-   "embedMs": 18,
+   "embedMs": 19,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -27366,7 +27369,7 @@
     "lib/matplotlib/cbook.py"
    ],
    "cards": 3000,
-   "ms": 56,
+   "ms": 52,
    "queryTerms": 55,
    "mapTop": [
     "lib/matplotlib/figure.py",
@@ -27405,7 +27408,7 @@
     },
     "newHit": false
    },
-   "embedMs": 18,
+   "embedMs": 20,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -27467,7 +27470,7 @@
     "lib/matplotlib/colors.py"
    ],
    "cards": 3000,
-   "ms": 82,
+   "ms": 73,
    "queryTerms": 291,
    "mapTop": [
     "lib/matplotlib/_cm.py",
@@ -27506,7 +27509,7 @@
     },
     "newHit": true
    },
-   "embedMs": 29,
+   "embedMs": 27,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -27569,7 +27572,7 @@
     "lib/matplotlib/text.py"
    ],
    "cards": 3000,
-   "ms": 64,
+   "ms": 50,
    "queryTerms": 56,
    "mapTop": [
     "lib/matplotlib/backend_bases.py",
@@ -27608,7 +27611,7 @@
     },
     "newHit": false
    },
-   "embedMs": 17,
+   "embedMs": 13,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -27669,7 +27672,7 @@
     "lib/matplotlib/figure.py"
    ],
    "cards": 3000,
-   "ms": 53,
+   "ms": 51,
    "queryTerms": 46,
    "mapTop": [
     "lib/matplotlib/figure.py",
@@ -27708,7 +27711,7 @@
     },
     "newHit": false
    },
-   "embedMs": 21,
+   "embedMs": 20,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -27769,7 +27772,7 @@
     "lib/matplotlib/axes/_axes.py"
    ],
    "cards": 3000,
-   "ms": 89,
+   "ms": 85,
    "queryTerms": 176,
    "mapTop": [
     "lib/matplotlib/axes/_axes.py",
@@ -27808,7 +27811,7 @@
     },
     "newHit": false
    },
-   "embedMs": 30,
+   "embedMs": 27,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -27869,7 +27872,7 @@
     "lib/matplotlib/axes/_base.py"
    ],
    "cards": 3000,
-   "ms": 61,
+   "ms": 59,
    "queryTerms": 95,
    "mapTop": [
     "lib/matplotlib/axes/_base.py",
@@ -27908,7 +27911,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 28,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -27969,7 +27972,7 @@
     "lib/mpl_toolkits/axes_grid1/inset_locator.py"
    ],
    "cards": 3000,
-   "ms": 78,
+   "ms": 69,
    "queryTerms": 191,
    "mapTop": [
     "lib/matplotlib/backend_bases.py",
@@ -28008,7 +28011,7 @@
     },
     "newHit": true
    },
-   "embedMs": 27,
+   "embedMs": 25,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -28069,7 +28072,7 @@
     "lib/matplotlib/collections.py"
    ],
    "cards": 3000,
-   "ms": 61,
+   "ms": 52,
    "queryTerms": 39,
    "mapTop": [
     "lib/matplotlib/collections.py",
@@ -28108,7 +28111,7 @@
     },
     "newHit": false
    },
-   "embedMs": 16,
+   "embedMs": 19,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -28169,7 +28172,7 @@
     "lib/matplotlib/text.py"
    ],
    "cards": 3000,
-   "ms": 58,
+   "ms": 56,
    "queryTerms": 80,
    "mapTop": [
     "lib/matplotlib/axes/_axes.py",
@@ -28208,7 +28211,7 @@
     },
     "newHit": true
    },
-   "embedMs": 28,
+   "embedMs": 24,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -28269,7 +28272,7 @@
     "seaborn/_core/plot.py"
    ],
    "cards": 2617,
-   "ms": 30,
+   "ms": 29,
    "queryTerms": 81,
    "mapTop": [
     "seaborn/_core/plot.py",
@@ -28370,7 +28373,7 @@
     "seaborn/utils.py"
    ],
    "cards": 2648,
-   "ms": 59,
+   "ms": 40,
    "queryTerms": 94,
    "mapTop": [
     "doc/sphinxext/tutorial_builder.py",
@@ -28409,7 +28412,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 26,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -28470,7 +28473,7 @@
     "src/flask/blueprints.py"
    ],
    "cards": 3000,
-   "ms": 31,
+   "ms": 29,
    "queryTerms": 14,
    "mapTop": [
     "src/flask/wrappers.py",
@@ -28509,7 +28512,7 @@
     },
     "newHit": false
    },
-   "embedMs": 9,
+   "embedMs": 8,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -28570,7 +28573,7 @@
     "requests/models.py"
    ],
    "cards": 2065,
-   "ms": 17,
+   "ms": 15,
    "queryTerms": 23,
    "mapTop": [
     "requests/packages/urllib3/request.py",
@@ -28609,7 +28612,7 @@
     },
     "newHit": false
    },
-   "embedMs": 11,
+   "embedMs": 9,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -28670,7 +28673,7 @@
     "requests/sessions.py"
    ],
    "cards": 2450,
-   "ms": 42,
+   "ms": 46,
    "queryTerms": 92,
    "mapTop": [
     "requests/packages/urllib3/connectionpool.py",
@@ -28709,7 +28712,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 25,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -28809,7 +28812,7 @@
     },
     "newHit": true
    },
-   "embedMs": 18,
+   "embedMs": 14,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -28870,7 +28873,7 @@
     "requests/sessions.py"
    ],
    "cards": 2586,
-   "ms": 27,
+   "ms": 26,
    "queryTerms": 36,
    "mapTop": [
     "requests/utils.py",
@@ -28909,7 +28912,7 @@
     },
     "newHit": false
    },
-   "embedMs": 16,
+   "embedMs": 15,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -28970,7 +28973,7 @@
     "requests/sessions.py"
    ],
    "cards": 2806,
-   "ms": 29,
+   "ms": 30,
    "queryTerms": 46,
    "mapTop": [
     "requests/sessions.py",
@@ -29009,7 +29012,7 @@
     },
     "newHit": false
    },
-   "embedMs": 15,
+   "embedMs": 18,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -29070,7 +29073,7 @@
     "requests/models.py"
    ],
    "cards": 3000,
-   "ms": 35,
+   "ms": 38,
    "queryTerms": 73,
    "mapTop": [
     "requests/help.py",
@@ -29109,7 +29112,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 26,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -29170,7 +29173,7 @@
     "requests/utils.py"
    ],
    "cards": 3000,
-   "ms": 49,
+   "ms": 40,
    "queryTerms": 55,
    "mapTop": [
     "requests/help.py",
@@ -29271,7 +29274,7 @@
     "xarray/core/variable.py"
    ],
    "cards": 2271,
-   "ms": 48,
+   "ms": 37,
    "queryTerms": 34,
    "mapTop": [
     "xarray/core/dataset.py",
@@ -29310,7 +29313,7 @@
     },
     "newHit": false
    },
-   "embedMs": 23,
+   "embedMs": 22,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -29371,7 +29374,7 @@
     "xarray/core/combine.py"
    ],
    "cards": 2289,
-   "ms": 63,
+   "ms": 64,
    "queryTerms": 136,
    "mapTop": [
     "xarray/core/dataset.py",
@@ -29410,7 +29413,7 @@
     },
     "newHit": false
    },
-   "embedMs": 28,
+   "embedMs": 25,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -29472,7 +29475,7 @@
     "xarray/core/variable.py"
    ],
    "cards": 2357,
-   "ms": 48,
+   "ms": 45,
    "queryTerms": 107,
    "mapTop": [
     "xarray/util/print_versions.py",
@@ -29611,7 +29614,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 24,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -29673,7 +29676,7 @@
     "xarray/core/dataset.py"
    ],
    "cards": 2663,
-   "ms": 50,
+   "ms": 48,
    "queryTerms": 59,
    "mapTop": [
     "xarray/core/dataarray.py",
@@ -29712,7 +29715,7 @@
     },
     "newHit": false
    },
-   "embedMs": 19,
+   "embedMs": 15,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -29773,7 +29776,7 @@
     "xarray/core/weighted.py"
    ],
    "cards": 2686,
-   "ms": 67,
+   "ms": 55,
    "queryTerms": 126,
    "mapTop": [
     "xarray/core/weighted.py",
@@ -29873,7 +29876,7 @@
     "xarray/core/dataarray.py"
    ],
    "cards": 2698,
-   "ms": 63,
+   "ms": 52,
    "queryTerms": 109,
    "mapTop": [
     "xarray/core/dataset.py",
@@ -29912,7 +29915,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 28,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -29973,7 +29976,7 @@
     "xarray/core/nanops.py"
    ],
    "cards": 2796,
-   "ms": 49,
+   "ms": 60,
    "queryTerms": 50,
    "mapTop": [
     "xarray/core/dataarray.py",
@@ -30012,7 +30015,7 @@
     },
     "newHit": true
    },
-   "embedMs": 18,
+   "embedMs": 17,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -30173,7 +30176,7 @@
     "xarray/core/computation.py"
    ],
    "cards": 2944,
-   "ms": 74,
+   "ms": 76,
    "queryTerms": 178,
    "mapTop": [
     "xarray/util/print_versions.py",
@@ -30212,7 +30215,7 @@
     },
     "newHit": false
    },
-   "embedMs": 24,
+   "embedMs": 25,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -30273,7 +30276,7 @@
     "xarray/core/dataarray.py"
    ],
    "cards": 2946,
-   "ms": 69,
+   "ms": 61,
    "queryTerms": 116,
    "mapTop": [
     "xarray/core/dataset.py",
@@ -30312,7 +30315,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 21,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -30373,7 +30376,7 @@
     "xarray/coding/variables.py"
    ],
    "cards": 3000,
-   "ms": 71,
+   "ms": 66,
    "queryTerms": 122,
    "mapTop": [
     "xarray/conventions.py",
@@ -30412,7 +30415,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 24,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -30473,7 +30476,7 @@
     "xarray/core/computation.py"
    ],
    "cards": 3000,
-   "ms": 58,
+   "ms": 56,
    "queryTerms": 60,
    "mapTop": [
     "xarray/core/computation.py",
@@ -30512,7 +30515,7 @@
     },
     "newHit": false
    },
-   "embedMs": 20,
+   "embedMs": 18,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -30573,7 +30576,7 @@
     "xarray/core/computation.py"
    ],
    "cards": 3000,
-   "ms": 77,
+   "ms": 80,
    "queryTerms": 169,
    "mapTop": [
     "xarray/core/dataset.py",
@@ -30612,7 +30615,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 29,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -30673,7 +30676,7 @@
     "xarray/core/common.py"
    ],
    "cards": 3000,
-   "ms": 110,
+   "ms": 104,
    "queryTerms": 307,
    "mapTop": [
     "xarray/core/indexing.py",
@@ -30712,7 +30715,7 @@
     },
     "newHit": false
    },
-   "embedMs": 28,
+   "embedMs": 27,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -30773,7 +30776,7 @@
     "xarray/core/rolling.py"
    ],
    "cards": 3000,
-   "ms": 64,
+   "ms": 67,
    "queryTerms": 81,
    "mapTop": [
     "xarray/core/dataarray.py",
@@ -30812,7 +30815,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 27,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -30874,7 +30877,7 @@
     "xarray/core/variable.py"
    ],
    "cards": 3000,
-   "ms": 76,
+   "ms": 84,
    "queryTerms": 185,
    "mapTop": [
     "xarray/util/print_versions.py",
@@ -30913,7 +30916,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 28,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -30975,7 +30978,7 @@
     "xarray/core/indexes.py"
    ],
    "cards": 3000,
-   "ms": 87,
+   "ms": 63,
    "queryTerms": 103,
    "mapTop": [
     "xarray/core/dataset.py",
@@ -31014,7 +31017,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 25,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -31075,7 +31078,7 @@
     "xarray/core/computation.py"
    ],
    "cards": 3000,
-   "ms": 74,
+   "ms": 76,
    "queryTerms": 203,
    "mapTop": [
     "xarray/core/dataset.py",
@@ -31114,7 +31117,7 @@
     },
     "newHit": false
    },
-   "embedMs": 28,
+   "embedMs": 24,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -31175,7 +31178,7 @@
     "xarray/core/rolling.py"
    ],
    "cards": 3000,
-   "ms": 67,
+   "ms": 63,
    "queryTerms": 87,
    "mapTop": [
     "xarray/core/dataset.py",
@@ -31214,7 +31217,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 26,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -31275,7 +31278,7 @@
     "xarray/core/indexing.py"
    ],
    "cards": 3000,
-   "ms": 83,
+   "ms": 70,
    "queryTerms": 172,
    "mapTop": [
     "xarray/util/print_versions.py",
@@ -31314,7 +31317,7 @@
     },
     "newHit": false
    },
-   "embedMs": 30,
+   "embedMs": 26,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -31378,7 +31381,7 @@
     "pylint/pyreverse/writer.py"
    ],
    "cards": 3000,
-   "ms": 55,
+   "ms": 53,
    "queryTerms": 52,
    "mapTop": [
     "tests/functional/n/non/non_str_assignment_to_dunder_name.py",
@@ -31417,7 +31420,7 @@
     },
     "newHit": false
    },
-   "embedMs": 17,
+   "embedMs": 19,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -31479,7 +31482,7 @@
     "pylint/constants.py"
    ],
    "cards": 3000,
-   "ms": 89,
+   "ms": 58,
    "queryTerms": 29,
    "mapTop": [
     "tests/test_self.py",
@@ -31518,7 +31521,7 @@
     },
     "newHit": true
    },
-   "embedMs": 17,
+   "embedMs": 15,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -31580,7 +31583,7 @@
     "setup.cfg"
    ],
    "cards": 3000,
-   "ms": 63,
+   "ms": 62,
    "queryTerms": 63,
    "mapTop": [
     "tests/unittest_pyreverse_writer.py",
@@ -31619,7 +31622,7 @@
     },
     "newHit": false
    },
-   "embedMs": 18,
+   "embedMs": 19,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -31680,7 +31683,7 @@
     "pylint/checkers/similar.py"
    ],
    "cards": 3000,
-   "ms": 62,
+   "ms": 58,
    "queryTerms": 38,
    "mapTop": [
     "pylint/checkers/similar.py",
@@ -31719,7 +31722,7 @@
     },
     "newHit": false
    },
-   "embedMs": 15,
+   "embedMs": 18,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -31783,7 +31786,7 @@
     "pylint/lint/base_options.py"
    ],
    "cards": 3000,
-   "ms": 71,
+   "ms": 66,
    "queryTerms": 31,
    "mapTop": [
     "pylint/checkers/similar.py",
@@ -31822,7 +31825,7 @@
     },
     "newHit": false
    },
-   "embedMs": 16,
+   "embedMs": 15,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -31884,7 +31887,7 @@
     "pylint/lint/pylinter.py"
    ],
    "cards": 3000,
-   "ms": 84,
+   "ms": 86,
    "queryTerms": 78,
    "mapTop": [
     "pylint/lint/base_options.py",
@@ -31923,7 +31926,7 @@
     },
     "newHit": true
    },
-   "embedMs": 26,
+   "embedMs": 25,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -31984,7 +31987,7 @@
     "pylint/lint/run.py"
    ],
    "cards": 3000,
-   "ms": 89,
+   "ms": 93,
    "queryTerms": 133,
    "mapTop": [
     "pylint/lint/parallel.py",
@@ -32023,7 +32026,7 @@
     },
     "newHit": false
    },
-   "embedMs": 28,
+   "embedMs": 27,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -32084,7 +32087,7 @@
     "pylint/lint/expand_modules.py"
    ],
    "cards": 3000,
-   "ms": 252,
+   "ms": 242,
    "queryTerms": 346,
    "mapTop": [
     "pylint/checkers/classes/class_checker.py",
@@ -32184,7 +32187,7 @@
     "pylint/__init__.py"
    ],
    "cards": 3000,
-   "ms": 67,
+   "ms": 74,
    "queryTerms": 65,
    "mapTop": [
     "pylint/lint/pylinter.py",
@@ -32323,7 +32326,7 @@
     },
     "newHit": false
    },
-   "embedMs": 29,
+   "embedMs": 26,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -32384,7 +32387,7 @@
     "src/_pytest/compat.py"
    ],
    "cards": 3000,
-   "ms": 74,
+   "ms": 77,
    "queryTerms": 102,
    "mapTop": [
     "src/_pytest/python.py",
@@ -32423,7 +32426,7 @@
     },
     "newHit": false
    },
-   "embedMs": 28,
+   "embedMs": 26,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -32484,7 +32487,7 @@
     "src/_pytest/reports.py"
    ],
    "cards": 3000,
-   "ms": 52,
+   "ms": 53,
    "queryTerms": 48,
    "mapTop": [
     "src/_pytest/_code/code.py",
@@ -32523,7 +32526,7 @@
     },
     "newHit": true
    },
-   "embedMs": 26,
+   "embedMs": 25,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -32624,7 +32627,7 @@
     },
     "newHit": false
    },
-   "embedMs": 17,
+   "embedMs": 15,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -32685,7 +32688,7 @@
     "src/_pytest/python.py"
    ],
    "cards": 3000,
-   "ms": 51,
+   "ms": 48,
    "queryTerms": 98,
    "mapTop": [
     "setup.py",
@@ -32785,7 +32788,7 @@
     "src/_pytest/python.py"
    ],
    "cards": 3000,
-   "ms": 64,
+   "ms": 58,
    "queryTerms": 61,
    "mapTop": [
     "src/_pytest/python.py",
@@ -32824,7 +32827,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 24,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -32924,7 +32927,7 @@
     },
     "newHit": false
    },
-   "embedMs": 28,
+   "embedMs": 27,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -32985,7 +32988,7 @@
     "src/_pytest/unittest.py"
    ],
    "cards": 3000,
-   "ms": 56,
+   "ms": 58,
    "queryTerms": 88,
    "mapTop": [
     "src/_pytest/debugging.py",
@@ -33024,7 +33027,7 @@
     },
     "newHit": true
    },
-   "embedMs": 27,
+   "embedMs": 29,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -33124,7 +33127,7 @@
     },
     "newHit": false
    },
-   "embedMs": 16,
+   "embedMs": 13,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -33185,7 +33188,7 @@
     "src/_pytest/skipping.py"
    ],
    "cards": 3000,
-   "ms": 46,
+   "ms": 42,
    "queryTerms": 41,
    "mapTop": [
     "src/_pytest/skipping.py",
@@ -33224,7 +33227,7 @@
     },
     "newHit": false
    },
-   "embedMs": 16,
+   "embedMs": 15,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -33285,7 +33288,7 @@
     "src/_pytest/skipping.py"
    ],
    "cards": 3000,
-   "ms": 129,
+   "ms": 128,
    "queryTerms": 398,
    "mapTop": [
     "doc/en/changelog.rst",
@@ -33324,7 +33327,7 @@
     },
     "newHit": false
    },
-   "embedMs": 22,
+   "embedMs": 21,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -33424,7 +33427,7 @@
     },
     "newHit": false
    },
-   "embedMs": 28,
+   "embedMs": 26,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -33485,7 +33488,7 @@
     "src/_pytest/pathlib.py"
    ],
    "cards": 3000,
-   "ms": 49,
+   "ms": 41,
    "queryTerms": 28,
    "mapTop": [
     "src/_pytest/outcomes.py",
@@ -33524,7 +33527,7 @@
     },
     "newHit": true
    },
-   "embedMs": 15,
+   "embedMs": 16,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -33586,7 +33589,7 @@
     "src/_pytest/unittest.py"
    ],
    "cards": 3000,
-   "ms": 52,
+   "ms": 58,
    "queryTerms": 67,
    "mapTop": [
     "bench/unit_test.py",
@@ -33625,7 +33628,7 @@
     },
     "newHit": false
    },
-   "embedMs": 19,
+   "embedMs": 21,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -33686,7 +33689,7 @@
     "src/_pytest/logging.py"
    ],
    "cards": 3000,
-   "ms": 56,
+   "ms": 54,
    "queryTerms": 65,
    "mapTop": [
     "src/_pytest/logging.py",
@@ -33786,7 +33789,7 @@
     "src/_pytest/unittest.py"
    ],
    "cards": 3000,
-   "ms": 63,
+   "ms": 81,
    "queryTerms": 101,
    "mapTop": [
     "src/_pytest/debugging.py",
@@ -33925,7 +33928,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 28,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -33986,7 +33989,7 @@
     "sklearn/linear_model/ridge.py"
    ],
    "cards": 3000,
-   "ms": 64,
+   "ms": 66,
    "queryTerms": 87,
    "mapTop": [
     "sklearn/linear_model/ridge.py",
@@ -34025,7 +34028,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 27,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -34086,7 +34089,7 @@
     "sklearn/metrics/cluster/supervised.py"
    ],
    "cards": 3000,
-   "ms": 69,
+   "ms": 81,
    "queryTerms": 144,
    "mapTop": [
     "sklearn/decomposition/online_lda.py",
@@ -34125,7 +34128,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 28,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -34186,7 +34189,7 @@
     "sklearn/feature_extraction/text.py"
    ],
    "cards": 3000,
-   "ms": 57,
+   "ms": 58,
    "queryTerms": 66,
    "mapTop": [
     "sklearn/feature_extraction/text.py",
@@ -34286,7 +34289,7 @@
     "sklearn/model_selection/_search.py"
    ],
    "cards": 3000,
-   "ms": 56,
+   "ms": 55,
    "queryTerms": 80,
    "mapTop": [
     "sklearn/model_selection/_search.py",
@@ -34325,7 +34328,7 @@
     },
     "newHit": false
    },
-   "embedMs": 22,
+   "embedMs": 19,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -34386,7 +34389,7 @@
     "sklearn/linear_model/logistic.py"
    ],
    "cards": 3000,
-   "ms": 105,
+   "ms": 97,
    "queryTerms": 265,
    "mapTop": [
     "sklearn/linear_model/logistic.py",
@@ -34425,7 +34428,7 @@
     },
     "newHit": false
    },
-   "embedMs": 28,
+   "embedMs": 27,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -34486,7 +34489,7 @@
     "sklearn/base.py"
    ],
    "cards": 3000,
-   "ms": 53,
+   "ms": 62,
    "queryTerms": 84,
    "mapTop": [
     "sklearn/base.py",
@@ -34525,7 +34528,7 @@
     },
     "newHit": false
    },
-   "embedMs": 22,
+   "embedMs": 25,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -34587,7 +34590,7 @@
     "sklearn/decomposition/dict_learning.py"
    ],
    "cards": 3000,
-   "ms": 48,
+   "ms": 55,
    "queryTerms": 36,
    "mapTop": [
     "sklearn/decomposition/dict_learning.py",
@@ -34687,7 +34690,7 @@
     "sklearn/linear_model/least_angle.py"
    ],
    "cards": 3000,
-   "ms": 63,
+   "ms": 59,
    "queryTerms": 94,
    "mapTop": [
     "sklearn/linear_model/least_angle.py",
@@ -34726,7 +34729,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 27,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -34887,7 +34890,7 @@
     "sklearn/preprocessing/_discretization.py"
    ],
    "cards": 3000,
-   "ms": 76,
+   "ms": 88,
    "queryTerms": 140,
    "mapTop": [
     "sklearn/preprocessing/_discretization.py",
@@ -34926,7 +34929,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 22,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -34987,7 +34990,7 @@
     "sklearn/mixture/base.py"
    ],
    "cards": 3000,
-   "ms": 59,
+   "ms": 58,
    "queryTerms": 100,
    "mapTop": [
     "sklearn/utils/testing.py",
@@ -35026,7 +35029,7 @@
     },
     "newHit": true
    },
-   "embedMs": 25,
+   "embedMs": 24,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -35087,7 +35090,7 @@
     "sklearn/linear_model/huber.py"
    ],
    "cards": 3000,
-   "ms": 71,
+   "ms": 83,
    "queryTerms": 211,
    "mapTop": [
     "sklearn/linear_model/huber.py",
@@ -35126,7 +35129,7 @@
     },
     "newHit": false
    },
-   "embedMs": 29,
+   "embedMs": 25,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -35187,7 +35190,7 @@
     "sklearn/pipeline.py"
    ],
    "cards": 3000,
-   "ms": 80,
+   "ms": 60,
    "queryTerms": 92,
    "mapTop": [
     "sklearn/pipeline.py",
@@ -35226,7 +35229,7 @@
     },
     "newHit": false
    },
-   "embedMs": 22,
+   "embedMs": 21,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -35287,7 +35290,7 @@
     "sklearn/ensemble/iforest.py"
    ],
    "cards": 3000,
-   "ms": 58,
+   "ms": 56,
    "queryTerms": 76,
    "mapTop": [
     "sklearn/ensemble/forest.py",
@@ -35326,7 +35329,7 @@
     },
     "newHit": false
    },
-   "embedMs": 21,
+   "embedMs": 22,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -35387,7 +35390,7 @@
     "sklearn/ensemble/voting.py"
    ],
    "cards": 3000,
-   "ms": 54,
+   "ms": 47,
    "queryTerms": 42,
    "mapTop": [
     "sklearn/ensemble/voting.py",
@@ -35426,7 +35429,7 @@
     },
     "newHit": false
    },
-   "embedMs": 15,
+   "embedMs": 17,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -35487,7 +35490,7 @@
     "sklearn/tree/export.py"
    ],
    "cards": 3000,
-   "ms": 66,
+   "ms": 69,
    "queryTerms": 147,
    "mapTop": [
     "sklearn/utils/_show_versions.py",
@@ -35526,7 +35529,7 @@
     },
     "newHit": true
    },
-   "embedMs": 26,
+   "embedMs": 27,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -35587,7 +35590,7 @@
     "sklearn/linear_model/logistic.py"
    ],
    "cards": 3000,
-   "ms": 69,
+   "ms": 62,
    "queryTerms": 117,
    "mapTop": [
     "sklearn/utils/_show_versions.py",
@@ -35687,7 +35690,7 @@
     "sklearn/utils/_show_versions.py"
    ],
    "cards": 3000,
-   "ms": 49,
+   "ms": 50,
    "queryTerms": 10,
    "mapTop": [
     "sklearn/utils/_show_versions.py",
@@ -35726,7 +35729,7 @@
     },
     "newHit": false
    },
-   "embedMs": 7,
+   "embedMs": 6,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -35787,7 +35790,7 @@
     "sklearn/cluster/optics_.py"
    ],
    "cards": 3000,
-   "ms": 65,
+   "ms": 64,
    "queryTerms": 130,
    "mapTop": [
     "sklearn/cluster/optics_.py",
@@ -35887,7 +35890,7 @@
     "sklearn/multioutput.py"
    ],
    "cards": 3000,
-   "ms": 64,
+   "ms": 60,
    "queryTerms": 114,
    "mapTop": [
     "sklearn/multioutput.py",
@@ -35926,7 +35929,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 25,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -35987,7 +35990,7 @@
     "sklearn/ensemble/_hist_gradient_boosting/gradient_boosting.py"
    ],
    "cards": 3000,
-   "ms": 89,
+   "ms": 90,
    "queryTerms": 271,
    "mapTop": [
     "sklearn/ensemble/_hist_gradient_boosting/gradient_boosting.py",
@@ -36026,7 +36029,7 @@
     },
     "newHit": false
    },
-   "embedMs": 28,
+   "embedMs": 27,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -36087,7 +36090,7 @@
     "sklearn/svm/base.py"
    ],
    "cards": 3000,
-   "ms": 60,
+   "ms": 61,
    "queryTerms": 112,
    "mapTop": [
     "sklearn/svm/base.py",
@@ -36126,7 +36129,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 24,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -36187,7 +36190,7 @@
     "sklearn/model_selection/_split.py"
    ],
    "cards": 3000,
-   "ms": 60,
+   "ms": 53,
    "queryTerms": 68,
    "mapTop": [
     "sklearn/model_selection/_split.py",
@@ -36226,7 +36229,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 27,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -36287,7 +36290,7 @@
     "sklearn/feature_extraction/text.py"
    ],
    "cards": 3000,
-   "ms": 90,
+   "ms": 62,
    "queryTerms": 133,
    "mapTop": [
     "sklearn/feature_extraction/text.py",
@@ -36326,7 +36329,7 @@
     },
     "newHit": false
    },
-   "embedMs": 29,
+   "embedMs": 23,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -36388,7 +36391,7 @@
     "sklearn/feature_selection/_base.py"
    ],
    "cards": 3000,
-   "ms": 68,
+   "ms": 61,
    "queryTerms": 132,
    "mapTop": [
     "sklearn/utils/_set_output.py",
@@ -36427,7 +36430,7 @@
     },
     "newHit": true
    },
-   "embedMs": 27,
+   "embedMs": 25,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -36488,7 +36491,7 @@
     "sklearn/impute/_iterative.py"
    ],
    "cards": 3000,
-   "ms": 97,
+   "ms": 89,
    "queryTerms": 78,
    "mapTop": [
     "sklearn/impute/_iterative.py",
@@ -36527,7 +36530,7 @@
     },
     "newHit": false
    },
-   "embedMs": 19,
+   "embedMs": 21,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -36588,7 +36591,7 @@
     "sklearn/utils/_set_output.py"
    ],
    "cards": 3000,
-   "ms": 115,
+   "ms": 81,
    "queryTerms": 214,
    "mapTop": [
     "sklearn/utils/_set_output.py",
@@ -36627,7 +36630,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 23,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -36688,7 +36691,7 @@
     "sklearn/ensemble/_iforest.py"
    ],
    "cards": 3000,
-   "ms": 93,
+   "ms": 65,
    "queryTerms": 138,
    "mapTop": [
     "sklearn/utils/_show_versions.py",
@@ -36727,7 +36730,7 @@
     },
     "newHit": true
    },
-   "embedMs": 28,
+   "embedMs": 31,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -36788,7 +36791,7 @@
     "sklearn/feature_selection/_sequential.py"
    ],
    "cards": 3000,
-   "ms": 68,
+   "ms": 75,
    "queryTerms": 116,
    "mapTop": [
     "sklearn/model_selection/_validation.py",
@@ -36888,7 +36891,7 @@
     "sklearn/metrics/_ranking.py"
    ],
    "cards": 3000,
-   "ms": 56,
+   "ms": 53,
    "queryTerms": 70,
    "mapTop": [
     "sklearn/metrics/_ranking.py",
@@ -36988,7 +36991,7 @@
     "sklearn/compose/_column_transformer.py"
    ],
    "cards": 3000,
-   "ms": 66,
+   "ms": 63,
    "queryTerms": 131,
    "mapTop": [
     "sklearn/compose/_column_transformer.py",
@@ -37027,7 +37030,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 29,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -37088,7 +37091,7 @@
     "sphinx/domains/std.py"
    ],
    "cards": 3000,
-   "ms": 45,
+   "ms": 44,
    "queryTerms": 57,
    "mapTop": [
     "sphinx/themes/basic/static/jquery-3.4.1.js",
@@ -37127,7 +37130,7 @@
     },
     "newHit": false
    },
-   "embedMs": 21,
+   "embedMs": 19,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -37188,7 +37191,7 @@
     "sphinx/domains/python.py"
    ],
    "cards": 3000,
-   "ms": 69,
+   "ms": 67,
    "queryTerms": 108,
    "mapTop": [
     "sphinx/writers/html.py",
@@ -37227,7 +37230,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 24,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -37289,7 +37292,7 @@
     "sphinx/pycode/ast.py"
    ],
    "cards": 3000,
-   "ms": 48,
+   "ms": 49,
    "queryTerms": 73,
    "mapTop": [
     "sphinx/domains/python.py",
@@ -37328,7 +37331,7 @@
     },
     "newHit": false
    },
-   "embedMs": 19,
+   "embedMs": 20,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -37391,7 +37394,7 @@
     "sphinx/util/cfamily.py"
    ],
    "cards": 3000,
-   "ms": 41,
+   "ms": 43,
    "queryTerms": 36,
    "mapTop": [
     "sphinx/util/cfamily.py",
@@ -37491,7 +37494,7 @@
     "sphinx/ext/autodoc/__init__.py"
    ],
    "cards": 3000,
-   "ms": 55,
+   "ms": 79,
    "queryTerms": 22,
    "mapTop": [
     "sphinx/ext/autodoc/__init__.py",
@@ -37530,7 +37533,7 @@
     },
     "newHit": false
    },
-   "embedMs": 11,
+   "embedMs": 10,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -37630,7 +37633,7 @@
     },
     "newHit": false
    },
-   "embedMs": 14,
+   "embedMs": 13,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -37691,7 +37694,7 @@
     "sphinx/ext/autodoc/mock.py"
    ],
    "cards": 3000,
-   "ms": 86,
+   "ms": 43,
    "queryTerms": 76,
    "mapTop": [
     "sphinx/cmd/quickstart.py",
@@ -37730,7 +37733,7 @@
     },
     "newHit": false
    },
-   "embedMs": 19,
+   "embedMs": 21,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -37791,7 +37794,7 @@
     "sphinx/ext/napoleon/__init__.py"
    ],
    "cards": 3000,
-   "ms": 66,
+   "ms": 49,
    "queryTerms": 74,
    "mapTop": [
     "sphinx/ext/napoleon/__init__.py",
@@ -37891,7 +37894,7 @@
     "sphinx/builders/linkcheck.py"
    ],
    "cards": 3000,
-   "ms": 51,
+   "ms": 53,
    "queryTerms": 99,
    "mapTop": [
     "sphinx/application.py",
@@ -37930,7 +37933,7 @@
     },
     "newHit": false
    },
-   "embedMs": 28,
+   "embedMs": 27,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -37991,7 +37994,7 @@
     "sphinx/ext/autodoc/__init__.py"
    ],
    "cards": 3000,
-   "ms": 46,
+   "ms": 67,
    "queryTerms": 40,
    "mapTop": [
     "sphinx/ext/autodoc/__init__.py",
@@ -38030,7 +38033,7 @@
     },
     "newHit": false
    },
-   "embedMs": 16,
+   "embedMs": 18,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -38091,7 +38094,7 @@
     "sphinx/ext/napoleon/docstring.py"
    ],
    "cards": 3000,
-   "ms": 51,
+   "ms": 54,
    "queryTerms": 87,
    "mapTop": [
     "sphinx/cmd/quickstart.py",
@@ -38130,7 +38133,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 28,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -38192,7 +38195,7 @@
     "sphinx/locale/__init__.py"
    ],
    "cards": 3000,
-   "ms": 53,
+   "ms": 70,
    "queryTerms": 96,
    "mapTop": [
     "sphinx/domains/cpp.py",
@@ -38231,7 +38234,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 25,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -38292,7 +38295,7 @@
     "sphinx/pycode/ast.py"
    ],
    "cards": 3000,
-   "ms": 55,
+   "ms": 63,
    "queryTerms": 97,
    "mapTop": [
     "sphinx/util/logging.py",
@@ -38331,7 +38334,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 25,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -38392,7 +38395,7 @@
     "sphinx/builders/linkcheck.py"
    ],
    "cards": 3000,
-   "ms": 48,
+   "ms": 51,
    "queryTerms": 71,
    "mapTop": [
     "sphinx/builders/linkcheck.py",
@@ -38431,7 +38434,7 @@
     },
     "newHit": false
    },
-   "embedMs": 19,
+   "embedMs": 17,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -38492,7 +38495,7 @@
     "sphinx/ext/autodoc/typehints.py"
    ],
    "cards": 3000,
-   "ms": 48,
+   "ms": 50,
    "queryTerms": 46,
    "mapTop": [
     "sphinx/ext/autodoc/__init__.py",
@@ -38631,7 +38634,7 @@
     },
     "newHit": true
    },
-   "embedMs": 14,
+   "embedMs": 17,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -38693,7 +38696,7 @@
     "sphinx/ext/autodoc/importer.py"
    ],
    "cards": 3000,
-   "ms": 42,
+   "ms": 45,
    "queryTerms": 27,
    "mapTop": [],
    "map": {
@@ -38728,7 +38731,7 @@
     },
     "newHit": true
    },
-   "embedMs": 12,
+   "embedMs": 11,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -38790,7 +38793,7 @@
     "sphinx/util/docfields.py"
    ],
    "cards": 3000,
-   "ms": 53,
+   "ms": 82,
    "queryTerms": 61,
    "mapTop": [
     "sphinx/domains/cpp.py",
@@ -38891,7 +38894,7 @@
     "sphinx/ext/autodoc/importer.py"
    ],
    "cards": 3000,
-   "ms": 43,
+   "ms": 44,
    "queryTerms": 35,
    "mapTop": [
     "sphinx/ext/apidoc.py",
@@ -38930,7 +38933,7 @@
     },
     "newHit": true
    },
-   "embedMs": 16,
+   "embedMs": 17,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -39030,7 +39033,7 @@
     },
     "newHit": false
    },
-   "embedMs": 16,
+   "embedMs": 15,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -39091,7 +39094,7 @@
     "sphinx/builders/html/transforms.py"
    ],
    "cards": 3000,
-   "ms": 49,
+   "ms": 47,
    "queryTerms": 69,
    "mapTop": [
     "sphinx/ext/autodoc/__init__.py",
@@ -39130,7 +39133,7 @@
     },
     "newHit": true
    },
-   "embedMs": 26,
+   "embedMs": 27,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -39191,7 +39194,7 @@
     "sphinx/domains/python.py"
    ],
    "cards": 3000,
-   "ms": 63,
+   "ms": 61,
    "queryTerms": 156,
    "mapTop": [
     "sphinx/ext/autosummary/__init__.py",
@@ -39230,7 +39233,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 24,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -39391,7 +39394,7 @@
     "sphinx/ext/autodoc/__init__.py"
    ],
    "cards": 3000,
-   "ms": 72,
+   "ms": 61,
    "queryTerms": 186,
    "mapTop": [
     "sphinx/themes/basic/static/jquery-3.5.1.js",
@@ -39491,7 +39494,7 @@
     "sphinx/util/docfields.py"
    ],
    "cards": 3000,
-   "ms": 49,
+   "ms": 53,
    "queryTerms": 67,
    "mapTop": [
     "sphinx/ext/autosummary/__init__.py",
@@ -39530,7 +39533,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 23,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -39591,7 +39594,7 @@
     "sphinx/domains/python.py"
    ],
    "cards": 3000,
-   "ms": 41,
+   "ms": 38,
    "queryTerms": 41,
    "mapTop": [
     "sphinx/ext/autodoc/importer.py",
@@ -39730,7 +39733,7 @@
     },
     "newHit": false
    },
-   "embedMs": 17,
+   "embedMs": 15,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -39791,7 +39794,7 @@
     "sphinx/cmd/quickstart.py"
    ],
    "cards": 3000,
-   "ms": 49,
+   "ms": 45,
    "queryTerms": 67,
    "mapTop": [
     "sphinx/builders/gettext.py",
@@ -39830,7 +39833,7 @@
     },
     "newHit": false
    },
-   "embedMs": 21,
+   "embedMs": 19,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -39891,7 +39894,7 @@
     "sphinx/pycode/ast.py"
    ],
    "cards": 3000,
-   "ms": 44,
+   "ms": 41,
    "queryTerms": 30,
    "mapTop": [
     "sphinx/__init__.py",
@@ -39993,7 +39996,7 @@
     "sphinx/util/inspect.py"
    ],
    "cards": 3000,
-   "ms": 55,
+   "ms": 57,
    "queryTerms": 118,
    "mapTop": [
     "sphinx/util/inspect.py",
@@ -40032,7 +40035,7 @@
     },
     "newHit": false
    },
-   "embedMs": 28,
+   "embedMs": 26,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -40093,7 +40096,7 @@
     "sphinx/domains/python.py"
    ],
    "cards": 3000,
-   "ms": 52,
+   "ms": 51,
    "queryTerms": 70,
    "mapTop": [
     "sphinx/themes/basic/static/jquery-3.5.1.js",
@@ -40193,7 +40196,7 @@
     "sphinx/domains/python.py"
    ],
    "cards": 3000,
-   "ms": 53,
+   "ms": 54,
    "queryTerms": 72,
    "mapTop": [
     "sphinx/project.py",
@@ -40232,7 +40235,7 @@
     },
     "newHit": false
    },
-   "embedMs": 23,
+   "embedMs": 18,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -40293,7 +40296,7 @@
     "sphinx/ext/autodoc/mock.py"
    ],
    "cards": 3000,
-   "ms": 61,
+   "ms": 58,
    "queryTerms": 118,
    "mapTop": [
     "sphinx/cmd/quickstart.py",
@@ -40332,7 +40335,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 28,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -40393,7 +40396,7 @@
     "sphinx/ext/autodoc/typehints.py"
    ],
    "cards": 3000,
-   "ms": 61,
+   "ms": 56,
    "queryTerms": 79,
    "mapTop": [
     "sphinx/ext/napoleon/__init__.py",
@@ -40432,7 +40435,7 @@
     },
     "newHit": true
    },
-   "embedMs": 22,
+   "embedMs": 21,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -40493,7 +40496,7 @@
     "sphinx/domains/python.py"
    ],
    "cards": 3000,
-   "ms": 59,
+   "ms": 47,
    "queryTerms": 43,
    "mapTop": [
     "sphinx/writers/latex.py",
@@ -40532,7 +40535,7 @@
     },
     "newHit": true
    },
-   "embedMs": 18,
+   "embedMs": 19,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -40593,7 +40596,7 @@
     "sphinx/extension.py"
    ],
    "cards": 3000,
-   "ms": 54,
+   "ms": 52,
    "queryTerms": 76,
    "mapTop": [
     "sphinx/application.py",
@@ -40632,7 +40635,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 21,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -40693,7 +40696,7 @@
     "sphinx/directives/code.py"
    ],
    "cards": 3000,
-   "ms": 69,
+   "ms": 70,
    "queryTerms": 112,
    "mapTop": [
     "sphinx/directives/code.py",
@@ -40732,7 +40735,7 @@
     },
     "newHit": false
    },
-   "embedMs": 28,
+   "embedMs": 26,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -40793,7 +40796,7 @@
     "sphinx/writers/latex.py"
    ],
    "cards": 3000,
-   "ms": 69,
+   "ms": 67,
    "queryTerms": 89,
    "mapTop": [
     "sphinx/directives/code.py",
@@ -40832,7 +40835,7 @@
     },
     "newHit": false
    },
-   "embedMs": 28,
+   "embedMs": 27,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -40932,7 +40935,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 25,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -41032,7 +41035,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 22,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -41093,7 +41096,7 @@
     "sphinx/ext/inheritance_diagram.py"
    ],
    "cards": 3000,
-   "ms": 76,
+   "ms": 74,
    "queryTerms": 108,
    "mapTop": [
     "sphinx/ext/inheritance_diagram.py",
@@ -41132,7 +41135,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 29,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -41195,7 +41198,7 @@
     "sphinx/environment/collectors/toctree.py"
    ],
    "cards": 3000,
-   "ms": 65,
+   "ms": 77,
    "queryTerms": 53,
    "mapTop": [
     "sphinx/directives/other.py",
@@ -41295,7 +41298,7 @@
     "sphinx/util/rst.py"
    ],
    "cards": 3000,
-   "ms": 71,
+   "ms": 68,
    "queryTerms": 84,
    "mapTop": [
     "sphinx/application.py",
@@ -41334,7 +41337,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 25,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -41395,7 +41398,7 @@
     "sphinx/directives/other.py"
    ],
    "cards": 3000,
-   "ms": 105,
+   "ms": 115,
    "queryTerms": 126,
    "mapTop": [
     "sphinx/application.py",
@@ -41434,7 +41437,7 @@
     },
     "newHit": false
    },
-   "embedMs": 30,
+   "embedMs": 27,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -41495,7 +41498,7 @@
     "sympy/geometry/point.py"
    ],
    "cards": 3000,
-   "ms": 35,
+   "ms": 31,
    "queryTerms": 14,
    "mapTop": [
     "sympy/physics/unitsystems/dimensions.py",
@@ -41534,7 +41537,7 @@
     },
     "newHit": true
    },
-   "embedMs": 14,
+   "embedMs": 9,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -41595,7 +41598,7 @@
     "sympy/core/function.py"
    ],
    "cards": 3000,
-   "ms": 94,
+   "ms": 36,
    "queryTerms": 30,
    "mapTop": [
     "sympy/utilities/lambdify.py",
@@ -41634,7 +41637,7 @@
     },
     "newHit": false
    },
-   "embedMs": 16,
+   "embedMs": 17,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -41695,7 +41698,7 @@
     "sympy/matrices/expressions/matexpr.py"
    ],
    "cards": 3000,
-   "ms": 93,
+   "ms": 83,
    "queryTerms": 49,
    "mapTop": [
     "sympy/assumptions/ask.py",
@@ -41734,7 +41737,7 @@
     },
     "newHit": false
    },
-   "embedMs": 24,
+   "embedMs": 20,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -41795,7 +41798,7 @@
     "sympy/combinatorics/permutations.py"
    ],
    "cards": 3000,
-   "ms": 87,
+   "ms": 41,
    "queryTerms": 26,
    "mapTop": [
     "sympy/combinatorics/permutations.py",
@@ -41834,7 +41837,7 @@
     },
     "newHit": false
    },
-   "embedMs": 14,
+   "embedMs": 13,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -41895,7 +41898,7 @@
     "sympy/combinatorics/permutations.py"
    ],
    "cards": 3000,
-   "ms": 39,
+   "ms": 54,
    "queryTerms": 68,
    "mapTop": [
     "sympy/combinatorics/permutations.py",
@@ -41934,7 +41937,7 @@
     },
     "newHit": false
    },
-   "embedMs": 19,
+   "embedMs": 17,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -41995,7 +41998,7 @@
     "sympy/matrices/sparse.py"
    ],
    "cards": 3000,
-   "ms": 35,
+   "ms": 44,
    "queryTerms": 12,
    "mapTop": [
     "sympy/matrices/common.py",
@@ -42034,7 +42037,7 @@
     },
     "newHit": false
    },
-   "embedMs": 19,
+   "embedMs": 20,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -42115,7 +42118,7 @@
     "sympy/utilities/enumerative.py"
    ],
    "cards": 3000,
-   "ms": 49,
+   "ms": 53,
    "queryTerms": 101,
    "mapTop": [
     "sympy/core/numbers.py",
@@ -42215,7 +42218,7 @@
     "sympy/core/evalf.py"
    ],
    "cards": 3000,
-   "ms": 40,
+   "ms": 50,
    "queryTerms": 64,
    "mapTop": [
     "sympy/core/evalf.py",
@@ -42254,7 +42257,7 @@
     },
     "newHit": false
    },
-   "embedMs": 24,
+   "embedMs": 22,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -42315,7 +42318,7 @@
     "sympy/functions/elementary/hyperbolic.py"
    ],
    "cards": 3000,
-   "ms": 46,
+   "ms": 41,
    "queryTerms": 29,
    "mapTop": [
     "sympy/functions/elementary/hyperbolic.py",
@@ -42354,7 +42357,7 @@
     },
     "newHit": false
    },
-   "embedMs": 13,
+   "embedMs": 17,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -42415,7 +42418,7 @@
     "sympy/concrete/products.py"
    ],
    "cards": 3000,
-   "ms": 80,
+   "ms": 35,
    "queryTerms": 20,
    "mapTop": [
     "sympy/polys/domains/expressiondomain.py",
@@ -42454,7 +42457,7 @@
     },
     "newHit": false
    },
-   "embedMs": 18,
+   "embedMs": 15,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -42515,7 +42518,7 @@
     "sympy/sets/sets.py"
    ],
    "cards": 3000,
-   "ms": 34,
+   "ms": 35,
    "queryTerms": 12,
    "mapTop": [
     "sympy/sets/sets.py",
@@ -42554,7 +42557,7 @@
     },
     "newHit": false
    },
-   "embedMs": 11,
+   "embedMs": 8,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -42615,7 +42618,7 @@
     "sympy/matrices/common.py"
    ],
    "cards": 3000,
-   "ms": 33,
+   "ms": 35,
    "queryTerms": 26,
    "mapTop": [
     "sympy/matrices/common.py",
@@ -42654,7 +42657,7 @@
     },
     "newHit": false
    },
-   "embedMs": 20,
+   "embedMs": 18,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -42715,7 +42718,7 @@
     "sympy/polys/polytools.py"
    ],
    "cards": 3000,
-   "ms": 36,
+   "ms": 34,
    "queryTerms": 13,
    "mapTop": [
     "sympy/polys/domains/domain.py",
@@ -42754,7 +42757,7 @@
     },
     "newHit": false
    },
-   "embedMs": 16,
+   "embedMs": 13,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -42815,7 +42818,7 @@
     "sympy/printing/latex.py"
    ],
    "cards": 3000,
-   "ms": 37,
+   "ms": 40,
    "queryTerms": 51,
    "mapTop": [
     "sympy/printing/latex.py",
@@ -42854,7 +42857,7 @@
     },
     "newHit": false
    },
-   "embedMs": 18,
+   "embedMs": 16,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -42915,7 +42918,7 @@
     "sympy/functions/special/zeta_functions.py"
    ],
    "cards": 3000,
-   "ms": 41,
+   "ms": 38,
    "queryTerms": 83,
    "mapTop": [
     "sympy/integrals/rubi/utility_function.py",
@@ -42954,7 +42957,7 @@
     },
     "newHit": true
    },
-   "embedMs": 25,
+   "embedMs": 26,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -43055,7 +43058,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 29,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -43116,7 +43119,7 @@
     "sympy/stats/crv_types.py"
    ],
    "cards": 3000,
-   "ms": 49,
+   "ms": 76,
    "queryTerms": 126,
    "mapTop": [
     "sympy/stats/crv_types.py",
@@ -43216,7 +43219,7 @@
     "sympy/physics/quantum/tensorproduct.py"
    ],
    "cards": 3000,
-   "ms": 47,
+   "ms": 37,
    "queryTerms": 35,
    "mapTop": [
     "sympy/physics/quantum/tensorproduct.py",
@@ -43255,7 +43258,7 @@
     },
     "newHit": false
    },
-   "embedMs": 22,
+   "embedMs": 23,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -43318,7 +43321,7 @@
     "sympy/printing/str.py"
    ],
    "cards": 3000,
-   "ms": 37,
+   "ms": 35,
    "queryTerms": 32,
    "mapTop": [
     "sympy/integrals/rubi/utility_function.py",
@@ -43357,7 +43360,7 @@
     },
     "newHit": true
    },
-   "embedMs": 16,
+   "embedMs": 17,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -43418,7 +43421,7 @@
     "sympy/printing/str.py"
    ],
    "cards": 3000,
-   "ms": 37,
+   "ms": 76,
    "queryTerms": 30,
    "mapTop": [
     "sympy/printing/str.py",
@@ -43457,7 +43460,7 @@
     },
     "newHit": false
    },
-   "embedMs": 19,
+   "embedMs": 17,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -43518,7 +43521,7 @@
     "sympy/printing/pycode.py"
    ],
    "cards": 3000,
-   "ms": 56,
+   "ms": 53,
    "queryTerms": 38,
    "mapTop": [
     "sympy/solvers/solvers.py",
@@ -43557,7 +43560,7 @@
     },
     "newHit": true
    },
-   "embedMs": 22,
+   "embedMs": 20,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -43618,7 +43621,7 @@
     "sympy/tensor/array/dense_ndim_array.py"
    ],
    "cards": 3000,
-   "ms": 54,
+   "ms": 52,
    "queryTerms": 31,
    "mapTop": [
     "sympy/tensor/array/ndim_array.py",
@@ -43718,7 +43721,7 @@
     "sympy/printing/mathematica.py"
    ],
    "cards": 3000,
-   "ms": 40,
+   "ms": 39,
    "queryTerms": 10,
    "mapTop": [
     "sympy/printing/mathematica.py",
@@ -43757,7 +43760,7 @@
     },
     "newHit": false
    },
-   "embedMs": 11,
+   "embedMs": 10,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -43818,7 +43821,7 @@
     "sympy/algebras/quaternion.py"
    ],
    "cards": 3000,
-   "ms": 95,
+   "ms": 51,
    "queryTerms": 36,
    "mapTop": [
     "sympy/algebras/quaternion.py",
@@ -43857,7 +43860,7 @@
     },
     "newHit": false
    },
-   "embedMs": 21,
+   "embedMs": 18,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -43918,7 +43921,7 @@
     "sympy/core/mod.py"
    ],
    "cards": 3000,
-   "ms": 51,
+   "ms": 50,
    "queryTerms": 65,
    "mapTop": [
     "sympy/core/tests/test_arit.py",
@@ -43957,7 +43960,7 @@
     },
     "newHit": false
    },
-   "embedMs": 28,
+   "embedMs": 26,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -44018,7 +44021,7 @@
     "sympy/functions/elementary/miscellaneous.py"
    ],
    "cards": 3000,
-   "ms": 40,
+   "ms": 88,
    "queryTerms": 30,
    "mapTop": [
     "sympy/utilities/codegen.py",
@@ -44057,7 +44060,7 @@
     },
     "newHit": true
    },
-   "embedMs": 13,
+   "embedMs": 10,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -44118,7 +44121,7 @@
     "sympy/printing/mathml.py"
    ],
    "cards": 3000,
-   "ms": 44,
+   "ms": 50,
    "queryTerms": 49,
    "mapTop": [
     "sympy/plotting/pygletplot/plot.py",
@@ -44157,7 +44160,7 @@
     },
     "newHit": false
    },
-   "embedMs": 25,
+   "embedMs": 28,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -44218,7 +44221,7 @@
     "sympy/simplify/simplify.py"
    ],
    "cards": 3000,
-   "ms": 53,
+   "ms": 82,
    "queryTerms": 38,
    "mapTop": [
     "sympy/assumptions/ask.py",
@@ -44323,7 +44326,7 @@
     "sympy/tensor/indexed.py"
    ],
    "cards": 3000,
-   "ms": 39,
+   "ms": 38,
    "queryTerms": 16,
    "mapTop": [
     "sympy/combinatorics/permutations.py",
@@ -44423,7 +44426,7 @@
     "sympy/printing/pycode.py"
    ],
    "cards": 3000,
-   "ms": 34,
+   "ms": 45,
    "queryTerms": 36,
    "mapTop": [
     "sympy/printing/pycode.py",
@@ -44462,7 +44465,7 @@
     },
     "newHit": false
    },
-   "embedMs": 17,
+   "embedMs": 18,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -44523,7 +44526,7 @@
     "sympy/utilities/codegen.py"
    ],
    "cards": 3000,
-   "ms": 39,
+   "ms": 44,
    "queryTerms": 95,
    "mapTop": [
     "sympy/utilities/autowrap.py",
@@ -44562,7 +44565,7 @@
     },
     "newHit": false
    },
-   "embedMs": 26,
+   "embedMs": 28,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -44623,7 +44626,7 @@
     "sympy/crypto/crypto.py"
    ],
    "cards": 3000,
-   "ms": 28,
+   "ms": 32,
    "queryTerms": 9,
    "mapTop": [
     "sympy/sets/contains.py",
@@ -44723,7 +44726,7 @@
     "sympy/simplify/fu.py"
    ],
    "cards": 3000,
-   "ms": 38,
+   "ms": 41,
    "queryTerms": 53,
    "mapTop": [
     "sympy/simplify/trigsimp.py",
@@ -44762,7 +44765,7 @@
     },
     "newHit": true
    },
-   "embedMs": 29,
+   "embedMs": 28,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -44824,7 +44827,7 @@
     "sympy/simplify/sqrtdenest.py"
    ],
    "cards": 3000,
-   "ms": 72,
+   "ms": 70,
    "queryTerms": 39,
    "mapTop": [
     "sympy/simplify/sqrtdenest.py",
@@ -44863,7 +44866,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 34,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -44924,7 +44927,7 @@
     "sympy/matrices/expressions/matexpr.py"
    ],
    "cards": 3000,
-   "ms": 57,
+   "ms": 49,
    "queryTerms": 85,
    "mapTop": [
     "sympy/matrices/expressions/blockmatrix.py",
@@ -44963,7 +44966,7 @@
     },
     "newHit": true
    },
-   "embedMs": 29,
+   "embedMs": 24,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -45024,7 +45027,7 @@
     "sympy/geometry/point.py"
    ],
    "cards": 3000,
-   "ms": 47,
+   "ms": 43,
    "queryTerms": 77,
    "mapTop": [
     "sympy/geometry/point.py",
@@ -45063,7 +45066,7 @@
     },
     "newHit": false
    },
-   "embedMs": 24,
+   "embedMs": 26,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -45124,7 +45127,7 @@
     "sympy/solvers/diophantine.py"
    ],
    "cards": 3000,
-   "ms": 34,
+   "ms": 38,
    "queryTerms": 8,
    "mapTop": [
     "sympy/solvers/diophantine.py",
@@ -45163,7 +45166,7 @@
     },
     "newHit": false
    },
-   "embedMs": 22,
+   "embedMs": 24,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -45224,7 +45227,7 @@
     "sympy/ntheory/residue_ntheory.py"
    ],
    "cards": 3000,
-   "ms": 37,
+   "ms": 36,
    "queryTerms": 11,
    "mapTop": [
     "sympy/polys/rootoftools.py",
@@ -45263,7 +45266,7 @@
     },
     "newHit": false
    },
-   "embedMs": 11,
+   "embedMs": 13,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -45324,7 +45327,7 @@
     "sympy/core/relational.py"
    ],
    "cards": 3000,
-   "ms": 39,
+   "ms": 37,
    "queryTerms": 27,
    "mapTop": [
     "sympy/solvers/solveset.py",
@@ -45363,7 +45366,7 @@
     },
     "newHit": false
    },
-   "embedMs": 21,
+   "embedMs": 17,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -45524,7 +45527,7 @@
     "sympy/polys/factortools.py"
    ],
    "cards": 3000,
-   "ms": 52,
+   "ms": 50,
    "queryTerms": 64,
    "mapTop": [
     "sympy/polys/polyoptions.py",
@@ -45624,7 +45627,7 @@
     "sympy/printing/repr.py"
    ],
    "cards": 3000,
-   "ms": 45,
+   "ms": 42,
    "queryTerms": 24,
    "mapTop": [
     "sympy/codegen/ast.py",
@@ -45663,7 +45666,7 @@
     },
     "newHit": true
    },
-   "embedMs": 15,
+   "embedMs": 18,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -45724,7 +45727,7 @@
     "sympy/sets/conditionset.py"
    ],
    "cards": 3000,
-   "ms": 48,
+   "ms": 50,
    "queryTerms": 45,
    "mapTop": [
     "sympy/solvers/solveset.py",
@@ -45763,7 +45766,7 @@
     },
     "newHit": false
    },
-   "embedMs": 28,
+   "embedMs": 25,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -45824,7 +45827,7 @@
     "sympy/core/sympify.py"
    ],
    "cards": 3000,
-   "ms": 35,
+   "ms": 41,
    "queryTerms": 16,
    "mapTop": [
     "sympy/core/sympify.py",
@@ -45863,7 +45866,7 @@
     },
     "newHit": false
    },
-   "embedMs": 9,
+   "embedMs": 12,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -45925,7 +45928,7 @@
     "sympy/physics/quantum/operator.py"
    ],
    "cards": 3000,
-   "ms": 81,
+   "ms": 72,
    "queryTerms": 17,
    "mapTop": [
     "sympy/physics/quantum/operator.py",
@@ -45964,7 +45967,7 @@
     },
     "newHit": false
    },
-   "embedMs": 15,
+   "embedMs": 14,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -46025,7 +46028,7 @@
     "sympy/utilities/iterables.py"
    ],
    "cards": 3000,
-   "ms": 39,
+   "ms": 41,
    "queryTerms": 37,
    "mapTop": [
     "sympy/utilities/iterables.py",
@@ -46064,7 +46067,7 @@
     },
     "newHit": false
    },
-   "embedMs": 11,
+   "embedMs": 12,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -46125,7 +46128,7 @@
     "sympy/polys/domains/expressiondomain.py"
    ],
    "cards": 3000,
-   "ms": 54,
+   "ms": 94,
    "queryTerms": 109,
    "mapTop": [
     "sympy/polys/polyclasses.py",
@@ -46164,7 +46167,7 @@
     },
     "newHit": false
    },
-   "embedMs": 29,
+   "embedMs": 28,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -46227,7 +46230,7 @@
     "sympy/sets/handlers/issubset.py"
    ],
    "cards": 3000,
-   "ms": 86,
+   "ms": 40,
    "queryTerms": 64,
    "mapTop": [
     "sympy/sets/sets.py",
@@ -46266,7 +46269,7 @@
     },
     "newHit": false
    },
-   "embedMs": 27,
+   "embedMs": 25,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -46327,7 +46330,7 @@
     "sympy/core/_print_helpers.py"
    ],
    "cards": 3000,
-   "ms": 40,
+   "ms": 35,
    "queryTerms": 36,
    "mapTop": [
     "sympy/codegen/ast.py",
@@ -46366,7 +46369,7 @@
     },
     "newHit": false
    },
-   "embedMs": 18,
+   "embedMs": 21,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -46427,7 +46430,7 @@
     "sympy/core/numbers.py"
    ],
    "cards": 3000,
-   "ms": 40,
+   "ms": 38,
    "queryTerms": 21,
    "mapTop": [
     "sympy/polys/agca/extensions.py",
@@ -46466,7 +46469,7 @@
     },
     "newHit": false
    },
-   "embedMs": 18,
+   "embedMs": 14,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -46527,7 +46530,7 @@
     "sympy/printing/conventions.py"
    ],
    "cards": 3000,
-   "ms": 68,
+   "ms": 34,
    "queryTerms": 8,
    "mapTop": [
     "sympy/printing/pretty/stringpict.py"
@@ -46564,7 +46567,7 @@
     },
     "newHit": false
    },
-   "embedMs": 9,
+   "embedMs": 11,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -46625,7 +46628,7 @@
     "sympy/core/mod.py"
    ],
    "cards": 3000,
-   "ms": 48,
+   "ms": 86,
    "queryTerms": 91,
    "mapTop": [
     "sympy/core/expr.py",
@@ -46664,7 +46667,7 @@
     },
     "newHit": true
    },
-   "embedMs": 25,
+   "embedMs": 28,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -46725,7 +46728,7 @@
     "sympy/sets/handlers/intersection.py"
    ],
    "cards": 3000,
-   "ms": 37,
+   "ms": 71,
    "queryTerms": 16,
    "mapTop": [
     "sympy/sets/sets.py",
@@ -46764,7 +46767,7 @@
     },
     "newHit": false
    },
-   "embedMs": 18,
+   "embedMs": 14,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -46825,7 +46828,7 @@
     "sympy/printing/str.py"
    ],
    "cards": 3000,
-   "ms": 39,
+   "ms": 36,
    "queryTerms": 35,
    "mapTop": [
     "sympy/parsing/latex/_parse_latex_antlr.py",
@@ -46864,7 +46867,7 @@
     },
     "newHit": false
    },
-   "embedMs": 18,
+   "embedMs": 19,
    "meaning": {
     "briefHit": false,
     "agree": true,
@@ -46925,7 +46928,7 @@
     "sympy/polys/monomials.py"
    ],
    "cards": 3000,
-   "ms": 44,
+   "ms": 35,
    "queryTerms": 49,
    "mapTop": [
     "sympy/polys/monomials.py",
@@ -46964,7 +46967,7 @@
     },
     "newHit": false
    },
-   "embedMs": 21,
+   "embedMs": 20,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -47025,7 +47028,7 @@
     "sympy/physics/secondquant.py"
    ],
    "cards": 3000,
-   "ms": 41,
+   "ms": 42,
    "queryTerms": 41,
    "mapTop": [
     "sympy/physics/secondquant.py",
@@ -47126,7 +47129,7 @@
     "sympy/printing/precedence.py"
    ],
    "cards": 3000,
-   "ms": 34,
+   "ms": 31,
    "queryTerms": 24,
    "mapTop": [
     "sympy/utilities/lambdify.py",
@@ -47226,7 +47229,7 @@
     "sympy/codegen/ast.py"
    ],
    "cards": 3000,
-   "ms": 39,
+   "ms": 37,
    "queryTerms": 18,
    "mapTop": [
     "sympy/utilities/codegen.py",
@@ -47265,7 +47268,7 @@
     },
     "newHit": false
    },
-   "embedMs": 14,
+   "embedMs": 10,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -47326,7 +47329,7 @@
     "sympy/geometry/point.py"
    ],
    "cards": 3000,
-   "ms": 49,
+   "ms": 56,
    "queryTerms": 60,
    "mapTop": [
     "sympy/parsing/sympy_parser.py",
@@ -47426,7 +47429,7 @@
     "sympy/printing/pycode.py"
    ],
    "cards": 3000,
-   "ms": 76,
+   "ms": 74,
    "queryTerms": 30,
    "mapTop": [
     "sympy/printing/numpy.py",
@@ -47465,7 +47468,7 @@
     },
     "newHit": false
    },
-   "embedMs": 17,
+   "embedMs": 16,
    "meaning": {
     "briefHit": false,
     "agree": false,
@@ -47526,7 +47529,7 @@
     "sympy/utilities/lambdify.py"
    ],
    "cards": 3000,
-   "ms": 42,
+   "ms": 41,
    "queryTerms": 47,
    "mapTop": [
     "sympy/utilities/lambdify.py",
@@ -47565,7 +47568,7 @@
     },
     "newHit": false
    },
-   "embedMs": 18,
+   "embedMs": 17,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -47626,7 +47629,7 @@
     "sympy/polys/matrices/normalforms.py"
    ],
    "cards": 3000,
-   "ms": 42,
+   "ms": 40,
    "queryTerms": 25,
    "mapTop": [
     "sympy/matrices/normalforms.py",
@@ -47665,7 +47668,7 @@
     },
     "newHit": false
    },
-   "embedMs": 15,
+   "embedMs": 11,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -47765,7 +47768,7 @@
     },
     "newHit": false
    },
-   "embedMs": 15,
+   "embedMs": 19,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -47926,7 +47929,7 @@
     "sympy/sets/contains.py"
    ],
    "cards": 3000,
-   "ms": 78,
+   "ms": 73,
    "queryTerms": 45,
    "mapTop": [
     "sympy/sets/sets.py",
@@ -47965,7 +47968,7 @@
     },
     "newHit": true
    },
-   "embedMs": 20,
+   "embedMs": 19,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -48026,7 +48029,7 @@
     "sympy/physics/units/unitsystem.py"
    ],
    "cards": 3000,
-   "ms": 42,
+   "ms": 45,
    "queryTerms": 34,
    "mapTop": [
     "sympy/physics/units/unitsystem.py",
@@ -48065,7 +48068,7 @@
     },
     "newHit": false
    },
-   "embedMs": 16,
+   "embedMs": 13,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -48126,7 +48129,7 @@
     "sympy/physics/units/unitsystem.py"
    ],
    "cards": 3000,
-   "ms": 45,
+   "ms": 50,
    "queryTerms": 42,
    "mapTop": [
     "sympy/physics/units/unitsystem.py",
@@ -48165,7 +48168,7 @@
     },
     "newHit": false
    },
-   "embedMs": 20,
+   "embedMs": 19,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -48226,7 +48229,7 @@
     "sympy/combinatorics/homomorphisms.py"
    ],
    "cards": 3000,
-   "ms": 42,
+   "ms": 46,
    "queryTerms": 43,
    "mapTop": [
     "sympy/combinatorics/homomorphisms.py",
@@ -48326,7 +48329,7 @@
     "sympy/polys/rings.py"
    ],
    "cards": 3000,
-   "ms": 37,
+   "ms": 50,
    "queryTerms": 34,
    "mapTop": [
     "sympy/polys/rings.py",
@@ -48365,7 +48368,7 @@
     },
     "newHit": false
    },
-   "embedMs": 19,
+   "embedMs": 20,
    "meaning": {
     "briefHit": true,
     "agree": true,
@@ -48426,7 +48429,7 @@
     "sympy/core/numbers.py"
    ],
    "cards": 3000,
-   "ms": 36,
+   "ms": 35,
    "queryTerms": 8,
    "mapTop": [
     "sympy/stats/crv_types.py",
@@ -48465,7 +48468,7 @@
     },
     "newHit": true
    },
-   "embedMs": 9,
+   "embedMs": 8,
    "meaning": {
     "briefHit": true,
     "agree": false,
@@ -48526,7 +48529,7 @@
     "sympy/parsing/sympy_parser.py"
    ],
    "cards": 3000,
-   "ms": 34,
+   "ms": 35,
    "queryTerms": 17,
    "mapTop": [
     "sympy/parsing/sympy_parser.py",

@@ -23,6 +23,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pool, JEV_USD_PER_MTOK } from "./label.mjs";
+import { stamp } from "./stamp.mjs";
 const { recall } = await import("../dist/lib.mjs");
 
 const REPO = fileURLToPath(new URL("..", import.meta.url)).replace(/\/$/, "");
@@ -169,5 +170,5 @@ for (const a of pos) for (const b of neg) wins += a > b ? 1 : a === b ? 0.5 : 0;
 console.log(`\n  jev AUC ${(wins / Math.max(1, pos.length * neg.length)).toFixed(3)} (0.5 = chance)`);
 console.log(`  Jev input tokens ${tokens.toLocaleString()} ≈ $${((tokens / 1e6) * JEV_USD_PER_MTOK).toFixed(3)}`);
 const file = join(resultsDir, `recalljev-${Date.now()}.json`);
-writeFileSync(file, JSON.stringify({ measuredAt: new Date().toISOString(), model: MODEL, mapFile, tokens, rows }, null, 1));
+writeFileSync(file, JSON.stringify({ measuredAt: new Date().toISOString(), ...stamp(), model: MODEL, mapFile, tokens, rows }, null, 1));
 console.log(`  rows: ${file}`);

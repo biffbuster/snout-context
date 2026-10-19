@@ -1,7 +1,10 @@
 {
- "measuredAt": "2026-10-16T17:53:11.076Z",
+ "measuredAt": "2026-10-19T02:17:02.339Z",
+ "snoutVersion": "0.3.0",
+ "commit": "06a5971",
+ "dirty": true,
  "submission": "bash-only/20260217_mini-v2.0.0_claude-4-5-sonnet-high",
- "mapFile": "mapeval-heldout-1792105066713.json",
+ "mapFile": "mapeval-heldout-1792375683439.json",
  "model": "Xenova/bge-small-en-v1.5",
  "rows": [
   {

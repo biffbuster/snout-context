@@ -521,6 +521,18 @@ function extOf(name) {
   const m = /\.([A-Za-z0-9]+)$/.exec(name);
   return m?.[1]?.toLowerCase() ?? null;
 }
+var COMMENT_LINE = /^\s*(\/\/|#|\/\*|\*|<!--|--|;|%|rem\b)/i;
+function inString(line, at) {
+  let quote = null;
+  for (let i = 0; i < at; i++) {
+    const c = line[i];
+    if (quote) {
+      if (c === "\\") i++;
+      else if (c === quote) quote = null;
+    } else if (c === '"' || c === "'" || c === "`") quote = c;
+  }
+  return quote !== null;
+}
 function insideDoubleQuotes(line, marker) {
   const i = line.indexOf(marker);
   const count = (t) => (t.match(/"/g) ?? []).length;
@@ -583,8 +595,9 @@ function isBinary(head) {
 function generatedMarker(headBuf) {
   const head = decode(headBuf);
   if (!head) return null;
+  const lines = head.split("\n");
   for (const marker of STRONG_MARKERS) {
-    if (head.includes(marker)) return marker;
+    if (lines.some((l) => l.includes(marker) && (COMMENT_LINE.test(l) || !inString(l, l.indexOf(marker))))) return marker;
   }
   const bannerLines = head.split("\n", BANNER_LINES);
   const banner = bannerLines.join("\n");
