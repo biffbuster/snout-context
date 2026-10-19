@@ -5,7 +5,8 @@
  * result is saved, and anything that can't be trimmed safely is passed through unchanged.
  *
  * What it does, in order of safety:
- *   JSON  re-serialised compactly; arrays past MAX_ITEMS keep their first items plus a count;
+ *   JSON  re-serialised compactly; arrays past MAX_ITEMS keep their first items whole and list
+ *         the rest one line each by their naming fields (number, id, title…), or just a count;
  *         strings past MAX_STRING are cut with their length noted. Keys and structure stay.
  *   text  runs of blank lines collapsed, repeated lines counted, very long lines cut, and if
  *         still over budget, the head and tail kept around a note of what was left out.
@@ -36,6 +37,26 @@ const KEEP_ITEMS = 20;
 const MAX_STRING = 400;
 const MAX_LINE = 600;
 const MIN_CUT = 0.3;
+/** Fields that name a list item, in the order an index line shows them. */
+const ID_KEYS = ["number", "id", "key", "name", "title", "state", "status"];
+const MAX_INDEX = 200;
+const MAX_INDEX_LINE = 160;
+
+/**
+ * One line that names a list item, e.g. `number=1045 · title=Checkout crashes… · state=open`, or
+ * null when the item has nothing that names it. An agent looking for one item in a long list then
+ * finds it in the index instead of calling the tool again for the part that was left out.
+ */
+function indexLine(x: unknown): string | null {
+  if (typeof x === "number" || typeof x === "boolean") return String(x);
+  if (typeof x === "string") return x.length > MAX_INDEX_LINE ? `${x.slice(0, MAX_INDEX_LINE)}…` : x;
+  if (!x || typeof x !== "object" || Array.isArray(x)) return null;
+  const parts = ID_KEYS.filter((k) => ["string", "number", "boolean"].includes(typeof (x as Record<string, unknown>)[k]))
+    .map((k) => `${k}=${(x as Record<string, unknown>)[k]}`);
+  if (!parts.length) return null;
+  const line = parts.join(" · ");
+  return line.length > MAX_INDEX_LINE ? `${line.slice(0, MAX_INDEX_LINE)}…` : line;
+}
 
 /** Claude Code's MCP output cap, in characters (~4 per token). */
 export const mcpLimitChars = (): number => (Number(process.env.MAX_MCP_OUTPUT_TOKENS) || 25_000) * 4;
@@ -45,7 +66,12 @@ function trimJson(v: unknown, depth = 0): unknown {
   if (typeof v === "string") return v.length > MAX_STRING ? `${v.slice(0, MAX_STRING)}… (${v.length} chars)` : v;
   if (Array.isArray(v)) {
     const kept = v.slice(0, v.length > MAX_ITEMS ? KEEP_ITEMS : v.length).map((x) => trimJson(x, depth + 1));
-    if (v.length > MAX_ITEMS) kept.push(`… ${v.length - KEEP_ITEMS} more items (${v.length} total)`);
+    if (v.length <= MAX_ITEMS) return kept;
+    const rest = v.slice(KEEP_ITEMS);
+    const index = rest.length <= MAX_INDEX ? rest.map(indexLine) : [];
+    if (index.length && index.every((l) => l !== null)) {
+      kept.push(`… ${rest.length} more items (${v.length} total), one line each; full items in the saved result:`, ...(index as string[]));
+    } else kept.push(`… ${rest.length} more items (${v.length} total)`);
     return kept;
   }
   if (v && typeof v === "object") {

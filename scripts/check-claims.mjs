@@ -12,7 +12,7 @@ import { join } from "node:path";
 
 const strict = process.argv.includes("--strict");
 const { version } = JSON.parse(readFileSync("package.json", "utf8"));
-const cited = [...new Set(readFileSync("docs/claims.md", "utf8").match(/[a-z]+-\d{13}\.json/g) ?? [])];
+const cited = [...new Set(readFileSync("docs/claims.md", "utf8").match(/[a-z]+(?:-[a-z]+)*-\d{13}\.json/g) ?? [])];
 const bundle = existsSync("dist/snout.mjs")
   ? createHash("sha256").update(readFileSync("dist/snout.mjs")).digest("hex") : null;
 

@@ -23,7 +23,8 @@
  *   node bench/ab.mjs --agent codex --n 5                # the same tasks on Codex CLI
  *   options: --arms off,enforce  --budget 1.00 (USD cap per Claude run)
  *            --max-spend 7 (Claude whole run)  --max-runs 6 (this invocation)
- *            --resume <results.json>  --keep (leave temp dirs)
+ *            --resume <results.json>  --keep (leave temp dirs)  --stop-on-fail
+ *            --api (bill ANTHROPIC_API_KEY from .env.local, not the Claude login)
  *
  * Codex reports tokens, not dollars, on a ChatGPT plan, so its comparison uses a proxy:
  * uncached input + cached input at a tenth + output. This is not an actual bill.
@@ -31,7 +32,7 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, realpathSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { stamp } from "./stamp.mjs";
@@ -50,6 +51,15 @@ const AGENT = args.agent === "codex" ? "codex" : "claude";
 const MODEL = typeof args.model === "string" ? args.model : AGENT === "codex" ? "codex-default" : "sonnet";
 const ARMS = (typeof args.arms === "string" ? args.arms : "off,enforce").split(",");
 const BUDGET = String(args.budget ?? "1.00");
+/**
+ * --api: bill the API key in .env.local instead of the Claude login, as bench/swe.mjs does. Claude
+ * Code then runs with an empty config folder, so the login can't be used by mistake. The key is
+ * read here and passed to Claude Code only; it is never printed or saved.
+ */
+const API_KEY = args.api ? (readFileSync(fileURLToPath(new URL("../.env.local", import.meta.url)), "utf8").split(/\r?\n/).find((l) => l.startsWith("ANTHROPIC_API_KEY=")) ?? "").slice("ANTHROPIC_API_KEY=".length).trim() : null;
+if (args.api && !API_KEY) throw new Error("--api: no ANTHROPIC_API_KEY in .env.local");
+if (args.api && AGENT !== "claude") throw new Error("--api applies to Claude Code runs only");
+const CLEAN_HOME = API_KEY ? join(homedir(), ".snout-bench", "claude-home") : null;
 const MAX_SPEND = args["max-spend"] === undefined ? 0 : Number(args["max-spend"]);
 const MAX_RUNS = args["max-runs"] === undefined ? Infinity : Number(args["max-runs"]);
 const REPO = fileURLToPath(new URL("..", import.meta.url)).replace(/\/$/, "");
@@ -78,11 +88,14 @@ function lockfile() {
   const names = ["left-pad", "chalk", "debug", "ms", "semver", "yargs", "minimist", "commander", "lodash.get", "uuid"];
   for (let i = 0; i < 900; i++) {
     const name = i < names.length ? names[i] : `dep-${i.toString(36)}-${Math.floor(r() * 1e6).toString(36)}`;
-    const v = `${1 + Math.floor(r() * 9)}.${Math.floor(r() * 20)}.${Math.floor(r() * 30)}`;
+    const drawn = `${1 + Math.floor(r() * 9)}.${Math.floor(r() * 20)}.${Math.floor(r() * 30)}`;
+    const v = name === "left-pad" ? "1.3.0" : drawn;
+    // Self-consistent entries: an agent that inspects one closely (Snout narrows the read to it)
+    // must not find a mismatched URL or a fake hash and refuse the file as tampered.
     pkgs[`node_modules/${name}`] = {
-      version: name === "left-pad" ? "1.3.0" : v,
+      version: v,
       resolved: `https://registry.npmjs.org/${name}/-/${name}-${v}.tgz`,
-      integrity: `sha512-${Buffer.from(String(r())).toString("base64").repeat(3).slice(0, 86)}==`,
+      integrity: `sha512-${createHash("sha512").update(`${name}@${v}`).digest("base64")}`,
       ...(r() > 0.6 ? { dependencies: { [`dep-${Math.floor(r() * 900).toString(36)}`]: `^${v}` } } : {}),
     };
   }
@@ -338,7 +351,7 @@ function runOne(task, arm, budget = BUDGET) {
       "--allowedTools", "Read", "Edit", "Write", "Grep", "Glob", "Bash(node:*)", "Bash(ls:*)", "Bash(cat:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(npm ls:*)", "mcp__issues__list_issues",
       "--max-budget-usd", String(budget),
     ],
-    { cwd: dir, encoding: "utf8", timeout: 15 * 60_000, env: { ...process.env, SNOUT_MODE: arm === "enforce" ? "enforce" : "observe" }, maxBuffer: 64 * 1024 * 1024 },
+    { cwd: dir, encoding: "utf8", timeout: 15 * 60_000, env: { ...process.env, SNOUT_MODE: arm === "enforce" ? "enforce" : "observe", ...(API_KEY ? { ANTHROPIC_API_KEY: API_KEY, CLAUDE_CONFIG_DIR: CLEAN_HOME } : {}) }, maxBuffer: 64 * 1024 * 1024 },
   );
   let out = {};
   if (AGENT === "codex") out = runCodex(task, dir, arm);
@@ -396,7 +409,10 @@ function runOne(task, arm, budget = BUDGET) {
     const base = realpathSync(AGENT === "codex" ? join(REPO, ".snout", "ab-fixtures") : tmpdir());
     const target = realpathSync(dir);
     if (dirname(target) !== base || !basename(target).startsWith(`snout-ab-${arm}-`)) throw new Error("refusing to remove a fixture outside its expected parent");
-    rmSync(target, { recursive: true, force: true });
+    // The session's starter launched this run's isolated server inside the fixture, and Windows
+    // won't delete a process's working folder. Stop it; the next session's starter starts it again.
+    if (arm === "enforce" && FAST) spawnSync(process.execPath, ["-e", `fetch(${JSON.stringify(`${SERVE}/shutdown`)}, { method: "POST" }).catch(() => {})`], { timeout: 10_000 });
+    rmSync(target, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
   else row.dir = dir;
   return row;
@@ -450,7 +466,9 @@ function main() {
   const runtime = {
     platform: process.platform, arch: process.arch, node: process.version,
     agentCliVersion: cli.status === 0 ? cli.stdout.trim() : null,
+    billing: AGENT === "codex" ? "chatgpt-plan" : API_KEY ? "api" : "claude-login",
   };
+  if (CLEAN_HOME) mkdirSync(CLEAN_HOME, { recursive: true });
   const saved = typeof args.resume === "string" ? JSON.parse(readFileSync(outFile, "utf8")) : null;
   if (saved && (saved.agent !== AGENT || saved.model !== MODEL || saved.n !== N || JSON.stringify([saved.snoutVersion, saved.commit, saved.dirty]) !== JSON.stringify([build.snoutVersion, build.commit, build.dirty]) || saved.bundleSha256 !== bundleSha256 || saved.harnessSha256 !== harnessSha256 || JSON.stringify(saved.runtime) !== JSON.stringify(runtime) || saved.rows.length > plan.length || saved.rows.some((r, i) => r.task !== plan[i][0] || r.arm !== plan[i][1]))) {
     throw new Error("--resume result does not match this task plan, agent, model, CLI runtime, or Snout build");
@@ -468,13 +486,16 @@ function main() {
       break;
     }
     const [t, a] = plan[i];
+    // Every session gets the same budget: Claude Code shows the model its remaining budget each
+    // turn, so a session squeezed by the run cap would behave differently from its pair. Stop
+    // instead when the cap can no longer cover a whole session.
     const remaining = MAX_SPEND ? MAX_SPEND - spent : Number(BUDGET);
-    if (MAX_SPEND && remaining < 0.01) {
-      console.error(`Stopped at $${spent.toFixed(2)} of the $${MAX_SPEND.toFixed(2)} run cap; resume from ${outFile} with a new cap.`);
+    if (MAX_SPEND && AGENT === "claude" && remaining < Number(BUDGET)) {
+      console.error(`Stopped at $${spent.toFixed(2)} of the $${MAX_SPEND.toFixed(2)} run cap: less than one session's $${BUDGET} budget is left; resume from ${outFile} with a new cap.`);
       break;
     }
     process.stderr.write(`[${i + 1}/${plan.length}] ${t} · ${a} ... `);
-    const row = runOne(t, a, AGENT === "claude" ? Math.min(Number(BUDGET), remaining) : BUDGET);
+    const row = runOne(t, a, BUDGET);
     attempted++;
     if (row.inputTokens === 0 && row.error) {
       excluded.push({ ...row, infra: "before first model turn" });
@@ -487,6 +508,11 @@ function main() {
     spent += row.costUsd ?? 0;
     save();
     process.stderr.write(`${row.pass ? "pass" : "FAIL"} · ${Math.round(row.inputTokens / 1000)}k in · low-value read ~${Math.round(row.lowValueRead / 1000)}k · ${row.effTokens !== undefined ? `${Math.round(row.effTokens / 1000)}k eff` : `$${row.costUsd.toFixed(3)}`}${row.denials || row.trims ? ` · ${row.denials} denied, ${row.trims} trimmed (~${Math.round(row.withheld / 1000)}k withheld)` : ""}\n`);
+    // --stop-on-fail: a failed task in a long paid run is looked at before more is spent on it.
+    if (args["stop-on-fail"] && !row.pass) {
+      console.error(`Stopped at the first failed task (--stop-on-fail); inspect it, then resume from ${outFile}.`);
+      break;
+    }
   }
   console.log(`\nFull results: ${outFile}`);
   if (excluded.length) console.log(`Infrastructure attempts preserved separately: ${excluded.length}`);

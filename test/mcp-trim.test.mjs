@@ -21,13 +21,15 @@ const snapshot = () => [
   "  - button \"Checkout\"",
 ].join("\n");
 
-test("a GitHub issue list keeps its first 20 issues, each shortened, and says how many were left out", () => {
+test("a GitHub issue list keeps its first 20 issues, each shortened, and indexes the rest one line each", () => {
   const t = trimMcp([{ type: "text", text: issues() }], ".snout/squeeze/x.json");
   assert.ok(t);
   const data = JSON.parse(t.output[0].text);
-  assert.equal(data.length, 21);
+  assert.equal(data.length, 61);
   assert.equal(data[0].number, 1000);
   assert.match(data[20], /40 more items \(60 total\)/);
+  // An agent looking for issue 45 finds it here instead of calling the tool again.
+  assert.equal(data[21 + (45 - 20)], "number=1045 · title=Checkout fails when cart has 45 items · state=closed");
   assert.match(data[0].body, /… \(\d+ chars\)$/);
   assert.equal(data[0].user.login, "dev0", "structure and short fields are kept");
   assert.match(t.output.at(-1).text, /Full result: \.snout\/squeeze\/x\.json/);
@@ -65,7 +67,7 @@ test("the hook trims an MCP result in its own shape, saves the full result, and 
   const out = hook(root, { tool_name: "mcp__github__list_issues", tool_input: { repo: "acme/shop" }, tool_response: [{ type: "text", text: issues() }] });
   const u = out.hookSpecificOutput.updatedToolOutput;
   assert.ok(Array.isArray(u) && u[0].type === "text");
-  assert.equal(JSON.parse(u[0].text).length, 21);
+  assert.equal(JSON.parse(u[0].text).length, 61);
   const saved = readdirSync(join(root, ".snout/squeeze"));
   assert.equal(saved.length, 1);
   assert.equal(JSON.parse(JSON.parse(readFileSync(join(root, ".snout/squeeze", saved[0]), "utf8")).output[0].text).length, 60, "the full result is on disk");

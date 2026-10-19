@@ -23,6 +23,8 @@ export interface Config {
   repoMap?: boolean;
   /** Cross-session memory: a card per session in .snout/memory, recalled when a prompt bears on it. Default on; false turns both off. */
   memory?: boolean;
+  /** "jev": after each turn, TypeSafe Jev judges which of the user's sentences are lasting preferences (opt-in, sends them). Default off. */
+  memoryJudge?: "off" | "jev";
   /** Blocking hooks call a long-running `snout serve` over HTTP instead of starting Node each time. Default on; false keeps command hooks. */
   fastHooks?: boolean;
   /**

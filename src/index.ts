@@ -39,4 +39,5 @@ export { fromInternal } from "./agents/adapt.js";
 export { buildMap, candidates, renderCandidates, requestNames, codeNames, namedExactly, shouldSuggest, listFiles, entryFor, type RepoMap, type Candidate } from "./map/map.js";
 export { replaySession, totals as replayTotals, renderReplay, compactionWhatIf, COMPACTION_COSTS, type SessionReplay, type WhatIf } from "./replay/replay.js";
 export { captureSession, linkCommit, readCards, recall, hybridRecall, embedText, packVector, unpackVector, renderRecall, repoBrief, shareMemory, terms, COMMITS, HYBRID_CUT, type Card } from "./memory/memory.js";
+export { forgetPref, judgeAndSave, prefCandidates, readPrefs, renderPrefs, SAVE_AT, type JevCall, type Preference } from "./memory/prefs.js";
 export { recallOutcomes, summarizeRecall, readRecallDecisions, type RecallDecision } from "./memory/receipts.js";
