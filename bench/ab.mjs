@@ -34,6 +34,9 @@ import { fileURLToPath } from "node:url";
 import { gateEntries, squeezeEntries } from "../dist/lib.mjs";
 import { stamp } from "./stamp.mjs";
 
+/** npm's Windows `claude` is a shim spawnSync cannot run; call the installed binary, as bench/swe.mjs does. */
+const CLAUDE = process.env.CLAUDE_BIN || (process.platform === "win32" ? join(process.env.APPDATA ?? "", "npm/node_modules/@anthropic-ai/claude-code/bin/claude.exe") : "claude");
+
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, a, i, arr) => (a.startsWith("--") ? [...acc, [a.slice(2), arr[i + 1]?.startsWith("--") ? true : arr[i + 1] ?? true]] : acc), []),
 );
@@ -297,7 +300,7 @@ function runOne(task, arm) {
   const dir = makeFixture(arm);
   const started = Date.now();
   const r = AGENT === "codex" ? null : spawnSync(
-    "claude",
+    CLAUDE,
     [
       "-p", TASKS[task].prompt,
       "--output-format", "json",

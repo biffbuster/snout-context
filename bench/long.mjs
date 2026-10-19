@@ -30,6 +30,9 @@ import { reliabilityLines, costLines, ledgerFacts, peakContext } from "./stats.m
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { stamp } from "./stamp.mjs";
 
+/** npm's Windows `claude` is a shim spawnSync cannot run; call the installed binary, as bench/swe.mjs does. */
+const CLAUDE = process.env.CLAUDE_BIN || (process.platform === "win32" ? join(process.env.APPDATA ?? "", "npm/node_modules/@anthropic-ai/claude-code/bin/claude.exe") : "claude");
+
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, a, i, all) => (a.startsWith("--") ? [...acc, [a.slice(2), all[i + 1] && !all[i + 1].startsWith("--") ? all[i + 1] : true]] : acc), []),
 );
@@ -306,7 +309,7 @@ function runOne(task, arm) {
   const dir = makeFixture(arm, task);
   const started = Date.now();
   const r = spawnSync(
-    "claude",
+    CLAUDE,
     [
       "-p", TASKS[task],
       "--output-format", "json",
