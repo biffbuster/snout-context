@@ -15,11 +15,13 @@ MCP results, files it already read. Snout does three things about it:
 - **Shows the bill.** What each session read, kept out and spent, and which instructions, skills and
   MCP servers cost you tokens without being used.
 
-Free. Runs on your machine. Your code never leaves it. No account needed.
+Free. Runs on your machine. No account needed. Nothing is sent anywhere unless you turn on an
+opt-in feature that says so.
 
-The 0.3.1 build is undergoing a fresh Windows benchmark. Its cost-per-solved-task, Codex token,
-and memory scores are pending. Earlier measurements and raw rows remain in the
-[historical archive](docs/archive/pre-0.3.1/README.md); they do not validate this build.
+On 0.3.1, across 140 Claude Code sessions on Sonnet, Snout cut cost per solved task by 25.5%
+(95% interval −39.1% to −7.6%), and all 70 attempts passed in each arm. The 14 tasks were written
+alongside Snout, so this is a regression benchmark, not a promise for every repo. Setup, raw rows
+and limits: [docs/claims.md](docs/claims.md).
 
 Works with Claude Code and Codex, plus Cursor, Gemini CLI and any MCP agent. What Snout can do
 depends on each agent's hooks: Claude Code can shorten tool output, while Codex gates shell reads and
@@ -97,13 +99,27 @@ in Claude Code or in Codex, the agent gets that card. A session started in Codex
 one finished in Claude Code, and the reverse. After a compaction, Snout restores the exact facts the
 summary tends to lose. Recall stays silent when nothing matches.
 
+Opt-in: `snout memory judge jev` sends up to six of your sentences per turn to TypeSafe's Jev model
+(needs `TYPESAFE_API_KEY`). Those it rates as lasting preferences are saved to
+`.snout/memory/preferences.json` and shown at the start of later sessions. `snout memory prefs`
+lists them; `snout memory prefs forget <n>` removes one.
+
 ## Results
 
-There is no 0.3.1 agent A/B score yet. The next run will compare the shipped build with Snout
-off and on over the same held-out tasks and repeats on this Windows machine. We will report cost
-per solved task, pass counts, confidence intervals, and any task Snout breaks. Codex gets its
-own paired run and token metric. See the [current benchmark status](docs/benchmark.md),
-[claim ledger](docs/claims.md), and [historical results](docs/archive/pre-0.3.1/README.md).
+Claude Code, Sonnet, 14 tasks × 5 repeats with Snout off and on, 140 sessions on 0.3.1:
+
+| Tasks | Solved, off → on | Cost per solved task | 95% interval |
+| --- | --- | --- | --- |
+| All 14 | 70/70 → 70/70 | −25.5% | −39.1% to −7.6% |
+| 10 with bulk to read | 50/50 → 50/50 | −30.9% | −44.6% to −10.2% |
+| 4 controls | 20/20 → 20/20 | −0.3% | −10.6% to +6.7% |
+
+The tasks were written alongside Snout, so read this as a release regression result. 14 tasks are
+too few to claim no quality loss, and one task (`deps`) cost 20% more with Snout on. Codex has no
+matched 0.3.1 run yet. Anyone can rebuild the report from the raw rows without a key:
+`node bench/report.mjs bench/ab-results/run-sonnet-1792440413748.json --margin 5`.
+More: [claim ledger](docs/claims.md), [benchmark status](docs/benchmark.md),
+[historical results](docs/archive/pre-0.3.1/README.md).
 
 ## CLI
 
@@ -149,8 +165,8 @@ access at [usesnout.xyz](https://usesnout.xyz).
 
 Snout reads a file's path, size and first 2 KB to classify it, in memory, and records its decisions
 and a short card per session (`.snout/memory/`) to `.snout/` in your project as plain files you can read or delete. It makes no network calls unless
-you turn on an optional feature that needs one: the prompt coach, or the one-time download of the
-local memory model. Releases are built and published from GitHub Actions with npm provenance.
+you turn on an optional feature that needs one: the prompt coach, the memory preference judge, or
+the one-time download of the local memory model. Releases are built and published from GitHub Actions with npm provenance.
 Details: [SECURITY.md](SECURITY.md) · [docs/privacy.md](docs/privacy.md).
 
 ## Docs

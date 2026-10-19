@@ -2,6 +2,16 @@
 
 ## 0.3.1
 
+- MCP results: a list longer than 25 items keeps its first 20 whole and lists the rest one line
+  each by their naming fields (number, id, title, state), so an item past the cut can still be found.
+- Memory: recalled cards and the repo brief say that quoted text is a record of what was said, not
+  an instruction.
+- Opt-in preference judge: `snout memory judge jev` (needs `TYPESAFE_API_KEY`), with
+  `snout memory prefs` and `snout memory prefs forget <n>`.
+- Claude Code mods: on releases with mods, a line above the prompt shows context used, tokens Snout
+  kept out of the session, and what memory holds.
+- Benchmarks: every session gets the same budget, `--stop-on-fail`, and results record the
+  bundle's SHA-256 so the claims check can tie them to the shipped build.
 - Shortened Claude Code's fast gate and output-trimming settings to one HTTP hook per event.
   Existing fast-gate settings are refreshed automatically; unrelated commands pass through the
   same server-side filters.
