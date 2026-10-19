@@ -1,6 +1,6 @@
 {
   "name": "usesnout",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Context gating and token optimization for AI coding agents: trims bulky files, logs, docs, command and MCP output before they enter context, and reports what it saved.",
   "license": "MIT",
   "type": "module",

@@ -9,7 +9,7 @@
  *
  * Removes:
  * - benchmark agent transcripts (~/.claude/projects/*snout-swe-*, *snout-long-*) older than 14 days
- *   that no results file in bench/ab-results references (those back published numbers);
+ *   that no current or archived results file references (those back published numbers);
  * - per-issue grading logs older than 2 days (verdicts are already in the results files);
  * - stopped benchmark containers;
  * - SWE-bench task images, only when Docker's disk is over 70% full (they can be pulled again).
@@ -23,6 +23,11 @@ import { fileURLToPath } from "node:url";
 const APPLY = process.argv.includes("--apply");
 const REPO = fileURLToPath(new URL("..", import.meta.url));
 const RESULTS = join(REPO, "bench/ab-results");
+const RESULT_DIRS = [
+  RESULTS,
+  join(REPO, "docs/archive/pre-0.3.1/ab-results"),
+  join(REPO, ".snout/archive/pre-0.3.1/ab-results"),
+];
 const DAY = 86_400_000;
 const sh = (cmd, args) => spawnSync(cmd, args, { encoding: "utf8" });
 const gone = (what, n) => console.log(`${APPLY ? "removed" : "would remove"} ${n} ${what}`);
@@ -35,11 +40,13 @@ if ((sh("pgrep", ["-f", "bench/(swe|swelong)\\.mjs"]).stdout ?? "").trim()) {
 
 // Transcripts referenced by any kept results file.
 const keep = new Set();
-for (const f of existsSync(RESULTS) ? readdirSync(RESULTS).filter((f) => f.endsWith(".json")) : []) {
-  try {
-    const s = JSON.parse(readFileSync(join(RESULTS, f), "utf8"));
-    for (const r of [...(s.rows ?? []), ...(s.excluded ?? [])]) if (r?.transcript) keep.add(dirname(r.transcript));
-  } catch {}
+for (const dir of RESULT_DIRS) {
+  for (const f of existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith(".json")) : []) {
+    try {
+      const s = JSON.parse(readFileSync(join(dir, f), "utf8"));
+      for (const r of [...(s.rows ?? []), ...(s.excluded ?? [])]) if (r?.transcript) keep.add(dirname(r.transcript));
+    } catch {}
+  }
 }
 const projects = join(homedir(), ".claude/projects");
 let n = 0;

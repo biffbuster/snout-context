@@ -2753,6 +2753,7 @@ var isSnoutUrl = (url) => typeof url === "string" && url.includes(URL_MARK);
 var hookUrl = (event) => `http://127.0.0.1:${HOOK_PORT}${URL_MARK}${event}`;
 var hookFor = (bin, event, fast, extra = {}) => fast ? { type: "http", url: hookUrl(event), timeout: 5, ...extra } : { type: "command", command: `node "${bin}" ${event}`, timeout: 5, ...extra };
 function squeezeEntries(bin, fast = false) {
+  if (fast) return [{ matcher: "Bash|mcp__.*", hooks: [hookFor(bin, "squeeze", true)] }];
   return [
     { matcher: "Bash", hooks: SQUEEZE_IFS.map((c) => hookFor(bin, "squeeze", fast, { if: `Bash(${c})` })) },
     // Every MCP tool: large results (browser snapshots, diffs, query rows) are trimmed the same way.
@@ -2760,6 +2761,7 @@ function squeezeEntries(bin, fast = false) {
   ];
 }
 function gateEntries(bin, fast = false) {
+  if (fast) return [{ matcher: "Read|NotebookRead|Bash", hooks: [hookFor(bin, "pre-tool", true)] }];
   return [
     { matcher: "Read|NotebookRead", hooks: [hookFor(bin, "pre-tool", fast)] },
     { matcher: "Bash", hooks: PRINTING_COMMANDS.map((c) => hookFor(bin, "pre-tool", fast, { if: `Bash(${c} *)` })) }
@@ -2767,9 +2769,9 @@ function gateEntries(bin, fast = false) {
 }
 var ENSURE = "serve --ensure";
 function starterEntries(bin) {
-  return [{ hooks: [{ type: "command", command: `node "${starterPath()}" "${bin}" ${ENSURE}`, timeout: 5 }] }];
+  return [{ hooks: [{ type: "command", command: `node "${starterPath()}" "${bin}" ${ENSURE}` }] }];
 }
-var starterPath = () => join8(configDir(), "snout-starter.mjs");
+var starterPath = () => join8(configDir(), "starter.mjs");
 var STARTER = `// Written by Snout (snout fast on). Starts the local Snout server for the fast gate.
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -2864,7 +2866,8 @@ function refreshGate(projectDir, bin) {
     const fast = gate.some((e) => (e.hooks ?? []).some((h) => isSnoutUrl(h.url)));
     const elsewhere = (e) => (e.hooks ?? []).some((h) => typeof h.command === "string" && h.command.includes(MARK) && !h.command.includes(`"${bin}"`));
     const starters = STARTER_EVENTS.map((ev) => (hooks[ev] ?? []).filter(isStarter));
-    const stale = gate.some(elsewhere) || starters.some((l) => l.some(elsewhere)) || fast && starters.some((l) => !l.length);
+    const filtered = fast && gate.some((e) => (e.hooks ?? []).some((h) => h.if));
+    const stale = gate.some(elsewhere) || starters.some((l) => l.some(elsewhere)) || fast && starters.some((l) => !l.length) || filtered;
     if (stale) {
       installGate(projectDir, bin, fast);
       return true;

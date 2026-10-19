@@ -40,6 +40,19 @@ test("excluded and ungraded attempts count in no number", () => {
   assert.equal(c.costPerSolvedChangePct, 0);
 });
 
+test("three all-pass tasks do not establish a five-point quality margin", () => {
+  const rows = ["a", "b", "c"].flatMap((task) => [
+    row(task, "off", true, 0.1), row(task, "on", true, 0.08),
+    row(task, "off", true, 0.1), row(task, "on", true, 0.08),
+  ]);
+  const c = compare(attempts({ rows }), "off", "on", 5);
+  assert.equal(c.solvedDiffPts, 0);
+  assert.equal(c.noQualityLoss, false);
+  assert.equal(c.qualityLowerBoundMethod, "one-sided exact zero-harm bound by unique task");
+  assert.ok(c.solvedDiffCi[0] < -63 && c.solvedDiffCi[0] > -64);
+  assert.equal(c.solvedDiffCi[1], 0);
+});
+
 test("CSV quotes what needs quoting; the CLI refuses to run without a margin and writes all three files", () => {
   assert.match(toCsv([{ task: 'a,"b"', arm: "off" }]), /^.*\n,"a,""b""",off,/);
   const dir = mkdtempSync(join(tmpdir(), "snout-report-"));
@@ -51,4 +64,18 @@ test("CSV quotes what needs quoting; the CLI refuses to run without a margin and
   assert.equal(readFileSync(join(dir, "out", "attempts.csv"), "utf8").trim().split("\n").length, 3);
   assert.equal(JSON.parse(readFileSync(join(dir, "out", "summary.json"), "utf8")).comparisons[0].marginPts, 5);
   assert.match(readFileSync(join(dir, "out", "chart.svg"), "utf8"), /^<svg[\s\S]*on · 1\/1/);
+});
+
+test("API-equivalent metric prints sub-dollar estimates as dollars with a clear label", () => {
+  const dir = mkdtempSync(join(tmpdir(), "snout-price-report-"));
+  const file = join(dir, "priced.json");
+  writeFileSync(file, JSON.stringify({ rows: [
+    row("t", "off", true, 0, { apiEquivalentUsd: 0.08 }),
+    row("t", "enforce", true, 0, { apiEquivalentUsd: 0.06 }),
+  ] }));
+  const out = join(dir, "out");
+  const result = spawnSync(process.execPath, [REPORT, file, "--metric", "apiEquivalentUsd", "--margin", "5", "--out", out], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /\$0\.0800 API-equivalent → \$0\.0600 API-equivalent/);
+  assert.match(readFileSync(join(out, "chart.svg"), "utf8"), /Mean API-equivalent cost/);
 });

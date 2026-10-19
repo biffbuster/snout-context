@@ -79,10 +79,11 @@ Cursor, Windsurf, Cline and Claude Desktop use the `mcpServers` key:
 { "mcpServers": { "snout": { "command": "snout", "args": ["mcp"] } } }
 ```
 
-The server offers two tools. `snout_read` reads a file inside the project: source comes back
+The server offers three tools. `snout_read` reads a file inside the project: source comes back
 whole; generated, vendored, minified and build files come back as the first lines,
 an outline and a search command. `snout_classify` says what kind of file a path is and what a
-whole read would cost. Agents pick tools by their description, so an MCP client uses
+whole read would cost. `snout_audit_context` reports which agent instructions and skills
+cost context and may need review. Agents pick tools by their description, so an MCP client uses
 `snout_read` when it decides to, not on every read. Where the agent has read hooks, use them.
 
 ## The MCP servers your agent connects to

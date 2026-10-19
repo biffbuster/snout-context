@@ -69,16 +69,40 @@ test("a foreign Host header is refused (DNS rebinding)", async () => {
   }
 });
 
-test("fast gate entries are HTTP hooks with the same filters as the command hooks", () => {
-  const slow = gateEntries("/x/snout.mjs");
-  const fast = gateEntries("/x/snout.mjs", true);
-  assert.equal(fast.length, slow.length);
-  for (let i = 0; i < fast.length; i++) {
-    assert.equal(fast[i].matcher, slow[i].matcher);
-    assert.deepEqual(fast[i].hooks.map((h) => h.if), slow[i].hooks.map((h) => h.if));
-    assert.ok(fast[i].hooks.every((h) => h.type === "http" && /\/snout\/v1\/pre-tool$/.test(h.url)));
+test("fast gate entries are one HTTP hook per event, with no per-command filters", () => {
+  const fast = [...gateEntries("/x/snout.mjs", true), ...squeezeEntries("/x/snout.mjs", true)];
+  assert.deepEqual(fast.map((e) => e.matcher), ["Read|NotebookRead|Bash", "Bash|mcp__.*"]);
+  assert.ok(fast.every((e) => e.hooks.length === 1 && !e.hooks[0].if && e.hooks[0].type === "http"));
+  assert.ok(JSON.stringify(fast).length < 400, "agents read settings files; Snout's block stays small");
+  assert.ok(gateEntries("/x/snout.mjs")[1].hooks.length > 1, "command hooks keep their filters: each would start Node");
+});
+
+test("without filters the server leaves other commands alone and still gates a whole-file print and trims a test run", async () => {
+  await ensureUp();
+  const dir = project();
+  const bash = (event, command, extra = {}) => fetch(`${base}/${event}`, { method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ session_id: "s", cwd: dir, hook_event_name: event === "pre-tool" ? "PreToolUse" : "PostToolUse", tool_name: "Bash", tool_use_id: command, tool_input: { command }, ...extra }) }).then((r) => r.text()).then((t) => (t ? JSON.parse(t) : {})); // empty: no change
+  try {
+    assert.deepEqual(await bash("pre-tool", "git status"), {});
+    assert.equal((await bash("pre-tool", "cat package-lock.json")).hookSpecificOutput?.permissionDecision, "deny");
+    assert.deepEqual(await bash("squeeze", "echo hi", { tool_response: { stdout: "x\n".repeat(3000), stderr: "" } }), {});
+    const tap = Array.from({ length: 300 }, (_, i) => `ok ${i + 1} - case ${i} passes`).join("\n") + "\n# tests 300\n# pass 300\n# fail 0\n";
+    const out = await bash("squeeze", "node --test", { tool_response: { stdout: tap, stderr: "" } });
+    assert.ok(out.hookSpecificOutput?.updatedToolOutput?.stdout.length < tap.length / 2, "a passing test run is still trimmed");
+  } finally {
+    await fetch(`${base}/shutdown`, { method: "POST" }).catch(() => {});
   }
-  assert.ok(squeezeEntries("/x/snout.mjs", true).every((e) => e.hooks.every((h) => h.type === "http" && h.url.endsWith("/squeeze"))));
+});
+
+test("a fast gate written with per-command filters is rewritten in the short form", () => {
+  const dir = project();
+  const old = { hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "http", url: `${base}/pre-tool`, timeout: 5, if: "Bash(cat *)" }] }] } };
+  mkdirSync(join(dir, ".claude"), { recursive: true });
+  writeFileSync(join(dir, ".claude/settings.local.json"), JSON.stringify(old));
+  assert.equal(refreshGate(dir, CLI), true);
+  const now = JSON.parse(readFileSync(join(dir, ".claude/settings.local.json"), "utf8")).hooks;
+  assert.ok(now.PreToolUse.every((e) => e.hooks.every((h) => !h.if)));
+  assert.equal(refreshGate(dir, CLI), false);
 });
 
 test("snout fast on installs HTTP gate hooks; off puts command hooks back", () => {

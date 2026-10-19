@@ -17,13 +17,9 @@ MCP results, files it already read. Snout does three things about it:
 
 Free. Runs on your machine. Your code never leaves it. No account needed.
 
-| Measured | Result |
-| --- | --- |
-| Everything on, 12 tasks, 48 headless runs | **−26%** spend (95% CI −38% to −12%), every task still passing |
-| Read gate alone, bulk-file tasks, Codex | **−23%** tokens (95% CI −34% to −14%), every task still passing |
-| Memory recall on 485 SWE-bench Verified tasks, memory built from past commits | speaks on 58% of tasks and then names a file the fix needed **75%** of the time; with the optional local model, **87%** on the 36% where it speaks |
-
-Each row rebuilds from a results file in this repo, without an API key: [docs/claims.md](docs/claims.md).
+The 0.3.1 build is undergoing a fresh Windows benchmark. Its cost-per-solved-task, Codex token,
+and memory scores are pending. Earlier measurements and raw rows remain in the
+[historical archive](docs/archive/pre-0.3.1/README.md); they do not validate this build.
 
 Works with Claude Code and Codex, plus Cursor, Gemini CLI and any MCP agent. What Snout can do
 depends on each agent's hooks: Claude Code can shorten tool output, while Codex gates shell reads and
@@ -103,23 +99,11 @@ summary tends to lose. Recall stays silent when nothing matches.
 
 ## Results
 
-Real headless agent sessions on test projects we built, Snout off vs. on, each task graded by its
-own test. Spend is the agent's reported cost at API list prices. Raw rows for every line are in
-[`bench/ab-results/`](bench/ab-results); [method and caveats](docs/benchmark.md).
-
-| | Result |
-| --- | --- |
-| Long multi-step sessions with docs, logs and MCP connectors (Haiku, 11 tasks, 66 runs) | **−22%** input tokens, **−19%** spend (95% CI −36% to +4%), 33/33 passing; **−52%** on a codebase-wide rename, **−43%** on a task answered from a long handbook |
-| Everything on (Haiku, 12 tasks, 48 runs) | **−26%** spend (95% CI −38% to −12%), 24/24 passing; **−33%** on the 8 tasks that meet bulk files (CI −45% to −18%) |
-| Bulk-file tasks, read gate alone (5 tasks) | spend **−24%** Haiku (50 runs, CI −45% to +3%) · **−23%** Sonnet (20 runs, CI −47% to +7%) · tokens **−23%** Codex (30 runs, CI −34% to −14%) |
-| Single examples: a lockfile read · a passing test run's output · a 60-issue MCP result | tokens **−90%** · lines **−87%** · characters **−74%** |
-| Tasks with nothing to trim | within noise (−5% to +1% across runs) |
-
-These projects were built to contain the bulk Snout trims, so the numbers show what it saves when
-that bulk is on the agent's path, not the average saving on any repo. Single runs of the same task
-vary by 20–40%, and an interval that crosses zero means the saving is likely but not proven. Every
-spend row above rebuilds from its results file, without an API key: [docs/claims.md](docs/claims.md);
-the single examples and the token breakdowns are in [docs/benchmark.md](docs/benchmark.md).
+There is no 0.3.1 agent A/B score yet. The next run will compare the shipped build with Snout
+off and on over the same held-out tasks and repeats on this Windows machine. We will report cost
+per solved task, pass counts, confidence intervals, and any task Snout breaks. Codex gets its
+own paired run and token metric. See the [current benchmark status](docs/benchmark.md),
+[claim ledger](docs/claims.md), and [historical results](docs/archive/pre-0.3.1/README.md).
 
 ## CLI
 

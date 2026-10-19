@@ -423,18 +423,17 @@ test("snout mode enforce installs the gate itself, keeps other hooks, and observ
   writeFileSync(join(root, ".claude", "settings.local.json"), JSON.stringify({ hooks: { PreToolUse: [mine] } }));
   spawnSync(process.execPath, [CLI, "mode", "enforce"], { cwd: root, encoding: "utf8" });
   const on = JSON.parse(readFileSync(join(root, ".claude", "settings.local.json"), "utf8"));
-  const [kept, read, bash] = on.hooks.PreToolUse;
+  const [kept, gate] = on.hooks.PreToolUse;
   assert.deepEqual(kept, mine, "the user's own hook is untouched");
-  assert.equal(read.matcher, "Read|NotebookRead");
-  assert.equal(read.hooks[0].type, "http", "the fast path is the default");
-  assert.match(read.hooks[0].url, /^http:\/\/127\.0\.0\.1:\d+\/snout\/v1\/pre-tool$/);
-  assert.equal(bash.matcher, "Bash");
-  assert.ok(bash.hooks.every((x) => /^Bash\(\w+ \*\)$/.test(x.if)), "every Bash handler is if-filtered");
-  assert.ok(bash.hooks.some((x) => x.if === "Bash(cat *)") && !bash.hooks.some((x) => /git|npm|rg|ls/.test(x.if)));
+  assert.equal(gate.matcher, "Read|NotebookRead|Bash");
+  assert.equal(gate.hooks.length, 1, "the fast path uses one hook for these tools");
+  assert.equal(gate.hooks[0].type, "http", "the fast path is the default");
+  assert.equal(gate.hooks[0].if, undefined, "the server filters commands without settings bloat");
+  assert.match(gate.hooks[0].url, /^http:\/\/127\.0\.0\.1:\d+\/snout\/v1\/pre-tool$/);
   assert.match(spawnSync(process.execPath, [CLI, "doctor"], { cwd: root, encoding: "utf8" }).stdout, /installed \(PreToolUse\)/);
 
   spawnSync(process.execPath, [CLI, "mode", "enforce"], { cwd: root, encoding: "utf8" });
-  assert.equal(JSON.parse(readFileSync(join(root, ".claude", "settings.local.json"), "utf8")).hooks.PreToolUse.length, 3, "re-running does not duplicate");
+  assert.equal(JSON.parse(readFileSync(join(root, ".claude", "settings.local.json"), "utf8")).hooks.PreToolUse.length, 2, "re-running does not duplicate");
 
   spawnSync(process.execPath, [CLI, "fast", "off"], { cwd: root, encoding: "utf8" });
   const cmd = JSON.parse(readFileSync(join(root, ".claude", "settings.local.json"), "utf8")).hooks.PreToolUse[1];

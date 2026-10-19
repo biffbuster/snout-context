@@ -80,5 +80,5 @@ test("enforce installs the MCP trim hook for every MCP tool", () => {
   const root = mkdtempSync(join(tmpdir(), "snout-mcp-"));
   spawnSync(process.execPath, [CLI, "mode", "enforce"], { cwd: root, encoding: "utf8" });
   const s = JSON.parse(readFileSync(join(root, ".claude/settings.local.json"), "utf8"));
-  assert.ok(s.hooks.PostToolUse.some((e) => e.matcher === "mcp__.*" && (/snout\.mjs" squeeze/.test(e.hooks[0].command ?? "") || /\/snout\/v1\/squeeze$/.test(e.hooks[0].url ?? ""))));
+  assert.ok(s.hooks.PostToolUse.some((e) => e.matcher.split("|").includes("mcp__.*") && (/snout\.mjs" squeeze/.test(e.hooks[0].command ?? "") || /\/snout\/v1\/squeeze$/.test(e.hooks[0].url ?? ""))));
 });

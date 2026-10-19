@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.1
+
+- Shortened Claude Code's fast gate and output-trimming settings to one HTTP hook per event.
+  Existing fast-gate settings are refreshed automatically; unrelated commands pass through the
+  same server-side filters.
+- The short and long benchmark fixtures now load the shipped Claude Code plugin hooks and fast
+  gate, with a separate local server port. The short A/B runner saves after each attempt and
+  supports a whole-run spending cap and resume.
+
 ## 0.3.0
 
 - **Session memory.** Each finished session leaves a short card in `.snout/memory/`; a later prompt

@@ -1,0 +1,53 @@
+{
+  "files": [
+    "api-equivalent.json"
+  ],
+  "base": "off",
+  "marginPts": 5,
+  "tasks": "all",
+  "metric": "apiEquivalentUsd",
+  "bootstrap": {
+    "resamples": 4000,
+    "seed": 20261013,
+    "unit": "task"
+  },
+  "comparisons": [
+    {
+      "base": "off",
+      "arm": "enforce",
+      "tasks": 3,
+      "attempts": {
+        "off": 9,
+        "enforce": 9
+      },
+      "solved": {
+        "off": 9,
+        "enforce": 9
+      },
+      "meanCostPerAttempt": {
+        "off": 0.05118031111111111,
+        "enforce": 0.04011604444444445
+      },
+      "costPerSolved": {
+        "off": 0.05118031111111111,
+        "enforce": 0.04011604444444445
+      },
+      "solvedDiffPts": 0,
+      "solvedDiffCi": [
+        -63.159685013596125,
+        0
+      ],
+      "qualityLowerBoundMethod": "one-sided exact zero-harm bound by unique task",
+      "costPerSolvedChangePct": -21.618209085611905,
+      "costPerSolvedCi": [
+        -33.55268140768891,
+        3.5801474740093875
+      ],
+      "marginPts": 5,
+      "noQualityLoss": false,
+      "saving": false
+    }
+  ],
+  "excluded": 0,
+  "unscored": 0
+}

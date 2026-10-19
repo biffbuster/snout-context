@@ -61,7 +61,7 @@ import { installModel, loadEmbedder, MODEL, modelDir, modelReady, QUERY_PREFIX, 
 import { buildMap, candidates, renderCandidates, shouldSuggest, type RepoMap } from "./map/map.js";
 import { forgetReads, rememberRead, repeatOf, repeatOutput, requestedWindow, returnedWindow } from "./gate/repeat.js";
 
-const VERSION = "0.3.0";
+const VERSION = "0.3.1";
 /** This bundle, by absolute path: what the gate hook and the login flow run. */
 const BIN = resolve(process.argv[1] ?? "dist/snout.mjs");
 
