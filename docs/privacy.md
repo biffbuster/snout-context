@@ -14,6 +14,14 @@ only the result (a score and which of target, behavior and verify were present) 
 tasks are sent to `api.typesafe.ai` so TypeSafe's Jev model can judge them; `snout coach tip`
 turns that off.
 
+## Memory preference judge
+
+Off by default. With `snout memory judge jev` and `TYPESAFE_API_KEY` set, up to six sentences
+from each finished session's requests are sent to `api.typesafe.ai` to ask whether each states a
+lasting preference. Those rated 0.8 or higher are saved to `.snout/memory/preferences.json` and
+shown at the start of later sessions. `snout memory judge off` turns it off;
+`snout memory prefs forget <n>` removes one.
+
 ## Planned: semantic classification
 
 A planned opt-in tier will call `api.typesafe.ai`. What goes in the request is a **digest**, not the

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -32,4 +32,9 @@ test("no report in enforce mode, with too few reads, or when nothing would be tr
   assert.match(start(project("enforce", observed)), /^Snout is on \(enforce\)/);
   assert.match(start(project("observe", observed.slice(2))), /^Snout is on/);
   assert.match(start(project("observe", [row({}), row({}), row({})])), /^Snout is on/);
+});
+
+test("snout version, --version and -v print the package version", () => {
+  const { version } = JSON.parse(readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8"));
+  for (const flag of ["--version", "-v", "version"]) assert.equal(spawnSync(process.execPath, [CLI, flag], { encoding: "utf8" }).stdout.trim(), `snout ${version}`);
 });

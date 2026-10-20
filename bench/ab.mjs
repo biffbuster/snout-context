@@ -21,17 +21,26 @@
  *   node bench/ab.mjs --n 3 --model sonnet               # full run
  *   node bench/ab.mjs --summarize bench/ab-results/run-<ts>.json   # re-print a saved run
  *   node bench/ab.mjs --agent codex --n 5                # the same tasks on Codex CLI
- *   options: --arms off,enforce  --budget 1.00 (USD cap per run)  --keep (leave temp dirs)
+ *   options: --arms off,enforce  --budget 1.00 (USD cap per Claude run)
+ *            --max-spend 7 (Claude whole run)  --max-runs 6 (this invocation)
+ *            --resume <results.json>  --keep (leave temp dirs)  --stop-on-fail
+ *            --api (bill ANTHROPIC_API_KEY from .env.local, not the Claude login)
  *
  * Codex reports tokens, not dollars, on a ChatGPT plan, so its comparison uses a proxy:
  * uncached input + cached input at a tenth + output. This is not an actual bill.
  */
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, realpathSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { gateEntries, squeezeEntries } from "../dist/lib.mjs";
+import { stamp } from "./stamp.mjs";
+import { shippedClaudeHooks } from "./shipped-hooks.mjs";
+import { isolateSnout } from "./isolated-snout.mjs";
+
+/** npm's Windows `claude` is a shim spawnSync cannot run; call the installed binary, as bench/swe.mjs does. */
+const CLAUDE = process.env.CLAUDE_BIN || (process.platform === "win32" ? join(process.env.APPDATA ?? "", "npm/node_modules/@anthropic-ai/claude-code/bin/claude.exe") : "claude");
 
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, a, i, arr) => (a.startsWith("--") ? [...acc, [a.slice(2), arr[i + 1]?.startsWith("--") ? true : arr[i + 1] ?? true]] : acc), []),
@@ -42,8 +51,29 @@ const AGENT = args.agent === "codex" ? "codex" : "claude";
 const MODEL = typeof args.model === "string" ? args.model : AGENT === "codex" ? "codex-default" : "sonnet";
 const ARMS = (typeof args.arms === "string" ? args.arms : "off,enforce").split(",");
 const BUDGET = String(args.budget ?? "1.00");
+/**
+ * --api: bill the API key in .env.local instead of the Claude login, as bench/swe.mjs does. Claude
+ * Code then runs with an empty config folder, so the login can't be used by mistake. The key is
+ * read here and passed to Claude Code only; it is never printed or saved.
+ */
+const API_KEY = args.api ? (readFileSync(fileURLToPath(new URL("../.env.local", import.meta.url)), "utf8").split(/\r?\n/).find((l) => l.startsWith("ANTHROPIC_API_KEY=")) ?? "").slice("ANTHROPIC_API_KEY=".length).trim() : null;
+if (args.api && !API_KEY) throw new Error("--api: no ANTHROPIC_API_KEY in .env.local");
+if (args.api && AGENT !== "claude") throw new Error("--api applies to Claude Code runs only");
+const CLEAN_HOME = API_KEY ? join(homedir(), ".snout-bench", "claude-home") : null;
+const MAX_SPEND = args["max-spend"] === undefined ? 0 : Number(args["max-spend"]);
+const MAX_RUNS = args["max-runs"] === undefined ? Infinity : Number(args["max-runs"]);
 const REPO = fileURLToPath(new URL("..", import.meta.url)).replace(/\/$/, "");
 const SNOUT_BIN = process.env.SNOUT_BIN || join(REPO, "dist/snout.mjs");
+/**
+ * Enforce installs what `snout mode enforce` installs for a Claude Code user: the fast gate (HTTP
+ * hooks to `snout serve` plus its starter), or with --command-hooks the per-call Node hooks. The
+ * server gets its own port and config folder, so a Snout already running on this machine (the
+ * plugin's) never answers for the build under test. Both are set before lib.mjs reads them.
+ */
+const FAST = AGENT === "claude" && !args["command-hooks"];
+if (AGENT === "claude") await isolateSnout("snout-ab-config-");
+const { gateEntries, squeezeEntries, installGate } = await import("../dist/lib.mjs");
+const SERVE = `http://127.0.0.1:${process.env.SNOUT_PORT}/snout/v1`;
 
 // ------------------------------------------------------------------ fixture
 
@@ -58,11 +88,14 @@ function lockfile() {
   const names = ["left-pad", "chalk", "debug", "ms", "semver", "yargs", "minimist", "commander", "lodash.get", "uuid"];
   for (let i = 0; i < 900; i++) {
     const name = i < names.length ? names[i] : `dep-${i.toString(36)}-${Math.floor(r() * 1e6).toString(36)}`;
-    const v = `${1 + Math.floor(r() * 9)}.${Math.floor(r() * 20)}.${Math.floor(r() * 30)}`;
+    const drawn = `${1 + Math.floor(r() * 9)}.${Math.floor(r() * 20)}.${Math.floor(r() * 30)}`;
+    const v = name === "left-pad" ? "1.3.0" : drawn;
+    // Self-consistent entries: an agent that inspects one closely (Snout narrows the read to it)
+    // must not find a mismatched URL or a fake hash and refuse the file as tampered.
     pkgs[`node_modules/${name}`] = {
-      version: name === "left-pad" ? "1.3.0" : v,
+      version: v,
       resolved: `https://registry.npmjs.org/${name}/-/${name}-${v}.tgz`,
-      integrity: `sha512-${Buffer.from(String(r())).toString("base64").repeat(3).slice(0, 86)}==`,
+      integrity: `sha512-${createHash("sha512").update(`${name}@${v}`).digest("base64")}`,
       ...(r() > 0.6 ? { dependencies: { [`dep-${Math.floor(r() * 900).toString(36)}`]: `^${v}` } } : {}),
     };
   }
@@ -212,13 +245,23 @@ function makeFixture(arm) {
   // Both arms record what entered context with the async PostToolUse hook: it never blocks and
   // injects nothing, so the off arm still behaves as snout-off. Only enforce adds the gate.
   const post = { type: "command", command: `node "${SNOUT_BIN}" post-tool`, timeout: 10, async: true };
-  const hooks = { PostToolUse: [{ matcher: "Read|NotebookRead|Bash|Grep|Glob|WebFetch|WebSearch|mcp__.*", hooks: [post] }] };
+  const hooks = arm === "enforce" && AGENT === "claude"
+    ? shippedClaudeHooks(REPO, SNOUT_BIN)
+    : { PostToolUse: [{ matcher: "Read|NotebookRead|Bash|Grep|Glob|WebFetch|WebSearch|mcp__.*", hooks: [post] }] };
   // Enforce installs exactly what `snout mode enforce` installs: the read gate and Squeeze.
-  if (arm === "enforce") {
+  mkdirSync(join(dir, ".claude"), { recursive: true });
+  if (arm === "enforce" && FAST) {
+    // `claude --setting-sources project` reads settings.json only, so the hooks installGate writes
+    // to settings.local.json move there unchanged.
+    const local = join(dir, ".claude/settings.local.json");
+    installGate(dir, SNOUT_BIN, true);
+    const installed = JSON.parse(readFileSync(local, "utf8")).hooks;
+    rmSync(local);
+    for (const [event, entries] of Object.entries(installed)) hooks[event] = [...(hooks[event] ?? []), ...entries];
+  } else if (arm === "enforce") {
     hooks.PreToolUse = gateEntries(SNOUT_BIN);
     hooks.PostToolUse.push(...squeezeEntries(SNOUT_BIN));
   }
-  mkdirSync(join(dir, ".claude"), { recursive: true });
   writeFileSync(join(dir, ".claude/settings.json"), JSON.stringify({ hooks }, null, 2));
   writeFileSync(join(dir, ".mcp.json"), JSON.stringify({ mcpServers: { issues: { command: process.execPath, args: [join(dir, "tools/issues-mcp.mjs")] } } }, null, 2));
   // Codex inherits this repository's reviewed hooks. SNOUT_MODE selects the arm;
@@ -292,11 +335,11 @@ function runCodex(task, dir, arm) {
   };
 }
 
-function runOne(task, arm) {
+function runOne(task, arm, budget = BUDGET) {
   const dir = makeFixture(arm);
   const started = Date.now();
   const r = AGENT === "codex" ? null : spawnSync(
-    "claude",
+    CLAUDE,
     [
       "-p", TASKS[task].prompt,
       "--output-format", "json",
@@ -306,9 +349,9 @@ function runOne(task, arm) {
       "--permission-mode", "acceptEdits",
       ...(TASKS[task].mcp ? ["--mcp-config", join(dir, ".mcp.json")] : []),
       "--allowedTools", "Read", "Edit", "Write", "Grep", "Glob", "Bash(node:*)", "Bash(ls:*)", "Bash(cat:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(npm ls:*)", "mcp__issues__list_issues",
-      "--max-budget-usd", BUDGET,
+      "--max-budget-usd", String(budget),
     ],
-    { cwd: dir, encoding: "utf8", timeout: 15 * 60_000, env: { ...process.env, SNOUT_MODE: arm === "enforce" ? "enforce" : "observe" }, maxBuffer: 64 * 1024 * 1024 },
+    { cwd: dir, encoding: "utf8", timeout: 15 * 60_000, env: { ...process.env, SNOUT_MODE: arm === "enforce" ? "enforce" : "observe", ...(API_KEY ? { ANTHROPIC_API_KEY: API_KEY, CLAUDE_CONFIG_DIR: CLEAN_HOME } : {}) }, maxBuffer: 64 * 1024 * 1024 },
   );
   let out = {};
   if (AGENT === "codex") out = runCodex(task, dir, arm);
@@ -366,7 +409,10 @@ function runOne(task, arm) {
     const base = realpathSync(AGENT === "codex" ? join(REPO, ".snout", "ab-fixtures") : tmpdir());
     const target = realpathSync(dir);
     if (dirname(target) !== base || !basename(target).startsWith(`snout-ab-${arm}-`)) throw new Error("refusing to remove a fixture outside its expected parent");
-    rmSync(target, { recursive: true, force: true });
+    // The session's starter launched this run's isolated server inside the fixture, and Windows
+    // won't delete a process's working folder. Stop it; the next session's starter starts it again.
+    if (arm === "enforce" && FAST) spawnSync(process.execPath, ["-e", `fetch(${JSON.stringify(`${SERVE}/shutdown`)}, { method: "POST" }).catch(() => {})`], { timeout: 10_000 });
+    rmSync(target, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
   else row.dir = dir;
   return row;
@@ -393,23 +439,83 @@ function main() {
     return summarize(saved.rows, [...new Set(saved.rows.map((r) => r.task))], saved.model, saved.n);
   }
   const tasks = typeof args.tasks === "string" ? args.tasks.split(",") : Object.keys(TASKS);
+  if (!Number.isFinite(MAX_SPEND) || MAX_SPEND < 0) throw new Error("--max-spend must be a non-negative dollar amount");
+  if (AGENT === "codex" && MAX_SPEND) throw new Error("--max-spend cannot cap ChatGPT-plan usage; use --max-runs for Codex");
+  if (MAX_RUNS !== Infinity && (!Number.isInteger(MAX_RUNS) || MAX_RUNS < 0)) throw new Error("--max-runs must be a non-negative integer");
+  if (tasks.some((t) => !TASKS[t])) throw new Error("unknown benchmark task");
   const plan = [];
-  for (let i = 0; i < N; i++) for (const t of tasks) for (const a of ARMS) plan.push([t, a]);
-  console.error(`${plan.length} run(s): ${tasks.length} task(s) × ${ARMS.length} arm(s) × ${N}, ${AGENT}, model ${MODEL}${AGENT === "claude" ? `, cap $${BUDGET}/run` : ""}`);
-
-  const rows = [];
-  plan.forEach(([t, a], i) => {
-    process.stderr.write(`[${i + 1}/${plan.length}] ${t} · ${a} ... `);
-    const row = runOne(t, a);
-    rows.push(row);
-    process.stderr.write(`${row.pass ? "pass" : "FAIL"} · ${Math.round(row.inputTokens / 1000)}k in · low-value read ~${Math.round(row.lowValueRead / 1000)}k · ${row.effTokens !== undefined ? `${Math.round(row.effTokens / 1000)}k eff` : `$${row.costUsd.toFixed(3)}`}${row.denials || row.trims ? ` · ${row.denials} denied, ${row.trims} trimmed (~${Math.round(row.withheld / 1000)}k withheld)` : ""}\n`);
+  // Rotate the arm that goes first so prompt-cache warmth is not always credited to enforce.
+  for (let rep = 0; rep < N; rep++) tasks.forEach((t, j) => {
+    const first = (j + rep) % ARMS.length;
+    for (const arm of [...ARMS.slice(first), ...ARMS.slice(0, first)]) plan.push([t, arm]);
   });
+  console.error(`${plan.length} run(s): ${tasks.length} task(s) × ${ARMS.length} arm(s) × ${N}, ${AGENT}, model ${MODEL}${AGENT === "claude" ? `, cap $${BUDGET}/run` : ""}`);
 
   const outDir = join(REPO, "bench/ab-results");
   mkdirSync(outDir, { recursive: true });
-  const outFile = join(outDir, `run-${Date.now()}.json`);
-  writeFileSync(outFile, JSON.stringify({ agent: AGENT, model: MODEL, n: N, measuredAt: new Date().toISOString(), rows }, null, 2));
+  const outFile = typeof args.resume === "string" ? args.resume : join(outDir, `run-${Date.now()}.json`);
+  const build = stamp();
+  const sha256 = (file) => createHash("sha256").update(readFileSync(file)).digest("hex");
+  const bundleSha256 = sha256(SNOUT_BIN), harnessSha256 = sha256(fileURLToPath(import.meta.url));
+  const codexCli = process.env.CODEX_CLI_JS;
+  const cli = AGENT === "claude"
+    ? spawnSync(CLAUDE, ["--version"], { encoding: "utf8" })
+    : codexCli
+      ? spawnSync(process.execPath, [codexCli, "--version"], { encoding: "utf8" })
+      : spawnSync("codex", ["--version"], { encoding: "utf8" });
+  const runtime = {
+    platform: process.platform, arch: process.arch, node: process.version,
+    agentCliVersion: cli.status === 0 ? cli.stdout.trim() : null,
+    billing: AGENT === "codex" ? "chatgpt-plan" : API_KEY ? "api" : "claude-login",
+  };
+  if (CLEAN_HOME) mkdirSync(CLEAN_HOME, { recursive: true });
+  const saved = typeof args.resume === "string" ? JSON.parse(readFileSync(outFile, "utf8")) : null;
+  if (saved && (saved.agent !== AGENT || saved.model !== MODEL || saved.n !== N || JSON.stringify([saved.snoutVersion, saved.commit, saved.dirty]) !== JSON.stringify([build.snoutVersion, build.commit, build.dirty]) || saved.bundleSha256 !== bundleSha256 || saved.harnessSha256 !== harnessSha256 || JSON.stringify(saved.runtime) !== JSON.stringify(runtime) || saved.rows.length > plan.length || saved.rows.some((r, i) => r.task !== plan[i][0] || r.arm !== plan[i][1]))) {
+    throw new Error("--resume result does not match this task plan, agent, model, CLI runtime, or Snout build");
+  }
+  const measuredAt = saved?.measuredAt ?? new Date().toISOString();
+  const rows = saved?.rows ?? [];
+  const excluded = saved?.excluded ?? [];
+  let spent = rows.reduce((sum, row) => sum + (row.costUsd ?? 0), 0);
+  const save = () => writeFileSync(outFile, JSON.stringify({ agent: AGENT, model: MODEL, n: N, tasks, arms: ARMS, measuredAt, ...build, bundleSha256, harnessSha256, runtime, rows, ...(excluded.length ? { excluded } : {}) }, null, 2));
+  save();
+  let attempted = 0;
+  for (let i = rows.length; i < plan.length; i++) {
+    if (attempted >= MAX_RUNS) {
+      console.error(`Stopped after ${attempted} run(s) by --max-runs; resume from ${outFile}.`);
+      break;
+    }
+    const [t, a] = plan[i];
+    // Every session gets the same budget: Claude Code shows the model its remaining budget each
+    // turn, so a session squeezed by the run cap would behave differently from its pair. Stop
+    // instead when the cap can no longer cover a whole session.
+    const remaining = MAX_SPEND ? MAX_SPEND - spent : Number(BUDGET);
+    if (MAX_SPEND && AGENT === "claude" && remaining < Number(BUDGET)) {
+      console.error(`Stopped at $${spent.toFixed(2)} of the $${MAX_SPEND.toFixed(2)} run cap: less than one session's $${BUDGET} budget is left; resume from ${outFile} with a new cap.`);
+      break;
+    }
+    process.stderr.write(`[${i + 1}/${plan.length}] ${t} · ${a} ... `);
+    const row = runOne(t, a, BUDGET);
+    attempted++;
+    if (row.inputTokens === 0 && row.error) {
+      excluded.push({ ...row, infra: "before first model turn" });
+      save();
+      process.stderr.write(`INFRA · ${row.error.slice(0, 160)}\n`);
+      console.error(`Stopped after an infrastructure error; fix it, then resume from ${outFile}.`);
+      break;
+    }
+    rows.push(row);
+    spent += row.costUsd ?? 0;
+    save();
+    process.stderr.write(`${row.pass ? "pass" : "FAIL"} · ${Math.round(row.inputTokens / 1000)}k in · low-value read ~${Math.round(row.lowValueRead / 1000)}k · ${row.effTokens !== undefined ? `${Math.round(row.effTokens / 1000)}k eff` : `$${row.costUsd.toFixed(3)}`}${row.denials || row.trims ? ` · ${row.denials} denied, ${row.trims} trimmed (~${Math.round(row.withheld / 1000)}k withheld)` : ""}\n`);
+    // --stop-on-fail: a failed task in a long paid run is looked at before more is spent on it.
+    if (args["stop-on-fail"] && !row.pass) {
+      console.error(`Stopped at the first failed task (--stop-on-fail); inspect it, then resume from ${outFile}.`);
+      break;
+    }
+  }
   console.log(`\nFull results: ${outFile}`);
+  if (excluded.length) console.log(`Infrastructure attempts preserved separately: ${excluded.length}`);
   const broken = summarize(rows, tasks, MODEL, N);
   // A release score requires every selected run to complete its task. A failed baseline
   // cannot establish that enforcement preserved task quality either.

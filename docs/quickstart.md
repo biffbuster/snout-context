@@ -9,7 +9,8 @@ claude plugin install snout@snout-context
 
 Restart Claude Code, or run `/reload-plugins`.
 
-No account, no API key, no configuration. No network calls.
+No account or API key is needed. After installation, Snout's default features run locally;
+the optional prompt coach and local memory-model download use the network only when enabled.
 
 ## Check it is working
 
@@ -49,8 +50,10 @@ Snout tells you what it would have kept out. When you trust the numbers:
 ```
 
 Snout installs its gate hook itself, in your project's `.claude/settings.local.json`; there is
-nothing to edit. New sessions pick it up, a running one after `/reload-plugins`. Each gated call is
-a short Node process, around 70 ms on a fast machine, most of it Node starting.
+nothing to edit. New sessions pick it up, a running one after `/reload-plugins`. By default,
+gated calls go to Snout's local server on `127.0.0.1`, started with the session. If the server
+is unavailable, the agent continues without gating. If you also installed the CLI,
+`snout fast off` switches to command hooks, which start Node for each gated call.
 
 `/snout:mode observe` removes the hook again. `/snout:doctor` tells you whether it is installed and
 whether that matches your mode.

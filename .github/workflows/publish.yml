@@ -1,16 +1,16 @@
 name: publish
 
-# Releases go to npm from here, never from a laptop, with provenance: npm shows which commit and
-# workflow built each version, so anyone can check the package matches this repository.
-# Tag a release (git tag v0.3.0 && git push --tags) to run it. Needs the NPM_TOKEN secret
-# (an npm automation token) in the repository's Actions secrets.
+# Releases go to npm from here, never from a laptop. Trusted publishing authenticates this workflow;
+# npm provenance is available when the source repository is public.
+# A version tag on main runs this workflow after a trusted publisher for `usesnout` has been
+# configured on npmjs.com for biffbuster/snout-context and publish.yml.
 on:
   push:
     tags: ["v*"]
 
 permissions:
   contents: read
-  id-token: write # lets npm sign the provenance statement
+  id-token: write # lets npm authenticate this trusted publishing workflow
 
 jobs:
   publish:
@@ -19,20 +19,30 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
-          node-version: "22.x"
+          node-version: "24.x"
           registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+      - name: tag points at main
+        run: |
+          git fetch --no-tags origin main
+          test "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)"
+      - run: npm install --global npm@11
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run check:bench
       - run: npm test
       - run: npm run eval
-      # The committed bundle must be exactly what src/ builds.
+      # Both committed bundles must be exactly what src/ builds.
       - name: bundle matches src
         run: |
           cp dist/snout.mjs /tmp/committed.mjs
+          cp dist/lib.mjs /tmp/committed-lib.mjs
           npm run build
           diff -q /tmp/committed.mjs dist/snout.mjs
+          diff -q /tmp/committed-lib.mjs dist/lib.mjs
+      # Every published number must be measured on this release line, not an older build.
+      - name: claims measured on this release
+        run: node scripts/check-claims.mjs --strict
       - name: tag matches package.json version
         run: test "v$(node -p 'require("./package.json").version')" = "${GITHUB_REF_NAME}"
-      - run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - run: npm publish --access public

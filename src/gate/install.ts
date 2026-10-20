@@ -39,8 +39,14 @@ const hookFor = (bin: string, event: string, fast: boolean, extra: Partial<Hook>
   fast ? { type: "http", url: hookUrl(event), timeout: 5, ...extra } : { type: "command", command: `node "${bin}" ${event}`, timeout: 5, ...extra };
 type Entry = { matcher?: string; hooks?: Hook[] };
 
-/** Squeeze: a foreground PostToolUse hook for noisy command families only. */
+/**
+ * Squeeze: a foreground PostToolUse hook for noisy command families only. A command hook needs an
+ * `if` filter per family so other commands never start Node; the fast gate's server decides the
+ * same thing in about a millisecond (`kindOf`), so it gets one entry. Agents read settings files,
+ * and 56 filters made Snout's own block about 13 KB of context.
+ */
 export function squeezeEntries(bin: string, fast = false): Entry[] {
+  if (fast) return [{ matcher: "Bash|mcp__.*", hooks: [hookFor(bin, "squeeze", true)] }];
   return [
     { matcher: "Bash", hooks: SQUEEZE_IFS.map((c) => hookFor(bin, "squeeze", fast, { if: `Bash(${c})` })) },
     // Every MCP tool: large results (browser snapshots, diffs, query rows) are trimmed the same way.
@@ -49,6 +55,8 @@ export function squeezeEntries(bin: string, fast = false): Entry[] {
 }
 
 export function gateEntries(bin: string, fast = false): Entry[] {
+  // The server skips any Bash command that prints no file (`readTargets`), as the `if` filters do.
+  if (fast) return [{ matcher: "Read|NotebookRead|Bash", hooks: [hookFor(bin, "pre-tool", true)] }];
   return [
     { matcher: "Read|NotebookRead", hooks: [hookFor(bin, "pre-tool", fast)] },
     { matcher: "Bash", hooks: PRINTING_COMMANDS.map((c) => hookFor(bin, "pre-tool", fast, { if: `Bash(${c} *)` })) },
@@ -64,7 +72,8 @@ export function gateEntries(bin: string, fast = false): Entry[] {
  */
 const ENSURE = "serve --ensure";
 export function starterEntries(bin: string): Entry[] {
-  return [{ hooks: [{ type: "command", command: `node "${starterPath()}" "${bin}" ${ENSURE}`, timeout: 5 }] }];
+  // The starter itself bounds its child to 4 s; a second hook timeout only enlarges settings.
+  return [{ hooks: [{ type: "command", command: `node "${starterPath()}" "${bin}" ${ENSURE}` }] }];
 }
 
 /**
@@ -74,7 +83,7 @@ export function starterEntries(bin: string): Entry[] {
  * bundle (from Claude Code's install record) when `bin` was a plugin bundle, else `bin`, else
  * whichever of the two still exists.
  */
-export const starterPath = (): string => join(configDir(), "snout-starter.mjs");
+export const starterPath = (): string => join(configDir(), "starter.mjs");
 const STARTER = `// Written by Snout (snout fast on). Starts the local Snout server for the fast gate.
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -186,7 +195,9 @@ export function refreshGate(projectDir: string, bin: string): boolean {
     const fast = gate.some((e) => (e.hooks ?? []).some((h) => isSnoutUrl(h.url)));
     const elsewhere = (e: Entry) => (e.hooks ?? []).some((h) => typeof h.command === "string" && h.command.includes(MARK) && !h.command.includes(`"${bin}"`));
     const starters = STARTER_EVENTS.map((ev) => (hooks[ev] ?? []).filter(isStarter));
-    const stale = gate.some(elsewhere) || starters.some((l) => l.some(elsewhere)) || (fast && starters.some((l) => !l.length));
+    // A fast gate written with per-command filters (0.3.0 and before) is rewritten in the short form.
+    const filtered = fast && gate.some((e) => (e.hooks ?? []).some((h) => h.if));
+    const stale = gate.some(elsewhere) || starters.some((l) => l.some(elsewhere)) || (fast && starters.some((l) => !l.length)) || filtered;
     if (stale) {
       installGate(projectDir, bin, fast);
       return true;

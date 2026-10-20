@@ -1,7 +1,11 @@
 {
- "measuredAt": "2026-10-16T17:53:11.076Z",
+ "measuredAt": "2026-10-19T20:05:45.025Z",
+ "snoutVersion": "0.3.1",
+ "commit": "f88fb49",
+ "dirty": false,
+ "bundleSha256": "9d1abeae391ac62aac622fcb5aa43c79c1a1690eff6990c2f8cf98234419eb9b",
  "submission": "bash-only/20260217_mini-v2.0.0_claude-4-5-sonnet-high",
- "mapFile": "mapeval-heldout-1792105066713.json",
+ "mapFile": "mapeval-heldout-1792439823459.json",
  "model": "Xenova/bge-small-en-v1.5",
  "rows": [
   {

@@ -20,6 +20,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { tmpdir, homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { stamp } from "./stamp.mjs";
 const { recall, hybridRecall, embedText, HYBRID_CUT } = await import(process.env.MAP_LIB || "../dist/lib.mjs");
 
 const REPO = fileURLToPath(new URL("..", import.meta.url)).replace(/\/$/, "");
@@ -182,5 +183,5 @@ for (const [name, on, k] of ship) {
   console.log(`  ${name.padEnd(32)} ${pct(f.length, n).padStart(6)}   ${pct(f.filter((r) => r[k].briefHit).length, f.length).padStart(8)}`);
 }
 const file = join(resultsDir, `sessioneval-${Date.now()}.json`);
-writeFileSync(file, JSON.stringify({ measuredAt: new Date().toISOString(), submission: SUB, mapFile, model: embed ? "Xenova/bge-small-en-v1.5" : null, rows }, null, 1));
+writeFileSync(file, JSON.stringify({ measuredAt: new Date().toISOString(), ...stamp(), submission: SUB, mapFile, model: embed ? "Xenova/bge-small-en-v1.5" : null, rows }, null, 1));
 console.log(`\n  rows: ${file}`);

@@ -17,17 +17,6 @@ bench/tokens/
 
 # A/B run results. Only the runs the docs cite are published, so every quoted number can be checked.
 bench/ab-results/*
-!bench/ab-results/run-1790613461290.json
-!bench/ab-results/run-1790709277914.json
-!bench/ab-results/run-1790632506002.json
-!bench/ab-results/run-1790779257454.json
-!bench/ab-results/run-1790708920778.json
-!bench/ab-results/run-1790734338726.json
-!bench/ab-results/library-1790778610259.json
-!bench/ab-results/long-1791229121880.json
-!bench/ab-results/long-1791232350718.json
-!bench/ab-results/recalleval-1792170581701.json
-!bench/ab-results/sessioneval-1792173191076.json
 .env
 .env.*
 # local agent hook configs written by `snout init` (machine-specific paths)

@@ -12,8 +12,8 @@
  *                   Required: a margin chosen after seeing the result is not a test.
  *   --out DIR       write attempts.csv, summary.json and chart.svg there (default: print only)
  *   --tasks A,B     only these tasks (a published subset, such as the bulk-path tasks)
- *   --metric KEY    what "cost" is: costUsd (default), or effTokens for agents that report tokens
- *                   but not dollars (Codex: uncached input + 0.1 x cached input + output)
+ *   --metric KEY    what "cost" is: costUsd (default), effTokens, or apiEquivalentUsd from
+ *                   bench/price-codex.mjs (an API-list-price estimate, not an actual bill)
  *
  * Accepts the row-per-attempt files of bench/swe.mjs, bench/ab.mjs and bench/long.mjs, and the
  * row-per-session files of bench/swelong.mjs (one attempt per issue in the session). Rows marked
@@ -22,8 +22,9 @@
  *
  * Statistics: tasks are the unit. A bootstrap resamples tasks with replacement (seeded, so a
  * rebuild prints the same interval); within a task, all of its attempts in each arm count.
- *   solved difference   arm minus base, in points; "no quality loss" if the interval's lower end
- *                       is above −margin
+ *   solved difference   arm minus base, in points; "no quality loss" if the lower bound
+ *                       is above −margin. When all paired tasks pass in both arms, a
+ *                       one-sided exact zero-harm bound prevents a degenerate [0, 0] bootstrap.
  *   cost per solved     total cost / total solved, arm vs base; "saving" if the interval's upper
  *                       end is below zero
  */
@@ -109,6 +110,11 @@ export function compare(all, base, arm, margin) {
   const change = cpsChange(tasks);
   const diff = solvedDiff(tasks);
   const diffCi = [quantile(diffs, 0.025) * 100, quantile(diffs, 0.975) * 100];
+  // With zero observed harmed tasks, resampling those same tasks always returns zero. Bound
+  // the unseen per-task harm rate using unique tasks, not repeated attempts on those tasks.
+  // P(zero harms | harm rate p) = (1-p)^n; solve at 0.05 for a one-sided 95% bound.
+  const allPass = tasks.every((t) => [...t.base, ...t.arm].every((a) => a.solved));
+  if (allPass) diffCi[0] = Math.min(diffCi[0], (Math.pow(0.05, 1 / tasks.length) - 1) * 100);
   const costCi = changes.length === B ? [quantile(changes, 0.025) * 100, quantile(changes, 0.975) * 100] : null;
   return {
     base, arm, tasks: tasks.length,
@@ -118,6 +124,7 @@ export function compare(all, base, arm, margin) {
     costPerSolved: { [base]: cps(s.base), [arm]: cps(s.arm) },
     solvedDiffPts: diff * 100,
     solvedDiffCi: diffCi,
+    qualityLowerBoundMethod: allPass ? "one-sided exact zero-harm bound by unique task" : "paired task bootstrap",
     costPerSolvedChangePct: change === null ? null : change * 100,
     costPerSolvedCi: costCi,
     marginPts: margin,
@@ -136,7 +143,7 @@ export function toCsv(rows) {
 
 /** Cost per attempt (x) against solved attempts (y), one point per arm. Plain SVG, no dependencies. */
 export function chartSvg(points, title, metric = "costUsd") {
-  const money = metric === "costUsd";
+  const money = metric === "costUsd" || metric === "apiEquivalentUsd";
   const fmt = (v) => (money ? `$${v.toFixed(4)}` : `${Math.round(v / 1000)}k`);
   const W = 640, H = 400, L = 72, R = 24, T = 48, Bm = 56;
   const xs = points.map((p) => p.cost), ys = points.map((p) => p.solvedPct);
@@ -152,7 +159,7 @@ export function chartSvg(points, title, metric = "costUsd") {
 <text class="fg" x="${L}" y="24" font-size="14" font-weight="600">${esc(title)}</text>
 ${ticks.map((t) => { const v = yMin + t * (yMax - yMin); return `<line class="ax" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="mu" x="${L - 8}" y="${y(v) + 4}" text-anchor="end">${v.toFixed(0)}%</text>`; }).join("\n")}
 ${ticks.map((t) => { const v = xMin + t * (xMax - xMin); return `<text class="mu" x="${x(v)}" y="${H - Bm + 18}" text-anchor="middle">${fmt(v)}</text>`; }).join("\n")}
-<text class="mu" x="${(L + W - R) / 2}" y="${H - 12}" text-anchor="middle">${money ? "Mean API cost" : `Mean ${esc(metric)}`} per attempt (lower is better)</text>
+<text class="mu" x="${(L + W - R) / 2}" y="${H - 12}" text-anchor="middle">${metric === "apiEquivalentUsd" ? "Mean API-equivalent cost" : money ? "Mean API cost" : `Mean ${esc(metric)}`} per attempt (lower is better)</text>
 <text class="mu" transform="translate(16 ${(T + H - Bm) / 2}) rotate(-90)" text-anchor="middle">Solved attempts</text>
 ${points.map((p) => `<circle class="${p.base ? "bs" : "pt"}" cx="${x(p.cost)}" cy="${y(p.solvedPct)}" r="6"/><text class="fg" x="${x(p.cost) + 10}" y="${y(p.solvedPct) + (p.solvedPct > 90 ? 20 : -8)}">${esc(p.label)} · ${p.solved}/${p.n}</text>`).join("\n")}
 </svg>
@@ -168,11 +175,14 @@ function report(files, { base, margin, out, tasks, metric = "costUsd" }) {
   const excluded = all.filter((a) => a.excluded);
   const unscored = all.filter((a) => !a.excluded && a.solved === null);
   const pct = (v) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1)}`;
-  const amount = (v) => (metric === "costUsd" ? `$${v.toFixed(4)}` : `${Math.round(v).toLocaleString("en-US")} ${metric}`);
+  const amount = (v) => (metric === "costUsd" ? `$${v.toFixed(4)}` : metric === "apiEquivalentUsd" ? `$${v.toFixed(4)} API-equivalent` : `${Math.round(v).toLocaleString("en-US")} ${metric}`);
   console.log(`\n${files.map((f) => basename(f)).join(", ")}: ${all.length} attempts, ${arms.length} arms, base ${baseArm}, margin ${margin} pts${only ? `, tasks ${[...only].join(",")}` : ""}${metric !== "costUsd" ? `, cost = ${metric}` : ""}\n`);
   for (const c of comparisons) {
     console.log(`  ${c.arm} vs ${c.base} (${c.tasks} tasks)`);
-    console.log(`    solved          ${c.solved[c.base]}/${c.attempts[c.base]} → ${c.solved[c.arm]}/${c.attempts[c.arm]}   difference ${pct(c.solvedDiffPts)} pts (95% CI ${pct(c.solvedDiffCi[0])} to ${pct(c.solvedDiffCi[1])}) → no quality loss ${c.noQualityLoss ? "MET" : "NOT MET"}`);
+    const qualityInterval = c.qualityLowerBoundMethod === "paired task bootstrap"
+      ? `95% CI ${pct(c.solvedDiffCi[0])} to ${pct(c.solvedDiffCi[1])}`
+      : `one-sided 95% lower bound ${pct(c.solvedDiffCi[0])} pts; bootstrap upper ${pct(c.solvedDiffCi[1])} pts`;
+    console.log(`    solved          ${c.solved[c.base]}/${c.attempts[c.base]} → ${c.solved[c.arm]}/${c.attempts[c.arm]}   difference ${pct(c.solvedDiffPts)} pts (${qualityInterval}) → no quality loss ${c.noQualityLoss ? "MET" : "NOT MET"}`);
     if (c.costPerSolvedChangePct !== null) console.log(`    cost per solved ${amount(c.costPerSolved[c.base])} → ${amount(c.costPerSolved[c.arm])}   ${pct(c.costPerSolvedChangePct)}%${c.costPerSolvedCi ? ` (95% CI ${pct(c.costPerSolvedCi[0])}% to ${pct(c.costPerSolvedCi[1])}%)` : ""} → saving ${c.saving ? "MET" : "NOT MET"}`);
   }
   if (excluded.length) console.log(`  excluded (infrastructure): ${excluded.length} attempts`);
@@ -203,7 +213,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     else files.push(a);
   }
   if (!files.length || !(opts.margin > 0)) {
-    console.error("usage: node bench/report.mjs <results.json>... --margin <pts fixed before the run> [--base ARM] [--tasks A,B] [--metric costUsd|effTokens] [--out DIR]");
+    console.error("usage: node bench/report.mjs <results.json>... --margin <pts fixed before the run> [--base ARM] [--tasks A,B] [--metric costUsd|effTokens|apiEquivalentUsd] [--out DIR]");
     process.exit(2);
   }
   report(files, opts);

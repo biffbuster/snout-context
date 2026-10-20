@@ -1,86 +1,33 @@
-# Every published number, and how to rebuild it
+# Current release claims
 
-Each number Snout publishes is listed here with the results file it comes from, the command that
-rebuilds it, and whether it meets the publication standard in
-[benchmark-protocol.md](benchmark-protocol.md#publication-standard-fixed-2026-10-13). The rebuild needs
-no API key and makes no paid call:
+Every number below was measured on the clean Snout 0.3.1 bundle. `node scripts/check-claims.mjs --strict` fails if any cited file was measured on a different build. Results from older builds are in [the pre-0.3.1 archive](archive/pre-0.3.1/README.md) and do not describe 0.3.1.
 
-```bash
-node bench/report.mjs <results file> --margin <pts> [--tasks A,B] [--metric effTokens] --out docs/results/<name>
-```
+## Measured on 0.3.1: Claude Code cost per solved task
 
-It writes `attempts.csv` (every attempt), `summary.json` (the paired comparison, its 95% intervals
-and both verdicts) and `chart.svg` (solved attempts against mean cost per attempt, both axes from
-zero). Intervals come from a seeded bootstrap over tasks, so a rebuild prints the same numbers.
+Claude Code with Sonnet, billed through the API, on one Windows machine. The 14 tasks in `bench/ab.mjs` were each run 5 times with Snout off and 5 times with Snout on (`enforce`): 140 sessions. Every session had the same $1.00 budget, and which arm runs first alternates by task and round. The tasks were written alongside Snout as a release regression set, not taken from outside repositories, so this result does not estimate savings on other codebases. See [the benchmark protocol](benchmark-protocol.md#publication-standard-fixed-2026-10-13).
 
-**Saving** means the 95% interval for the change in cost per solved attempt lies below zero.
-**No quality loss** means the interval for the change in solved attempts lies above −margin.
+| Tasks | Solved, off → on | Cost per solved task, off → on | Change | 95% interval |
+| --- | --- | --- | --- | --- |
+| All 14 | 70/70 → 70/70 | $0.1090 → $0.0812 | −25.5% | −39.1% to −7.6% |
+| 10 bulk-path tasks (`BULK` in `bench/ab.mjs`) | 50/50 → 50/50 | $0.1257 → $0.0869 | −30.9% | −44.6% to −10.2% |
+| 4 control tasks with nothing to trim | 20/20 → 20/20 | $0.0672 → $0.0670 | −0.3% | −10.6% to +6.7% |
 
-## Results in the README
+The interval for all 14 tasks lies entirely below zero, which meets the protocol's rule for a savings claim. Intervals are paired task-bootstrap intervals from `bench/report.mjs`.
 
-| Claim | Rebuilt result (95% CI) | Saving | Data |
-| --- | --- | --- | --- |
-| Long multi-step sessions, Haiku, 11 tasks × 3 runs | cost per solved **−19.4%** (−36.4% to +3.9%), 33/33 → 33/33 | not proven | [long-sessions-haiku](results/long-sessions-haiku) · `long-1791229121880.json` |
-| Whole stack, Haiku, 12 tasks × 2 runs | **−25.7%** (−37.7% to −12.0%), 24/24 → 24/24 | yes | [whole-stack-haiku](results/whole-stack-haiku) · `run-1790779257454.json` |
-| — its 8 bulk-path tasks | **−32.7%** (−45.2% to −18.0%), 16/16 → 16/16 | yes | [whole-stack-haiku-bulk](results/whole-stack-haiku-bulk) |
-| Read gate alone, Haiku, 5 bulk-path tasks × 5 runs | **−24.3%** (−45.2% to +3.1%), 25/25 → 25/25 | not proven | [read-gate-haiku-bulk](results/read-gate-haiku-bulk) · `run-1790613461290.json` |
-| Read gate alone, Sonnet, 5 bulk-path tasks × 2 runs | **−23.3%** (−47.0% to +6.7%), 10/10 → 10/10 | not proven | [read-gate-sonnet-bulk](results/read-gate-sonnet-bulk) · `run-1790709277914.json` |
-| Read gate alone, Codex, 5 bulk-path tasks, effective tokens | **−22.6%** (−34.1% to −13.8%), 15/15 → 15/15; 20 attempts excluded (usage limit) | yes (tokens, not dollars) | [read-gate-codex-bulk](results/read-gate-codex-bulk) · `run-1790632506002.json` |
+Five of the 14 tasks cost more with Snout on: `deps` +20.4%, `pricing` +7.6%, `usersCompound` +6.2%, `users` +5.8%, and `cart` +3.8% over their five pairs. `deps` had no Snout denials or trims; its turns rose from 34 to 40 across the five pairs.
 
-Commands, from the repository root (`B` is the bulk-path tasks of the read-gate runs):
+Quality: every attempt passed in both arms. That is not enough to claim no quality loss. With 14 tasks the protocol's one-sided 95% lower bound is −19.3 points, below the −5 point margin set before the run.
 
-```bash
-B=orders,money,crash,overview,deps
-node bench/report.mjs bench/ab-results/long-1791229121880.json --margin 5 --out docs/results/long-sessions-haiku
-node bench/report.mjs bench/ab-results/run-1790779257454.json --margin 5 --out docs/results/whole-stack-haiku
-node bench/report.mjs bench/ab-results/run-1790779257454.json --margin 5 --tasks orders,money,crash,overview,deps,suite,issue7,issue45 --out docs/results/whole-stack-haiku-bulk
-node bench/report.mjs bench/ab-results/run-1790613461290.json --margin 5 --tasks $B --out docs/results/read-gate-haiku-bulk
-node bench/report.mjs bench/ab-results/run-1790709277914.json --margin 5 --tasks $B --out docs/results/read-gate-sonnet-bulk
-node bench/report.mjs bench/ab-results/run-1790632506002.json --margin 5 --tasks $B --metric effTokens --out docs/results/read-gate-codex-bulk
-```
+- Rows: `run-sonnet-1792440413748.json`. Its first round is the 28-session run `run-1792440413748.json`, copied with the plan set to 5 rounds; rounds 2 to 5 were added with `--resume` on the same build, harness and runtime.
+- Report: [docs/results/claude-sonnet-0.3.1](results/claude-sonnet-0.3.1/) (attempts.csv, summary.json, chart.svg). Rebuild it without a key: `node bench/report.mjs bench/ab-results/run-sonnet-1792440413748.json --margin 5`. The bulk and control rows come from the same command with `--tasks` set to the task names; their reports are in [claude-sonnet-0.3.1-bulk](results/claude-sonnet-0.3.1-bulk/) and [claude-sonnet-0.3.1-control](results/claude-sonnet-0.3.1-control/).
+- Codex has no matched off/on run on 0.3.1, so there is no Codex cost claim.
 
-What these rows can and can't show:
+## Measured on 0.3.1: memory recall (offline, no agent sessions)
 
-- **Every point estimate matches the one in [benchmark.md](benchmark.md).** The intervals differ a
-  little where benchmark.md also resampled runs within each task (long sessions: −37.1% to +6.0%
-  there); the verdicts are the same.
-- **The margin is applied after the fact.** These runs predate the standard and fixed no margin;
-  5 points is the one the later confirmation runs fixed in advance.
-- **"No quality loss" is weak evidence here.** Every attempt passed in both arms, so the interval
-  for the solved difference is zero-width. With 5–12 tasks that can't rule out a loss a larger
-  sample would show.
-- **The test projects were built to contain the bulk Snout trims.** The bulk-path rows show what
-  Snout saves when that bulk is on the agent's path, not on an average repository.
+These replay real SWE-bench task histories against the exact 0.3.1 bundle. They measure whether Snout's recall surfaces a file the fix needed; they are not cost results.
 
-## Memory recall, offline
+- Repo map, held-out tasks: when the hook fires (79% of 484 tasks), a fix file is among the four it shows on 75% of them. Rows: `mapeval-heldout-1792439823459.json`.
+- Memory-card recall: the shipped words gate fires on 58.1% of tasks and is right on 75.2% of those; the hybrid gate fires on 62.7% and is right on 78.0%. Rows: `recalleval-1792440321865.json`.
+- Recall from earlier sessions: the words gate (with map agreement) fires on 33.2% of tasks and is right on 52.2%; the stricter hybrid gate fires on 25.6% and is right on 60.5%. An earlier session touched a needed file on only 42.7% of tasks, which caps this number. Rows: `sessioneval-1792440345025.json`.
 
-| Claim | Result | Data |
-| --- | --- | --- |
-| Recall brief names a file the fix needed, words checked against the repo map | **75.2%** of the 58.1% of tasks where it speaks | `recalleval-1792170581701.json` |
-| — with the optional memory model (words and meaning, cut and map agreement) | **86.8%** of the 35.9% of tasks where it speaks | same file |
-
-485 SWE-bench Verified tasks; each task's memory is the repository's last 3000 commits before the
-issue was opened, one card per commit. Free and local: no agent runs, no API call. Rebuild with
-`node bench/recallfloor.mjs bench/ab-results/recalleval-1792170581701.json` (from the rows) or
-`node bench/recalleval.mjs --embed` (from scratch; needs the dataset, git clones and the model).
-
-| Same, memory = real agent sessions on earlier issues, words and map | **52.2%** of the 33.2% of tasks where it speaks | `sessioneval-1792173191076.json` |
-| — with the memory model | **60.5%** of the 25.6% of tasks where it speaks | same file |
-
-The session rows use the public trajectories of one agent (mini-SWE-agent, Claude Sonnet 4.5,
-`bash-only/20260217_mini-v2.0.0_claude-4-5-sonnet-high`) as cards: for each task, the sessions on
-earlier issues of the same repository, never its own. A median of 33 sessions per task, against 3000
-commits, and only 42.7% of tasks had an earlier session that touched a file the fix needed (the
-ceiling). Rebuild with `node bench/sessioneval.mjs --embed` (downloads the trajectories, ~240 MB, free).
-
-What it can't show: a brief that names the right file is not proof the agent then spends less or
-finishes sooner, and on these sessions recall fused with the repo map found the needed files no
-more often than the map alone (62.3% against 62.9% within five files). Neither saving is measured yet.
-
-## Results not yet rebuildable from this repository
-
-| Claim | Where stated | Status |
-| --- | --- | --- |
-| PointFive benchmark: cost per success **−11.9%** (−16.2% to −7.8%), 463 paired blocks, success 450/463 both arms | [benchmark-protocol.md](benchmark-protocol.md) | Pre-registered, margin 5 points, both rules met. The per-run results are in the PointFive runner's output on the old Mac, not here. **Export them to `docs/results/pointfive-confirmation/` before this number is published.** |
-| Memory after compaction: 97% of facts kept vs 66% | product notes; [benchmark-protocol.md](benchmark-protocol.md) | Measured offline by `bench/retention.mjs`, but in two steps on different sets: 66% → 82% (207 compactions), then 82% → 97% (210). Its inputs are private Claude Code transcripts on the old Mac. **Before publishing:** one run comparing Claude Code's summary alone with the current build on the same compactions, and its per-fact table (no transcript text) in `docs/results/`. |
-| Codex forced-read pilots (−35.0%, −25.3%, −31.9%) | internal notes, not in the repository | Synthetic, forced-read fixtures; their results files are ignored by git. Internal evidence, not public claims. |
+All cited rows are in `bench/ab-results/`.

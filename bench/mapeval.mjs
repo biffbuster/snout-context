@@ -30,6 +30,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync, mkdirSync
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { stamp } from "./stamp.mjs";
 // MAP_LIB=<path to a lib.mjs> scores another build (before/after a change) on the same tasks.
 const { buildMap, candidates, renderCandidates, requestNames, decide, DEFAULTS, shouldSuggest: libShouldSuggest } = await import(process.env.MAP_LIB || "../dist/lib.mjs");
 /** The hook's firing rule; builds before it moved into the library used this copy. */
@@ -268,5 +269,5 @@ const med = (xs) => xs.sort((a, b) => a - b)[Math.floor(xs.length / 2)];
 console.log(`\n  map build: median ${med(rows.map((r) => r.buildMs))} ms over a median ${med(rows.map((r) => r.files))} files, rereading a median ${med(rows.map((r) => r.reread))} · query ${med(rows.map((r) => r.queryMs))} ms · candidate line ~${med(rows.map((r) => r.lineTokens))} tokens`);
 mkdirSync(join(REPO, "bench/ab-results"), { recursive: true });
 const out = join(REPO, "bench/ab-results", `mapeval-${LITE ? "lite-" : CONFIRM ? "confirm-" : HELDOUT ? "heldout-" : ""}${Date.now()}.json`);
-writeFileSync(out, JSON.stringify({ measuredAt: new Date().toISOString(), rows }, null, 2));
+writeFileSync(out, JSON.stringify({ measuredAt: new Date().toISOString(), ...stamp(), rows }, null, 2));
 console.log(`  rows: ${out}`);

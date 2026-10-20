@@ -49,20 +49,15 @@ is part of the command, not part of the plugin.
 
 ## A read feels slower
 
-Only gated reads are slow, and only when the blocking hook is installed. Each one spawns a
-short-lived Node process:
+Run `/snout:doctor` and check the gate and fast-hook server status. In the default setup,
+gated Claude Code calls go to a local Snout server on `127.0.0.1`. The server starts with
+the session and stops after it has been idle; if it is down, Claude Code continues without
+gating. If you also installed the CLI, `snout fast off` uses command hooks instead,
+which start Node for each gated call and can add noticeable startup time; `snout fast on`
+restores the local-server path.
 
-| | measured |
-| --- | --- |
-| our classification work | 0.007–0.065 ms |
-| bare `node -e 0` on a 2020 Intel i5 | ~125 ms |
-| whole hook process | 50 ms (fast machine) to ~380 ms (that i5, via a shell) |
-
-Almost all of it is Node start-up, which no change inside the plugin can remove.
-
-`/snout:mode observe` removes the blocking hook and keeps the reporting, at zero added
-latency. Removing the process per decision entirely needs a long-running HTTP-hook sidecar,
-which is planned.
+`/snout:mode observe` removes the blocking gate and keeps reporting. If doctor reports a
+stale installed plugin bundle, reinstall the plugin and restart Claude Code.
 
 ## `.snout/` appeared somewhere unexpected
 

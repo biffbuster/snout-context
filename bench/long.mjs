@@ -25,9 +25,14 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { gateEntries, squeezeEntries } from "../dist/lib.mjs";
 import { reliabilityLines, costLines, ledgerFacts, peakContext } from "./stats.mjs";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { stamp } from "./stamp.mjs";
+import { shippedClaudeHooks } from "./shipped-hooks.mjs";
+import { isolateSnout } from "./isolated-snout.mjs";
+
+/** npm's Windows `claude` is a shim spawnSync cannot run; call the installed binary, as bench/swe.mjs does. */
+const CLAUDE = process.env.CLAUDE_BIN || (process.platform === "win32" ? join(process.env.APPDATA ?? "", "npm/node_modules/@anthropic-ai/claude-code/bin/claude.exe") : "claude");
 
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, a, i, all) => (a.startsWith("--") ? [...acc, [a.slice(2), all[i + 1] && !all[i + 1].startsWith("--") ? all[i + 1] : true]] : acc), []),
@@ -38,6 +43,9 @@ const ARMS = (typeof args.arms === "string" ? args.arms : "off,enforce").split("
 const BUDGET = String(args.budget ?? "1.50");
 const REPO = fileURLToPath(new URL("..", import.meta.url)).replace(/\/$/, "");
 const SNOUT_BIN = process.env.SNOUT_BIN || join(REPO, "dist/snout.mjs");
+const FAST = !args["command-hooks"];
+await isolateSnout("snout-long-config-");
+const { gateEntries, squeezeEntries, installGate } = await import("../dist/lib.mjs");
 
 // ------------------------------------------------------------------ fixture
 
@@ -273,13 +281,21 @@ function makeFixture(arm, task) {
     writeFileSync(join(dir, rel), body);
   }
   const post = { type: "command", command: `node "${SNOUT_BIN}" post-tool`, timeout: 10, async: true };
-  const hooks = { PostToolUse: [{ matcher: "Read|NotebookRead|Bash|Grep|Glob|WebFetch|WebSearch|mcp__.*", hooks: [post] }] };
+  const hooks = arm === "off"
+    ? { PostToolUse: [{ matcher: "Read|NotebookRead|Bash|Grep|Glob|WebFetch|WebSearch|mcp__.*", hooks: [post] }] }
+    : shippedClaudeHooks(REPO, SNOUT_BIN);
   // "concise" is enforce plus the opt-in concise output instruction, to measure that lever alone.
   if (arm === "enforce" || arm === "concise") {
-    hooks.SessionStart = [{ hooks: [{ type: "command", command: `node "${SNOUT_BIN}" session-start`, timeout: 10 }] }];
-    hooks.PreToolUse = gateEntries(SNOUT_BIN);
-    hooks.PostToolUse.push(...squeezeEntries(SNOUT_BIN));
-    hooks.PreCompact = [{ hooks: [{ type: "command", command: `node "${SNOUT_BIN}" pre-compact`, timeout: 10 }] }];
+    if (FAST) {
+      const local = join(dir, ".claude/settings.local.json");
+      installGate(dir, SNOUT_BIN, true);
+      const installed = JSON.parse(readFileSync(local, "utf8")).hooks;
+      rmSync(local);
+      for (const [event, entries] of Object.entries(installed)) hooks[event] = [...(hooks[event] ?? []), ...entries];
+    } else {
+      hooks.PreToolUse = gateEntries(SNOUT_BIN);
+      hooks.PostToolUse.push(...squeezeEntries(SNOUT_BIN));
+    }
   }
   mkdirSync(join(dir, ".claude"), { recursive: true });
   writeFileSync(join(dir, ".claude/settings.json"), JSON.stringify({ hooks }, null, 2));
@@ -305,7 +321,7 @@ function runOne(task, arm) {
   const dir = makeFixture(arm, task);
   const started = Date.now();
   const r = spawnSync(
-    "claude",
+    CLAUDE,
     [
       "-p", TASKS[task],
       "--output-format", "json",
@@ -462,7 +478,7 @@ function main() {
     const row = runOne(t, a);
     rows.push(row);
     // Saved after every run, so an interrupted benchmark keeps what it measured.
-    writeFileSync(outFile, JSON.stringify({ model: MODEL, n: N, measuredAt: new Date().toISOString(), rows }, null, 2));
+    writeFileSync(outFile, JSON.stringify({ model: MODEL, n: N, measuredAt: new Date().toISOString(), ...stamp(), rows }, null, 2));
     process.stderr.write(`${row.pass ? "pass" : `FAIL(${row.own ? "" : "task "}${row.suite ? "" : "suite"})`} · ${Math.round(row.inputTokens / 1000)}k in · ${row.outputTokens} out · ${row.turns} turns · $${row.costUsd.toFixed(3)}${row.withheld ? ` · ~${Math.round(row.withheld / 1000)}k kept out` : ""}\n`);
   });
   console.log(`\nFull results: ${outFile}`);

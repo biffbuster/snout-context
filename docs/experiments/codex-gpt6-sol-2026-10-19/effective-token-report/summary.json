@@ -1,0 +1,53 @@
+{
+  "files": [
+    "run.json"
+  ],
+  "base": "off",
+  "marginPts": 5,
+  "tasks": "all",
+  "metric": "effTokens",
+  "bootstrap": {
+    "resamples": 4000,
+    "seed": 20261013,
+    "unit": "task"
+  },
+  "comparisons": [
+    {
+      "base": "off",
+      "arm": "enforce",
+      "tasks": 3,
+      "attempts": {
+        "off": 9,
+        "enforce": 9
+      },
+      "solved": {
+        "off": 9,
+        "enforce": 9
+      },
+      "meanCostPerAttempt": {
+        "off": 23687.11111111111,
+        "enforce": 17797.11111111111
+      },
+      "costPerSolved": {
+        "off": 23687.11111111111,
+        "enforce": 17797.11111111111
+      },
+      "solvedDiffPts": 0,
+      "solvedDiffCi": [
+        -63.159685013596125,
+        0
+      ],
+      "qualityLowerBoundMethod": "one-sided exact zero-harm bound by unique task",
+      "costPerSolvedChangePct": -24.865843590513357,
+      "costPerSolvedCi": [
+        -38.00088329732504,
+        3.116147308781869
+      ],
+      "marginPts": 5,
+      "noQualityLoss": false,
+      "saving": false
+    }
+  ],
+  "excluded": 0,
+  "unscored": 0
+}

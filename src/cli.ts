@@ -57,11 +57,12 @@ import { auditCi, renderCi } from "./audit/ci.js";
 import { docWindow, type DocWindow } from "./gate/longdoc.js";
 import { captureSession, cardFiles, COMMITS, embedKey, embedText, forgetCard, hybridRecall, linkCommit, listCards, packVector, readCards, readVectors, recall, renderRecall, repoBrief, shareMemory, unpackVector, writeVectors, type Vectors } from "./memory/memory.js";
 import { readRecallDecisions, recallOutcomes, recordRecallDecision, summarizeRecall, type RecallReason } from "./memory/receipts.js";
+import { forgetPref, judgeAndSave, prefCandidates, readPrefs, renderPrefs } from "./memory/prefs.js";
 import { installModel, loadEmbedder, MODEL, modelDir, modelReady, QUERY_PREFIX, removeModel } from "./memory/embed.js";
 import { buildMap, candidates, renderCandidates, shouldSuggest, type RepoMap } from "./map/map.js";
 import { forgetReads, rememberRead, repeatOf, repeatOutput, requestedWindow, returnedWindow } from "./gate/repeat.js";
 
-const VERSION = "0.3.0";
+const VERSION = "0.3.1";
 /** This bundle, by absolute path: what the gate hook and the login flow run. */
 const BIN = resolve(process.argv[1] ?? "dist/snout.mjs");
 
@@ -343,7 +344,7 @@ function dispatch(command: string, input: HookInput): void {
     case "memory": return cmdMemory(paths, cfg, process.argv.slice(3));
     case "recall": return cmdRecall(paths, process.argv.slice(3));
     case "fast": return cmdFast(paths, cfg, process.argv[3]);
-    case "version": return say(`snout ${VERSION}`);
+    case "version": case "--version": case "-v": return say(`snout ${VERSION}`);
     case "status": return cmdStatus(paths, cfg);
     case "help": case "--help": case "-h": return say(HELP);
     default: return say(`snout: unknown command "${safeText(command, 30)}".\n\n${HELP}`);
@@ -562,7 +563,8 @@ function startBrief(input: HookInput, paths: Paths, cfg: Config, session: string
   const source = input.source ?? input.session_start_reason;
   if (cfg.memory === false || cfg.mode === "observe" || (source && source !== "startup" && source !== "clear")) return "";
   try {
-    const text = repoBrief(readCards(paths.snoutDir).filter((c) => c.session !== session), { projectDir: paths.projectDir, instructions: instructionText(paths.projectDir) });
+    const brief = repoBrief(readCards(paths.snoutDir).filter((c) => c.session !== session), { projectDir: paths.projectDir, instructions: instructionText(paths.projectDir) });
+    const text = [brief, renderPrefs(readPrefs(paths.snoutDir))].filter(Boolean).join("\n\n");
     if (text) appendRow(join(paths.snoutDir, "recall.jsonl"), { ts: new Date().toISOString(), session, turn: 0, kind: "brief", tokensEst: estimateTokens(Buffer.byteLength(text), "x.txt") });
     return text;
   } catch (err) {
@@ -1049,6 +1051,15 @@ function captureCard(input: HookInput, paths: Paths, cfg: Config, session: strin
   try {
     const facts = client === "codex" ? codexSessionFacts(input.transcript_path, paths.projectDir) : sessionFacts(input.transcript_path, paths.projectDir);
     captureSession(paths.snoutDir, paths.projectDir, session, agentName(), facts);
+    // Opt-in: one Jev call for the sentences not judged before. Stop is the turn's end, so the
+    // agent waits on nothing, and the call has a hard 5 s timeout.
+    if (cfg.memoryJudge === "jev" && process.env.TYPESAFE_API_KEY) {
+      try {
+        judgeAndSave(paths.snoutDir, session, prefCandidates([...facts.rules, facts.request, facts.goal]));
+      } catch (err) {
+        recordError("memoryJudge", err);
+      }
+    }
   } catch (err) {
     recordError("memoryCapture", err);
   }
@@ -1104,6 +1115,23 @@ function cmdMemory(paths: Paths, cfg: Config, args: string[]): void {
     const text = repoBrief(readCards(paths.snoutDir), { projectDir: paths.projectDir, instructions: instructionText(paths.projectDir) });
     return say(text || "No brief yet: a fact needs to show up in two or more sessions first.");
   }
+  if (v === "judge") {
+    const w = args[1];
+    if (w !== "jev" && w !== "off") return say(`Preference judge is ${cfg.memoryJudge === "jev" ? "jev" : "off"}.\nUsage: snout memory judge jev|off`);
+    setConfigKey(paths.config, "memoryJudge", w);
+    return say(w === "jev"
+      ? `Preference judge on. After each turn, the user's new instruction sentences (up to 6) go to TypeSafe Jev in one call; those it rates 0.8 or higher as lasting preferences are saved to .snout/memory/preferences.json and shown at the start of later sessions.${process.env.TYPESAFE_API_KEY ? "" : "\nSet TYPESAFE_API_KEY first: without it nothing is sent and nothing is judged."}`
+      : "Preference judge off. Nothing is sent; saved preferences stay and are still shown. See them with: snout memory prefs");
+  }
+  if (v === "prefs") {
+    if (args[1] === "forget") {
+      const gone = forgetPref(paths.snoutDir, Number(args[2]));
+      return say(gone ? `Forgot: "${safeText(gone.text, 120)}"` : "Usage: snout memory prefs forget <n> (n from snout memory prefs)");
+    }
+    const prefs = readPrefs(paths.snoutDir);
+    if (!prefs.length) return say(`No saved preferences. ${cfg.memoryJudge === "jev" ? "The judge is on; they appear after a session states one." : "Turn on the judge with: snout memory judge jev"}`);
+    return say([`${prefs.length} saved preference${prefs.length === 1 ? "" : "s"} (judge ${cfg.memoryJudge === "jev" ? "on" : "off"}):`, ...prefs.map((p, i) => `  ${String(i + 1).padStart(2)}. ${safeText(p.text, 120)}  (${p.p}, ${p.ts.slice(0, 10)})`), "", "Forget one with: snout memory prefs forget <n>"].join("\n"));
+  }
   if (v === "forget") {
     const id = args[1];
     if (!id) return say("Usage: snout memory forget <session>");
@@ -1113,7 +1141,7 @@ function cmdMemory(paths: Paths, cfg: Config, args: string[]): void {
   const head = `Memory is ${cfg.memory === false ? "off" : "on"} · ${cards.length} card${cards.length === 1 ? "" : "s"} in ${toRel(join(paths.snoutDir, "memory"), paths.projectDir)}`;
   const rows = cards.slice(0, 20).map((c) => `  ${c.updated.slice(0, 10)}  ${c.agent.padEnd(6)} ${safeText(c.session, 36)}  ${safeText(c.task ?? c.commits[0]?.subject ?? "", 70)}${c.commits.length ? `  [${c.commits.map((k) => k.sha.slice(0, 7)).join(" ")}]` : ""}`);
   const ranks = modelReady() ? "words and meaning (memory model installed)" : "words (snout memory model install adds meaning)";
-  say([head, `Recall ranks by ${ranks}`, ...recallStatsLines(paths, cards), ...rows, "", 'Usage: snout memory on|off · snout memory brief · snout memory share · snout memory forget <session> · snout memory model [install|remove] · snout recall "<request>"'].join("\n"));
+  say([head, `Recall ranks by ${ranks}`, ...recallStatsLines(paths, cards), ...rows, "", 'Usage: snout memory on|off · snout memory brief · snout memory share · snout memory judge jev|off · snout memory prefs [forget <n>] · snout memory forget <session> · snout memory model [install|remove] · snout recall "<request>"'].join("\n"));
 }
 
 /** How recall has done in this repo: when it spoke, whether its files were used; when silent, what it missed. */

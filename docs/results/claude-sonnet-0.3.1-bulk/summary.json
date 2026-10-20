@@ -1,0 +1,64 @@
+{
+  "files": [
+    "run-sonnet-1792440413748.json"
+  ],
+  "base": "off",
+  "marginPts": 5,
+  "tasks": [
+    "orders",
+    "money",
+    "crash",
+    "overview",
+    "deps",
+    "suite",
+    "issue7",
+    "issue45",
+    "usersRead",
+    "usersCompound"
+  ],
+  "metric": "costUsd",
+  "bootstrap": {
+    "resamples": 4000,
+    "seed": 20261013,
+    "unit": "task"
+  },
+  "comparisons": [
+    {
+      "base": "off",
+      "arm": "enforce",
+      "tasks": 10,
+      "attempts": {
+        "off": 50,
+        "enforce": 50
+      },
+      "solved": {
+        "off": 50,
+        "enforce": 50
+      },
+      "meanCostPerAttempt": {
+        "off": 0.12571000599999999,
+        "enforce": 0.086877604
+      },
+      "costPerSolved": {
+        "off": 0.12571000599999999,
+        "enforce": 0.086877604
+      },
+      "solvedDiffPts": 0,
+      "solvedDiffCi": [
+        -25.88655508930523,
+        0
+      ],
+      "qualityLowerBoundMethod": "one-sided exact zero-harm bound by unique task",
+      "costPerSolvedChangePct": -30.89046229144241,
+      "costPerSolvedCi": [
+        -44.571068413831526,
+        -10.190507890940614
+      ],
+      "marginPts": 5,
+      "noQualityLoss": false,
+      "saving": true
+    }
+  ],
+  "excluded": 0,
+  "unscored": 0
+}
