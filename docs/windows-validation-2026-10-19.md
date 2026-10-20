@@ -1,5 +1,7 @@
 # Windows validation and handoff — 2026-10-19
 
+> Historical audit snapshot taken before the clean 140-session 0.3.1 run. Its pending-score and uncommitted-candidate statements describe that earlier point in time. See [current claims](claims.md) and [benchmark status](benchmark.md) for the current result.
+
 Repository: `claude/launch-cleanup`, with intentional uncommitted 0.3.1 candidate work. No commit, push, or paid agent run was made during this audit.
 
 ## Evidence inventory

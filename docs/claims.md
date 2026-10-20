@@ -14,7 +14,7 @@ Claude Code with Sonnet, billed through the API, on one Windows machine. The 14 
 
 The interval for all 14 tasks lies entirely below zero, which meets the protocol's rule for a savings claim. Intervals are paired task-bootstrap intervals from `bench/report.mjs`.
 
-One task cost more with Snout on: `deps`, +20% over its 5 pairs. Snout withheld and trimmed nothing in those sessions; the extra cost came from extra turns.
+Five of the 14 tasks cost more with Snout on: `deps` +20.4%, `pricing` +7.6%, `usersCompound` +6.2%, `users` +5.8%, and `cart` +3.8% over their five pairs. `deps` had no Snout denials or trims; its turns rose from 34 to 40 across the five pairs.
 
 Quality: every attempt passed in both arms. That is not enough to claim no quality loss. With 14 tasks the protocol's one-sided 95% lower bound is −19.3 points, below the −5 point margin set before the run.
 
