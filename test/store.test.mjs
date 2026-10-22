@@ -232,7 +232,7 @@ test("a 'not installed' note is archived once the tool is on PATH, and not saved
 
 test("onPath finds a program the way a shell would, extension included on Windows", () => {
   const dir = mkdtempSync(join(tmpdir(), "snout-path-"));
-  writeFileSync(join(dir, "gofake.exe"), "");
+  writeFileSync(join(dir, "gofake.EXE"), ""); // PATHEXT's case, so it also matches where file names are case-sensitive (CI on Linux)
   mkdirSync(join(dir, "adir"));
   assert.equal(onPath("gofake", { PATH: dir, PATHEXT: ".EXE;.CMD" }, "win32"), true);
   assert.equal(onPath("gofake", { PATH: dir }, "linux"), false, "no extension search off Windows");

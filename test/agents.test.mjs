@@ -5,7 +5,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { boundedPowerShellRead, fromInternal, powerShellDumpTargets } from "../dist/lib.mjs";
@@ -310,7 +310,8 @@ test("init registers Snout's MCP server in every client's own config, keeps othe
   const cursor = json(readFileSync(join(root, ".cursor", "mcp.json"), "utf8"));
   assert.deepEqual(Object.keys(cursor.mcpServers).sort(), ["github", "snout"], "another server stays");
   assert.equal(cursor.mcpServers.snout.type, "stdio");
-  assert.deepEqual(cursor.mcpServers.snout.args.slice(1), ["mcp", root]);
+  // The project as the CLI resolves it: on macOS the temp folder /var/... is really /private/var/...
+  assert.deepEqual(cursor.mcpServers.snout.args.slice(1), ["mcp", realpathSync(root)]);
   const vscode = json(readFileSync(join(root, ".vscode", "mcp.json"), "utf8"));
   assert.equal(vscode.servers.snout.type, "stdio", "VS Code's own format: servers, not mcpServers");
   const gemini = json(readFileSync(join(root, ".gemini", "settings.json"), "utf8"));
