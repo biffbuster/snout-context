@@ -7,7 +7,7 @@ it do.
 | --- | --- | --- | --- |
 | Claude Code | Plugin hooks | Trims bulk reads, attaches an outline | Tested live |
 | Gemini CLI | `BeforeTool` / `AfterTool` hooks | Trims bulk reads by rewriting offset and limit | Tested against the documented hook format |
-| Codex CLI | `PreToolUse` / `PostToolUse` / `SessionStart` / `UserPromptSubmit` / `Stop` hooks | Denies ambiguous bulk prints; trims a single literal PowerShell generated/vendored read; restores bounded context after compaction; session memory | Deny, 60-line trim and manual compaction tested live on Windows |
+| Codex CLI | `PreToolUse` / `PostToolUse` / `SessionStart` / `UserPromptSubmit` / `Stop` hooks | Denies ambiguous bulk prints; trims a single literal PowerShell generated/vendored read; session memory | Deny, 60-line trim and manual compaction tested live on Windows |
 | Cursor | `beforeReadFile` / `beforeShellExecution` hooks | Denies bulk reads (Cursor hooks can't trim) | Tested against the documented hook format |
 | Copilot, Windsurf, Cline, Zed and other MCP clients | MCP server | Offers `snout_read`, which returns bulk files as head plus outline | Tested with a scripted MCP session |
 

@@ -1,11 +1,11 @@
-// Codex session files read for memory after compaction: the formats memory.test.mjs doesn't cover,
+// Codex session files read for memory cards: the formats memory.test.mjs does not cover,
 // shaped like real codex-cli and Codex desktop 0.153 records (`~/.codex/sessions`).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { codexSessionFacts, memoryText } from "../dist/lib.mjs";
+import { codexSessionFacts } from "../dist/lib.mjs";
 
 const line = (type, payload) => ({ timestamp: "2026-10-13T10:00:00.000Z", type, payload });
 const said = (text, kinds) => line("response_item", { type: "message", role: "user", content: [{ type: "input_text", text }], ...(kinds ? { internal_chat_message_metadata_passthrough: { content_item_kinds: kinds } } : {}) });
@@ -49,7 +49,6 @@ test("codex desktop: shell_command, a freeform patch, and a node --test failure 
   assert.deepEqual(f.missing, [{ name: "pytest", evidence: "pytest: command not found" }]);
   assert.deepEqual(f.test, { command: "node --test test/money.test.js", result: "ℹ pass 3 · ℹ fail 1" });
   assert.deepEqual(f.error, { line: "TypeError: round is not a function", command: "node --test test/money.test.js" });
-  assert.match(memoryText(f, [], dir), /Tests run here with: `node --test test\/money\.test\.js`/);
 });
 
 test("codex desktop: code-mode cells are read for commands, patches and the plan", () => {

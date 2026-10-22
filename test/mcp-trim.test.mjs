@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { trimMcp } from "../dist/lib.mjs";
 
 const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
@@ -32,7 +32,7 @@ test("a GitHub issue list keeps its first 20 issues, each shortened, and indexes
   assert.equal(data[21 + (45 - 20)], "number=1045 · title=Checkout fails when cart has 45 items · state=closed");
   assert.match(data[0].body, /… \(\d+ chars\)$/);
   assert.equal(data[0].user.login, "dev0", "structure and short fields are kept");
-  assert.match(t.output.at(-1).text, /Full result: \.snout\/squeeze\/x\.json/);
+  assert.match(t.output.at(-1).text, /Full result, as searchable text: \.snout\/squeeze\/x\.json \(grep it/);
   assert.ok(t.afterChars < t.beforeChars * 0.3, `cut to ${Math.round((t.afterChars / t.beforeChars) * 100)}%`);
 });
 
@@ -70,7 +70,11 @@ test("the hook trims an MCP result in its own shape, saves the full result, and 
   assert.equal(JSON.parse(u[0].text).length, 61);
   const saved = readdirSync(join(root, ".snout/squeeze"));
   assert.equal(saved.length, 1);
-  assert.equal(JSON.parse(JSON.parse(readFileSync(join(root, ".snout/squeeze", saved[0]), "utf8")).output[0].text).length, 60, "the full result is on disk");
+  const file = u.at(-1).text.match(/searchable text: (\S+)/)[1];
+  assert.ok(isAbsolute(file) && !file.includes("\\"), "the note names an absolute path with forward slashes");
+  const text = readFileSync(file, "utf8");
+  assert.match(text, /^# mcp__github__list_issues\n# input: \{"repo":"acme\/shop"\}\n/);
+  assert.match(text, /\n {2}"body": "Steps to reproduce:\\n1\. Add 59 items/, "the full result is on disk, one field per line, so grep finds a body the trim cut");
   const row = JSON.parse(readFileSync(join(root, ".snout/ledger.jsonl"), "utf8").trim().split("\n").pop());
   assert.equal(row.rule, "mcp-output");
   assert.equal(row.path, "mcp: github › list_issues");

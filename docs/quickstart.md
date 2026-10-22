@@ -14,7 +14,7 @@ the optional prompt coach and local memory-model download use the network only w
 
 ## Check it is working
 
-```
+```text
 /snout:doctor
 ```
 
@@ -23,7 +23,7 @@ the optional prompt coach and local memory-model download use the network only w
 
 ## See what it found
 
-```
+```text
 /snout:report
 ```
 
@@ -32,7 +32,7 @@ read anything.
 
 ## Put the counter on screen
 
-```
+```text
 /snout:statusline
 ```
 
@@ -45,7 +45,7 @@ before anything is changed.
 The default mode, observe, records but never changes what the agent sees. After your first session
 Snout tells you what it would have kept out. When you trust the numbers:
 
-```
+```text
 /snout:mode enforce    # trim low-value reads and results; your code still comes through whole
 ```
 
@@ -66,7 +66,7 @@ would get. Using Codex in the same project too? `snout init codex` gives it the 
 
 ## When it gets something wrong
 
-```
+```text
 /snout:explain path/to/file      # why was this classified that way?
 /snout:allow  path/to/file       # never flag this again
 ```

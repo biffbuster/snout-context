@@ -1,12 +1,13 @@
-// Project memory restored after compaction: exact facts from the session and .snout/pins.md.
+// Session facts by fixed rules (test command, missing tools, instructions, errors). Memory cards are
+// built from them. After a compaction Claude Code's own summary carries on; Snout adds nothing.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, utimesSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { sessionFacts, codexSessionFacts, readPins, memoryText, testCommand, readProgress } from "../dist/lib.mjs";
+import { sessionFacts, codexSessionFacts, testCommand } from "../dist/lib.mjs";
 
 const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 const use = (id, name, input) => ({ type: "assistant", message: { content: [{ type: "tool_use", id, name, input }] } });
@@ -39,82 +40,17 @@ test("facts from before the compaction survive verbatim: the test command, what'
   assert.deepEqual(f.slow, ["python bin/test sympy/polys"]);
   assert.deepEqual(f.changed, ["sympy/matrices/normalforms.py"]);
   assert.equal(f.request, "Issue 1: fix the HNF rank bug", "the compaction summary is not a request");
-  const text = memoryText(f, [], dir);
-  assert.match(text, /Tests run here with: `python bin\/test sympy\/matrices\/tests\/test_normalforms\.py`/);
-  assert.match(text, /Not available here: pytest \(No module named pytest\)/);
-  assert.match(text, /Ran past the 2-minute tool limit here .*`python bin\/test sympy\/polys`/);
 });
 
-test("pins come verbatim, and a re-read pin brings its file from disk, not an older copy", () => {
-  const dir = mkdtempSync(join(tmpdir(), "snout-pins-"));
-  mkdirSync(join(dir, ".snout"));
-  writeFileSync(join(dir, "settings.py"), "DEBUG = False\nDB = 'postgres'\nSECRET_PATH = '/etc/x'\n");
-  writeFileSync(join(dir, ".snout", "pins.md"), "# pins\n- `settings.py` — deploy config [re-read 2]\n- Never run migrations against prod\n- `gone.py` — removed [re-read 5]\n");
-  const pins = readPins(dir, join(dir, ".snout"));
-  assert.equal(pins.length, 3);
-  const text = memoryText({ missing: [], slow: [], changed: [], todos: [] }, pins, dir);
-  assert.match(text, /- `settings\.py` — deploy config\n {2}```\n {2}DEBUG = False\n {2}DB = 'postgres'\n {2}```/);
-  assert.doesNotMatch(text, /SECRET_PATH/, "only the first N lines");
-  assert.match(text, /- Never run migrations against prod/);
-  assert.match(text, /not on disk now: gone\.py/);
-});
-
-test("a re-read pin never brings a credential file's contents into context", () => {
-  const dir = mkdtempSync(join(tmpdir(), "snout-pin-secret-"));
-  mkdirSync(join(dir, ".snout"));
-  writeFileSync(join(dir, ".env"), "API_KEY=sk-live-123\n");
-  writeFileSync(join(dir, ".env.example"), "API_KEY=\n");
-  writeFileSync(join(dir, ".snout", "pins.md"), "- `.env` — keys [re-read 5]\n- `.env.example` — template [re-read 5]\n");
-  const text = memoryText({ missing: [], slow: [], changed: [], todos: [] }, readPins(dir, join(dir, ".snout")), dir, { redact: ["**/.env", "**/.env.*"], redactExempt: ["**/.env.example"] });
-  assert.doesNotMatch(text, /sk-live-123/);
-  assert.match(text, /contents not restored: the file matches a credential pattern/);
-  assert.match(text, /API_KEY=\n/, "an exempt template is still restored");
-});
-
-test("the restored block stays under its cap however long the session is", () => {
-  const dir = mkdtempSync(join(tmpdir(), "snout-cap-"));
-  const f = { request: "x".repeat(400), missing: [], slow: [], changed: Array.from({ length: 500 }, (_, i) => `src/file${i}.py`), todos: Array.from({ length: 50 }, (_, i) => `todo ${i}`) };
-  assert.ok(memoryText(f, [], dir).length <= 6000);
-});
-
-test("instructions are never what the cap cuts, and the changed-file list takes the room that is left", () => {
-  const dir = mkdtempSync(join(tmpdir(), "snout-cap-"));
-  const rules = ["Never push to main without asking first.", "Always run the tests before you say a task is done.", "Actually, do push once the tests pass."];
-  const f = { request: "x".repeat(400), rules, missing: [], slow: [], changed: Array.from({ length: 500 }, (_, i) => `src/module${i}/file${i}.py`), todos: [] };
-  const text = memoryText(f, [], dir, undefined, "p".repeat(1500));
-  assert.ok(text.length <= 6000);
-  for (const r of rules) assert.ok(text.includes(r), `kept: ${r}`);
-  assert.match(text, /where two conflict, the later one holds/);
-  const listed = text.match(/Files changed this session: (.*) \(and (\d+) more\)/);
-  assert.ok(listed, "says how many files did not fit");
-  assert.ok(listed[1].split(", ").length > 12, "more than the old fixed 12 when there is room");
-  assert.equal(listed[1].split(", ")[0], "src/module0/file0.py", "most recent first");
-  assert.equal(listed[1].split(", ").length + Number(listed[2]), 500);
-});
-
-test("SessionStart after a compaction adds the facts to context when Snout is on, and nothing in observe", () => {
+test("SessionStart after a compaction adds nothing: Claude Code's summary carries on", () => {
   const dir = mkdtempSync(join(tmpdir(), "snout-mem-cli-"));
   const transcript = session(dir);
-  const run = (mode) => {
-    mkdirSync(join(dir, ".snout"), { recursive: true });
-    writeFileSync(join(dir, ".snout", "config.json"), JSON.stringify({ mode }));
-    const input = JSON.stringify({ hook_event_name: "SessionStart", source: "compact", session_id: "s1", transcript_path: transcript, cwd: dir });
-    return spawnSync(process.execPath, [CLI, "session-start"], { cwd: dir, input, encoding: "utf8", env: { ...process.env, SNOUT_MODE: "" } }).stdout;
-  };
-  const on = JSON.parse(run("enforce"));
-  assert.equal(on.hookSpecificOutput.hookEventName, "SessionStart");
-  assert.match(on.hookSpecificOutput.additionalContext, /Tests run here with: `python bin\/test/);
-  const off = run("observe");
-  assert.doesNotMatch(off, /additionalContext/);
-});
-
-test("with SNOUT_DIR the restore asks for progress notes where Snout keeps its records", () => {
-  const dir = mkdtempSync(join(tmpdir(), "snout-mem-dir-"));
-  const elsewhere = mkdtempSync(join(tmpdir(), "snout-mem-out-"));
-  const transcript = session(dir);
+  mkdirSync(join(dir, ".snout"), { recursive: true });
+  writeFileSync(join(dir, ".snout", "config.json"), JSON.stringify({ mode: "enforce" }));
   const input = JSON.stringify({ hook_event_name: "SessionStart", source: "compact", session_id: "s1", transcript_path: transcript, cwd: dir });
-  const out = JSON.parse(spawnSync(process.execPath, [CLI, "session-start"], { cwd: dir, input, encoding: "utf8", env: { ...process.env, SNOUT_MODE: "enforce", SNOUT_DIR: elsewhere } }).stdout);
-  assert.ok(out.hookSpecificOutput.additionalContext.includes(`Keep \`${join(elsewhere, "progress.md").replace(/\\/g, "/")}\` current`));
+  const r = spawnSync(process.execPath, [CLI, "session-start"], { cwd: dir, input, encoding: "utf8", env: { ...process.env, SNOUT_MODE: "" } });
+  assert.equal(r.status, 0, r.stderr);
+  assert.doesNotMatch(r.stdout, /additionalContext/);
 });
 
 test("only a real test-runner run counts as how tests run, not a script that mentions one", () => {
@@ -151,25 +87,6 @@ test("a wrong import path inside the project is not reported as a missing tool",
   const f = sessionFacts(file, dir);
   assert.deepEqual(f.missing.map((m) => m.name), ["numpy"]);
   assert.equal(f.test?.command, "python bin/test sympy/core", "a wrong import path in the same command doesn't hide the test run");
-});
-
-test("the agent's progress notes come back first after a compaction; notes from before this session don't", () => {
-  const dir = mkdtempSync(join(tmpdir(), "snout-progress-"));
-  const snout = join(dir, ".snout");
-  mkdirSync(snout);
-  writeFileSync(join(snout, "progress.md"), "Goal: keep y - 1 in factor(extension=I)\nApproach: split off the content with dmp_primitive\nFailed: dmp_raise made y the main variable\nNext: run test_factortools only");
-  const since = Date.now() - 60_000;
-  const progress = readProgress(snout, since);
-  const text = memoryText({ missing: [], slow: [], changed: ["a.py"], todos: [] }, [], dir, undefined, progress);
-  assert.ok(text.indexOf("Approach: split off the content") < text.indexOf("Files changed"), "progress before the facts");
-  assert.match(text, /Keep `\.snout\/progress\.md` current/);
-  const old = (Date.now() - 3_600_000) / 1000;
-  utimesSync(join(snout, "progress.md"), old, old);
-  assert.equal(readProgress(snout, since), undefined, "a file last written before the session began is someone else's work");
-  // The ask survives the cap.
-  const long = memoryText({ request: "x".repeat(400), missing: [], slow: [], changed: Array.from({ length: 500 }, (_, i) => `src/f${i}.py`), todos: [] }, [], dir, undefined, "p".repeat(5000));
-  assert.ok(long.length <= 6000);
-  assert.match(long, /Keep `\.snout\/progress\.md` current.*next compaction\.$/);
 });
 
 test("a python script that mentions a runner is not squeezed as a test run", async () => {
@@ -225,7 +142,6 @@ test("the user's instructions come back verbatim, not the pasted issue or questi
   const facts = sessionFacts(file, dir);
   assert.deepEqual(facts.rules, ["Make sure the commit message is short.", "ok, also keep the README untouched.", "Do not modify the existing tests.", "Never push to main."]);
   assert.equal(facts.request, "Never push to main.");
-  assert.match(memoryText(facts, [], dir), /Your instructions this session, verbatim[^\n]*\n- Make sure the commit message is short\./);
 });
 
 test("the first request and the last unresolved error come back; a passing run or a clean rerun clears the error", () => {
@@ -242,10 +158,7 @@ test("the first request and the last unresolved error come back; a passing run o
   let f = sessionFacts(write(rows), dir);
   assert.deepEqual(f.error, { line: "ValueError: naive datetime is not allowed", command: "python repro.py" }, "a printed file is not an error");
   assert.equal(f.goal, "Fix the timezone bug in the scheduler, then make the docs build again.");
-  const text = memoryText(f, [], dir);
-  assert.match(text, /Last error, not yet followed by a passing run: ValueError: naive datetime is not allowed \(from `python repro\.py`\)/);
-  assert.match(text, /First request this session: Fix the timezone bug/);
-  assert.match(text, /Current request: Also keep the public API unchanged\./);
+  assert.equal(f.request, "Also keep the public API unchanged.");
 
   rows.push(use("c", "Bash", { command: "python -m pytest tests/test_sched.py" }), result("c", "FAILED tests/test_sched.py::test_tz - AssertionError\n==== 1 failed, 4 passed in 0.3s ===="));
   f = sessionFacts(write(rows), dir);
@@ -256,7 +169,6 @@ test("the first request and the last unresolved error come back; a passing run o
 
   rows.push(use("e", "Bash", { command: "python repro.py" }), result("e", "Traceback (most recent call last):\nValueError: naive datetime is not allowed"), use("f", "Bash", { command: "python repro.py" }), result("f", "ok"));
   assert.equal(sessionFacts(write(rows), dir).error, undefined, "the same command running clean clears it");
-  assert.doesNotMatch(memoryText(sessionFacts(write([prompt("Make the docs build again.")]), dir), [], dir), /First request/, "one request is not repeated");
 });
 
 test("in a transcript too long to read whole, the first request still comes from its start", () => {
@@ -270,7 +182,7 @@ test("in a transcript too long to read whole, the first request still comes from
   assert.equal(f.request, "Now update the changelog.");
 });
 
-test("Codex rollout restores the same test and missing-tool facts at SessionStart", () => {
+test("Codex rollout gives the same test and missing-tool facts; SessionStart after a compaction adds nothing", () => {
   const dir = mkdtempSync(join(tmpdir(), "snout-codex-mem-"));
   mkdirSync(join(dir, ".snout"));
   const file = join(dir, "rollout.jsonl");
@@ -284,29 +196,16 @@ test("Codex rollout restores the same test and missing-tool facts at SessionStar
     { type: "compacted", payload: {} },
   ].map(JSON.stringify).join("\n") + "\n");
   writeFileSync(join(dir, ".snout", "config.json"), JSON.stringify({ mode: "enforce" }));
-  writeFileSync(join(dir, ".snout", "pins.md"), "- `.env` — credentials [re-read 5]\n");
-  writeFileSync(join(dir, ".env"), "API_KEY=secret-do-not-restore\n");
   const facts = codexSessionFacts(file, dir);
   assert.equal(facts.request, "Fix the HNF rank bug");
   assert.equal(facts.test.command, "python bin/test sympy/matrices/tests/test_normalforms.py");
   assert.deepEqual(facts.missing, [{ name: "pytest", evidence: "No module named pytest" }]);
-  const run = (mode) => {
-    writeFileSync(join(dir, ".snout", "config.json"), JSON.stringify({ mode }));
-    return spawnSync(process.execPath, [CLI, "hook", "codex", "SessionStart"], { cwd: dir, input: JSON.stringify({ hook_event_name: "SessionStart", source: "compact", session_id: "s1", transcript_path: file, cwd: dir }), encoding: "utf8", env: { ...process.env, SNOUT_MODE: "" } });
-  };
-  const on = run("enforce");
-  assert.equal(on.status, 0, on.stderr);
-  const context = JSON.parse(on.stdout).hookSpecificOutput.additionalContext;
-  assert.match(context, /Tests run here with: `python bin\/test/);
-  assert.match(context, /Not available here: pytest/);
-  assert.doesNotMatch(context, /secret-do-not-restore/);
-  assert.match(context, /contents not restored: the file matches a credential pattern/);
-  const off = run("observe");
-  assert.equal(off.status, 0, off.stderr);
-  assert.doesNotMatch(off.stdout, /additionalContext/);
+  const r = spawnSync(process.execPath, [CLI, "hook", "codex", "SessionStart"], { cwd: dir, input: JSON.stringify({ hook_event_name: "SessionStart", source: "compact", session_id: "s1", transcript_path: file, cwd: dir }), encoding: "utf8", env: { ...process.env, SNOUT_MODE: "" } });
+  assert.equal(r.status, 0, r.stderr);
+  assert.doesNotMatch(r.stdout, /additionalContext/);
 });
 
-test("current Codex CommandExecution rollout records restore exact command results", () => {
+test("current Codex CommandExecution rollout records give exact command results", () => {
   const dir = mkdtempSync(join(tmpdir(), "snout-codex-current-"));
   const file = join(dir, "rollout.jsonl");
   const command = (cmd, output) => ({ type: "event_msg", payload: { type: "item_completed", item: { type: "CommandExecution", command: ["pwsh.exe", "-Command", cmd], status: "completed", aggregated_output: output } } });

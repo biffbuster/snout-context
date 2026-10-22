@@ -10,8 +10,6 @@
  *   - regret    how often what was kept out was needed after all: the agent later read or edited
  *               a file Snout held back, or re-ran a command whose output Snout trimmed. The
  *               false-positive rate of every gate, on real work.
- *   - memory    at each compaction: did the restored test command match the test runs that came
- *               next, and did the restored file list cover the files edited next.
  *
  * It cannot say whether the agent would still have finished the task: an agent that sees less
  * acts differently. That takes a live run.
@@ -20,7 +18,6 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import { estimateTokens } from "../ledger/tokens.js";
-import { memoryText, sessionFacts, testCommand } from "../compact/memory.js";
 
 /** The hook handlers, run in-process; each returns the hook's JSON answer or null. */
 export interface HookRunner {
@@ -56,14 +53,12 @@ export interface SessionReplay {
   /** Interventions that could regret (denials and trims). */
   interventions: number;
   compactions: number;
-  memory: { withTest: number; testUsed: number; testMissed: number; editsAfter: number; editsListed: number; chars: number };
   examples: { regret: string[]; kept: string[] };
 }
 
 const tokens = (text: string) => estimateTokens(Buffer.byteLength(text), "output.txt");
 const textOf = (content: unknown): string =>
   typeof content === "string" ? content : Array.isArray(content) ? content.map((p: any) => (typeof p?.text === "string" ? p.text : "")).join("\n") : "";
-const EDITS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
 /** A command without its leading `cd <dir> &&` / `;`, which most commands in a session share. */
 const withoutCd = (c: string) => c.replace(/^\s*cd\s+("[^"]*"|'[^']*'|\S+)\s*(&&|;)\s*/, "");
 
@@ -137,7 +132,6 @@ export function replaySession(file: string, run: HookRunner): SessionReplay {
   const r: SessionReplay = {
     session, file, projectDir, rebuilt: shadow?.files ?? 0, calls: 0, requests: 0, inputTokens: 0, keptOut: 0, carried: 0, denied: 0, narrowed: 0, repeats: 0, asked: 0, trimmed: 0, added: 0,
     regrets: 0, interventions: 0, compactions: 0,
-    memory: { withTest: 0, testUsed: 0, testMissed: 0, editsAfter: 0, editsListed: 0, chars: 0 },
     examples: { regret: [], kept: [] },
   };
 
@@ -259,35 +253,6 @@ export function replaySession(file: string, run: HookRunner): SessionReplay {
     }
   });
 
-  // Memory at each compaction: what would be restored, against what the agent did next.
-  if (boundaries.length) {
-    const dir = mkdtempSync(join(tmpdir(), "snout-replay-mem-"));
-    try {
-      for (const at of boundaries) {
-        const prefix = join(dir, "prefix.jsonl");
-        writeFileSync(prefix, lines.slice(0, at).map((l) => l.raw).join("\n") + "\n");
-        const facts = sessionFacts(prefix, projectDir);
-        const restored = memoryText(facts, [], projectDir);
-        r.memory.chars += restored.length;
-        const next = lines.slice(at + 1).flatMap(({ o }) => (Array.isArray(o.message?.content) ? o.message.content : [])).filter((b: any) => b?.type === "tool_use").slice(0, 40);
-        const runner = (c: string) => c.split(/\s+/).slice(0, 3).join(" ");
-        const testsNext = next.filter((b: any) => b.name === "Bash" && typeof b.input?.command === "string").map((b: any) => testCommand(b.input.command, projectDir)).filter(Boolean) as string[];
-        if (facts.test) {
-          r.memory.withTest++;
-          if (testsNext.some((t) => runner(t) === runner(facts.test!.command))) r.memory.testUsed++;
-        } else if (testsNext.length) r.memory.testMissed++;
-        const listed = new Set(facts.changed.filter((p) => restored.includes(p)));
-        for (const b of next) {
-          const p = b.input?.file_path;
-          if (!EDITS.has(b.name) || typeof p !== "string") continue;
-          r.memory.editsAfter++;
-          if (listed.has(rel(p))) r.memory.editsListed++;
-        }
-      }
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  }
   if (shadow) rmSync(shadow.root, { recursive: true, force: true });
   return r;
 }
@@ -373,8 +338,6 @@ export interface ReplayTotals {
   share: number;
   regretRate: number | null;
   compactions: number;
-  testRecall: number | null;
-  fileRecall: number | null;
 }
 
 export function totals(rows: SessionReplay[]): ReplayTotals {
@@ -382,8 +345,6 @@ export function totals(rows: SessionReplay[]): ReplayTotals {
   const input = sum((r) => r.inputTokens);
   const net = sum((r) => r.carried) - sum((r) => r.added);
   const interventions = sum((r) => r.interventions);
-  const withTest = sum((r) => r.memory.withTest);
-  const editsAfter = sum((r) => r.memory.editsAfter);
   return {
     sessions: rows.length,
     calls: sum((r) => r.calls),
@@ -394,8 +355,6 @@ export function totals(rows: SessionReplay[]): ReplayTotals {
     share: input ? net / input : 0,
     regretRate: interventions ? sum((r) => r.regrets) / interventions : null,
     compactions: sum((r) => r.compactions),
-    testRecall: withTest ? sum((r) => r.memory.testUsed) / withTest : null,
-    fileRecall: editsAfter ? sum((r) => r.memory.editsListed) / editsAfter : null,
   };
 }
 
@@ -414,7 +373,6 @@ export function renderReplay(rows: SessionReplay[]): string {
     `  would have saved               ${pct(t.share)} of input`,
     `  regret                         ${pct(t.regretRate)} of interventions were needed later`,
   ];
-  if (t.compactions) out.push(`  memory, ${t.compactions} compaction(s)   test command matched next runs ${pct(t.testRecall)} · files edited next listed ${pct(t.fileRecall)}`);
   const count = (f: (r: SessionReplay) => number) => rows.reduce((a, r) => a + f(r), 0);
   out.push(`  interventions                  ${count((r) => r.narrowed)} reads narrowed · ${count((r) => r.denied)} held back · ${count((r) => r.trimmed)} outputs trimmed · ${count((r) => r.repeats)} repeat reads`);
   out.push("", "  session       calls  input    saved   regret  compactions");

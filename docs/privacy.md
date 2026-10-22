@@ -22,6 +22,34 @@ lasting preference. Those rated 0.8 or higher are saved to `.snout/memory/prefer
 shown at the start of later sessions. `snout memory judge off` turns it off;
 `snout memory prefs forget <n>` removes one.
 
+## Notes (0.3.2, unreleased)
+
+Notes are written on your machine, by fixed rules with no model call. Who may see a note is stored
+with it as hashes of your git email and of the repository, never the email or path itself.
+
+- **Private notes** are kept in your user config folder (`%APPDATA%\snout\memory\` on Windows,
+  `~/.config/snout/memory/` elsewhere), never in the repository. They reach only your own sessions,
+  in Claude Code and Codex alike. Notes Snout writes on its own are private.
+- **Shared notes** exist only when you ask for one (`snout memory add --shared`, or
+  `snout memory share <id>`). They are kept in `.snout/memory/obs/` and reach anyone with the
+  repository once you commit them.
+- CI and token-only sessions get shared notes only.
+
+The MCP memory tools (`snout mcp`) read and write the same notes under the same rules. A note an
+agent saves without being asked stays a proposal, never recalled, until you run
+`snout memory accept <id>`.
+
+## Snout Cloud (opt-in, private beta)
+
+Nothing is sent unless you run `snout login` (or set `SNOUT_TOKEN`). Signing in sends a label for
+this machine, its hostname cut to 40 characters, so the team dashboard can tell machines apart.
+After that, `snout sync` sends per-day totals for each agent and label: read counts, tokens that
+reached context and tokens held back, and token usage and list-price cost per model from the
+agents' own logs. It also sends a hash of the project's git remote (or folder), the project's folder
+name, and a hash of the agent session. It never sends file contents, file paths, prompts, notes or
+command output. `snout sync --dry-run` prints the exact payload without sending it.
+`snout logout` deletes the saved credentials and disconnects the machine.
+
 ## Planned: semantic classification
 
 A planned opt-in tier will call `api.typesafe.ai`. What goes in the request is a **digest**, not the
@@ -79,13 +107,14 @@ semantic tier.
 | `memory/<session>.json` | One card per session: the start of your first and last request, the agent's last message, files changed, commits (sha, subject, files), test command, last error, instructions you gave, branch and git user name. `snout memory off` stops it. |
 | `recall.jsonl` | Which cards were recalled into which prompt, and their size. No prompt text. |
 | `memory-vectors.json` | Only with `snout memory model install`: a vector per card, computed on this machine. Not shared. |
+| `memory/obs/` | Shared notes, only those you shared. Private notes are in your user config folder, not here. |
 
 **File paths are recorded. File contents are not**, except the request text a memory card keeps.
 Add `.snout/` to your `.gitignore` — paths alone can reveal more about a private codebase than you
 would want in a commit. To share memory with a team, commit only `.snout/memory/`, after reading it.
 
-Nothing is uploaded, and there is no telemetry. `telemetry: "local-only"` is the only
-permitted value. `snout memory model install` is the one command that downloads (the library from
+Nothing is uploaded unless you sign in to Snout Cloud (above), and there is no telemetry.
+`telemetry: "local-only"` is the only permitted value. `snout memory model install` is the one command that downloads (the library from
 npm, the model from Hugging Face), and only when you run it.
 
 ## TypeSafe's side

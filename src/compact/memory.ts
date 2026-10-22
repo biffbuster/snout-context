@@ -1,31 +1,20 @@
 /**
- * Project memory restored after compaction. Measured failure (long-session benchmark, 2026-10-09):
- * after a compaction the agent forgot how the project's tests run, installed and ran another test
- * runner, and waited past the time limit. Claude Code's summary is a paraphrase; this restores a
- * few exact facts instead, right after compaction (SessionStart with source "compact"), with no
- * model and no search. Codex fires the same hook; its session file is read through compact/codex.ts.
+ * Session facts, taken by fixed rules from a session transcript (compactions included), with no model
+ * and no search: the test command that ran, tools the environment lacks, commands that ran too long
+ * for the tool's time limit, files changed, the session's first request and the current one, the
+ * user's instructions, the last error not yet followed by a passing run, and open to-dos. They fill
+ * each session's memory card (memory/memory.ts). Codex session files are read through compact/codex.ts.
  *
- * - session facts, taken by fixed rules from the whole session transcript (compactions included):
- *   the test command that ran, tools the environment lacks, commands that ran too long for the
- *   tool's time limit (the sympy failure: whole suites, then a 30-minute wait), files changed, the
- *   session's first request and the current one, the last error not yet followed by a passing run,
- *   and open to-dos;
- * - pins the user wrote in `.snout/pins.md`, verbatim; a pin marked `[re-read N]` brings the first N
- *   lines of its file from disk, so the content is current, not the pre-compaction copy.
- *
- * The block is capped (MAX_CHARS) so it stays constant as sessions grow. What would change the agent's
- * next answer comes first and is never what the cap cuts: the user's instructions (a later one holds
- * where two conflict), the agent's own notes, pins, then the facts; the list of changed files takes
- * whatever room is left, most recent first.
+ * Measured failure behind these rules (long-session benchmark, 2026-10-09): after a compaction the
+ * agent forgot how the project's tests run, installed and ran another test runner, and waited past
+ * the time limit.
  */
-import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } from "node:fs";
+import { closeSync, existsSync, openSync, readSync, statSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
-import { matchesAny } from "../util/glob.js";
 import { codexRows } from "./codex.js";
 
 const TAIL_BYTES = 16 * 1024 * 1024;
 const HEAD_BYTES = 2 * 1024 * 1024;
-export const MAX_CHARS = 6000; // ~1.5k tokens
 const TEST = /\b(pytest|runtests\.py|bin\/test|jest|vitest|mocha|go test|cargo test|(?:npm|pnpm|yarn)(?:\.cmd)? (?:run )?test|node --test|rspec|phpunit|tox|unittest)\b/;
 /** A test run that actually ran: the runner printed a count or a verdict. */
 const RAN = /\b\d+ (passed|failed|errors?|skipped)\b|\bRan \d+ tests?\b|tests finished|^OK\b|\bOK \(|^FAILED\b|\bTests?:\s+\d+|^[#ℹ]?\s*pass\s+\d+\s*$/m;
@@ -172,7 +161,7 @@ const MAX_RULES = 12;
  */
 const ERROR_LINE = /^(?:[\w.]+(?:Error|Exception)\b(?::.*)?|(?:FAILED|ERROR) [\w./:\[\]-]+.*|(?:FAIL|ERROR): \w+ \(.*|error\[\w+\]: .+|[^\s:]+:\d+(?::\d+)?: error: .+|(?:\S+:\s+)?error TS\d+: .+)$/;
 /** A test verdict with nothing failing. */
-const PASSED = (verdict: string) => RAN.test(verdict) && !/\b[1-9]\d* (failed|errors?)\b|FAILED|\b(failures|errors)=\d|\bfail [1-9]/i.test(verdict);
+export const PASSED = (verdict: string) => RAN.test(verdict) && !/\b[1-9]\d* (failed|errors?)\b|FAILED|\b(failures|errors)=\d|\bfail [1-9]/i.test(verdict);
 
 function errorLine(out: string): string | undefined {
   const lines = out.split("\n").map((l) => l.trim());
@@ -287,7 +276,7 @@ function factsFromClaudeRows(lines: Iterable<string>, projectDir: string, first?
   const projectFirst = (list: string[]) => [...list.filter((p) => !isAbsolute(p)), ...list.filter((p) => isAbsolute(p))];
   facts.changed = projectFirst(facts.changed);
   facts.missing = facts.missing.slice(0, 5);
-  // The most recent instructions, within a fixed share of the restore.
+  // The most recent instructions, within a fixed share of the card.
   const kept: string[] = [];
   let chars = 0;
   for (const r of [...facts.rules].reverse()) {
@@ -302,128 +291,4 @@ function factsFromClaudeRows(lines: Iterable<string>, projectDir: string, first?
 /** Codex facts, by the same rules: its session file read as Claude rows (compact/codex.ts). */
 export function codexSessionFacts(transcriptPath: string, projectDir: string): SessionFacts {
   return factsFromClaudeRows(codexRows(tail(transcriptPath).split(/\n/)), projectDir);
-}
-
-export interface Pin { text: string; path?: string; reread?: number }
-
-/**
- * `.snout/pins.md`: one pin per `- ` line. A pin that starts with a path (in backticks or bare) is a
- * file pointer; `[re-read N]` anywhere in it brings the file's first N lines (max 40) from disk.
- * Anything else is a fact, kept verbatim.
- */
-export function readPins(projectDir: string, snoutDir: string): Pin[] {
-  const file = join(snoutDir, "pins.md");
-  if (!existsSync(file)) return [];
-  const pins: Pin[] = [];
-  for (const raw of readFileSync(file, "utf8").split("\n")) {
-    const m = raw.match(/^\s*[-*]\s+(.*\S)\s*$/);
-    if (!m) continue;
-    const text = m[1]!;
-    const reread = Number(text.match(/\[re-?read (\d+)\]/i)?.[1] ?? 0) || undefined;
-    const first = text.match(/^`([^`]+)`|^(\S+)/);
-    const candidate = first?.[1] ?? first?.[2] ?? "";
-    // A backticked first word is a path by intent; a bare one needs a slash, a dotfile or an extension.
-    const looksLikePath = !/^https?:/.test(candidate) && (first?.[1] !== undefined || /[/\\]|^\.\w|\.\w{1,10}$/.test(candidate));
-    pins.push(looksLikePath ? { text, path: candidate, reread: reread ? Math.min(reread, 40) : undefined } : { text });
-    if (pins.length >= 10) break;
-  }
-  return pins;
-}
-
-/** Credential-file patterns (Snout's `redact` / `redactExempt` config): pinned files never inlined. */
-export interface Secrets { redact: readonly string[]; redactExempt: readonly string[] }
-
-function pinLines(pins: Pin[], projectDir: string, secrets?: Secrets): string[] {
-  const out: string[] = [];
-  for (const p of pins) {
-    out.push(`- ${p.text.replace(/\s*\[re-?read \d+\]/i, "")}`);
-    if (!p.path || !p.reread) continue;
-    const abs = isAbsolute(p.path) ? p.path : resolve(projectDir, p.path);
-    if (!existsSync(abs)) { out.push(`  (not on disk now: ${p.path})`); continue; }
-    const rel = relative(projectDir, abs);
-    const asPattern = rel && !rel.startsWith("..") ? rel : abs.replace(/^\/+/, "");
-    if (secrets && matchesAny(asPattern, secrets.redact) && !matchesAny(asPattern, secrets.redactExempt)) { out.push("  (contents not restored: the file matches a credential pattern)"); continue; }
-    try {
-      const lines = readFileSync(abs, "utf8").split("\n").slice(0, p.reread);
-      out.push("  ```", ...lines.map((l) => `  ${l.slice(0, 200)}`), "  ```");
-    } catch {
-      out.push(`  (could not read ${p.path})`);
-    }
-  }
-  return out;
-}
-
-/**
- * The agent's own working notes. Facts from the transcript can't carry its reasoning (the approach it
- * chose, what failed and why), so after a compaction the agent is asked to keep a few lines in
- * `.snout/progress.md`, and the next compaction restores them verbatim. Notes older than this
- * session (`sinceMs`, the transcript's creation) belong to other work and are not restored.
- */
-export const PROGRESS_FILE = "progress.md";
-const PROGRESS_MAX_CHARS = 1500;
-/** The ask names where the notes go: `.snout/progress.md`, or the file under SNOUT_DIR when Snout keeps its records elsewhere. */
-const progressAsk = (file: string) => `- Keep \`${file}\` current while you work, at most 10 lines: the goal, your current approach, what failed and why, the next step. Snout restores it verbatim after the next compaction.`;
-
-/** When the session began: the first timestamp in its transcript (file times differ by platform). */
-export function sessionStartMs(transcriptPath: string): number {
-  try {
-    const fd = openSync(transcriptPath, "r");
-    const buf = Buffer.alloc(64 * 1024);
-    let n = 0;
-    try { n = readSync(fd, buf, 0, buf.length, 0); } finally { closeSync(fd); }
-    const t = Date.parse(buf.toString("utf8", 0, n).match(/"timestamp":"([^"]+)"/)?.[1] ?? "");
-    return Number.isFinite(t) ? t : statSync(transcriptPath).birthtimeMs || 0;
-  } catch {
-    return 0;
-  }
-}
-
-export function readProgress(snoutDir: string, sinceMs: number): string | undefined {
-  const file = join(snoutDir, PROGRESS_FILE);
-  try {
-    if (statSync(file).mtimeMs < sinceMs) return undefined;
-    const text = readFileSync(file, "utf8").trim();
-    return text ? (text.length > PROGRESS_MAX_CHARS ? `${text.slice(0, PROGRESS_MAX_CHARS - 1)}…` : text) : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/** The text added to the context right after a compaction, or "" when there is nothing to restore. */
-export function memoryText(facts: SessionFacts, pins: Pin[], projectDir: string, secrets?: Secrets, progress?: string, progressFile = ".snout/progress.md"): string {
-  const ask = progressAsk(progressFile);
-  const sections: string[][] = [];
-  if (progress) sections.push(["Your progress notes (.snout/progress.md, written before the compaction):", ...progress.split("\n").slice(0, 25)]);
-  // Before the facts, so the cap never cuts them: they are the user's own words about how to work.
-  if (facts.rules?.length) sections.push(["Your instructions this session, verbatim (oldest first; where two conflict, the later one holds):", ...facts.rules.map((r) => `- ${r}`)]);
-  if (pins.length) sections.push(["Pinned for this project:", ...pinLines(pins, projectDir, secrets)]);
-  const f: string[] = [];
-  if (facts.test) f.push(`- Tests run here with: \`${facts.test.command}\`${facts.test.result ? ` (last result: ${facts.test.result})` : ""}`);
-  for (const m of facts.missing) f.push(`- Not available here: ${m.name} (${m.evidence})`);
-  for (const c of facts.slow) f.push(`- Ran past the 2-minute tool limit here (prefer narrower tests): \`${c}\``);
-  if (facts.error) f.push(`- Last error, not yet followed by a passing run: ${facts.error.line} (from \`${facts.error.command}\`)`);
-  if (facts.goal && facts.goal !== facts.request) f.push(`- First request this session: ${facts.goal}`);
-  if (facts.request) f.push(`- Current request: ${facts.request}`);
-  if (facts.todos.length) f.push(`- Open to-dos: ${facts.todos.slice(0, 6).join("; ")}`);
-  const head = "Snout restored these exact facts after compaction (from this session and .snout/pins.md):";
-  // The ask is always whole: it is what keeps the next restore useful.
-  const room = MAX_CHARS - head.length - ask.length - 2;
-  const render = () => [...sections, ...(f.length ? [["From this session:", ...f]] : [])].flat().join("\n");
-  // Changed files last, as many as fit (most recent first): a long session edits more than the rest leaves room for.
-  if (facts.changed.length) {
-    const label = "- Files changed this session: ";
-    let left = room - render().length - 1 - label.length - (f.length ? 0 : "From this session:\n".length);
-    const listed: string[] = [];
-    for (const p of facts.changed) {
-      const cost = p.length + (listed.length ? 2 : 0);
-      if (cost > left) break;
-      listed.push(p);
-      left -= cost;
-    }
-    if (listed.length) f.push(`${label}${listed.join(", ")}${listed.length < facts.changed.length ? ` (and ${facts.changed.length - listed.length} more)` : ""}`);
-  }
-  let body = render();
-  if (!body) return "";
-  if (body.length > room) body = `${body.slice(0, room - 1)}…`;
-  return [head, body, ask].join("\n");
 }

@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.3.2 (unreleased)
+
+Not measured yet. The numbers in [docs/claims.md](docs/claims.md) were measured on 0.3.1 and do not
+describe these changes.
+
+- Notes that carry across sessions and agents. A private note is kept in your user config folder and
+  reaches only your own Claude Code and Codex sessions. A shared note is kept in `.snout/memory/obs/`
+  and reaches anyone with the repository once committed. Who may see a note is checked when it is
+  recalled. CI and token-only sessions get shared notes only. New commands: `snout memory add`,
+  `list`, `share <id>`, `archive`, `drop`, `supersede` and `accept`. `memoryBudget` (default 600
+  tokens) caps what a new session starts with.
+- Notes written automatically at the end of a session, by fixed rules with no model call: the test
+  command that passed, tools that were missing, commands too slow for the tool limit, and standing
+  instructions. They are private. A "not installed" note is archived once that tool is on PATH.
+- Memory over MCP: `snout mcp` adds `snout_memory_index`, `search`, `fetch` and `save`. A note an
+  agent saves on its own is only a proposal until you accept it. `snout init codex` registers the
+  server; `snout init claude --mcp` adds it for Claude Code.
+- MCP results that Snout trims are saved in full as plain text at an absolute path, so the agent can
+  search the saved file instead of calling the tool again. Saved command output uses absolute paths
+  too.
+- Snout Cloud sign-in, in private beta and off unless you use it: `snout login`, `snout sync`
+  (`--dry-run` prints what would be sent) and `snout logout`. Sync sends daily totals, never code,
+  paths or prompts. See [docs/privacy.md](docs/privacy.md).
+- Removed the context Snout added after a compaction. Compaction is left to the agent: the restore
+  added up to about 1.5K tokens after each one, with no measured saving and no shown effect on
+  solved tasks. `.snout/pins.md` is no longer read. Memory cards, recall on later prompts and the
+  repo brief are unchanged.
+- Dashboard: compaction counts are labeled as the agent's; the restore tiles and trace nodes are gone.
+- Dashboard: Snout, the anteater from the site, greets you in the corner on first open and walks
+  you through Overview, Sessions and Settings (Overview, Agents and Integrations in the Cloud
+  preview). The ? button in the top bar starts the tour again.
+
 ## 0.3.1
 
 - MCP results: a list longer than 25 items keeps its first 20 whole and lists the rest one line

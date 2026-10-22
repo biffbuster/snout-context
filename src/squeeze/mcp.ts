@@ -129,6 +129,27 @@ function trimBlockText(text: string): string {
   return trimText(text);
 }
 
+/**
+ * The full result as the file Snout saves: the text the agent would have received, JSON indented
+ * one field per line, so a plain grep or Read finds any part of it. Non-text blocks are named only.
+ */
+export function mcpPlainText(tool: string, input: unknown, response: unknown): string {
+  const blocks = Array.isArray(response) ? response : (response as { content?: unknown } | null)?.content;
+  const parts = (Array.isArray(blocks) ? (blocks as McpBlock[]) : []).map((b) => {
+    if (b?.type !== "text" || typeof b.text !== "string") return `[${String(b?.type ?? "unknown")} block, not saved]`;
+    const t = b.text.trim();
+    if (t.startsWith("{") || t.startsWith("[")) {
+      try {
+        return JSON.stringify(JSON.parse(t), null, 1);
+      } catch {
+        // not JSON after all
+      }
+    }
+    return b.text;
+  });
+  return [`# ${tool}`, `# input: ${JSON.stringify(input ?? null)}`, "", ...parts].join("\n") + "\n";
+}
+
 /** The trimmed result, or null when it's small, over Claude Code's cap, or wouldn't shrink enough. */
 export function trimMcp(response: unknown, savedTo: string): McpTrimmed | null {
   const blocks: McpBlock[] | null = Array.isArray(response)
@@ -142,7 +163,7 @@ export function trimMcp(response: unknown, savedTo: string): McpTrimmed | null {
   const trimmed: McpBlock[] = blocks.map((b) => (b.type === "text" && typeof b.text === "string" ? { ...b, text: trimBlockText(b.text) } : b));
   const kept = trimmed.reduce((a, b) => a + (b.type === "text" && typeof b.text === "string" ? b.text.length : 0), 0);
   if (kept > beforeChars * (1 - MIN_CUT)) return null;
-  trimmed.push({ type: "text", text: `[Snout trimmed this result from ${beforeChars.toLocaleString()} to ${kept.toLocaleString()} characters: long lists shortened, repeats collapsed, structure kept. Full result: ${savedTo}]` });
+  trimmed.push({ type: "text", text: `[Snout trimmed this result from ${beforeChars.toLocaleString()} to ${kept.toLocaleString()} characters: long lists shortened, repeats collapsed, structure kept. Full result, as searchable text: ${savedTo} (grep it for the part you need instead of calling the tool again)]` });
   const afterChars = kept + (trimmed[trimmed.length - 1]!.text as string).length;
   const output = Array.isArray(response) ? trimmed : { ...(response as object), content: trimmed };
   return { output, beforeChars, afterChars };

@@ -37,32 +37,37 @@ import { safePath, safeText } from "./util/safe.js";
 import { writeAtomic } from "./util/atomic.js";
 import { AGENTS, fromInternal, isAgent, toInternal } from "./agents/adapt.js";
 import { initAgent, removeAgent } from "./agents/init.js";
+import { addMcp, removeMcp, type McpClient } from "./agents/mcp-init.js";
 import { startMcp } from "./mcp.js";
 import { startDashboard, type DashboardActions } from "./dashboard/server.js";
 import { liveDashboard, registerDashboard } from "./dashboard/registry.js";
 import { createRequire } from "node:module";
 import { compactionWhatIf, COMPACTION_COSTS, renderReplay, replaySession, totals, type HookRunner } from "./replay/replay.js";
-import { codexSessionFacts, memoryText, PROGRESS_FILE, readPins, readProgress, sessionFacts, sessionStartMs } from "./compact/memory.js";
+import { codexSessionFacts, sessionFacts } from "./compact/memory.js";
 import { installGate, refreshGate, removeGate, HOOK_PORT, isSnoutUrl } from "./gate/install.js";
 import { readSpend } from "./spend/usage.js";
+import { AGENT_SYNC_MS, AUTO_SYNC_MS, buildPayload, cloudUrl, lastSync, loadCredentials, login, logout, sync } from "./cloud/client.js";
 import { summarizeSpend } from "./spend/summary.js";
 import { PRICES_AS_OF } from "./spend/prices.js";
 import { dailyAggregates, summarizeLedger } from "./dashboard/summary.js";
 import { scorePrompt, scoreWithJev } from "./coach/coach.js";
 import { kindOf, squeeze } from "./squeeze/squeeze.js";
-import { trimMcp } from "./squeeze/mcp.js";
+import { mcpPlainText, trimMcp } from "./squeeze/mcp.js";
 import { auditServers, disableHint } from "./audit/mcp-servers.js";
 import { archiveFiles, auditContext, listArchives, renderAudit, renderMap, restoreArchive, toJson } from "./audit/context.js";
 import { auditCi, renderCi } from "./audit/ci.js";
 import { docWindow, type DocWindow } from "./gate/longdoc.js";
 import { captureSession, cardFiles, COMMITS, embedKey, embedText, forgetCard, hybridRecall, linkCommit, listCards, packVector, readCards, readVectors, recall, renderRecall, repoBrief, shareMemory, unpackVector, writeVectors, type Vectors } from "./memory/memory.js";
+import { applyDistilled, retireInstalled } from "./memory/distill.js";
+import { onPath } from "./util/path.js";
+import { acceptObservation, addObservation, archiveObservation, deleteObservation, shareObservation, listObservations, localViewer, MEMORY_BUDGET, memoryBlock, migratePrefs, recallable, sessionViewer, storesFor, supersedeObservation, userPrincipal, type MemoryBlock, type ObsKind, type Observation } from "./memory/store.js";
 import { readRecallDecisions, recallOutcomes, recordRecallDecision, summarizeRecall, type RecallReason } from "./memory/receipts.js";
 import { forgetPref, judgeAndSave, prefCandidates, readPrefs, renderPrefs } from "./memory/prefs.js";
 import { installModel, loadEmbedder, MODEL, modelDir, modelReady, QUERY_PREFIX, removeModel } from "./memory/embed.js";
 import { buildMap, candidates, renderCandidates, shouldSuggest, type RepoMap } from "./map/map.js";
 import { forgetReads, rememberRead, repeatOf, repeatOutput, requestedWindow, returnedWindow } from "./gate/repeat.js";
 
-const VERSION = "0.3.1";
+const VERSION = "0.3.2";
 /** This bundle, by absolute path: what the gate hook and the login flow run. */
 const BIN = resolve(process.argv[1] ?? "dist/snout.mjs");
 
@@ -97,6 +102,13 @@ function main(): void {
   }
   if (command === "audit") {
     void cmdAudit(process.argv.slice(3)).catch((err) => recordError("audit", err)).finally(() => process.exit(0));
+    return;
+  }
+  if (command === "login" || command === "logout" || command === "sync") {
+    pending = true;
+    // Let the process end on its own: process.exit() while fetch's sockets close trips a libuv
+    // assertion on Windows (exit 127 after a successful login). Nothing else keeps it alive.
+    void cmdCloud(command, process.argv.slice(3)).catch((err) => recordError(command, err));
     return;
   }
   if (command === "memory" && process.argv[3] === "model") {
@@ -256,6 +268,38 @@ function cmdDashboard(args: string[]): void {
   });
 }
 
+/**
+ * After a turn, a logged-in user's totals go to Snout Cloud, at most every AUTO_SYNC_MS.
+ * The upload runs in a detached process so the hook returns at once, online or not.
+ * Nothing happens until `snout login` has saved credentials (or SNOUT_TOKEN is set).
+ */
+function maybeAutoSync(paths: Paths): void {
+  if (replayDir) return; // replay is offline
+  try {
+    if (!loadCredentials()) return;
+    const last = lastSync(paths);
+    if (last && Date.now() - Date.parse(last.at) < (process.env.SNOUT_TOKEN ? AGENT_SYNC_MS : AUTO_SYNC_MS)) return;
+    spawn(process.execPath, [BIN, "sync", "--quiet", paths.projectDir], { stdio: "ignore", detached: true, windowsHide: true }).on("error", () => {}).unref();
+  } catch (err) {
+    recordError("autoSync", err);
+  }
+}
+
+/** `snout login [--url <cloud>] [--no-open]`, `snout logout`, `snout sync [dir] [--dry-run] [--quiet]`. */
+async function cmdCloud(command: string, args: string[]): Promise<void> {
+  const flag = (name: string) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
+  const dir = args.find((a, i) => !a.startsWith("-") && args[i - 1] !== "--url");
+  if (command === "logout") return say(await logout());
+  if (command === "login") {
+    await login(cloudUrl(flag("--url")), say, args.includes("--no-open") ? () => {} : openBrowser);
+    return;
+  }
+  const paths = resolvePaths(dir);
+  if (args.includes("--dry-run")) return say(JSON.stringify(buildPayload(paths, VERSION), null, 2));
+  const r = await sync(paths, VERSION);
+  if (!args.includes("--quiet") || !r.ok) say(r.message);
+}
+
 function openBrowser(url: string): void {
   const [cmd, args] = process.platform === "darwin" ? ["open", [url]] : process.platform === "win32" ? ["cmd", ["/c", "start", "", url]] : ["xdg-open", [url]];
   try {
@@ -268,13 +312,17 @@ function openBrowser(url: string): void {
 function cmdInit(agent: string | undefined, cwd?: string): void {
   if (process.argv.includes("--remove")) return cmdRemove(agent, cwd);
   if (agent === "claude" || agent === "claude-code") {
-    return say("Claude Code runs Snout as a plugin:\n\n  claude plugin marketplace add biffbuster/snout-context\n  claude plugin install snout@snout-context\n\nThen start a new session in this project. `snout` shows what it's doing.");
+    if (process.argv.includes("--mcp")) return initMcpOnly("claude", cwd, "Claude Code asks once before it starts a project's MCP server; approve snout. Its hooks already inject memory; this adds search and fetch mid-session.");
+    return say("Claude Code runs Snout as a plugin:\n\n  claude plugin marketplace add biffbuster/snout-context\n  claude plugin install snout@snout-context\n\nThen start a new session in this project. `snout` shows what it's doing. `snout init claude --mcp` also gives it Snout's memory search tools.");
   }
-  if (!isAgent(agent)) return say(`Usage: snout init <claude|${AGENTS.join("|")}>\n\nSets that agent up in this project so it runs Snout on every read.`);
+  if (agent === "vscode") return initMcpOnly("vscode", cwd, "In VS Code, open Copilot Chat in agent mode and start the snout server from the tools list.");
+  if (!isAgent(agent)) return say(`Usage: snout init <claude|vscode|${AGENTS.join("|")}>\n\nSets that agent up in this project: hooks where it has them, and Snout's MCP server (read tool and shared memory).`);
   const paths = resolvePaths(cwd);
   try {
     const { file, events } = initAgent(agent, paths.projectDir);
     say(`snout init ${agent}: wrote ${toRel(file, paths.projectDir)} (${events.join(", ")}).`);
+    const mcp = addMcp(agent, paths.projectDir);
+    say(`MCP: registered snout in ${toRel(mcp, paths.projectDir)} (snout_read and shared memory: index, search, fetch, save).`);
     if (agent === "codex") say("Codex loads project hooks only in a trusted folder: open Codex here, trust the folder, then approve Snout's hooks with /hooks.");
     const mode = loadConfig(paths).mode;
     say(mode === "observe" ? "Mode: observe (records only). `snout mode enforce` makes it act; `snout report` shows what it saw." : `Mode: ${mode}. \`snout report\` shows what it saw.`);
@@ -284,17 +332,38 @@ function cmdInit(agent: string | undefined, cwd?: string): void {
   }
 }
 
+/** `snout init vscode` and `snout init claude --mcp`: only the MCP server, for a client Snout has no hooks in. */
+function initMcpOnly(client: McpClient, cwd: string | undefined, next: string): void {
+  const paths = resolvePaths(cwd);
+  try {
+    const file = addMcp(client, paths.projectDir);
+    say(`snout init ${client}: registered Snout's MCP server in ${toRel(file, paths.projectDir)} (snout_read and shared memory: index, search, fetch, save). ${next}`);
+  } catch (err) {
+    recordError("init", err);
+    say(`snout init ${client} failed: ${safeText((err as Error).message, 200)}`);
+  }
+}
+
+/** Takes Snout's MCP entry out of a client's config, and says so. */
+function removeMcpEntry(client: McpClient, projectDir: string): string {
+  const { file, removed } = removeMcp(client, projectDir);
+  return removed ? `Removed snout from ${toRel(file, projectDir)}; other MCP servers are untouched.` : "";
+}
+
 /** `snout init <agent> --remove`: undoes `snout init` for that agent in this project. */
 function cmdRemove(agent: string | undefined, cwd?: string): void {
   const rest = "Snout's records stay in .snout/ until you delete that folder; the local fast-hook server, if running, stops after 30 idle minutes once no project still sends it gated calls.";
   if (agent === "claude" || agent === "claude-code") {
-    return say(`To remove Snout from Claude Code:\n\n  snout mode observe                        # takes out the gate in .claude/settings.local.json\n  claude plugin uninstall snout@snout-context\n\n${rest}`);
+    const mcp = removeMcpEntry("claude", resolvePaths(cwd).projectDir);
+    return say(`To remove Snout from Claude Code:\n\n  snout mode observe                        # takes out the gate in .claude/settings.local.json\n  claude plugin uninstall snout@snout-context\n\n${mcp ? `${mcp}\n` : ""}${rest}`);
   }
-  if (!isAgent(agent)) return say(`Usage: snout init <claude|${AGENTS.join("|")}> --remove`);
+  if (agent === "vscode") return say(removeMcpEntry("vscode", resolvePaths(cwd).projectDir) || "No snout server in .vscode/mcp.json.");
+  if (!isAgent(agent)) return say(`Usage: snout init <claude|vscode|${AGENTS.join("|")}> --remove`);
   const paths = resolvePaths(cwd);
   try {
     const { file, removed } = removeAgent(agent, paths.projectDir);
-    say(removed ? `Removed Snout's ${removed} hook entr${removed === 1 ? "y" : "ies"} from ${toRel(file, paths.projectDir)}; other hooks are untouched. ${rest}` : `No Snout hooks in ${toRel(file, paths.projectDir)}. ${rest}`);
+    const mcp = removeMcpEntry(agent, paths.projectDir);
+    say(`${removed ? `Removed Snout's ${removed} hook entr${removed === 1 ? "y" : "ies"} from ${toRel(file, paths.projectDir)}; other hooks are untouched.` : `No Snout hooks in ${toRel(file, paths.projectDir)}.`}${mcp ? ` ${mcp}` : ""} ${rest}`);
   } catch (err) {
     recordError("init", err);
     say(`snout init ${agent} --remove failed: ${safeText((err as Error).message, 200)}`);
@@ -527,19 +596,6 @@ function onSessionStart(input: HookInput, paths: Paths, cfg: Config): void {
       recordError("memoryServe", err);
     }
   }
-  // Right after a compaction: put back the exact facts the summary may have lost, and the agent's own
-  // progress notes (compact/memory.ts). Capped at ~1.5k tokens, only when Snout is on.
-  if ((input.source ?? input.session_start_reason) === "compact" && cfg.mode !== "observe" && input.transcript_path) {
-    try {
-      const progress = readProgress(paths.snoutDir, sessionStartMs(input.transcript_path));
-      const facts = client === "codex" ? codexSessionFacts(input.transcript_path, paths.projectDir) : sessionFacts(input.transcript_path, paths.projectDir);
-      const progressFile = toRel(join(paths.snoutDir, PROGRESS_FILE), paths.projectDir);
-      const text = memoryText(facts, readPins(paths.projectDir, paths.snoutDir), paths.projectDir, cfg, progress, progressFile);
-      if (text) return emit({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: cfg.output === "concise" ? `${text}\n\n${CONCISE_INSTRUCTION}` : text } });
-    } catch (err) {
-      recordError("memory", err);
-    }
-  }
   const brief = startBrief(input, paths, cfg, session);
   const withBrief = (out: Record<string, unknown>) => (brief ? { ...out, hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: brief } } : out);
   const s = summarizeLedger(readDecisions(paths.ledger, 5000));
@@ -558,13 +614,44 @@ function instructionText(projectDir: string): string {
   return INSTRUCTION_FILES.map((f) => { try { return readFileSync(join(projectDir, f), "utf8"); } catch { return ""; } }).join("\n");
 }
 
+/**
+ * The memory block (memory/store.ts): admitted observations under the budget, and one audit row in
+ * recall.jsonl saying which went in, which the budget left out, and whether it was injected or,
+ * in observe mode, only computed.
+ */
+function memoryStart(paths: Paths, cfg: Config, session: string): { block: MemoryBlock; admitted: Observation[] } {
+  const stores = storesFor(paths.projectDir, paths.snoutDir, configDir());
+  retireInstalled(stores);
+  const admitted = recallable(stores, [sessionViewer(paths.projectDir, stores.project)]);
+  const budget = typeof cfg.memoryBudget === "number" && cfg.memoryBudget >= 0 ? Math.min(cfg.memoryBudget, 4000) : MEMORY_BUDGET;
+  const block = memoryBlock(admitted, budget);
+  if (admitted.length) {
+    appendRow(join(paths.snoutDir, "recall.jsonl"), {
+      ts: new Date().toISOString(), session, turn: 0, kind: "inject", items: block.items, dropped: block.dropped,
+      tokensEst: block.tokensEst, budget, injected: cfg.mode !== "observe" && !!block.text,
+    });
+  }
+  return { block, admitted };
+}
+
 /** The repo brief (memory/memory.ts) for a new or cleared session, or "". A resumed session already has it. */
 function startBrief(input: HookInput, paths: Paths, cfg: Config, session: string): string {
   const source = input.source ?? input.session_start_reason;
-  if (cfg.memory === false || cfg.mode === "observe" || (source && source !== "startup" && source !== "clear")) return "";
+  if (cfg.memory === false || (source && source !== "startup" && source !== "clear")) return "";
   try {
-    const brief = repoBrief(readCards(paths.snoutDir).filter((c) => c.session !== session), { projectDir: paths.projectDir, instructions: instructionText(paths.projectDir) });
-    const text = [brief, renderPrefs(readPrefs(paths.snoutDir))].filter(Boolean).join("\n\n");
+    let memory: ReturnType<typeof memoryStart> = { block: memoryBlock([]), admitted: [] };
+    try {
+      memory = memoryStart(paths, cfg, session);
+    } catch (err) {
+      recordError("memoryBlock", err);
+    }
+    // Observe mode records what the block would hold and injects nothing.
+    if (cfg.mode === "observe") return "";
+    const brief = repoBrief(readCards(paths.snoutDir).filter((c) => c.session !== session), { projectDir: paths.projectDir, instructions: instructionText(paths.projectDir), installed: onPath });
+    // Preferences moved into the store (snout memory migrate) are in the block already.
+    const stored = new Set(memory.admitted.map((o) => o.text.toLowerCase().replace(/\s+/g, " ").trim()));
+    const prefs = readPrefs(paths.snoutDir).filter((p) => !stored.has(p.text.toLowerCase().replace(/\s+/g, " ").trim()));
+    const text = [memory.block.text, brief, renderPrefs(prefs)].filter(Boolean).join("\n\n");
     if (text) appendRow(join(paths.snoutDir, "recall.jsonl"), { ts: new Date().toISOString(), session, turn: 0, kind: "brief", tokensEst: estimateTokens(Buffer.byteLength(text), "x.txt") });
     return text;
   } catch (err) {
@@ -761,6 +848,18 @@ function dashboardActions(paths: Paths): DashboardActions {
       if (!cfg.alwaysAllow.includes(target)) setConfigKey(paths.config, "alwaysAllow", [...cfg.alwaysAllow, target]);
       return `${target} will always be read in full.`;
     },
+    unallow: (p) => {
+      const target = p.trim();
+      const cfg = loadConfig(paths);
+      if (!cfg.alwaysAllow.includes(target)) throw new Error("not on the always-read list");
+      setConfigKey(paths.config, "alwaysAllow", cfg.alwaysAllow.filter((x) => x !== target));
+      return `${target} is no longer always read in full.`;
+    },
+    // Only keys pages.ts EDITABLE lists reach here, with a value from its list.
+    set: (key, value) => {
+      setConfigKey(paths.config, key as keyof Config, value as never);
+      return `${key} set to ${String(value)}.`;
+    },
     coach: () => loadConfig(paths).coach ?? "tip",
     setCoach: (v) => {
       if (v !== "off" && v !== "tip" && v !== "jev") throw new Error("unknown coach mode");
@@ -826,7 +925,7 @@ function onSqueeze(input: HookInput, paths: Paths, cfg: Config): void {
     }
   }
   const logName = squeezeLogName(command);
-  const s = squeeze(kind, full, `.snout/squeeze/${logName}`);
+  const s = squeeze(kind, full, savedPath(paths, logName));
   if (!s) {
     emit({});
     return;
@@ -848,6 +947,9 @@ function onSqueeze(input: HookInput, paths: Paths, cfg: Config): void {
   });
   emit({ hookSpecificOutput: { hookEventName: "PostToolUse", updatedToolOutput: { ...resp, stdout: s.text, stderr: "" } } });
 }
+
+/** Where a full output is saved, absolute and with forward slashes, so any shell or tool can open it from any directory. */
+const savedPath = (paths: Paths, logName: string) => join(paths.snoutDir, "squeeze", logName).replace(/\\/g, "/");
 
 const squeezeLogName = (command: string) => `${new Date().toISOString().replace(/[:.]/g, "-")}-${createHash("sha256").update(command).digest("hex").slice(0, 8)}.log`;
 
@@ -895,15 +997,15 @@ function onMcpTrim(input: HookInput, paths: Paths, cfg: Config, started: number)
     }
   }
   const dir = join(paths.snoutDir, "squeeze");
-  const logName = `${new Date().toISOString().replace(/[:.]/g, "-")}-${createHash("sha256").update(tool).digest("hex").slice(0, 8)}.json`;
-  const t = trimMcp(input.tool_response, `.snout/squeeze/${logName}`);
+  const logName = `${new Date().toISOString().replace(/[:.]/g, "-")}-${createHash("sha256").update(tool).digest("hex").slice(0, 8)}.txt`;
+  const t = trimMcp(input.tool_response, savedPath(paths, logName));
   if (!t) {
     recordToolOutput(input, paths, loadState(paths.state, input.session_id ?? "unknown"), responseBytes(input.tool_response));
     return emit({});
   }
   try {
     mkdirSync(dir, { recursive: true });
-    writeAtomic(join(dir, logName), JSON.stringify({ tool, input: input.tool_input ?? null, output: input.tool_response }, null, 1));
+    writeAtomic(join(dir, logName), mcpPlainText(tool, input.tool_input, input.tool_response));
     const logs = readdirSync(dir).sort();
     for (const old of logs.slice(0, Math.max(0, logs.length - SQUEEZE_LOGS_KEPT))) rmSync(join(dir, old), { force: true });
   } catch (err) {
@@ -1050,7 +1152,15 @@ function captureCard(input: HookInput, paths: Paths, cfg: Config, session: strin
   if (cfg.memory === false || !input.transcript_path || replayDir) return;
   try {
     const facts = client === "codex" ? codexSessionFacts(input.transcript_path, paths.projectDir) : sessionFacts(input.transcript_path, paths.projectDir);
-    captureSession(paths.snoutDir, paths.projectDir, session, agentName(), facts);
+    const card = captureSession(paths.snoutDir, paths.projectDir, session, agentName(), facts);
+    // The card's lasting facts become private observations (memory/distill.ts), for both agents.
+    if (card && !(process.env.CI || process.env.SNOUT_TOKEN)) {
+      try {
+        applyDistilled(storesFor(paths.projectDir, paths.snoutDir, configDir()), userPrincipal(paths.projectDir), card);
+      } catch (err) {
+        recordError("memoryDistill", err);
+      }
+    }
     // Opt-in: one Jev call for the sentences not judged before. Stop is the turn's end, so the
     // agent waits on nothing, and the call has a hard 5 s timeout.
     if (cfg.memoryJudge === "jev" && process.env.TYPESAFE_API_KEY) {
@@ -1091,9 +1201,66 @@ async function cmdMemoryModel(v: string | undefined): Promise<void> {
     : "No memory model. Recall ranks past sessions by words, checked against the repo map.\nInstall the optional local model (bge-small, ~34 MB, plus its runtime from npm) with: snout memory model install");
 }
 
+/**
+ * `snout memory add|list|archive|supersede|drop|migrate`: observations (memory/store.ts), private
+ * by default. `list` shows what this machine's user may see here, the admission rule applied.
+ */
+function cmdObservations(paths: Paths, v: string, args: string[]): void {
+  const flag = (name: string) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
+  const words = args.filter((a, i) => !a.startsWith("--") && args[i - 1] !== "--kind").join(" ").trim();
+  const stores = storesFor(paths.projectDir, paths.snoutDir, configDir());
+  const user = userPrincipal(paths.projectDir);
+  const line = (o: Observation) => `  ${o.id}  ${o.kind.padEnd(10)} ${o.scope === "shared" ? "shared " : o.project === "*" ? "private, all projects" : "private"}${o.status === "active" ? "" : ` (${o.status})`}\n      ${safeText(o.text, 160)}`;
+  try {
+    if (v === "add") {
+      const kind = (flag("--kind") ?? "fact") as ObsKind;
+      if (!words) return say('Usage: snout memory add "<what to remember>" [--kind convention|decision|gotcha|preference|command|fact] [--shared] [--global]');
+      const o = addObservation(stores, user, { kind, text: words, scope: args.includes("--shared") ? "shared" : "private", global: args.includes("--global"), via: "manual", agent: agentName() });
+      return say(`Saved ${o.id} (${o.scope === "shared" ? "shared: everyone with this repository, once .snout/memory is committed" : "private: only you"}).\n${line(o)}`);
+    }
+    if (v === "list") {
+      const all = listObservations(stores);
+      const seen = new Set(recallable(stores, [localViewer(paths.projectDir, stores.project, user)]).map((o) => o.id));
+      const shown = args.includes("--all") ? all : all.filter((o) => seen.has(o.id));
+      const head = `${seen.size} observation${seen.size === 1 ? "" : "s"} you may see here${all.length > seen.size ? ` · ${all.length - seen.size} more not admitted (other status, project or audience; --all lists them)` : ""}`;
+      return say([head, ...shown.slice(0, 40).map(line)].join("\n"));
+    }
+    if (v === "migrate") {
+      const added = migratePrefs(paths.snoutDir, stores, user);
+      return say(user ? `Moved ${added.length} saved preference${added.length === 1 ? "" : "s"} into your private memory. preferences.json is left as it was.` : "No user identity here (set git user.email), so nothing was moved: private memory needs an owner.");
+    }
+    const id = words.split(" ")[0] ?? "";
+    if (!id) return say(`Usage: snout memory ${v} <id>${v === "supersede" ? ' "<corrected text>"' : ""}`);
+    if (v === "archive") {
+      const o = archiveObservation(stores, id);
+      return say(o ? `Archived ${o.id}: kept on disk, never recalled.` : `No observation ${safeText(id, 20)}.`);
+    }
+    if (v === "accept") {
+      const o = acceptObservation(stores, id);
+      return say(o ? `Accepted ${o.id}: recalled from now on.\n${line(o)}` : `No proposal ${safeText(id, 20)} (snout memory list --all shows proposals).`);
+    }
+    if (v === "share") {
+      const o = shareObservation(stores, user, id);
+      return say(o ? `Shared as ${o.id}: everyone with this repository sees it once .snout/memory is committed (\`snout memory share\` sets git up).\n${line(o)}` : `No active private observation ${safeText(id, 20)}.`);
+    }
+    if (v === "drop") {
+      const o = deleteObservation(stores, id);
+      return say(o ? `Deleted ${o.id}.` : `No observation ${safeText(id, 20)}.`);
+    }
+    const text = words.slice(id.length).trim();
+    if (!text) return say('Usage: snout memory supersede <id> "<corrected text>"');
+    const o = supersedeObservation(stores, user, id, text);
+    return say(o ? `Saved ${o.id}; ${o.supersedes ?? id} is now superseded by it.\n${line(o)}` : `No observation ${safeText(id, 20)}.`);
+  } catch (err) {
+    return say(`snout memory ${v}: ${safeText((err as Error).message, 200)}`);
+  }
+}
+
 /** `snout memory [on|off|forget <session>]`: list the cards, toggle memory, or drop one card. */
 function cmdMemory(paths: Paths, cfg: Config, args: string[]): void {
   const v = args[0];
+  if (v && ["add", "list", "archive", "supersede", "drop", "migrate", "accept"].includes(v)) return cmdObservations(paths, v, args.slice(1));
+  if (v === "share" && args[1]) return cmdObservations(paths, "share", args.slice(1));
   if (v === "on" || v === "off") {
     setConfigKey(paths.config, "memory", v === "on");
     return say(v === "on"
@@ -1112,7 +1279,7 @@ function cmdMemory(paths: Paths, cfg: Config, args: string[]): void {
     ].join("\n"));
   }
   if (v === "brief") {
-    const text = repoBrief(readCards(paths.snoutDir), { projectDir: paths.projectDir, instructions: instructionText(paths.projectDir) });
+    const text = repoBrief(readCards(paths.snoutDir), { projectDir: paths.projectDir, instructions: instructionText(paths.projectDir), installed: onPath });
     return say(text || "No brief yet: a fact needs to show up in two or more sessions first.");
   }
   if (v === "judge") {
@@ -1141,7 +1308,7 @@ function cmdMemory(paths: Paths, cfg: Config, args: string[]): void {
   const head = `Memory is ${cfg.memory === false ? "off" : "on"} · ${cards.length} card${cards.length === 1 ? "" : "s"} in ${toRel(join(paths.snoutDir, "memory"), paths.projectDir)}`;
   const rows = cards.slice(0, 20).map((c) => `  ${c.updated.slice(0, 10)}  ${c.agent.padEnd(6)} ${safeText(c.session, 36)}  ${safeText(c.task ?? c.commits[0]?.subject ?? "", 70)}${c.commits.length ? `  [${c.commits.map((k) => k.sha.slice(0, 7)).join(" ")}]` : ""}`);
   const ranks = modelReady() ? "words and meaning (memory model installed)" : "words (snout memory model install adds meaning)";
-  say([head, `Recall ranks by ${ranks}`, ...recallStatsLines(paths, cards), ...rows, "", 'Usage: snout memory on|off · snout memory brief · snout memory share · snout memory judge jev|off · snout memory prefs [forget <n>] · snout memory forget <session> · snout memory model [install|remove] · snout recall "<request>"'].join("\n"));
+  say([head, `Recall ranks by ${ranks}`, ...recallStatsLines(paths, cards), ...rows, "", 'Usage: snout memory on|off · snout memory brief · snout memory list [--all] · snout memory add "<note>" · snout memory archive|drop <id> · snout memory share · snout memory judge jev|off · snout memory prefs [forget <n>] · snout memory forget <session> · snout memory model [install|remove] · snout recall "<request>"'].join("\n"));
 }
 
 /** How recall has done in this repo: when it spoke, whether its files were used; when silent, what it missed. */
@@ -1919,6 +2086,7 @@ function onPostTool(input: HookInput, paths: Paths, cfg: Config): void {
   // A server gone mid-turn (crash, killed, a reboot of its process) comes back after one call,
   // not at the next prompt: this hook runs as its own process after every tool call.
   reviveServer(paths, cfg);
+  maybeAutoSync(paths); // a team dashboard stays about a minute behind, mid-turn included
   const state = loadState(paths.state, input.session_id ?? "unknown");
   const pending = state as SessionState & { pending?: Record<string, { path: string; decision: Verdict }> };
   const id = input.tool_use_id;
@@ -2016,6 +2184,7 @@ function onPreCompact(input: HookInput, paths: Paths): void {
 }
 
 function onStop(input: HookInput, paths: Paths, cfg: Config): void {
+  maybeAutoSync(paths);
   const state = loadState(paths.state, input.session_id ?? "unknown");
   captureCard(input, paths, cfg, input.session_id ?? state.session);
   const rows = readDecisions(paths.ledger, 2000).filter(
@@ -2763,6 +2932,7 @@ const HELP = `snout ${VERSION} · the context gate for coding agents
   snout mode observe|enforce record only, or trim low-value reads
   snout explain <file>       why a file was trimmed        snout allow <file>   never trim it
   snout memory               what earlier sessions left     snout recall "<q>"   what a prompt would get
+  snout login                team dashboard (syncs daily totals, never code)  snout sync --dry-run  what is sent
 
   Docs and advanced commands: https://github.com/biffbuster/snout-context#cli`;
 

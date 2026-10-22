@@ -295,3 +295,44 @@ test("init --remove takes out only Snout's hooks, for every agent", () => {
   assert.match(run(["init", "codex", "--remove"], undefined, root), /No Snout hooks/);
   assert.match(run(["init", "claude", "--remove"], undefined, root), /claude plugin uninstall snout@snout-context/);
 });
+
+test("init registers Snout's MCP server in every client's own config, keeps other servers, and the command it writes really starts Snout", () => {
+  const root = project();
+  mkdirSync(join(root, ".cursor"));
+  writeFileSync(join(root, ".cursor", "mcp.json"), JSON.stringify({ mcpServers: { github: { command: "gh-mcp" } } }));
+  mkdirSync(join(root, ".codex"));
+  writeFileSync(join(root, ".codex", "config.toml"), "model = 'gpt-5.1-codex'\n\n[mcp_servers.context7]\ncommand = 'npx'\nargs = ['-y', '@upstash/context7-mcp']\n\n[mcp_servers.snout]\ncommand = 'node'\nargs = ['C:/old/snout.mjs', 'mcp']\n\n[mcp_servers.snout.env]\nOLD = '1'\n");
+  for (let i = 0; i < 2; i++) {
+    for (const a of ["cursor", "gemini", "codex"]) assert.match(run(["init", a], undefined, root), /MCP: registered snout in/);
+    assert.match(run(["init", "vscode"], undefined, root), /registered Snout's MCP server in \.vscode/);
+    assert.match(run(["init", "claude", "--mcp"], undefined, root), /registered Snout's MCP server in \.mcp\.json/);
+  }
+  const cursor = json(readFileSync(join(root, ".cursor", "mcp.json"), "utf8"));
+  assert.deepEqual(Object.keys(cursor.mcpServers).sort(), ["github", "snout"], "another server stays");
+  assert.equal(cursor.mcpServers.snout.type, "stdio");
+  assert.deepEqual(cursor.mcpServers.snout.args.slice(1), ["mcp", root]);
+  const vscode = json(readFileSync(join(root, ".vscode", "mcp.json"), "utf8"));
+  assert.equal(vscode.servers.snout.type, "stdio", "VS Code's own format: servers, not mcpServers");
+  const gemini = json(readFileSync(join(root, ".gemini", "settings.json"), "utf8"));
+  assert.ok(gemini.hooks.BeforeTool && gemini.mcpServers.snout, "hooks and the server share Gemini's settings file");
+  assert.ok(json(readFileSync(join(root, ".mcp.json"), "utf8")).mcpServers.snout);
+  const toml = readFileSync(join(root, ".codex", "config.toml"), "utf8");
+  assert.match(toml, /^model = 'gpt-5\.1-codex'/);
+  assert.match(toml, /\[mcp_servers\.context7\]\ncommand = 'npx'/);
+  assert.equal(toml.match(/\[mcp_servers\.snout\]/g).length, 1, "one snout table after two runs");
+  assert.doesNotMatch(toml, /C:\/old|OLD = /, "the old entry and its subtable are replaced");
+
+  // Start the server the way Cursor would, from what was written, and shake hands.
+  const { command, args } = cursor.mcpServers.snout;
+  const r = spawnSync(command, args, { input: [{ jsonrpc: "2.0", id: 1, method: "initialize", params: {} }, { jsonrpc: "2.0", id: 2, method: "tools/list" }].map((m) => JSON.stringify(m)).join("\n") + "\n", encoding: "utf8", timeout: 20_000 });
+  const replies = r.stdout.trim().split("\n").map((l) => JSON.parse(l));
+  assert.equal(replies[0].result.serverInfo.name, "snout");
+  assert.ok(replies[1].result.tools.some((t) => t.name === "snout_memory_search"));
+
+  for (const a of ["cursor", "gemini", "codex"]) assert.match(run(["init", a, "--remove"], undefined, root), /Removed snout from/);
+  assert.match(run(["init", "vscode", "--remove"], undefined, root), /Removed snout from/);
+  assert.deepEqual(Object.keys(json(readFileSync(join(root, ".cursor", "mcp.json"), "utf8")).mcpServers), ["github"]);
+  const after = readFileSync(join(root, ".codex", "config.toml"), "utf8");
+  assert.doesNotMatch(after, /mcp_servers\.snout/);
+  assert.match(after, /\[mcp_servers\.context7\]/);
+});

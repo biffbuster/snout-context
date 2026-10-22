@@ -15,7 +15,8 @@ stores only the keys you set, so upgrades can move the defaults under you.
   "longDocs": true,               // long docs: opening + section map; long logs: the tail
   "output": "normal",             // "concise" adds one short output-style instruction (opt-in)
   "repoMap": false,               // true: suggest the files linked to names in each prompt (opt-in)
-  "memory": true                  // a card per session in .snout/memory, recalled when a prompt bears on it
+  "memory": true,                 // a card per session in .snout/memory, recalled when a prompt bears on it
+  "memoryBudget": 600             // tokens of notes a new session starts with (0.3.2, unreleased)
 }
 ```
 
@@ -62,6 +63,16 @@ so committing `.snout/memory/` shares it with a team without merge conflicts: `s
 changes a `.snout/` line in `.gitignore` to `.snout/*` plus `!.snout/memory/` and stages nothing. Cards hold the
 start of your prompts: read them before you commit them. Whether recall lowers spend per task is
 not measured yet.
+
+Notes (0.3.2, unreleased, not measured): short observations, such as a convention, a gotcha or the
+test command, that a new session starts with, in Claude Code and Codex alike. `snout memory add
+"<note>" [--kind gotcha] [--shared]` saves one, `snout memory list [--all]` shows the notes you may
+see, and `snout memory share <id>`, `archive`, `drop`, `supersede` and `accept` manage them. A note is
+private (your user config folder, only your sessions) unless you share it into `.snout/memory/obs/`.
+At the end of a session Snout also writes private notes by fixed rules: the test command that passed,
+missing tools (archived once the tool is on PATH), commands too slow for the tool limit, and standing
+instructions. `memoryBudget` (default 600, at most 4000) caps the tokens a new session starts with;
+observe mode records what it would inject and injects nothing. See [privacy](privacy.md#notes-032-unreleased).
 
 `snout memory model install` (optional) adds a local embedding model, bge-small-en-v1.5 (q8, about
 34 MB), so recall matches by meaning as well as words. It installs `@huggingface/transformers` with
@@ -150,20 +161,11 @@ They are evaluated in this order, and the order is the policy:
    the rules handle is how two policies end up disagreeing, since the list runs first and
    overrides the rule's more nuanced verdict.
 
-## Pins: facts kept through compaction
+## Compaction
 
-When Snout is on, right after the agent compacts its conversation Snout puts back the exact facts the
-summary may have lost: the test command that worked, tools that are missing, commands that ran too
-long, files changed and the current request. To keep something else, add a line to `.snout/pins.md`:
-
-```markdown
-- Never run migrations against prod
-- `config/deploy.yml` — deploy targets [re-read 20]
-```
-
-A line starting with a path points the agent to that file; `[re-read N]` brings its first N lines
-from disk (files matching the `redact` list never are). Up to 10 pins. Like `CLAUDE.md`, a committed
-`pins.md` reaches every agent that works in the repo, so treat it as project instructions.
+Compaction is the agent's own. Snout adds nothing to the context after one; Claude Code's or Codex's
+summary carries the session on. What Snout keeps across sessions is memory: a card per finished
+session, recalled when a later prompt bears on it, and the repo brief at session start.
 
 ## Ignore files
 
@@ -186,7 +188,7 @@ paths explicitly rather than relying on a clever pattern.
 
 ## Turning it off
 
-```
+```text
 /snout:mode observe            # stop blocking, keep reporting
 export SNOUT_DISABLE=1         # force observe for a session
 claude plugin uninstall snout@snout-context

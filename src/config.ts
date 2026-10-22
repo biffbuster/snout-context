@@ -25,6 +25,8 @@ export interface Config {
   memory?: boolean;
   /** "jev": after each turn, TypeSafe Jev judges which of the user's sentences are lasting preferences (opt-in, sends them). Default off. */
   memoryJudge?: "off" | "jev";
+  /** Tokens the session-start memory block may use (memory/store.ts). Default 600; 0 injects none. */
+  memoryBudget?: number;
   /** Blocking hooks call a long-running `snout serve` over HTTP instead of starting Node each time. Default on; false keeps command hooks. */
   fastHooks?: boolean;
   /**

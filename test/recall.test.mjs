@@ -162,6 +162,8 @@ test("the brief keeps what two or more sessions found, and nothing a single sess
   assert.doesNotMatch(text, /settings\.tsx/);
   assert.match(text, /The user has said in 3 sessions: "Never push to main"/);
   assert.doesNotMatch(text, /one-off rule/);
+  const later = repoBrief([worked("a"), worked("b")], { now, installed: (t) => t === "pytest" });
+  assert.doesNotMatch(later, /Not installed here/, "a tool installed since is not reported missing");
 });
 
 test("no brief from one session, from stale cards, or for what CLAUDE.md already says", () => {
@@ -212,8 +214,10 @@ test("share lets git track .snout/memory and nothing else under .snout, and neve
   hook(dir, "stop", { session_id: "s1", transcript_path: transcript });
   const r = spawnSync(process.execPath, [CLI, "memory", "share"], { cwd: dir, encoding: "utf8" });
   assert.match(r.stdout, /Updated \.gitignore/);
-  assert.equal(readFileSync(join(dir, ".gitignore"), "utf8"), "node_modules\n.snout/*\n!.snout/memory/\n");
+  assert.equal(readFileSync(join(dir, ".gitignore"), "utf8"), "node_modules\n.snout/*\n!.snout/memory/\n.snout/memory/preferences.json\n");
+  writeFileSync(join(dir, ".snout", "memory", "preferences.json"), "{}");
   const untracked = git(dir, "status", "--porcelain", "--untracked-files=all");
+  assert.doesNotMatch(untracked, /preferences\.json/, "one person's preferences are private, not shared");
   assert.match(untracked, /\.snout\/memory\/s1\.json/);
   assert.doesNotMatch(untracked, /\.snout\/(state|hooks|ledger)/);
   assert.doesNotMatch(untracked, /^A/m, "nothing staged");

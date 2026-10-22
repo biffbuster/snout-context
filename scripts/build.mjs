@@ -6,8 +6,25 @@
  * an install failure. CI verifies the committed bundle matches src/.
  */
 import { build } from "esbuild";
-import { readFileSync, statSync } from "node:fs";
+import { copyFileSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+
+// The dashboard's page script is TypeScript in src/dashboard/app, bundled for the browser and
+// inlined into page.html, so the page is still one file that loads nothing from the network.
+const app = await build({
+  entryPoints: ["src/dashboard/app/main.ts"],
+  bundle: true,
+  platform: "browser",
+  target: "es2020",
+  format: "iife",
+  minify: false,
+  legalComments: "none",
+  logLevel: "warning",
+  write: false,
+  charset: "utf8",
+});
+const appJs = app.outputFiles[0].text.replace(/<\/(script)/gi, "<\\/$1");
+if (/https?:\/\/(?!www\.w3\.org)/.test(appJs)) throw new Error("the dashboard script must not reference a network URL");
 
 const common = {
   bundle: true,
@@ -22,13 +39,18 @@ const common = {
   plugins: [{
     name: "html-lf",
     setup(b) {
-      b.onLoad({ filter: /\.html$/ }, (args) => ({ contents: readFileSync(args.path, "utf8").replace(/\r\n/g, "\n"), loader: "text" }));
+      b.onLoad({ filter: /\.html$/ }, (args) => ({ contents: readFileSync(args.path, "utf8").replace(/\r\n/g, "\n").replace("/*__SNOUT_APP__*/", () => appJs), loader: "text" }));
     },
   }],
 };
 
 await build({ ...common, entryPoints: ["src/cli.ts"], outfile: "dist/snout.mjs", banner: { js: "#!/usr/bin/env node" } });
+// Snout's corner animation for the dashboard, served by `snout dashboard` from next to the bundle.
+copyFileSync("src/dashboard/assets/snout-mascot.webp", "dist/snout-mascot.webp");
 await build({ ...common, entryPoints: ["src/index.ts"], outfile: "dist/lib.mjs" });
+// Snout Cloud (cloud/) serves the same page at /app; it asks /api/boot and finds itself hosted.
+// Written into cloud/ because the cloud deploys from that folder alone.
+writeFileSync("cloud/public/dashboard.html", readFileSync("src/dashboard/page.html", "utf8").replace(/\r\n/g, "\n").replace("/*__SNOUT_APP__*/", () => appJs));
 
 const cli = readFileSync("dist/snout.mjs", "utf8");
 

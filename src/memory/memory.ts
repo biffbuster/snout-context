@@ -328,6 +328,8 @@ export interface BriefOptions {
   projectDir?: string;
   /** The instruction files the agent already loads (CLAUDE.md, AGENTS.md): what they say is not repeated. */
   instructions?: string;
+  /** Whether a tool is installed now; a missing tool that is installed is not reported. */
+  installed?: (tool: string) => boolean;
 }
 
 /** Each value with the number of distinct sessions that showed it, most first, then most recent. */
@@ -364,7 +366,7 @@ export function repoBrief(cards: Card[], opts: BriefOptions = {}): string {
   const lines: string[] = [];
   const test = recurring(live, (c) => (c.test ? [c.test.command] : []), (v) => v).find((t) => fresh(t.value));
   if (test) lines.push(`- Tests run here with: \`${clip(test.value, 160)}\` (${test.sessions} sessions)`);
-  const missing = recurring(live, (c) => c.missing ?? []).filter((m) => fresh(m.value)).slice(0, 4);
+  const missing = recurring(live, (c) => c.missing ?? []).filter((m) => fresh(m.value) && !opts.installed?.(m.value)).slice(0, 4);
   if (missing.length) lines.push(`- Not installed here: ${missing.map((m) => clip(m.value, 40)).join(", ")}`);
   const slow = recurring(live, (c) => c.slow ?? [], (v) => v).filter((s) => fresh(s.value)).slice(0, 2);
   for (const s of slow) lines.push(`- Runs past the 2-minute tool limit (prefer narrower runs): \`${clip(s.value, 140)}\``);
@@ -388,17 +390,26 @@ export type ShareResult =
  * Lets git track `.snout/memory/` while the rest of `.snout/` stays ignored: the usual `.snout/`
  * line becomes `.snout/*` plus `!.snout/memory/` (git can't re-include a file inside an ignored
  * directory). Never stages or commits anything: what gets shared is the user's call.
+ * preferences.json stays ignored: it holds what one person said about how they work, which is
+ * private memory (memory/store.ts), not the team's.
  */
 export function shareMemory(projectDir: string, snoutDir: string): ShareResult {
   const rel = relative(projectDir, dirOf(snoutDir)).split(sep).join("/");
   if (!rel || rel.startsWith("..") || isAbsolute(rel)) return { ok: false, reason: "Snout's records are kept outside this project (SNOUT_DIR), so git can't share them from here." };
   if (git(projectDir, ["rev-parse", "--is-inside-work-tree"]) !== "true") return { ok: false, reason: "This project isn't a git repository." };
   const probe = `${rel}/card.json`;
-  const ignored = () => spawnSync("git", ["check-ignore", "-q", "--no-index", probe], { cwd: projectDir, timeout: 2000, windowsHide: true }).status === 0;
-  if (!ignored()) return { ok: true, changedGitignore: false, dir: rel };
+  const isIgnored = (path: string) => spawnSync("git", ["check-ignore", "-q", "--no-index", path], { cwd: projectDir, timeout: 2000, windowsHide: true }).status === 0;
+  const ignored = () => isIgnored(probe);
   const file = join(projectDir, ".gitignore");
   let text = "";
   try { text = readFileSync(file, "utf8"); } catch { /* none */ }
+  const prefs = `${rel}/preferences.json`;
+  if (!ignored()) {
+    // Shared before preferences became private: keep that one file out from now on.
+    if (isIgnored(prefs)) return { ok: true, changedGitignore: false, dir: rel };
+    writeAtomic(file, `${text}${text && !text.endsWith("\n") ? "\n" : ""}${prefs}\n`);
+    return { ok: true, changedGitignore: true, dir: rel };
+  }
   const top = rel.split("/")[0]!;
   const nl = text.includes("\r\n") ? "\r\n" : "\n";
   const lines = text.split(/\r?\n/);
@@ -407,7 +418,7 @@ export function shareMemory(projectDir: string, snoutDir: string): ShareResult {
     const why = git(projectDir, ["check-ignore", "-v", "--no-index", probe]);
     return { ok: false, reason: `${rel} is ignored by a rule Snout won't edit${why ? ` (${why.split("\t")[0]})` : ""}. Add \`!${rel}/\` after it to share memory.` };
   }
-  lines.splice(i, 1, `${top}/*`, `!${rel}/`);
+  lines.splice(i, 1, `${top}/*`, `!${rel}/`, prefs);
   writeAtomic(file, lines.join(nl));
   return ignored() ? { ok: false, reason: `Updated .gitignore, but another rule still ignores ${rel}.` } : { ok: true, changedGitignore: true, dir: rel };
 }

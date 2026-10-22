@@ -35,13 +35,13 @@ interface Req extends Usage {
   cwd?: string;
 }
 
-const claudeRoot = () => join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"), "projects");
-const codexRoot = () => join(process.env.CODEX_HOME || join(homedir(), ".codex"), "sessions");
+export const claudeRoot = () => join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"), "projects");
+export const codexRoot = () => join(process.env.CODEX_HOME || join(homedir(), ".codex"), "sessions");
 
 /** Claude Code's folder name for a project: every non-alphanumeric character becomes "-". */
 export const claudeSlug = (projectDir: string) => resolve(projectDir).replace(/[^A-Za-z0-9]/g, "-");
 
-function jsonlFiles(dir: string, depth = 4): string[] {
+export function jsonlFiles(dir: string, depth = 4): string[] {
   if (depth < 0 || !existsSync(dir)) return [];
   const out: string[] = [];
   for (const e of readdirSync(dir, { withFileTypes: true })) {

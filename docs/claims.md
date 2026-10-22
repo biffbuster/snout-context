@@ -2,6 +2,16 @@
 
 Every number below was measured on the clean Snout 0.3.1 bundle. `node scripts/check-claims.mjs --strict` fails if any cited file was measured on a different build. Results from older builds are in [the pre-0.3.1 archive](archive/pre-0.3.1/README.md) and do not describe 0.3.1.
 
+## Not measured: changes since 0.3.1
+
+The unreleased 0.3.2 code on `main` differs from the measured 0.3.1 bundle. None of the numbers below were measured on it, and none of them describe these changes:
+
+- The context Snout added after a compaction is gone, so Snout no longer restores facts after a compaction.
+- Private and shared notes across sessions and agents, written automatically at the end of a session, and memory tools over MCP.
+- Trimmed MCP results are saved as plain text at an absolute path.
+
+Each needs its own measurement on a clean 0.3.2 bundle before it is claimed anywhere.
+
 ## Measured on 0.3.1: Claude Code cost per solved task
 
 Claude Code with Sonnet, billed through the API, on one Windows machine. The 14 tasks in `bench/ab.mjs` were each run 5 times with Snout off and 5 times with Snout on (`enforce`): 140 sessions. Every session had the same $1.00 budget, and which arm runs first alternates by task and round. The tasks were written alongside Snout as a release regression set, not taken from outside repositories, so this result does not estimate savings on other codebases. See [the benchmark protocol](benchmark-protocol.md#publication-standard-fixed-2026-10-13).

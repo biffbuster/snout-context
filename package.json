@@ -1,6 +1,6 @@
 {
   "name": "usesnout",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Context gating and token optimization for AI coding agents: trims bulky files, logs, docs, command and MCP output before they enter context, and reports what it saved.",
   "license": "MIT",
   "type": "module",
@@ -32,7 +32,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p src/dashboard/app && tsc --noEmit -p cloud",
     "test": "node scripts/test.mjs",
     "bench": "node test/bench.mjs",
     "check:claims": "node scripts/check-claims.mjs",

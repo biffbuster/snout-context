@@ -1,6 +1,6 @@
 /**
  * Codex session files (`~/.codex/sessions/**\/rollout-*.jsonl`) as Claude Code transcript rows, so
- * the facts restored after a compaction come from the same rules for both agents. The on-disk
+ * memory cards come from the same rules for both agents. The on-disk
  * format is not a stable API, so this is best-effort: an unknown record is skipped, never fatal.
  *
  * A Codex line is `{ type, payload }`. What carries a fact:

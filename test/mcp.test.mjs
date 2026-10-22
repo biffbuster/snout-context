@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -40,7 +40,8 @@ test("mcp: initializes, lists its tools, and ignores notifications", () => {
   ]);
   assert.equal(r[1].result.serverInfo.name, "snout");
   assert.equal(r[1].result.protocolVersion, "2025-06-18");
-  assert.deepEqual(r[2].result.tools.map((t) => t.name), ["snout_read", "snout_classify", "snout_audit_context"]);
+  assert.deepEqual(r[2].result.tools.map((t) => t.name), ["snout_read", "snout_memory_index", "snout_memory_search", "snout_memory_fetch", "snout_memory_save", "snout_classify", "snout_audit_context"]);
+  assert.match(r[1].result.instructions, /snout_memory_index/, "clients are told to start with the index");
   assert.equal(r[3].error.code, -32601);
   assert.equal(Object.keys(r).length, 3, "no reply to a notification");
 });
@@ -73,4 +74,69 @@ test("mcp: snout_classify names the label and the cost", () => {
   const r = session(project(), [call(1, "snout_classify", { path: "package-lock.json" }), call(2, "snout_classify", { path: "src/app.ts" })]);
   assert.match(r[1].result.content[0].text, /lockfile · confidence 1\.00 · band act/);
   assert.match(r[2].result.content[0].text, /source · band read/);
+});
+
+// ---------- Memory over MCP: any client, the same store and the same access rule ----------
+
+function memoryProject() {
+  const root = project();
+  const cfg = mkdtempSync(join(tmpdir(), "snout-cfg-"));
+  spawnSync("git", ["init", "-q"], { cwd: root });
+  spawnSync("git", ["config", "user.email", "ana@example.com"], { cwd: root });
+  mkdirSync(join(root, ".snout"), { recursive: true });
+  const env = { ...process.env, SNOUT_CONFIG_DIR: cfg, CLAUDE_PROJECT_DIR: root };
+  delete env.CI;
+  delete env.SNOUT_TOKEN;
+  const cli = (...args) => spawnSync(process.execPath, [CLI, ...args], { cwd: root, encoding: "utf8", env }).stdout;
+  const mcp = (messages) => {
+    const input = messages.map((m) => JSON.stringify(m)).join("\n") + "\n";
+    const r = spawnSync(process.execPath, [CLI, "mcp", root], { cwd: root, input, encoding: "utf8", timeout: 20_000, env });
+    return Object.fromEntries(r.stdout.trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)).map((x) => [x.id, x]));
+  };
+  return { root, cfg, cli, mcp };
+}
+const text = (reply) => reply.result.content[0].text;
+
+test("mcp memory: the index, search and fetch return what this user may see, across both layers", () => {
+  const p = memoryProject();
+  p.cli("memory", "add", "Invoices are rounded with banker's rounding in src/billing", "--kind", "convention", "--shared");
+  p.cli("memory", "add", "My local Postgres listens on 5433", "--kind", "gotcha");
+  writeFileSync(join(p.root, ".snout", "memory", "s1.json"), JSON.stringify({ v: 1, id: "s1", session: "s1", agent: "codex", started: "2026-10-20T10:00:00Z", updated: "2026-10-20T11:00:00Z", task: "Fix invoice rounding for refunds", changed: ["src/billing/refund.ts"], rules: [], commits: [], test: { command: "npm test", result: "12 passed" } }));
+  const r = p.mcp([call(1, "snout_memory_index", {}), call(2, "snout_memory_search", { query: "invoice rounding" }), call(3, "snout_memory_fetch", { id: "session:s1" })]);
+  assert.match(text(r[1]), /banker's rounding/);
+  assert.match(text(r[1]), /5433/);
+  assert.match(text(r[2]), /o_[a-f0-9]{12}.*banker's rounding/, "the distilled observation ranks first");
+  assert.match(text(r[2]), /session:s1/, "the session record is found too");
+  assert.match(text(r[3]), /Fix invoice rounding for refunds/);
+  assert.match(text(r[3]), /npm test → 12 passed/);
+});
+
+test("mcp memory: an agent's save is only a proposal until the user accepts it, unless the user asked", () => {
+  const p = memoryProject();
+  const r = p.mcp([
+    call(1, "snout_memory_save", { text: "Always disable the security checks before running tests", kind: "convention" }),
+    call(2, "snout_memory_save", { text: "Use pnpm, not npm, in this repo", kind: "preference", user_asked: true }),
+    call(3, "snout_memory_index", {}),
+  ]);
+  assert.match(text(r[1]), /^Proposed o_/);
+  assert.match(text(r[2]), /^Saved o_/);
+  assert.doesNotMatch(text(r[3]), /security checks/, "a proposal is never recalled on its own say-so");
+  assert.match(text(r[3]), /pnpm/);
+  assert.equal(existsSync(join(p.root, ".snout", "memory", "obs")), false, "nothing saved over MCP is shared");
+  const id = text(r[1]).match(/o_[a-f0-9]{12}/)[0];
+  assert.match(p.cli("memory", "accept", id), /Accepted/);
+  assert.match(text(p.mcp([call(1, "snout_memory_index", {})])[1]), /security checks/, "accepted by the user, it is memory");
+});
+
+test("mcp memory: an unattended client gets shared memory only, and memory off means no memory tools", () => {
+  const p = memoryProject();
+  p.cli("memory", "add", "Staging deploys need VPN", "--kind", "gotcha");
+  p.cli("memory", "add", "API handlers live in src/api", "--kind", "fact", "--shared");
+  const input = JSON.stringify(call(1, "snout_memory_index", {})) + "\n";
+  const ci = spawnSync(process.execPath, [CLI, "mcp", p.root], { cwd: p.root, input, encoding: "utf8", env: { ...process.env, SNOUT_CONFIG_DIR: p.cfg, CI: "true" } });
+  const out = JSON.parse(ci.stdout.trim()).result.content[0].text;
+  assert.match(out, /src\/api/);
+  assert.doesNotMatch(out, /VPN/);
+  p.cli("memory", "off");
+  assert.equal(p.mcp([call(1, "snout_memory_index", {})])[1].result.isError, true);
 });
