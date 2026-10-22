@@ -1,6 +1,6 @@
 # Current benchmark protocol: Snout 0.3.1
 
-This document records the completed 0.3.1 release regression and defines the next measurements. The [140-session Claude Code result](claims.md) is a release regression on authored tasks; **no held-out 0.3.1 agent score has been recorded.** A [three-task Codex pilot](experiments/codex-gpt6-sol-2026-10-19/README.md) is diagnostic only. The older pre-registration, pilots, amendments, and results are preserved in the [historical protocol](archive/pre-0.3.1/benchmark-protocol.md). Their scores cannot be relabeled as current.
+This document records the completed 0.3.1 release regression and defines the next measurements. The [140-session Claude Code result](archive/0.3.1/claims.md) is a release regression on authored tasks; **no held-out 0.3.1 agent score has been recorded.** A [three-task Codex pilot](experiments/codex-gpt6-sol-2026-10-19/README.md) is diagnostic only. The older pre-registration, pilots, amendments, and results are preserved in the [historical protocol](archive/pre-0.3.1/benchmark-protocol.md). Their scores cannot be relabeled as current.
 
 ## Candidate and machine
 

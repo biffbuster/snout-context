@@ -9,7 +9,7 @@ bulky MCP results and repeat reads out of your agent's context, remembers what e
 learned, and shows what each session spent.
 
 Runs locally, no account. On our 14-task benchmark, Snout 0.3.1 cut Claude Code's cost per solved
-task by 25.5% ([details](docs/claims.md)). Changes made since 0.3.1, including shared notes, are not
+task by 25.5% ([details](docs/archive/0.3.1/claims.md)). Changes made since 0.3.1, including shared notes, are not
 measured yet.
 
 ## Install
