@@ -1,9 +1,10 @@
 # Changelog
 
-## 0.3.2 (unreleased)
+## 0.3.2 (2026-10-25)
 
-Not measured yet. The numbers in [docs/claims.md](docs/claims.md) were measured on 0.3.1 and do not
-describe these changes.
+Agent cost is not measured on 0.3.2 yet. [docs/claims.md](docs/claims.md) has the offline recall
+numbers measured on this release; the 0.3.1 cost result is archived and does not describe these
+changes.
 
 - Notes that carry across sessions and agents. A private note is kept in your user config folder and
   reaches only your own Claude Code and Codex sessions. A shared note is kept in `.snout/memory/obs/`
