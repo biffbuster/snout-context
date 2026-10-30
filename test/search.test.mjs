@@ -49,6 +49,26 @@ test("a few files' worth of matches is left whole, even with long absolute paths
   assert.equal(squeeze("search", lines.join("\n"), "x.log"), null);
 });
 
+test("a search that also printed a file is left whole, blank lines and all", () => {
+  // 2026-10-30: `grep -rn ... ; cat src/dashboard/app/tour.ts` came back as a "path list": blank
+  // lines gone, the file's tail "counted by directory", and an edit made from it missed.
+  const hits = Array.from({ length: 30 }, (_, i) => `src/dashboard/app/pages/p${i}.ts:${i + 1}:  if (ctx.hosted) return hostedPage(ctx, el);`);
+  const file = [];
+  for (let i = 0; i < 40; i++) file.push(`/** Stop ${i}: what the tour says here. */`, `export function stop${i}(env: TourEnv): Stop {`, `  return { page: "p${i}", title: "Page ${i}", text: "Explains page ${i} in the bubble." };`, "}", "");
+  const output = [...hits, ...file].join("\n");
+  assert.ok(Buffer.byteLength(output) > 4000);
+  assert.equal(squeeze("search", output, "x.log"), null);
+});
+
+test("a big search with a few stray lines (an unreadable file) is still grouped", () => {
+  const lines = [];
+  for (let f = 0; f < 40; f++) for (let m = 0; m < 6; m++) lines.push(`src/m${f}/file.ts:${m + 1}:  const v${m} = load(input);`);
+  lines.splice(10, 0, "grep: src/secret: Permission denied", "Binary file src/logo.png matches");
+  const out = squeeze("search", lines.join("\n"), "x.log");
+  assert.ok(out);
+  assert.match(out.text, /matches in \d+ files/);
+});
+
 test("path lists count directories below the prefix every path shares", () => {
   const root = "/private/tmp/scratch/run/work";
   const paths = [];
