@@ -46,6 +46,13 @@ test("a browser snapshot collapses repeated lines and keeps the rest", () => {
   assert.match(text, /\(\+3 identical\)/);
 });
 
+test("a result passed as one string, as Claude Code passes GitHub's, is trimmed and stays a string", () => {
+  const t = trimMcp(issues(), "x.json");
+  assert.ok(t && typeof t.output === "string");
+  assert.equal(JSON.parse(t.output.split("\n\n[Snout trimmed")[0]).length, 61);
+  assert.match(t.output, /Full result, as searchable text: x\.json/);
+});
+
 test("small results, images, results over Claude Code's cap and non-MCP shapes pass through", () => {
   assert.equal(trimMcp([{ type: "text", text: "ok" }], "x"), null);
   const img = { type: "image", data: "iVBOR".repeat(5000), mimeType: "image/png" };

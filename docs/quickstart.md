@@ -60,9 +60,11 @@ whether that matches your mode.
 
 ## Memory between sessions
 
-Nothing to set up. Each finished session leaves a card in `.snout/memory/`, and a later prompt that
-bears on one gets it. `snout memory` lists the cards; `snout recall "<prompt>"` shows what a prompt
-would get. Using Codex in the same project too? `snout init codex` gives it the same memory.
+Nothing to set up. Each session leaves a record in `.snout/memory/`. In enforce mode, a new session
+starts with one line saying earlier sessions are on record. The agent searches and opens them with
+Snout's two memory tools when its task may build on them. `snout memory` lists the records and shows
+whether agents used them. Using Codex in the same project too? `snout init codex` gives it the same
+memory, and each agent can search the other's records. More in [memory](memory.md).
 
 ## When it gets something wrong
 

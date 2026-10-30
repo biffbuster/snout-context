@@ -37,12 +37,13 @@ snout init codex         # writes .codex/hooks.json
 ```
 
 `snout init codex` installs PreToolUse, PostToolUse, SessionStart, UserPromptSubmit and Stop.
-The last two carry memory: Stop writes the session's card from its transcript, and
-UserPromptSubmit adds the brief of earlier sessions when a prompt bears on one. Re-running it
+Stop writes the session's record from its transcript. SessionStart adds one line when earlier
+sessions are on record, and Snout's MCP server (`snout_memory_search` and `snout_memory_fetch`) lets
+Codex search and open them ([memory](memory.md)). Re-running it
 replaces Snout's own entries and keeps other tools' hooks. Codex loads project hooks only in a
 trusted folder, and runs a new hook only after you approve it. Open Codex in the project once,
 trust the folder, and approve the five Snout hooks with `/hooks`. Until then the hooks are skipped
-without any error. A `codex exec --ephemeral` session has no transcript, so it leaves no card.
+without any error. A `codex exec --ephemeral` session has no transcript, so it leaves no record.
 
 Codex reads files through shell commands, so Snout gates whole-file prints such as
 `cat package-lock.json` and points the agent to a targeted search. On Windows, a single

@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildMap, candidates, renderCandidates, requestNames, shouldSuggest } from "../dist/lib.mjs";
+import { buildMap, candidates, renderCandidates, requestNames, shouldSuggest, withoutOutput } from "../dist/lib.mjs";
 
 function project(files) {
   const dir = mkdtempSync(join(tmpdir(), "snout-map-"));
@@ -52,6 +52,37 @@ test("a traceback's innermost project frame and a dotted module path locate thei
   assert.ok(cs.findIndex((c) => c.path === "pkg/views.py") > 0);
   assert.equal(candidates(map, "pkg.db.lookups.Exact is wrong for None")[0]?.path, "pkg/db/lookups.py");
   assert.ok(!candidates(map, "from pkg import views").some((c) => c.path === "pkg/__init__.py"), "a package is not a location");
+});
+
+test("a file the issue names by path leads; pasted build logs count little; a reporter's own site file is not the project's", () => {
+  const dir = project({
+    "build/pipeline.go": "package build\nfunc renderDeferred() {}\nfunc postProcess() {}\n",
+    "build/steps.go": "package build\nfunc run() { renderDeferred(); postProcess() }\n",
+    "tmpl/transform.go": "package tmpl\nfunc handleWith() { deferNodes() }\n",
+    "tmpl/store.go": "package tmpl\nfunc deferNodes() {}\nfunc addDeferred() { handleWith() }\n",
+    "docs/layouts/single.html": "<main>{{ .Content }}</main>\n",
+  });
+  const { map } = buildMap(dir);
+  const issue = [
+    "Deferred blocks share one escaping mode",
+    "```text",
+    "INFO  build:  step render deferred count 2 duration 1.7ms",
+    "INFO  build:  step postProcess duration 0s",
+    "INFO  build:  step render deferred count 2 duration 1.9ms",
+    "```",
+    "My `layouts/single.html` shows it too. This seems to come from `tmpl/transform.go`, where the block is registered by its body alone.",
+  ].join("\n");
+  assert.doesNotMatch(withoutOutput(issue), /render deferred/, "the log block is output, not the request");
+  assert.match(withoutOutput(issue), /tmpl\/transform\.go/);
+  const cs = candidates(map, issue, 4);
+  assert.equal(cs[0].path, "tmpl/transform.go");
+  assert.equal(cs[0].named, true);
+  assert.ok(!cs.some((c) => c.path === "docs/layouts/single.html" && c.named), "a site file named by its tail is the reporter's");
+  assert.ok(shouldSuggest(cs, issue));
+  assert.match(renderCandidates(cs), /tmpl\/transform\.go \(named in the request/);
+  // The same issue without the path: the log's names alone do not fire the hint.
+  const noPath = issue.replace(/This seems.*$/, "");
+  assert.equal(shouldSuggest(candidates(map, noPath, 4), noPath), false);
 });
 
 test("plain words in a request reach camelCase and snake_case names", () => {
@@ -130,4 +161,31 @@ test("prompt hook: off by default, then suggests files once `snout map on` is se
   assert.ok(log[0].paths.includes("src/tax.js") && log[0].tokensEst > 0);
   assert.equal(submit(root, "make the button blue").hookSpecificOutput, undefined, "nothing named, nothing added");
   assert.ok(existsSync(join(root, ".snout/map.json")));
+});
+
+test("an issue read through MCP gets the files the map ranks for its text; other tools and repeats get nothing new", () => {
+  const root = shop();
+  spawnSync(process.execPath, [CLI, "mode", "enforce"], { cwd: root, env: { ...process.env, CLAUDE_PROJECT_DIR: root } });
+  spawnSync(process.execPath, [CLI, "map", "on"], { cwd: root, env: { ...process.env, CLAUDE_PROJECT_DIR: root } });
+  const read = (tool_name, body) => {
+    const tool_response = [{ type: "text", text: JSON.stringify({ number: 7, title: "Wrong total", body, comments: [{ body: "Seen on discounted orders too." }] }) }];
+    const r = spawnSync(process.execPath, [CLI, "squeeze"], { input: JSON.stringify({ session_id: "s1", cwd: root, hook_event_name: "PostToolUse", tool_name, tool_input: { issue_number: 7 }, tool_response }), encoding: "utf8", env: { ...process.env, CLAUDE_PROJECT_DIR: root } });
+    return JSON.parse(r.stdout || "{}").hookSpecificOutput?.updatedToolOutput;
+  };
+  assert.equal(read("mcp__github__issue_read", "`applyTaxRate` rounds the tax wrong when the order has a discount."), undefined, "no map built yet: the hook never builds one itself");
+  spawnSync(process.execPath, [CLI, "map"], { cwd: root, env: { ...process.env, CLAUDE_PROJECT_DIR: root } }); // what session start does in the background
+  const long = "`applyTaxRate` rounds the tax wrong when the order has a discount. " + "Steps to reproduce: add a discounted item and check out. ".repeat(400);
+  const out = read("mcp__github__issue_read", long);
+  assert.ok(Array.isArray(out) && out.length === 2, "the issue as it came, plus one note");
+  assert.equal(JSON.parse(out[0].text).body, long, "an issue's own text is never shortened");
+  assert.match(out[0].text, /"title":"Wrong total"/);
+  assert.match(out[1].text, /`src\/tax\.js` \(defines applyTaxRate/);
+  // Claude Code passes a result of one text block as a plain string: GitHub's issue reads come this way.
+  const asString = JSON.stringify({ issue: { number: 7, title: "Wrong total", body: long } });
+  const r = spawnSync(process.execPath, [CLI, "squeeze"], { input: JSON.stringify({ session_id: "s2", cwd: root, hook_event_name: "PostToolUse", tool_name: "mcp__github__issue_read", tool_input: { issue_number: 7 }, tool_response: asString }), encoding: "utf8", env: { ...process.env, CLAUDE_PROJECT_DIR: root } });
+  const str = JSON.parse(r.stdout || "{}").hookSpecificOutput?.updatedToolOutput;
+  assert.ok(typeof str === "string" && str.startsWith(asString + "\n\n"), "a string issue stays a string, whole, with the note after it");
+  assert.match(str, /`src\/tax\.js` \(defines applyTaxRate/);
+  assert.equal(read("mcp__github__list_issues", "`applyTaxRate` rounds the tax wrong when the order has a discount."), undefined, "a list is not one issue");
+  assert.equal(read("mcp__github__get_issue", "The page looks off on mobile, please have a look at it."), undefined, "nothing in the code named, nothing added");
 });

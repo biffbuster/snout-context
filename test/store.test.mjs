@@ -143,51 +143,55 @@ function hookRepo() {
   spawnSync("git", ["init", "-q"], { cwd: root });
   spawnSync("git", ["config", "user.email", "ana@example.com"], { cwd: root });
   mkdirSync(join(root, ".snout"));
-  const env = (extra = {}) => { const e = { ...process.env, SNOUT_CONFIG_DIR: cfg, CLAUDE_PROJECT_DIR: root, ...extra }; delete e.CI; delete e.SNOUT_TOKEN; return { ...e, ...extra }; };
+  const env = (extra = {}) => { const e = { ...process.env, SNOUT_CONFIG_DIR: cfg, CLAUDE_PROJECT_DIR: root, SNOUT_MEMORY_NOTES: "1", ...extra }; delete e.CI; delete e.SNOUT_TOKEN; return { ...e, ...extra }; };
   const cli = (args, extra) => spawnSync(process.execPath, [CLI, ...args], { cwd: root, encoding: "utf8", env: env(extra) }).stdout;
   const start = (extra) => {
     const out = spawnSync(process.execPath, [CLI, "session-start"], { cwd: root, encoding: "utf8", input: JSON.stringify({ cwd: root, session_id: `s-${Math.random()}`, source: "startup" }), env: env(extra) }).stdout.trim();
     return out ? JSON.parse(out) : {};
   };
+  const prompt = (text, extra, session = `p-${Math.random()}`) => {
+    const out = spawnSync(process.execPath, [CLI, "prompt-submit"], { cwd: root, encoding: "utf8", input: JSON.stringify({ cwd: root, session_id: session, prompt: text }), env: env(extra) }).stdout.trim();
+    return out ? JSON.parse(out).hookSpecificOutput?.additionalContext ?? "" : "";
+  };
   const injects = () => readFileSync(join(root, ".snout", "recall.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l)).filter((r) => r.kind === "inject");
-  return { root, cfg, cli, start, injects };
+  return { root, cfg, cli, start, prompt, injects };
 }
 
-test("a new session starts with what its user may see, and nothing a teammate saved privately", () => {
+test("a prompt gets the notes it fits that its user may see, with their source, and nothing a teammate saved privately", () => {
   const r = hookRepo();
   r.cli(["memory", "add", "Payments tests need STRIPE_TEST=1", "--kind", "gotcha"]);
   r.cli(["memory", "add", "Migrations live in db/migrations and are never edited", "--kind", "convention", "--shared"]);
   // Ben's private note sits in the same project folder (a shared machine, a copied config): his audience, not Ana's.
   const stores = storesFor(r.root, join(r.root, ".snout"), r.cfg);
   addObservation(stores, BEN, { kind: "fact", text: "Ben's staging password hint", via: "manual" });
-  const out = r.start({ SNOUT_MODE: "enforce" });
-  const ctx = out.hookSpecificOutput?.additionalContext ?? "";
-  assert.match(ctx, /STRIPE_TEST=1/);
+  assert.equal(r.start({ SNOUT_MODE: "enforce" }).hookSpecificOutput, undefined, "a new session starts with no block of notes");
+  const ctx = r.prompt("The payments tests fail on staging; the password check or the migrations that live in db may be why.", { SNOUT_MODE: "enforce" });
+  assert.match(ctx, /"Payments tests need STRIPE_TEST=1" \(added by you; (?:\w+, )?\d{4}-/);
   assert.match(ctx, /db\/migrations/);
   assert.doesNotMatch(ctx, /Ben's staging/, "another user's private note never reaches the session");
   const row = r.injects().at(-1);
   assert.equal(row.injected, true);
   assert.equal(row.items.length, 2);
   assert.ok(row.tokensEst > 0 && row.tokensEst <= row.budget);
+  assert.equal(r.prompt("Tidy the README wording.", { SNOUT_MODE: "enforce" }), "", "a prompt no note fits gets nothing");
 });
 
 test("observe mode shows what would be injected and injects nothing; CI gets shared memory only", () => {
   const r = hookRepo();
   r.cli(["memory", "add", "Run the e2e suite with pnpm e2e", "--kind", "command"]);
   r.cli(["memory", "add", "Feature flags live in flags.yaml", "--kind", "fact", "--shared"]);
-  const observed = r.start({ SNOUT_MODE: "observe" });
-  assert.doesNotMatch(observed.hookSpecificOutput?.additionalContext ?? "", /pnpm e2e/);
+  const task = "Run the e2e suite after the feature flags change.";
+  assert.doesNotMatch(r.prompt(task, { SNOUT_MODE: "observe" }), /pnpm e2e/);
   assert.equal(r.injects().at(-1).injected, false);
   assert.equal(r.injects().at(-1).items.length, 2, "the audit still lists what enforce would add");
-  const ci = r.start({ SNOUT_MODE: "enforce", CI: "true" });
-  const ctx = ci.hookSpecificOutput?.additionalContext ?? "";
+  const ctx = r.prompt(task, { SNOUT_MODE: "enforce", CI: "true" });
   assert.match(ctx, /flags\.yaml/);
   assert.doesNotMatch(ctx, /pnpm e2e/, "an unattended session has no user, so no private memory");
 });
 
 // ---------- Step 3 of the roadmap: memory that writes itself ----------
 
-import { applyDistilled, distillCard, onPath, retireInstalled, shareObservation } from "../dist/lib.mjs";
+import { applyDistilled, cite, distillCard, fittingNotes, generalTestCommand, lessonQuestion, onPath, parseLessons, retireInstalled, retireOneOff, shareObservation } from "../dist/lib.mjs";
 
 const card = (o = {}) => ({ v: 1, id: "c", session: "s1", agent: "claude", started: "", updated: "", changed: [], rules: [], commits: [], ...o });
 
@@ -203,7 +207,52 @@ test("a card becomes observations by fixed rules: a passing test command, missin
     ["preference", "Never edit generated files."],
   ]);
   assert.ok(got.every((n) => n.scope === "private"), "nothing becomes shared on its own");
+  assert.equal(got.at(-1).status, "proposed", "an instruction waits for a second session");
   assert.deepEqual(distillCard(card({ test: { command: "npm test", result: "Tests: 3 failed, 9 passed" } })), [], "a failing run is not how to run the tests");
+});
+
+test("a test command is saved in the form that holds for the next task: the tests one task picked become a placeholder", () => {
+  const g = generalTestCommand;
+  assert.equal(g(`cd ../.. && go test ./tpl/... ./hugolib -run "Defer"`), "go test <packages>", "Hugo product test: one issue's packages and filter");
+  assert.equal(g("GOTOOLCHAIN=local go test -tags integration -count=1 ./config/..."), "GOTOOLCHAIN=local go test -tags integration -count=1 <packages>", "env and flags stay");
+  assert.equal(g("go test ./..."), "go test ./...", "the whole project is not a selection");
+  assert.equal(g(`cd web && npm test -- -t "adds items"`), "cd web && npm test", "a subproject cd stays");
+  assert.equal(g("python -m pytest -q tests/test_ext_viewcode.py::test_viewcode -k slow"), "python -m pytest -q <tests>");
+  assert.equal(g("DJANGO_SETTINGS_MODULE=x python tests/runtests.py admin_views.tests.AdminTest --parallel 1"), "DJANGO_SETTINGS_MODULE=x python tests/runtests.py <tests> --parallel 1");
+  assert.equal(g("npx vitest run src/cart.test.ts"), "npx vitest run <tests>");
+  assert.equal(g("node --test test/*.test.mjs"), "node --test test/*.test.mjs", "a glob over the suite stays");
+  assert.equal(g("npm run verify"), "npm run verify");
+  assert.equal(g("node bench/x.mjs --chains pytest --n 1"), "node bench/x.mjs --chains pytest --n 1", "a runner named as a flag's value is not the run");
+  assert.equal(g("APP_ENV=test node scripts/test.mjs test/checkout.test.mjs"), "APP_ENV=test node scripts/test.mjs <tests>", "a project's own test script, with one task's file dropped");
+  assert.equal(g("./run-tests.sh"), "./run-tests.sh");
+  const [n] = distillCard(card({ test: { command: `go test ./hugolib -run "Defer"`, result: "ok  github.com/gohugoio/hugo/hugolib 4.1s" } }));
+  assert.equal(n.text, "Run the tests with: go test <packages>");
+});
+
+test("an instruction about the task at hand is never saved; another is kept once a second session repeats it", () => {
+  const { s } = setup();
+  const now = ["Do not switch this dirty checkout, stash, reset, commit, merge, or push yet.", "Do not publish npm as part of this step.", "Use an isolated Git worktree if needed to test a clean build.", "Then ensure there are no conflicts."];
+  assert.deepEqual(distillCard(card({ rules: now })), [], "tied to the moment: none becomes a note");
+  const seen = () => recallable(s, [viewer(ANA, repoPrincipal("proj1"))]).map((o) => o.text);
+  applyDistilled(s, ANA, card({ rules: ["Never edit generated files."] }));
+  assert.deepEqual(seen(), [], "said once: a proposal, not injected");
+  applyDistilled(s, ANA, card({ rules: ["Never edit generated files."] }));
+  assert.deepEqual(seen(), [], "the same session again is not a second session");
+  const kept = applyDistilled(s, ANA, card({ session: "s2", rules: ["Never edit generated files."] }));
+  assert.deepEqual(kept.added.map((o) => [o.status, o.tags.includes("repeated")]), [["active", true]]);
+  assert.deepEqual(seen(), ["Never edit generated files."]);
+});
+
+test("instructions saved before they had to be repeated: one tied to the moment is archived, others become proposals", () => {
+  const { s } = setup();
+  const old = (text) => addObservation(s, ANA, { kind: "preference", text, via: "distill", session: "s0", tags: ["rule"] });
+  const oneOffNote = old("Do not publish npm as part of this step.");
+  const general = old("Run the linter before every commit.");
+  const mine = addObservation(s, ANA, { kind: "preference", text: "Keep answers short.", via: "manual" });
+  const changed = retireOneOff(s);
+  assert.deepEqual(changed.map((o) => [o.id, o.status]).sort(), [[general.id, "proposed"], [oneOffNote.id, "archived"]].sort());
+  assert.deepEqual(recallable(s, [viewer(ANA, repoPrincipal("proj1"))]).map((o) => o.id), [mine.id], "what the user saved by hand is untouched");
+  assert.equal(retireOneOff(s).length, 0, "runs once: nothing left to change");
 });
 
 test("the newest passing test command replaces the old one; the same card twice adds nothing; no user, no writes", () => {
@@ -251,7 +300,72 @@ test("sharing moves one observation from private to the team, listed once", () =
   assert.equal(shareObservation(s, ANA, mine.id), null, "an already-shared one is not shared twice");
 });
 
-test("a session that ran its tests leaves that behind, and the next session, in any agent, starts with it", () => {
+test("lessons (opt-in, off by default): a session that got past a failure is asked once for a lesson, kept as a checked proposal and never shown on a prompt", () => {
+  const r = hookRepo();
+  const transcript = join(r.root, "t.jsonl");
+  const rows = [
+    { type: "user", message: { content: "Add checkout as the API notes describe." } },
+    { type: "assistant", message: { content: [{ type: "tool_use", id: "b1", name: "Bash", input: { command: "node scripts/test.mjs" } }] } },
+    { type: "user", message: { content: [{ type: "tool_result", tool_use_id: "b1", is_error: true, content: "Refusing to run the tests: they write to the store. Set APP_ENV=test." }] } },
+    { type: "assistant", message: { content: [{ type: "tool_use", id: "b2", name: "Bash", input: { command: "APP_ENV=test node scripts/test.mjs" } }] } },
+    { type: "user", message: { content: [{ type: "tool_result", tool_use_id: "b2", content: "✔ checkout\nℹ tests 3\nℹ pass 3\nℹ fail 0\n" }] } },
+    { type: "assistant", message: { content: [{ type: "text", text: "Checkout is in and the tests pass." }] } },
+  ];
+  const write = (extra = []) => writeFileSync(transcript, [...rows, ...extra].map((x) => JSON.stringify(x)).join("\n") + "\n");
+  const stop = (extra = {}) => { const o = spawnSync(process.execPath, [CLI, "stop"], { cwd: r.root, encoding: "utf8", input: JSON.stringify({ cwd: r.root, session_id: "s1", transcript_path: transcript, ...extra }), env: { ...process.env, SNOUT_CONFIG_DIR: r.cfg, CLAUDE_PROJECT_DIR: r.root, SNOUT_MODE: "enforce", CI: "", SNOUT_TOKEN: "" } }).stdout.trim(); return o ? JSON.parse(o) : {}; };
+  write();
+  assert.equal(stop().decision, undefined, "off by default: nothing is asked");
+  assert.match(r.cli(["memory", "lessons", "on"]), /Lessons on/);
+  const ask = stop();
+  assert.equal(ask.decision, "block");
+  assert.match(ask.reason, /got past it \(`node scripts\/test\.mjs`: Refusing to run the tests/);
+  assert.match(ask.reason, /Already kept, don't repeat: "Run the tests with: APP_ENV=test node scripts\/test\.mjs"/, "the rule-based note is shown so the lesson adds to it");
+  write([{ type: "assistant", message: { content: [{ type: "text", text: "Lesson: the suite refuses to run without APP_ENV=test; run `APP_ENV=test node scripts/test.mjs`, npm test needs pnpm, which isn't installed." }] } }]);
+  assert.equal(stop({ stop_hook_active: true }).decision, undefined, "asked once: the answer ends the session");
+  const review = r.cli(["memory", "review"]);
+  assert.match(review, /the suite refuses to run without APP_ENV=test/);
+  assert.match(review, /proposed, evidence checked/, "the record shows the failure and the passing run");
+  assert.match(review, /record: +APP_ENV=test node scripts\/test\.mjs → .*after "Refusing to run the tests/);
+  assert.doesNotMatch(r.cli(["memory", "list"]), /the suite refuses/, "a proposal is not in use until a person approves it");
+  assert.equal(stop().decision, undefined, "kept once: a later Stop asks nothing");
+  const ctx = r.prompt("Add the webhook and run the tests; the suite refuses to run without the right setting.", { SNOUT_MODE: "enforce" });
+  assert.match(ctx, /Run the tests with: APP_ENV=test node scripts\/test\.mjs/, "the verified test command is shown");
+  assert.doesNotMatch(ctx, /Lesson|refuses to run without APP_ENV/, "an agent-written lesson is not verified, so it is never shown");
+});
+
+test("which notes fit a task: tests for a task with tests, a missing tool the task or its scripts use, two shared words otherwise", () => {
+  const { s } = setup();
+  const testCmd = addObservation(s, ANA, { kind: "command", text: "Run the tests with: APP_ENV=test node scripts/test.mjs", tags: ["test"], via: "distill" });
+  const pnpm = addObservation(s, ANA, { kind: "gotcha", text: "pnpm is not installed on this machine: don't call it, or install it first.", tags: ["missing"], via: "distill" });
+  const lesson = addObservation(s, ANA, { kind: "fact", text: "Run tests with APP_ENV=test, the suite refuses otherwise", tags: ["lesson"], via: "lesson" });
+  const all = [testCmd, pnpm, lesson];
+  const ids = (prompt, scripts) => fittingNotes(prompt, all, { scripts }).map((o) => o.id);
+  assert.deepEqual(ids("Add checkout and run the tests.", "pnpm run test:unit"), [testCmd.id, pnpm.id], "the test script calls pnpm");
+  assert.deepEqual(ids("Add checkout and run the tests.", "node scripts/test.mjs"), [testCmd.id], "pnpm isn't in play");
+  assert.deepEqual(ids("Fix the typo in the README.", "pnpm run test:unit"), [], "no tests, no pnpm: nothing");
+  assert.deepEqual(ids("Use pnpm to add the dependency."), [pnpm.id]);
+  assert.deepEqual(ids("The docs say pnpm is faster; reword that section."), [], "mentioned, not run");
+  assert.deepEqual(ids("Add checkout and run the tests.", "node dist/pnpm-shim.mjs doctor"), [testCmd.id], "a word in a path is not running the tool");
+  const old = addObservation(s, ANA, { kind: "preference", text: "Do not push or commit the checkout work yet.", tags: ["rule"], via: "distill" });
+  const kept = addObservation(s, ANA, { kind: "preference", text: "Never commit generated checkout files.", tags: ["rule", "repeated"], via: "distill" });
+  assert.deepEqual(fittingNotes("Commit the checkout work.", [old, kept]).map((o) => o.id), [kept.id], "an instruction counts only once a second session repeated it");
+  assert.ok(!ids("Run tests with APP_ENV=test please.").includes(lesson.id), "an agent's lesson is never shown as verified");
+  assert.match(cite(testCmd), /^seen in a passing test run; \d{4}-/);
+  // Live, 2026-10-23: a slow-command note from another folder reached a prompt about writing a protocol.
+  const elsewhere = addObservation(s, ANA, { kind: "gotcha", text: "cd /c/Users/x/field-test/cli && go test ./internal/... runs past the agent's tool time limit: run a narrower selection of tests.", tags: ["slow"], via: "distill" });
+  const here = addObservation(s, ANA, { kind: "gotcha", text: "go test ./... runs past the agent's tool time limit: run a narrower selection of tests.", tags: ["slow"], via: "distill" });
+  assert.deepEqual(fittingNotes("Fix the parser and run the tests.", [elsewhere, here]).map((o) => o.id), [here.id]);
+  assert.deepEqual(fittingNotes("Reword the README intro.", [here]), []);
+});
+
+test("lesson replies: up to two, none of 'none', never a secret", () => {
+  assert.deepEqual(parseLessons("Lesson: none"), []);
+  assert.deepEqual(parseLessons("Done. Lesson: run migrations with `make db` before tests. Lesson: run migrations with `make db` before tests."), ["run migrations with `make db` before tests."]);
+  assert.deepEqual(parseLessons("Lesson: deploys need API_KEY=sk-abcdefghijklmnopqrstuv set"), []);
+  assert.equal(lessonQuestion({ recovered: undefined }, []), null, "no failure got past: nothing asked");
+});
+
+test("a session that ran its tests leaves that behind, and a later prompt that involves tests, in any agent, gets it", () => {
   const r = hookRepo();
   const transcript = join(r.root, "t.jsonl");
   writeFileSync(transcript, [
@@ -259,11 +373,19 @@ test("a session that ran its tests leaves that behind, and the next session, in 
     { type: "assistant", message: { content: [{ type: "tool_use", id: "b1", name: "Bash", input: { command: "npm test" } }] } },
     { type: "user", message: { content: [{ type: "tool_result", tool_use_id: "b1", content: "> test\n> node --test\n\nℹ tests 7\nℹ pass 7\nℹ fail 0\n" }] } },
   ].map((x) => JSON.stringify(x)).join("\n") + "\n");
-  spawnSync(process.execPath, [CLI, "stop"], { cwd: r.root, encoding: "utf8", input: JSON.stringify({ cwd: r.root, session_id: "s1", transcript_path: transcript }), env: { ...process.env, SNOUT_CONFIG_DIR: r.cfg, CLAUDE_PROJECT_DIR: r.root, SNOUT_MODE: "enforce", CI: "", SNOUT_TOKEN: "" } });
-  const list = r.cli(["memory", "list"]);
+  const stop = (session) => spawnSync(process.execPath, [CLI, "stop"], { cwd: r.root, encoding: "utf8", input: JSON.stringify({ cwd: r.root, session_id: session, transcript_path: transcript }), env: { ...process.env, SNOUT_CONFIG_DIR: r.cfg, CLAUDE_PROJECT_DIR: r.root, SNOUT_MODE: "enforce", CI: "", SNOUT_TOKEN: "" } });
+  stop("s1");
+  let list = r.cli(["memory", "list"]);
   assert.match(list, /Run the tests with: npm test/);
-  assert.match(list, /Always run the tests before you say you're done/);
+  assert.doesNotMatch(list, /Always run the tests before you say you're done/, "an instruction said once is a proposal");
   assert.equal(existsSync(join(r.root, ".snout", "memory", "obs")), false, "written privately, not into the repository");
-  const ctx = r.start({ SNOUT_MODE: "enforce" }).hookSpecificOutput?.additionalContext ?? "";
-  assert.match(ctx, /Run the tests with: npm test/);
+  stop("s2");
+  list = r.cli(["memory", "list"]);
+  assert.match(list, /Always run the tests before you say you're done/, "said in a second session: kept");
+  // Session start: only the pointer to the records (memoryHint), nothing from them.
+  const start = r.start({ SNOUT_MODE: "enforce" }).hookSpecificOutput?.additionalContext ?? "";
+  assert.match(start, /^Snout: 2 earlier sessions are on record in this project/);
+  assert.doesNotMatch(start, /npm test|Always run the tests/, "no record content at session start");
+  const ctx = r.prompt("Fix the time zone parsing and run the tests.", { SNOUT_MODE: "enforce" });
+  assert.match(ctx, /Run the tests with: npm test" \(seen in a passing test run: "npm test → ℹ pass 7"; claude, /, "a later prompt that involves tests gets it, with the record it came from");
 });

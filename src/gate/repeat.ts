@@ -3,17 +3,20 @@
  * tokens twice, and again on every later turn because both copies stay in the conversation.
  *
  * Files: PostToolUse records each successful read by what it actually returned (the whole
- * file, or an exact line window) along with the file's size and mtime at that moment; Bash
- * dumps (`cat file`) count as whole-file reads. PreToolUse then spots a request already
- * covered by an earlier read of the unchanged file: the same window, a window inside one
- * already read, or any window of a file read whole.
+ * file, or an exact line window) along with the file's size and mtime at that moment. Shell
+ * reads count too: a whole-file dump (`cat file`) as the whole file, and a ranged print
+ * (`sed -n '40,80p' file`, `head -n 40 file`, `Get-Content file -TotalCount 40`) as its lines;
+ * an image Read as the whole image. PreToolUse then spots a request already covered by an
+ * earlier read of the unchanged file: the same window, a window inside one already read, or
+ * any window of a file read whole, whichever way each was read.
  *
  * Tool results: an MCP call or command whose result is byte-identical to one this agent
  * already received is replaced with a pointer to the earlier copy.
  *
  * Claude Code already answers an exact repeat of a Read itself ("file unchanged"), so for it
- * only the cases it misses fire here (a narrower window, a Read after a `cat`, a `cat` after a
- * Read); agents without that, such as Codex, Cursor and Gemini CLI, get every case.
+ * only the cases it misses fire here (a narrower window, a Read after a shell print, a shell
+ * print after a Read, an image read again); agents without that, such as Codex, Cursor and
+ * Gemini CLI, get every case.
  *
  * Safety, in order of importance:
  *  - per agent: a subagent has its own context and never inherits the main agent's reads;
@@ -27,7 +30,8 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { writeAtomic } from "../util/atomic.js";
 
-type Entry = { size: number; mtimeMs: number; turn: number; windows: string[] };
+/** `shell`: the windows of `windows` that a shell command printed, not a Read (Claude Code's own repeat check knows only its Reads). */
+type Entry = { size: number; mtimeMs: number; turn: number; windows: string[]; shell?: string[] };
 type Output = { turn: number; chars: number; call?: string };
 type Store = { session: string; reads: Record<string, Entry>; outputs?: Record<string, Output> };
 
@@ -104,8 +108,8 @@ function statOf(absPath: string): { size: number; mtimeMs: number } | null {
   }
 }
 
-/** Called from PostToolUse after a Read (or a whole-file Bash dump) completed. */
-export function rememberRead(snoutDir: string, session: string, agentId: string | undefined, absPath: string, rel: string, window: string, turn: number): void {
+/** Called from PostToolUse after a Read, or a shell command that printed a file or some of its lines, completed. */
+export function rememberRead(snoutDir: string, session: string, agentId: string | undefined, absPath: string, rel: string, window: string, turn: number, viaShell = false): void {
   const st = statOf(absPath);
   if (!st || !existsSync(snoutDir)) return;
   const store = load(snoutDir, session);
@@ -114,8 +118,10 @@ export function rememberRead(snoutDir: string, session: string, agentId: string 
   const same = prior && prior.size === st.size && prior.mtimeMs === st.mtimeMs;
   const windows = same ? prior.windows.filter((w) => w !== window) : [];
   windows.push(window);
+  // A window Read last returned is Claude Code's to answer again; one only a shell printed is not.
+  const shell = (same ? (prior.shell ?? []).filter((w) => w !== window) : []).concat(viaShell ? [window] : []);
   delete store.reads[key]; // re-insert so the newest reads survive trimming
-  store.reads[key] = { ...st, turn, windows: windows.slice(-MAX_WINDOWS) };
+  store.reads[key] = { ...st, turn, windows: windows.slice(-MAX_WINDOWS), ...(shell.length ? { shell: shell.slice(-MAX_WINDOWS) } : {}) };
   save(snoutDir, store);
 }
 
@@ -124,14 +130,16 @@ export function rememberRead(snoutDir: string, session: string, agentId: string 
  * unchanged since. `native` is true for agents that answer exact repeats themselves, so only
  * a request covered by a different window counts.
  */
-export function repeatOf(snoutDir: string, session: string, agentId: string | undefined, absPath: string, rel: string, window: string, native = false): { turn: number; window: string } | null {
+export function repeatOf(snoutDir: string, session: string, agentId: string | undefined, absPath: string, rel: string, window: string, native = false): { turn: number; window: string; viaShell: boolean } | null {
   const prior = load(snoutDir, session).reads[keyOf(agentId, rel)];
   if (!prior || !Array.isArray(prior.windows)) return null;
   const st = statOf(absPath);
   if (!st || st.size !== prior.size || st.mtimeMs !== prior.mtimeMs) return null;
   const covering = coveringWindow(prior.windows, window);
-  if (!covering || (native && covering === window)) return null;
-  return { turn: prior.turn, window: covering };
+  const viaShell = !!covering && (prior.shell ?? []).includes(covering);
+  // The agent answers an exact repeat of its own Read itself; not one of a window only a shell printed.
+  if (!covering || (native && covering === window && !viaShell)) return null;
+  return { turn: prior.turn, window: covering, viaShell };
 }
 
 /** Results shorter than this are cheaper to repeat than to point at. */
