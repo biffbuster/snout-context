@@ -116,9 +116,9 @@ and fetch in `.snout/recall.jsonl`, with the query (up to 120 characters) and th
 
 These aren't being developed until memory passes a real-agent test:
 
-- new models: the embedding model, the reranker and the preference judge stay opt-in and unchanged;
+- new models: the embedding model and the preference judge stay opt-in and unchanged;
 - new agent integrations beyond Claude Code and Codex;
-- cloud memory: Snout Cloud is off.
+- cloud memory: there is no Snout Cloud.
 
 ## Later: team and cloud sharing
 

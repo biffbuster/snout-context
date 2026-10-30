@@ -28,7 +28,7 @@ import { auditContext, totals as contextTotals } from "../audit/context.js";
 import { auditServers } from "../audit/mcp-servers.js";
 import { buildRepoView, type ReadStat, type RepoView } from "./repo.js";
 import { fileReport } from "./file.js";
-import { cloudState, EDITABLE, environment, integrations, privacy, Projects, settings, type ProjectData } from "./pages.js";
+import { EDITABLE, environment, integrations, privacy, Projects, settings, type ProjectData } from "./pages.js";
 import * as views from "./views.js";
 import { HOOK_PORT } from "../gate/install.js";
 import type { Boot, ProjectCard } from "./api.js";
@@ -429,13 +429,11 @@ export function startDashboard(paths: Paths, opts: DashboardOptions): { close: (
     switch (name) {
       case "boot": {
         const boot: Boot = {
-          host: "local",
           version: opts.version,
           project: projects.ref(pid),
           projects: projects.refs(),
           mode: loadConfig(d.paths).mode,
           controls: !!opts.actions && isCurrent,
-          cloud: cloudState(),
         };
         return { ...boot, coach: isCurrent ? opts.actions?.coach() ?? null : null, now: new Date().toISOString(), v: d.version() };
       }

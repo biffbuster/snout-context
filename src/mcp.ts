@@ -22,8 +22,7 @@ import { configDir, resolvePaths } from "./config.js";
 import { sessionViewer, storesFor, userPrincipal } from "./memory/store.js";
 import { appendRow } from "./ledger/store.js";
 import { recordError } from "./util/log.js";
-import { memoryFetch, memoryIndex, memoryPropose, memorySave, memorySearch, searchShortlist, type MemoryContext } from "./memory/tools.js";
-import { prepareRerank, rerankOn } from "./memory/rerank.js";
+import { memoryFetch, memoryIndex, memoryPropose, memorySave, memorySearch, type MemoryContext } from "./memory/tools.js";
 
 const HEAD_LINES = 60;
 const HEAD_BYTES = 6 * 1024;
@@ -131,27 +130,12 @@ export function startMcp(projectDir: string, cfg: Config, version: string, write
       buf = buf.slice(nl + 1);
       if (!line) continue;
       chain = chain.then(async () => {
-        await prepareSearch(line, projectDir, cfg).catch(() => {});
         const reply = handle(line, projectDir, cfg, version, only);
         if (reply) write(JSON.stringify(reply) + "\n");
       });
     }
   });
   process.stdin.on("end", () => void chain.finally(() => process.exit(0)));
-}
-
-/**
- * With the reranker installed, its scores for a memory search's shortlist, before the search runs.
- * Meaning alone never makes a search hit (only delivery uses it, memory/facts.ts).
- */
-async function prepareSearch(line: string, projectDir: string, cfg: Config): Promise<void> {
-  if (cfg.memory === false || !rerankOn(cfg)) return;
-  const msg = JSON.parse(line);
-  if (msg?.method !== "tools/call" || msg.params?.name !== "snout_memory_search") return;
-  const query = String(msg.params?.arguments?.query ?? "");
-  if (!query.trim()) return;
-  const ctx = memoryContext(projectDir);
-  if (rerankOn(cfg)) await prepareRerank(query, searchShortlist(ctx, query));
 }
 
 const safeName = (n: unknown) => String(n ?? "").replace(/[^\w.-]/g, "").slice(0, 60);

@@ -21,7 +21,6 @@ import { spawnSync } from "node:child_process";
 import { userInfo } from "node:os";
 import { join } from "node:path";
 import { writeAtomic } from "../util/atomic.js";
-import { projectKey } from "../cloud/client.js";
 import { readPrefs } from "./prefs.js";
 import { indexedRecords, indexFileFor, type RecordKind } from "./sqlite.js";
 import { indexForms } from "./retrieve.js";
@@ -92,6 +91,17 @@ export interface Stores {
   sharedDir: string;
   /** The local index of all three (sqlite.ts), on this machine only. Without it, the files are read directly. */
   indexFile?: string;
+}
+
+/** A stable id for the project that reveals neither its remote nor its path. */
+export function projectKey(projectDir: string): string {
+  const r = spawnSync("git", ["config", "--get", "remote.origin.url"], { cwd: projectDir, encoding: "utf8", timeout: 3000 });
+  const remote = r.status === 0 ? r.stdout.trim() : "";
+  // github.com:me/x.git, https://user:pw@github.com/me/x and https://github.com/me/x are one project.
+  const norm = remote
+    ? remote.replace(/^[a-z+]+:\/\/([^@/]*@)?/i, "").replace(/^[^@/]*@/, "").replace(":", "/").replace(/\.git$/, "").toLowerCase()
+    : projectDir;
+  return createHash("sha256").update(norm).digest("hex").slice(0, 24);
 }
 
 export function storesFor(projectDir: string, snoutDir: string, configDir: string, key = projectKey(projectDir)): Stores {

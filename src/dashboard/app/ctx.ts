@@ -9,8 +9,6 @@ export interface Filters {
   to: string | null;
   env: string;
   project: string | null;
-  /** Snout Cloud: the team the page shows. */
-  team?: string | null;
 }
 
 export interface Route {
@@ -36,17 +34,7 @@ export interface Ctx {
   toast(text: string, tone?: "ok" | "bad"): void;
   /** Re-render the current page (after an action). */
   refresh(): void;
-  /** Snout Cloud: a cookie-authenticated write to one of its endpoints; resolves to the JSON reply. */
-  post<T = { ok?: boolean }>(path: string, body?: Record<string, unknown>): Promise<T>;
-  /** Snout Cloud: show another team, or reload who is signed in after a change. */
-  switchTeam(id: string): Promise<void>;
-  hosted: boolean;
-  /** "local" reads this machine; "cloud" is the Snout Cloud preview drawn from sample data. */
-  view: View;
-  setView(v: View): void;
 }
-
-export type View = "local" | "cloud";
 
 const KEY = document.body.dataset.key ?? "";
 
@@ -95,18 +83,6 @@ export async function getJson<T>(path: string): Promise<T> {
     throw new Error(msg);
   }
   return (await r.json()) as T;
-}
-
-export async function postJson<T>(path: string, body: Record<string, unknown> = {}): Promise<T> {
-  const r = await fetch(path, { method: "POST", headers: { "content-type": "application/json", accept: "application/json" }, body: JSON.stringify(body) });
-  let j: (T & { error?: string }) | null = null;
-  try {
-    j = (await r.json()) as T & { error?: string };
-  } catch {
-    // not json
-  }
-  if (!r.ok) throw new Error(j?.error ?? `failed (${r.status})`);
-  return j as T;
 }
 
 export async function postAction(body: Record<string, unknown>): Promise<string> {
