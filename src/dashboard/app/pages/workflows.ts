@@ -38,8 +38,8 @@ const KINDS: { kind: TraceNode["kind"]; label: string; icon: string; group: Grou
   { kind: "output-trim", label: "Output shortened", icon: "compress", group: "snout" },
   { kind: "would", label: "Would keep out", icon: "flag", group: "snout" },
   { kind: "asked", label: "Asked first", icon: "hand", group: "snout" },
-  { kind: "brief", label: "Repo brief", icon: "memory", group: "snout" },
-  { kind: "recall", label: "Memory recall", icon: "memory", group: "snout" },
+  { kind: "brief", label: "Memory pointer", icon: "memory", group: "snout" },
+  { kind: "recall", label: "Memory search", icon: "memory", group: "snout" },
   { kind: "compact", label: "Compaction", icon: "compress", group: "context" },
 ];
 const KIND = new Map(KINDS.map((k) => [k.kind, k]));

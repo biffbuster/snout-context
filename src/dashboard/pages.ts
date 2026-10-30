@@ -441,7 +441,7 @@ export function ago(ts: string, now = Date.now()): string {
 const RECORDS: [string, string][] = [
   ["ledger.jsonl", "One row per read and tool result: path, rule, decision, size, estimated tokens"],
   ["turns.jsonl", "One row per turn, and a row at each compaction"],
-  ["recall.jsonl", "Which memory cards were recalled into which prompt, and their size"],
+  ["recall.jsonl", "Memory's log: session-start lines, the searches and fetches agents made with what they were shown, and automatic notes when those are on"],
   ["hooks.jsonl", "A heartbeat per hook call, so Snout can tell it is wired in"],
   ["errors.jsonl", "Anything that went wrong"],
   ["prompts.jsonl", "Prompt coach scores (not the prompt text)"],

@@ -175,3 +175,70 @@ test("a hook from a subdirectory the agent cd'd into uses the project's .snout, 
   hook(join(other, "pkg"), { CLAUDE_PROJECT_DIR: other });
   assert.ok(!existsSync(join(other, "pkg/.snout")), "CLAUDE_PROJECT_DIR wins for a directory inside it");
 });
+
+// Ranged shell prints: the lines they printed are in context, as a Read's would be.
+const bash = (command, id = "s1") => ({ tool_name: "Bash", tool_use_id: id, tool_input: { command } });
+const ran = (root, call) => hook(root, "post-tool", { ...call, tool_response: { stdout: "…", stderr: "", interrupted: false } });
+
+test("a ranged shell print is remembered: printing lines inside it again is stopped, naming the earlier read", () => {
+  const root = project();
+  const first = bash("sed -n '100,200p' src/big.ts");
+  assert.equal(hook(root, "pre-tool", first)?.hookSpecificOutput?.permissionDecision, undefined, "the first print runs");
+  ran(root, first);
+  const inside = hook(root, "pre-tool", bash("sed -n '120,150p' src/big.ts", "s2"));
+  assert.equal(inside.hookSpecificOutput.permissionDecision, "deny");
+  assert.match(inside.hookSpecificOutput.permissionDecisionReason, /unchanged since turn \d+, when you read lines 100–200 of it, which include lines 120–150/);
+  assert.equal(hook(root, "pre-tool", bash("sed -n '150,260p' src/big.ts", "s3"))?.hookSpecificOutput?.permissionDecision, undefined, "lines never printed run");
+  assert.equal(hook(root, "pre-tool", bash("sed -n '1,50p' src/big.ts | grep v1", "s4"))?.hookSpecificOutput?.permissionDecision, undefined, "a pipe is not a plain print");
+  const row = readFileSync(join(root, ".snout/ledger.jsonl"), "utf8").trim().split("\n").map(JSON.parse).find((r) => r.rule === "repeat-read");
+  assert.ok(row.tokensAvoidedEst > 50 && row.tokensAvoidedEst < 400, `the window's tokens are counted, not the file's: ${row.tokensAvoidedEst}`);
+});
+
+test("a Read of lines a shell printed is skipped even in Claude Code, which only knows its own Reads", () => {
+  const root = project();
+  const head = bash("head -n 80 src/big.ts");
+  hook(root, "pre-tool", head);
+  ran(root, head);
+  const same = hook(root, "pre-tool", readCall(root, { offset: 1, limit: 80 }));
+  assert.ok(isSkip(same), JSON.stringify(same));
+  assert.match(same.hookSpecificOutput.additionalContext, /read lines 1–80 earlier/);
+  assert.ok(isSkip(hook(root, "pre-tool", readCall(root, { offset: 10, limit: 5 }))));
+  assert.ok(!isSkip(hook(root, "pre-tool", readCall(root, { offset: 70, limit: 30 }))), "lines past what head printed are read");
+});
+
+test("lines of a file read whole are stopped; once the file is edited they are printed again, and observe never blocks", () => {
+  const root = project();
+  const call = readCall(root);
+  hook(root, "pre-tool", call);
+  done(root, call);
+  assert.equal(hook(root, "pre-tool", bash("head -n 30 src/big.ts")).hookSpecificOutput.permissionDecision, "deny", "lines of a file read whole");
+  assert.equal(hook(root, "pre-tool", bash("head -n 30 src/big.ts"), { SNOUT_MODE: "observe" })?.hookSpecificOutput?.permissionDecision, undefined, "observe never blocks");
+  writeFileSync(join(root, "src/big.ts"), readFileSync(join(root, "src/big.ts"), "utf8") + "\nexport const more = 1;\n");
+  assert.equal(hook(root, "pre-tool", bash("head -n 30 src/big.ts"))?.hookSpecificOutput?.permissionDecision, undefined, "edited since: printed again");
+});
+
+test("an image read again is answered with a pointer, since a limit can't shorten an image", () => {
+  const root = project();
+  writeFileSync(join(root, "shot.png"), Buffer.alloc(4096, 1));
+  const img = { tool_name: "Read", tool_use_id: "i1", tool_input: { file_path: join(root, "shot.png") } };
+  assert.equal(hook(root, "pre-tool", img)?.hookSpecificOutput?.permissionDecision, undefined, "the first look is a real read");
+  hook(root, "post-tool", { ...img, tool_response: { type: "image", file: { base64: "AAAA", type: "image/png", originalSize: 4096 } } });
+  const again = hook(root, "pre-tool", img);
+  assert.equal(again.hookSpecificOutput.permissionDecision, "deny");
+  assert.match(again.hookSpecificOutput.permissionDecisionReason, /shot\.png` is unchanged since you read it in full .*instead of reading it again/);
+});
+
+test("Codex on Windows: Get-Content with -TotalCount or Select-Object -Skip -First counts as those lines", async () => {
+  const { powerShellRangeRead, rangeRead } = await import("../dist/lib.mjs");
+  const root = project();
+  const f = join(root, "src/big.ts");
+  assert.deepEqual(powerShellRangeRead("Get-Content -LiteralPath src/big.ts -TotalCount 40", root), { abs: f, window: "1:40" });
+  assert.deepEqual(powerShellRangeRead("Get-Content src/big.ts | Select-Object -Skip 99 -First 20", root), { abs: f, window: "100:20" });
+  assert.deepEqual(powerShellRangeRead('pwsh.exe -NoProfile -Command "Get-Content src/big.ts -Head 5"', root), { abs: f, window: "1:5" });
+  assert.equal(powerShellRangeRead("Get-Content src/big.ts | Select-String foo", root), null);
+  assert.deepEqual(rangeRead("sed -n 7p src/big.ts", root), { abs: f, window: "7:1" });
+  assert.deepEqual(rangeRead("head -25 src/big.ts", root), { abs: f, window: "1:25" });
+  assert.equal(rangeRead("sed -i 's/a/b/' src/big.ts", root), null, "an in-place edit is no read");
+  assert.equal(rangeRead("head -c 100 src/big.ts", root), null, "bytes are not lines");
+  assert.equal(rangeRead("sed -n '1,5p' src/missing.ts", root), null);
+});
