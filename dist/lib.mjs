@@ -2728,10 +2728,18 @@ var SMALL_SEARCH_FILES = 10;
 var FILES_NAMED = 120;
 var LIST_LINES = 60;
 var MATCH_LINE = /^([^\s:][^:]{0,300}?):(\d+[:-])?(.*)$/;
+var NOT_PATH = /[{}();=<>"'`]/;
+var asMatch = (l) => {
+  const m = MATCH_LINE.exec(l);
+  return m && !NOT_PATH.test(m[1]) ? m : null;
+};
+var isPathLine = (l) => l.length <= 300 && !/^\s/.test(l) && !NOT_PATH.test(l) && (!/\s/.test(l) || /[\/\\]/.test(l));
+var STRAY_LINES = (n) => Math.max(3, Math.floor(n * 0.05));
 function squeezeSearch(output, savedTo) {
   const lines = clean(output).filter((l) => l.trim());
   const n = lines.length;
-  const matched = lines.map((l) => MATCH_LINE.exec(l));
+  const matched = lines.map(asMatch);
+  if (lines.filter((l, i) => !matched[i] && !isPathLine(l) && l !== "--").length > STRAY_LINES(n)) return null;
   const fileCount = new Set(matched.map((m) => m?.[1]).filter(Boolean)).size;
   if (n <= SMALL_SEARCH_LINES && (fileCount <= SMALL_SEARCH_FILES || matched.every((m) => !m))) return null;
   const matchShare = matched.filter(Boolean).length / Math.max(n, 1);

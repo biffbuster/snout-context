@@ -158,6 +158,17 @@ const FILES_NAMED = 120;
 const LIST_LINES = 60;
 /** "path:line:text" or "path:text", the shape grep -rn, rg and git grep print. */
 const MATCH_LINE = /^([^\s:][^:]{0,300}?):(\d+[:-])?(.*)$/;
+/** Characters a path rarely has and code or prose often does. */
+const NOT_PATH = /[{}();=<>"'`]/;
+const asMatch = (l: string) => { const m = MATCH_LINE.exec(l); return m && !NOT_PATH.test(m[1]!) ? m : null; };
+/** A line find or ls -R prints: a path, a bare name, or a "dir:" header. */
+const isPathLine = (l: string) => l.length <= 300 && !/^\s/.test(l) && !NOT_PATH.test(l) && (!/\s/.test(l) || /[\/\\]/.test(l));
+/**
+ * Lines a search did not print, at most: past this the output is something else as well (a
+ * compound command that also printed a file), and grouping it would drop lines it never said it
+ * dropped, the blank ones included. Such output is left whole.
+ */
+const STRAY_LINES = (n: number) => Math.max(3, Math.floor(n * 0.05));
 
 /**
  * Grouped search results. Matches: each file keeps its first few hits and a count of the rest,
@@ -167,7 +178,8 @@ const MATCH_LINE = /^([^\s:][^:]{0,300}?):(\d+[:-])?(.*)$/;
 function squeezeSearch(output: string, savedTo: string): Squeezed | null {
   const lines = clean(output).filter((l) => l.trim());
   const n = lines.length;
-  const matched = lines.map((l) => MATCH_LINE.exec(l));
+  const matched = lines.map(asMatch);
+  if (lines.filter((l, i) => !matched[i] && !isPathLine(l) && l !== "--").length > STRAY_LINES(n)) return null;
   // A few files' worth of matches is what the agent asked for; grouping it only hides lines it
   // will come back for (PointFive C1: 20 matches in 3 files, long only because the paths were
   // absolute, were grouped during a security review and cost extra turns).

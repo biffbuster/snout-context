@@ -8,6 +8,9 @@ Not measured yet. Nothing below is covered by [docs/claims.md](docs/claims.md).
   the sync after each turn, and the dashboard's Cloud preview and hosted pages are gone. Nothing in
   Snout sends data anywhere now. Credentials saved by an earlier `snout login` are no longer read;
   delete `cloud.json` in Snout's config folder to remove them.
+- Fixed: a command that ran a tree-wide search and also printed a file (`grep -rn … ; cat file`)
+  had its whole output grouped as search results, which dropped the file's blank lines and
+  counted its tail "by directory". Output that isn't all search results is now left whole.
 - Removed: the optional reranker (`snout memory reranker`, `memoryRerank`). It did not pass its
   recall test, so search and `snout recall` keep their own ranking.
 - Snout in Claude Code: the plugin switches to a Snout Pink theme once (light and dark) and draws an
