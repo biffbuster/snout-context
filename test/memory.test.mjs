@@ -7,7 +7,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { sessionFacts, codexSessionFacts, testCommand } from "../dist/lib.mjs";
+import { sessionFacts, codexSessionFacts, testCommand, PASSED } from "../dist/lib.mjs";
 
 const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 const use = (id, name, input) => ({ type: "assistant", message: { content: [{ type: "tool_use", id, name, input }] } });
@@ -67,6 +67,10 @@ test("only a real test-runner run counts as how tests run, not a script that men
   assert.equal(testCommand(`cd ${join(dir, "web")} && npm test`, dir), "cd web && npm test");
   assert.equal(testCommand(`python -m pytest ${dir}/tests/test_a.py -q`, dir), "python -m pytest tests/test_a.py -q");
   assert.equal(testCommand("DJANGO_SETTINGS_MODULE=x timeout 300 python tests/runtests.py dbshell --parallel 1", dir), "DJANGO_SETTINGS_MODULE=x timeout 300 python tests/runtests.py dbshell --parallel 1");
+  // A project's own test script (builder bench pilot, 2026-10-23: `node scripts/test.mjs` was never saved).
+  assert.equal(testCommand("APP_ENV=test node scripts/test.mjs 2>&1 | tail -15", dir), "APP_ENV=test node scripts/test.mjs");
+  for (const c of ["./run-tests.sh", "make test", "python manage.py test auth", "bash scripts/test_all.sh", "bun test"]) assert.equal(testCommand(c, dir), c);
+  for (const c of ["node scripts/build.mjs", "node src/latest.mjs", "cat scripts/test.mjs"]) assert.equal(testCommand(c, dir), undefined, c);
 });
 
 test("a wrong import path inside the project is not reported as a missing tool", () => {
@@ -232,4 +236,36 @@ test("a background-task notice is not the user's request or instruction", () => 
   const f = sessionFacts(file, dir);
   assert.equal(f.request, "Fix the flaky upload test");
   assert.deepEqual(f.rules, []);
+});
+
+test("go test: a passing run is how tests run here, and a failing package anywhere in the output is a failure", () => {
+  const dir = mkdtempSync(join(tmpdir(), "snout-go-"));
+  const write = (rows) => { const file = join(dir, "t.jsonl"); writeFileSync(file, rows.map((r) => JSON.stringify(r)).join("\n") + "\n"); return file; };
+  const green = sessionFacts(write([
+    use("a", "Bash", { command: "go test ./hugolib -run TestPermalinks" }),
+    result("a", "ok  \tgithub.com/gohugoio/hugo/hugolib\t1.204s"),
+  ]), dir);
+  assert.equal(green.test?.command, "go test ./hugolib -run TestPermalinks");
+  assert.ok(PASSED(green.test.result), green.test.result);
+  const red = sessionFacts(write([
+    use("b", "Bash", { command: "go test ./..." }),
+    result("b", "--- FAIL: TestSlug (0.00s)\n    slug_test.go:12: got a want b\nFAIL\nFAIL\tgithub.com/x/slug\t0.31s\nok  \tgithub.com/x/util\t0.20s"),
+  ]), dir);
+  assert.ok(red.test && !PASSED(red.test.result), `a later ok line does not hide the failure: ${red.test?.result}`);
+});
+
+test("a missing program in cmd.exe or PowerShell is a missing tool; a failed Python import is marked as one", () => {
+  const dir = mkdtempSync(join(tmpdir(), "snout-win-"));
+  const file = join(dir, "t.jsonl");
+  writeFileSync(file, [
+    use("a", "Bash", { command: "rg foo" }),
+    result("a", "'rg' is not recognized as an internal or external command,\noperable program or batch file."),
+    use("b", "PowerShell", { command: "make test" }),
+    use("c", "Bash", { command: "pwsh -c make" }),
+    result("c", "make : The term 'make' is not recognized as the name of a cmdlet, function, script file, or operable program."),
+    use("d", "Bash", { command: "python -c 'import resource'" }),
+    result("d", "ModuleNotFoundError: No module named 'resource'"),
+  ].map((r) => JSON.stringify(r)).join("\n") + "\n");
+  const f = sessionFacts(file, dir);
+  assert.deepEqual(f.missing.map((m) => [m.name, !!m.module]).sort(), [["make", false], ["resource", true], ["rg", false]]);
 });

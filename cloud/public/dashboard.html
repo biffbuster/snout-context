@@ -2281,8 +2281,8 @@ i.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex
     { kind: "output-trim", label: "Output shortened", icon: "compress", group: "snout" },
     { kind: "would", label: "Would keep out", icon: "flag", group: "snout" },
     { kind: "asked", label: "Asked first", icon: "hand", group: "snout" },
-    { kind: "brief", label: "Repo brief", icon: "memory", group: "snout" },
-    { kind: "recall", label: "Memory recall", icon: "memory", group: "snout" },
+    { kind: "brief", label: "Memory pointer", icon: "memory", group: "snout" },
+    { kind: "recall", label: "Memory search", icon: "memory", group: "snout" },
     { kind: "compact", label: "Compaction", icon: "compress", group: "context" }
   ];
   var KIND2 = new Map(KINDS.map((k) => [k.kind, k]));
@@ -2940,13 +2940,15 @@ i.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex
       h("div.span-7", null, growth(a)),
       h("div.span-4", null, card(
         "Memory and compaction",
-        "Compaction is the agent's own; memory and briefs are Snout's",
+        "Compaction is the agent's own. Snout tells a new session that earlier ones exist; the agent searches them when it needs to",
         h(
           "div.tiles.two",
           null,
           h("div.tile", null, h("span", null, "Compactions"), h("b.num", null, a.retention.compactions)),
-          h("div.tile", null, h("span", null, "Memory recalls"), h("b.num", null, a.retention.recalls)),
-          h("div.tile", null, h("span", null, "Repo briefs"), h("b.num", null, a.retention.briefs))
+          h("div.tile", null, h("span", null, "History pointers"), h("b.num", null, a.retention.hints)),
+          h("div.tile", null, h("span", null, "Memory searches"), h("b.num", null, a.retention.searches)),
+          h("div.tile", null, h("span", null, "Records opened"), h("b.num", null, a.retention.opened)),
+          ...a.retention.notesShown ? [h("div.tile", null, h("span", null, "Automatic notes shown"), h("b.num", null, a.retention.notesShown))] : []
         )
       )),
       h("div.span-4", null, card("Repeat reads", "Same file, same content, same agent", h(
@@ -3044,11 +3046,11 @@ i.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex
     { key: "mode", label: "Mode", help: "Observe records only. Advise and enforce trim bulk before the agent reads it." },
     { key: "repeatReads", label: "Repeat reads", help: "Answer a re-read of an unchanged file with a pointer to the earlier copy." },
     { key: "longDocs", label: "Long docs and logs", help: "Whole reads of long docs return a section map; logs return their tail." },
-    { key: "memory", label: "Memory", help: "A card per session, recalled when a later prompt bears on it." },
+    { key: "memory", label: "Memory", help: "A record of each session, on this machine. A new session is told earlier ones exist; the agent searches and opens them when it needs to." },
     { key: "repoMap", label: "Repo map hints", help: "Suggest the files linked to names in each prompt, from a local repo map." },
     { key: "output", label: "Output style", help: "Concise adds one short instruction at session start." },
     { key: "coach", label: "Prompt coach", help: "Tip scores prompts with local rules. Jev sends task prompts to api.typesafe.ai." },
-    { key: "memoryJudge", label: "Memory preference judge", help: "Jev judges which of your sentences are lasting preferences. Sends up to six sentences per session." },
+    { key: "memoryJudge", label: "Memory preference judge", help: "Paused: not part of the current memory workflow. Jev judges which of your sentences are lasting preferences, and sends up to six sentences per session." },
     { key: "fastHooks", label: "Fast hooks", help: "Blocking hooks call a long-running local server instead of starting Node each time.", cli: "snout fast on" },
     { key: "sizeCapBytes", label: "Size cap", help: "Files larger than this are trimmed whatever their kind.", cli: "Edit .snout/config.json" }
   ];

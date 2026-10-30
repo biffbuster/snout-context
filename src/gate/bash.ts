@@ -249,3 +249,57 @@ function segmentTargets(tokens: string[], cwd: string): string[] {
     if (!out.includes(abs)) out.push(abs);
   }
 }
+
+/**
+ * The one file and the lines a Bash command prints, when it is a plain ranged read:
+ * `sed -n '40,80p' file` (or `'40p'`), `head -n 40 file` (`-40`, `-n40`, `--lines=40`, or none
+ * for ten). Window "start:count", as the Read tool's. One command, no pipe or redirect, one
+ * existing file; anything else is null, and is then simply not counted as lines in context.
+ */
+export function rangeRead(command: string, cwd: string): { abs: string; window: string } | null {
+  const tokens = tokenize(command);
+  if (!tokens.length || tokens.some((t) => SEPARATORS.has(t) || t.startsWith(">") || t.startsWith("<"))) return null;
+  const i = commandIndex(tokens);
+  const raw = tokens[i];
+  if (raw === undefined) return null;
+  const cmd = raw.slice(raw.lastIndexOf("/") + 1);
+  const rest = tokens.slice(i + 1);
+  let window: string | null = null;
+  let files: string[] = [];
+  if (cmd === "sed") {
+    let quiet = false, script: string | null = null;
+    for (let k = 0; k < rest.length; k++) {
+      const t = rest[k]!;
+      if (t === "-n" || t === "--quiet" || t === "--silent") quiet = true;
+      else if (t === "-e" || t === "--expression") { if (script !== null) return null; script = rest[++k] ?? null; }
+      else if (t.startsWith("-")) return null; // -i, -E, -f...: not a plain print
+      else if (script === null) script = t;
+      else files.push(t);
+    }
+    const m = /^(\d+)(?:,(\d+))?p$/.exec(script ?? "");
+    if (!quiet || !m) return null;
+    const a = Number(m[1]), b = Number(m[2] ?? m[1]);
+    if (a < 1 || b < a) return null;
+    window = `${a}:${b - a + 1}`;
+  } else if (cmd === "head") {
+    let n = 10;
+    for (let k = 0; k < rest.length; k++) {
+      const t = rest[k]!;
+      const v = /^-(\d+)$/.exec(t) ?? /^-n(\d+)$/.exec(t) ?? /^--lines=(\d+)$/.exec(t);
+      if (v) n = Number(v[1]);
+      else if (t === "-n" || t === "--lines") n = Number(rest[++k]);
+      else if (t.startsWith("-")) return null; // -c counts bytes, not lines
+      else files.push(t);
+    }
+    if (!Number.isInteger(n) || n < 1) return null;
+    window = `1:${n}`;
+  } else return null;
+  if (files.length !== 1 || /[*?[\]$`~]/.test(files[0]!) || files[0]!.includes("(")) return null;
+  const abs = isAbsolute(files[0]!) ? resolve(files[0]!) : resolve(join(cwd, files[0]!));
+  try {
+    if (!existsSync(abs) || !statSync(abs).isFile()) return null;
+  } catch {
+    return null;
+  }
+  return { abs, window };
+}

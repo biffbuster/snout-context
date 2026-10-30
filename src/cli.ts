@@ -21,8 +21,8 @@ import { applyMode, bandOf, decide, searchHint, withOverride, worthGating, THRES
 import { fingerprintOf, scoreFile, sizeOf, tier0, toRel } from "./gate/tier0.js";
 import { labelOf } from "./gate/rules.js";
 import { summarize, type ScannedFile, type Summary } from "./gate/summary.js";
-import { dumpTargets, readTargets } from "./gate/bash.js";
-import { boundedPowerShellRead, powerShellDumpTargets, powerShellSearchHint } from "./gate/powershell.js";
+import { dumpTargets, rangeRead, readTargets } from "./gate/bash.js";
+import { boundedPowerShellRead, powerShellDumpTargets, powerShellRangeRead, powerShellSearchHint } from "./gate/powershell.js";
 import { outline } from "./gate/outline.js";
 import { splitGrepOutput } from "./gate/grep.js";
 import { responseBytes, responseText } from "./gate/response.js";
@@ -52,18 +52,27 @@ import { PRICES_AS_OF } from "./spend/prices.js";
 import { dailyAggregates, summarizeLedger } from "./dashboard/summary.js";
 import { scorePrompt, scoreWithJev } from "./coach/coach.js";
 import { kindOf, squeeze } from "./squeeze/squeeze.js";
-import { mcpPlainText, trimMcp } from "./squeeze/mcp.js";
+import { mcpBlocks, mcpPlainText, trimMcp } from "./squeeze/mcp.js";
 import { auditServers, disableHint } from "./audit/mcp-servers.js";
 import { archiveFiles, auditContext, listArchives, renderAudit, renderMap, restoreArchive, toJson } from "./audit/context.js";
 import { auditCi, renderCi } from "./audit/ci.js";
 import { docWindow, type DocWindow } from "./gate/longdoc.js";
-import { captureSession, cardFiles, COMMITS, embedKey, embedText, forgetCard, hybridRecall, linkCommit, listCards, packVector, readCards, readVectors, recall, renderRecall, repoBrief, shareMemory, unpackVector, writeVectors, type Vectors } from "./memory/memory.js";
-import { applyDistilled, retireInstalled } from "./memory/distill.js";
+import { asksToContinue, captureSession, COMMITS, embedKey, embedText, withoutStaleClaims, forgetCard, leftOff, linkCommit, listCards, packVector, readCard, readCards, readVectors, recall, recallShortlist, renderRecall, repoBrief, rerankedRecall, shareMemory, unpackVector, workCards, workingState, writeVectors, CARD_KIND, cardsDir } from "./memory/memory.js";
+import { memoryHint } from "./memory/tools.js";
+import { applyDistilled, installedFor, replaceOlder, retireElsewhere, retireInstalled, retireOneOff } from "./memory/distill.js";
+import { coveredBy, instructionText, lastUses, nearDuplicate, restoreObservation, retireUnused, verification } from "./memory/quality.js";
+import { lessonQuestion, parseLessons } from "./memory/lessons.js";
+import { approved as approvedLesson, approveLesson, checkProposals, editLesson, lessonCite, lessonDetail, lessons as allLessons, proposals, proposeLesson, rejectLesson, replaceLesson } from "./memory/review.js";
+import { installMemorySkill, promote, promotionPreview, removeMemorySkill } from "./memory/skill.js";
+import { cite, factKey, FACTS_HEAD, fittingLessons, heldBack, MAX_PROMPT_NOTES, rankedFit, staleClaims } from "./memory/facts.js";
 import { onPath } from "./util/path.js";
-import { acceptObservation, addObservation, archiveObservation, deleteObservation, shareObservation, listObservations, localViewer, MEMORY_BUDGET, memoryBlock, migratePrefs, recallable, sessionViewer, storesFor, supersedeObservation, userPrincipal, type MemoryBlock, type ObsKind, type Observation } from "./memory/store.js";
-import { readRecallDecisions, recallOutcomes, recordRecallDecision, summarizeRecall, type RecallReason } from "./memory/receipts.js";
-import { forgetPref, judgeAndSave, prefCandidates, readPrefs, renderPrefs } from "./memory/prefs.js";
-import { installModel, loadEmbedder, MODEL, modelDir, modelReady, QUERY_PREFIX, removeModel } from "./memory/embed.js";
+import { acceptObservation, addObservation, archiveObservation, deleteObservation, shareObservation, listObservations, localViewer, MEMORY_BUDGET, memoryBlock, migratePrefs, OBS_KIND, recallable, sessionViewer, storesFor, supersedeObservation, userPrincipal, type MemoryBlock, type ObsKind, type Observation } from "./memory/store.js";
+import { indexStatus, rebuildIndex } from "./memory/sqlite.js";
+import { readRecallDecisions, recallOutcomes, summarizeRecall } from "./memory/receipts.js";
+import { forgetPref, judgeAndSave, prefCandidates, readPrefs } from "./memory/prefs.js";
+import { installModel, loadEmbedder, MODEL, modelDir, modelReady, removeModel } from "./memory/embed.js";
+import { prepareMeaning, semanticOn } from "./memory/semantic.js";
+import { loadReranker, prepareRerank, RERANKER, RERANKER_FILES, rerankOn, rerankReady } from "./memory/rerank.js";
 import { buildMap, candidates, renderCandidates, shouldSuggest, type RepoMap } from "./map/map.js";
 import { forgetReads, rememberRead, repeatOf, repeatOutput, requestedWindow, returnedWindow } from "./gate/repeat.js";
 
@@ -90,9 +99,13 @@ function main(): void {
   const command = process.argv[2] ?? "status";
   // The MCP server owns stdin for its whole life, so it must start before the one-shot read.
   if (command === "mcp") {
-    const paths = resolvePaths(process.argv[3]);
+    // `snout mcp [dir] [--tools snout_memory_search,snout_memory_fetch]`: only those tools are offered.
+    const rest = process.argv.slice(3);
+    const t = rest.indexOf("--tools");
+    const only = t >= 0 ? new Set(String(rest[t + 1] ?? "").split(",").map((s) => s.trim()).filter(Boolean)) : undefined;
+    const paths = resolvePaths(rest.find((a, i) => !a.startsWith("--") && (t < 0 || i !== t + 1)));
     attach(paths);
-    return startMcp(paths.projectDir, loadConfig(paths), VERSION, writeOut);
+    return startMcp(paths.projectDir, loadConfig(paths), VERSION, writeOut, only);
   }
   if (command === "dashboard") return cmdDashboard(process.argv.slice(3));
   if (command === "serve") {
@@ -111,6 +124,11 @@ function main(): void {
     void cmdCloud(command, process.argv.slice(3)).catch((err) => recordError(command, err));
     return;
   }
+  if (command === "memory" && process.argv[3] === "reranker") {
+    pending = true;
+    void cmdMemoryReranker(process.argv[4]).catch((err) => say(`snout memory reranker: ${safeText((err as Error).message, 200)}`)).finally(() => process.exit(0));
+    return;
+  }
   if (command === "memory" && process.argv[3] === "model") {
     pending = true;
     void cmdMemoryModel(process.argv[4]).catch((err) => say(`snout memory model: ${safeText((err as Error).message, 200)}`)).finally(() => process.exit(0));
@@ -119,22 +137,31 @@ function main(): void {
   const input = readHookInput();
   if (command === "init") return cmdInit(process.argv[3], input.cwd);
   const run = () => (command === "hook" ? onAgentHook(process.argv[3], process.argv[4] ?? "", input as Record<string, unknown>) : dispatch(command, input));
-  // With the memory model installed, a prompt first gets its vectors from `snout serve` (memory/embed.ts).
-  const agent = process.argv[3];
-  const event = command !== "hook" ? { command, input } : isAgent(agent) && Object.keys(input).length ? toInternal(agent, process.argv[4] ?? "", input as Record<string, unknown>) : null;
-  if (event?.command === "prompt-submit" && modelReady()) {
+  // With meaning on (memory/semantic.ts), a prompt waits for its vectors first; the hook itself stays synchronous.
+  if ((command === "prompt-submit" || (command === "hook" && process.argv[4] === "UserPromptSubmit")) && meaningWanted(input)) {
     pending = true;
-    void promptVectors(event.input, remoteEmbed).catch((err) => recordError("memoryVectors", err)).finally(() => {
-      try {
-        run();
-      } catch (err) {
-        recordError("main", err);
-      }
-      process.exit(0);
-    });
+    void prepareMeaningFor(input).catch((err) => recordError("meaning", err)).finally(() => { run(); process.exit(0); });
     return;
   }
   run();
+}
+
+function meaningWanted(input: HookInput): boolean {
+  try {
+    const cfg = loadConfig(resolvePaths(input.cwd));
+    return cfg.memory !== false && semanticOn(cfg) && typeof input.prompt === "string" && !!input.prompt.trim();
+  } catch {
+    return false;
+  }
+}
+
+/** The vectors a prompt's notes are weighed with: the prompt's and every note it may see. */
+async function prepareMeaningFor(input: HookInput): Promise<void> {
+  if (!meaningWanted(input)) return;
+  const paths = resolvePaths(input.cwd);
+  const stores = storesFor(paths.projectDir, paths.snoutDir, configDir());
+  const notes = recallable(stores, [sessionViewer(paths.projectDir, stores.project)]).map((o) => o.text);
+  await prepareMeaning(paths.snoutDir, input.prompt!, notes);
 }
 
 /**
@@ -312,8 +339,8 @@ function openBrowser(url: string): void {
 function cmdInit(agent: string | undefined, cwd?: string): void {
   if (process.argv.includes("--remove")) return cmdRemove(agent, cwd);
   if (agent === "claude" || agent === "claude-code") {
-    if (process.argv.includes("--mcp")) return initMcpOnly("claude", cwd, "Claude Code asks once before it starts a project's MCP server; approve snout. Its hooks already inject memory; this adds search and fetch mid-session.");
-    return say("Claude Code runs Snout as a plugin:\n\n  claude plugin marketplace add biffbuster/snout-context\n  claude plugin install snout@snout-context\n\nThen start a new session in this project. `snout` shows what it's doing. `snout init claude --mcp` also gives it Snout's memory search tools.");
+    if (process.argv.includes("--mcp")) return initMcpOnly("claude", cwd, "Claude Code asks once before it starts a project's MCP server; approve snout. The plugin already gives it memory search and fetch; this is for Claude Code without the plugin.");
+    return say("Claude Code runs Snout as a plugin:\n\n  claude plugin marketplace add biffbuster/snout-context\n  claude plugin install snout@snout-context\n\nThen start a new session in this project. `snout` shows what it's doing. The plugin gives the agent Snout's memory search and fetch tools.");
   }
   if (agent === "vscode") return initMcpOnly("vscode", cwd, "In VS Code, open Copilot Chat in agent mode and start the snout server from the tools list.");
   if (!isAgent(agent)) return say(`Usage: snout init <claude|vscode|${AGENTS.join("|")}>\n\nSets that agent up in this project: hooks where it has them, and Snout's MCP server (read tool and shared memory).`);
@@ -323,7 +350,11 @@ function cmdInit(agent: string | undefined, cwd?: string): void {
     say(`snout init ${agent}: wrote ${toRel(file, paths.projectDir)} (${events.join(", ")}).`);
     const mcp = addMcp(agent, paths.projectDir);
     say(`MCP: registered snout in ${toRel(mcp, paths.projectDir)} (snout_read and shared memory: index, search, fetch, save).`);
-    if (agent === "codex") say("Codex loads project hooks only in a trusted folder: open Codex here, trust the folder, then approve Snout's hooks with /hooks.");
+    if (agent === "codex") {
+      const skill = installMemorySkill(paths.projectDir);
+      if (skill) say(`Skill: wrote ${toRel(skill, paths.projectDir)}, which tells Codex when to search memory and when to skip it.`);
+      say("Codex loads project hooks only in a trusted folder: open Codex here, trust the folder, then approve Snout's hooks with /hooks.");
+    }
     const mode = loadConfig(paths).mode;
     say(mode === "observe" ? "Mode: observe (records only). `snout mode enforce` makes it act; `snout report` shows what it saw." : `Mode: ${mode}. \`snout report\` shows what it saw.`);
   } catch (err) {
@@ -363,6 +394,8 @@ function cmdRemove(agent: string | undefined, cwd?: string): void {
   try {
     const { file, removed } = removeAgent(agent, paths.projectDir);
     const mcp = removeMcpEntry(agent, paths.projectDir);
+    const skill = agent === "codex" ? removeMemorySkill(paths.projectDir) : null;
+    if (skill) say(`Removed ${toRel(skill, paths.projectDir)}.`);
     say(`${removed ? `Removed Snout's ${removed} hook entr${removed === 1 ? "y" : "ies"} from ${toRel(file, paths.projectDir)}; other hooks are untouched.` : `No Snout hooks in ${toRel(file, paths.projectDir)}.`}${mcp ? ` ${mcp}` : ""} ${rest}`);
   } catch (err) {
     recordError("init", err);
@@ -570,6 +603,7 @@ function onSessionStart(input: HookInput, paths: Paths, cfg: Config): void {
   if (typeof input.model === "string" && input.model) state.model = input.model.slice(0, 64);
   saveState(paths.state, state);
   if (!client) markPluginStarted(paths, session);
+  if (cfg.mode !== "observe") warmMap(paths, cfg);
 
   // Only Claude's plugin owns its .claude gate and fast-path server. Other agents
   // must not repair or start Claude hooks when their own session begins.
@@ -607,55 +641,111 @@ function onSessionStart(input: HookInput, paths: Paths, cfg: Config): void {
   emit(withBrief(withOutputStyle(cfg, { systemMessage: `Snout is on (${cfg.mode})${kept}${where}${cfg.output === "concise" ? " · concise output on" : ""}${brief ? " · memory brief loaded" : ""}` })));
 }
 
-/** Instruction files the agent loads itself; the brief does not repeat what they say. */
-const INSTRUCTION_FILES = ["CLAUDE.md", "CLAUDE.local.md", ".claude/CLAUDE.md", "AGENTS.md"];
-
-function instructionText(projectDir: string): string {
-  return INSTRUCTION_FILES.map((f) => { try { return readFileSync(join(projectDir, f), "utf8"); } catch { return ""; } }).join("\n");
-}
 
 /**
- * The memory block (memory/store.ts): admitted observations under the budget, and one audit row in
- * recall.jsonl saying which went in, which the budget left out, and whether it was injected or,
- * in observe mode, only computed.
+ * A new session starts with no memory text: notes are shown on the prompts they fit
+ * (promptNotes), never as one block for every task. Session start keeps the store current and, when
+ * other sessions of this project are on record, says so in one line with how to search them
+ * (memoryHint): nothing from the records themselves. Not in observe mode; `memoryHint: false` turns it off.
  */
-function memoryStart(paths: Paths, cfg: Config, session: string): { block: MemoryBlock; admitted: Observation[] } {
-  const stores = storesFor(paths.projectDir, paths.snoutDir, configDir());
-  retireInstalled(stores);
-  const admitted = recallable(stores, [sessionViewer(paths.projectDir, stores.project)]);
-  const budget = typeof cfg.memoryBudget === "number" && cfg.memoryBudget >= 0 ? Math.min(cfg.memoryBudget, 4000) : MEMORY_BUDGET;
-  const block = memoryBlock(admitted, budget);
-  if (admitted.length) {
-    appendRow(join(paths.snoutDir, "recall.jsonl"), {
-      ts: new Date().toISOString(), session, turn: 0, kind: "inject", items: block.items, dropped: block.dropped,
-      tokensEst: block.tokensEst, budget, injected: cfg.mode !== "observe" && !!block.text,
-    });
-  }
-  return { block, admitted };
-}
-
-/** The repo brief (memory/memory.ts) for a new or cleared session, or "". A resumed session already has it. */
 function startBrief(input: HookInput, paths: Paths, cfg: Config, session: string): string {
   const source = input.source ?? input.session_start_reason;
   if (cfg.memory === false || (source && source !== "startup" && source !== "clear")) return "";
   try {
-    let memory: ReturnType<typeof memoryStart> = { block: memoryBlock([]), admitted: [] };
-    try {
-      memory = memoryStart(paths, cfg, session);
-    } catch (err) {
-      recordError("memoryBlock", err);
-    }
-    // Observe mode records what the block would hold and injects nothing.
-    if (cfg.mode === "observe") return "";
-    const brief = repoBrief(readCards(paths.snoutDir).filter((c) => c.session !== session), { projectDir: paths.projectDir, instructions: instructionText(paths.projectDir), installed: onPath });
-    // Preferences moved into the store (snout memory migrate) are in the block already.
-    const stored = new Set(memory.admitted.map((o) => o.text.toLowerCase().replace(/\s+/g, " ").trim()));
-    const prefs = readPrefs(paths.snoutDir).filter((p) => !stored.has(p.text.toLowerCase().replace(/\s+/g, " ").trim()));
-    const text = [memory.block.text, brief, renderPrefs(prefs)].filter(Boolean).join("\n\n");
-    if (text) appendRow(join(paths.snoutDir, "recall.jsonl"), { ts: new Date().toISOString(), session, turn: 0, kind: "brief", tokensEst: estimateTokens(Buffer.byteLength(text), "x.txt") });
-    return text;
+    const stores = storesFor(paths.projectDir, paths.snoutDir, configDir());
+    retireInstalled(stores, installedFor(paths.projectDir));
+    retireOneOff(stores);
+    retireElsewhere(stores);
+    retireUnused(stores, lastUses(paths.snoutDir));
   } catch (err) {
-    recordError("repoBrief", err);
+    recordError("memoryRetire", err);
+  }
+  if (cfg.mode === "observe" || cfg.memoryHint === false) return "";
+  try {
+    // The newest other session with work, when that work is still unfinished here: named by id, nothing from it.
+    let unfinished: string | null = null;
+    try {
+      const work = workCards(paths.snoutDir, 2).find((c) => c.session !== session);
+      if (work && leftOff([work], workingState(paths.projectDir))) unfinished = work.session;
+    } catch (err) {
+      recordError("leftOff", err);
+    }
+    // How many lessons a person approved here: a count, nothing from them (a search shows them).
+    const stores = storesFor(paths.projectDir, paths.snoutDir, configDir());
+    const approvedHere = recallable(stores, [sessionViewer(paths.projectDir, stores.project)]).filter((o) => approvedLesson(o) && !heldBack(o, paths.projectDir));
+    // With automatic notes on, the line also names each lesson by where it applies (never what it says).
+    const index = cfg.memoryNotes === true ? approvedHere.map((o) => ({ id: o.id, applies: o.lesson!.applies })) : [];
+    const hint = memoryHint(readCards(paths.snoutDir), session, agentName(), unfinished, approvedHere.length, index);
+    if (hint) appendRow(join(paths.snoutDir, "recall.jsonl"), { ts: new Date().toISOString(), session, kind: "hint", ...(unfinished ? { unfinished } : {}), tokensEst: estimateTokens(Buffer.byteLength(hint), "x.txt") });
+    return hint;
+  } catch (err) {
+    recordError("memoryHint", err);
+    return "";
+  }
+}
+
+/** Where a note in a prompt came from; for a lesson, also where it applies and that the user approved it. */
+const noteCite = (o: Observation) => (o.lesson ? `a lesson the user approved, for when ${safeText(o.lesson.applies.replace(/^when\s+/i, ""), 120)}; ${lessonCite(o)}` : cite(o));
+
+/** The package.json test scripts (test, test:*, check, verify, ci), where a tool the tests need (pnpm, make) may be run. */
+function scriptsText(projectDir: string): string {
+  try {
+    const scripts = (JSON.parse(readFileSync(join(projectDir, "package.json"), "utf8")) as { scripts?: Record<string, unknown> }).scripts ?? {};
+    return Object.entries(scripts).filter(([k, v]) => typeof v === "string" && /^(?:test(?::.*)?|check|verify|ci)$/.test(k)).map(([, v]) => v).join("\n");
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * What this prompt gets from memory (memory/facts.ts): on a new session's first prompt that
+ * continues unfinished work, where the last session left off; and the verified notes that fit the
+ * task, each with where it came from, each once per session. Nothing otherwise. Observe mode
+ * records what would be shown (recall.jsonl "inject") and shows nothing.
+ */
+function promptNotes(prompt: string, paths: Paths, cfg: Config, state: SessionState): string {
+  if (cfg.memory === false || replayDir) return "";
+  try {
+    let left = "";
+    if (state.turn === 1) {
+      try {
+        const claims = staleClaims(storesFor(paths.projectDir, paths.snoutDir, configDir()), paths.projectDir);
+        // leftOff picks the newest card with work; the index hands over just those (this session's own aside).
+        left = leftOff(workCards(paths.snoutDir, 2).filter((c) => c.session !== state.session).slice(0, 1).map((c) => withoutStaleClaims(c, claims)), { ...workingState(paths.projectDir), prompt });
+      } catch (err) {
+        recordError("leftOff", err);
+      }
+    }
+    const stores = storesFor(paths.projectDir, paths.snoutDir, configDir());
+    const shown = new Set(state.notesShown ?? []);
+    const admitted = recallable(stores, [sessionViewer(paths.projectDir, stores.project)]).filter((o) => !shown.has(factKey(o)) && !heldBack(o, paths.projectDir));
+    const budget = typeof cfg.memoryBudget === "number" && cfg.memoryBudget >= 0 ? Math.min(cfg.memoryBudget, 4000) : MEMORY_BUDGET;
+    // One budget for everything this prompt gets: where the last session left off comes first, the notes get the rest.
+    const leftTokens = left ? estimateTokens(Buffer.byteLength(left), "x.txt") : 0;
+    if (leftTokens > budget) left = "";
+    // Approved lessons and verified notes that fit, a few at most (facts.ts).
+    const fit = [...fittingLessons(prompt, admitted), ...rankedFit(prompt, admitted, { scripts: scriptsText(paths.projectDir), left: !!left })]
+      .map((f, i) => ({ ...f, i })).sort((a, b) => b.strength - a.strength || a.i - b.i).slice(0, MAX_PROMPT_NOTES);
+    const strength = new Map(fit.map((f) => [f.note, f.strength]));
+    // Better-supported notes first; at equal strength the block's kind order decides (what prevents a mistake first).
+    const block = memoryBlock(fit.map((f) => f.note), budget - (left ? leftTokens : 0), { head: FACTS_HEAD, cite: noteCite, rank: (o) => strength.get(o) ?? 0 });
+    // Shown only in enforce, and only with notes turned on (`snout memory notes on`): off by default.
+    const injected = cfg.mode !== "observe" && cfg.memoryNotes === true;
+    if (block.items.length || block.dropped.length || left) {
+      appendRow(join(paths.snoutDir, "recall.jsonl"), {
+        ts: new Date().toISOString(), session: state.session, turn: state.turn, kind: "inject", items: block.items, dropped: block.dropped,
+        tokensEst: block.tokensEst + (left ? estimateTokens(Buffer.byteLength(left), "x.txt") : 0), budget, injected,
+        ...(left ? { leftOff: estimateTokens(Buffer.byteLength(left), "x.txt") } : {}),
+      });
+    }
+    if (!injected) return "";
+    const byId = new Map(admitted.map((o) => [o.id, o]));
+    state.notesShown = [...shown, ...block.items.map((id) => factKey(byId.get(id)!))];
+    // Asked to continue: where the last session left off comes first. Otherwise a note that fits the task
+    // does, and the left-off text (shown because the prompt names a file with unfinished work) follows.
+    return (asksToContinue(prompt) ? [left, block.text] : [block.text, left]).filter(Boolean).join("\n\n");
+  } catch (err) {
+    recordError("promptNotes", err);
     return "";
   }
 }
@@ -993,15 +1083,18 @@ function onMcpTrim(input: HookInput, paths: Paths, cfg: Config, started: number)
     if (prior) {
       const note = `snout: identical to this tool's result at turn ${prior.turn}, which is earlier in this conversation and still accurate. Use that copy.`;
       recordRepeatOutput(input, paths, state, tool, mcpPath(tool), text.length, note.length, started, cfg);
-      return emit({ hookSpecificOutput: { hookEventName: "PostToolUse", updatedToolOutput: [{ type: "text", text: note }] } });
+      return emit({ hookSpecificOutput: { hookEventName: "PostToolUse", updatedToolOutput: typeof input.tool_response === "string" ? note : [{ type: "text", text: note }] } });
     }
   }
+  const hint = issueHint(input, paths, cfg);
   const dir = join(paths.snoutDir, "squeeze");
   const logName = `${new Date().toISOString().replace(/[:.]/g, "-")}-${createHash("sha256").update(tool).digest("hex").slice(0, 8)}.txt`;
-  const t = trimMcp(input.tool_response, savedPath(paths, logName));
+  // An issue's own text is the task: it is never shortened.
+  const t = isIssueTool(input.tool_name) ? null : trimMcp(input.tool_response, savedPath(paths, logName));
   if (!t) {
     recordToolOutput(input, paths, loadState(paths.state, input.session_id ?? "unknown"), responseBytes(input.tool_response));
-    return emit({});
+    const noted = hint ? withNote(input.tool_response, hint) : null;
+    return emit(noted ? { hookSpecificOutput: { hookEventName: "PostToolUse", updatedToolOutput: noted } } : {});
   }
   try {
     mkdirSync(dir, { recursive: true });
@@ -1023,7 +1116,77 @@ function onMcpTrim(input: HookInput, paths: Paths, cfg: Config, started: number)
     latencyMs: Date.now() - started, model: null, reversedByUser: false, trimmed: true,
     ...(input.agent_id ? { agentId: input.agent_id, agentType: input.agent_type } : {}),
   });
-  emit({ hookSpecificOutput: { hookEventName: "PostToolUse", updatedToolOutput: t.output } });
+  emit({ hookSpecificOutput: { hookEventName: "PostToolUse", updatedToolOutput: (hint && withNote(t.output, hint)) || t.output } });
+}
+
+/**
+ * An MCP tool that returns one issue or ticket (GitHub, Linear, Jira and the like). A request like
+ * "fix #123" names nothing in the code, so the prompt gives recall and the repo map nothing to go on;
+ * the issue's own text does, the moment the agent reads it.
+ */
+const ISSUE_TOOL = /^(?:get_?issue(?:_comments)?|issue_?read|read_?issue|view_?issue|get_?ticket)$/i;
+const ISSUE_FIELDS = new Set(["title", "body", "description", "text"]);
+
+/**
+ * The issue's title, body and comments from an MCP result (JSON or plain text), up to 50,000
+ * characters: on Hugo #15234 the files the issue names came after the first 8,000.
+ */
+function issueText(response: unknown): string {
+  const blocks = mcpBlocks(response);
+  const parts: string[] = [];
+  const walk = (v: unknown, key = ""): void => {
+    if (typeof v === "string") { if (ISSUE_FIELDS.has(key)) parts.push(v); return; }
+    if (Array.isArray(v)) { for (const x of v) walk(x, key); return; }
+    if (v && typeof v === "object") for (const [k, x] of Object.entries(v)) walk(x, k);
+  };
+  for (const b of Array.isArray(blocks) ? blocks : []) {
+    if (b?.type !== "text" || typeof b.text !== "string") continue;
+    try { walk(JSON.parse(b.text)); } catch { parts.push(b.text); }
+  }
+  return parts.join("\n").slice(0, 50_000);
+}
+
+const isIssueTool = (tool: string | undefined) => ISSUE_TOOL.test(String(tool ?? "").split("__").pop() ?? "");
+
+/**
+ * Builds the repo map in a background process when it has none yet. A first build of a large repo
+ * takes seconds, longer than the blocking hooks may run (measured on Hugo: the MCP hook timed out,
+ * and the trim it would have made was lost with it), so a hook never builds it itself.
+ */
+function warmMap(paths: Paths, cfg: Config): boolean {
+  if (existsSync(paths.map)) return true;
+  if (!cfg.repoMap || client || capturing) return false;
+  const marker = `${paths.map}.building`;
+  try {
+    if (existsSync(marker) && Date.now() - statSync(marker).mtimeMs < 120_000) return false;
+    mkdirSync(dirname(marker), { recursive: true });
+    writeFileSync(marker, String(process.pid));
+    spawn(process.execPath, [BIN, "map"], { cwd: paths.projectDir, stdio: "ignore", detached: true, windowsHide: true }).on("error", () => {}).unref();
+  } catch (err) {
+    recordError("warmMap", err);
+  }
+  return false;
+}
+
+/** The files the repo map ranks for an issue, when the agent reads one (`snout map on`). Earlier sessions' summaries are not added. */
+function issueHint(input: HookInput, paths: Paths, cfg: Config): string {
+  if (!cfg.repoMap || !isIssueTool(input.tool_name)) return "";
+  if (!warmMap(paths, cfg)) return "";
+  const text = issueText(input.tool_response);
+  if (text.trim().length < 40) return "";
+  const state = loadState(paths.state, input.session_id ?? "unknown");
+  const files = suggestFiles(text, paths, cfg, state);
+  saveState(paths.state, state);
+  return files;
+}
+
+/** The MCP result with one more text block at the end, in its own shape; null for a shape it can't extend. */
+function withNote(response: unknown, text: string): unknown {
+  if (typeof response === "string") return `${response}\n\n${text}`;
+  const note = { type: "text", text };
+  if (Array.isArray(response)) return [...response, note];
+  const content = (response as { content?: unknown } | null)?.content;
+  return Array.isArray(content) ? { ...(response as object), content: [...content, note] } : null;
 }
 
 function onPromptSubmit(input: HookInput, paths: Paths, cfg: Config): void {
@@ -1034,118 +1197,19 @@ function onPromptSubmit(input: HookInput, paths: Paths, cfg: Config): void {
   state.goalHash = createHash("sha256").update(input.prompt ?? "").digest("hex").slice(0, 12);
   const tip = coachPrompt(input.prompt ?? "", paths, cfg, state);
   const files = cfg.repoMap ? suggestFiles(input.prompt ?? "", paths, cfg, state) : "";
-  const brief = cfg.memory !== false && cfg.mode !== "observe" ? recallBrief(input.prompt ?? "", paths, cfg, state) : "";
+  // Only verified notes that fit (promptNotes). Earlier sessions' summaries are not added on their
+  // own: they are records, not verified facts; `snout recall` and snout_memory_search find them on request.
+  const notes = promptNotes(input.prompt ?? "", paths, cfg, state);
   saveState(paths.state, state);
-  const context = [brief, files].filter(Boolean).join("\n\n");
+  const context = [notes, files].filter(Boolean).join("\n\n");
   emit({
     ...(tip ? { systemMessage: tip } : {}),
     ...(context ? { hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: context } } : {}),
   });
 }
 
-/** This prompt's vectors and its cards', when the memory model answered in time; recall is words-only without. */
-let vectors: Vectors | null = null;
-
-type EmbedFn = (texts: string[]) => Promise<Float32Array[]>;
-/** Cards embedded per prompt at most: a freshly pulled shared memory catches up over a few prompts. */
-const EMBED_BATCH = 64;
-
-/** Asks the warm `snout serve` for vectors, and starts it for the next prompt when it isn't up. */
-const remoteEmbed: EmbedFn = async (texts) => {
-  try {
-    const r = await fetch(`http://127.0.0.1:${HOOK_PORT}/snout/v1/embed`, {
-      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ texts }), signal: AbortSignal.timeout(2500),
-    });
-    if (!r.ok) throw new Error(`embed: HTTP ${r.status}`);
-    return ((await r.json()) as { vectors: string[] }).vectors.map(unpackVector);
-  } catch (err) {
-    if ((err as { cause?: { code?: string } }).cause?.code === "ECONNREFUSED") {
-      spawn(process.execPath, [BIN, "serve"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
-    }
-    throw err;
-  }
-};
-
-/** Embeds the prompt and any card whose text changed since its vector; card vectors stay in `.snout/`. */
-async function promptVectors(input: HookInput, embed: EmbedFn): Promise<void> {
-  vectors = null;
-  const prompt = input.prompt ?? "";
-  if (!prompt.trim() || replayDir) return;
-  const paths = resolvePaths(input.cwd);
-  const cfg = loadConfig(paths);
-  if (cfg.memory === false || cfg.mode === "observe") return;
-  const cards = readCards(paths.snoutDir);
-  if (!cards.length) return;
-  const cache = readVectors(paths.snoutDir, MODEL);
-  const stale = cards.filter((c) => cache.cards[c.id]?.k !== embedKey(c)).slice(0, EMBED_BATCH);
-  const [query, ...got] = await embed([QUERY_PREFIX + prompt.slice(0, 2000), ...stale.map(embedText)]);
-  if (!query) return;
-  if (stale.length) {
-    stale.forEach((c, i) => { if (got[i]) cache.cards[c.id] = { k: embedKey(c), v: packVector(got[i]!) }; });
-    const ids = new Set(cards.map((c) => c.id));
-    for (const id of Object.keys(cache.cards)) if (!ids.has(id)) delete cache.cards[id];
-    writeVectors(paths.snoutDir, cache);
-  }
-  vectors = { query, cards: new Map(cards.filter((c) => cache.cards[c.id]?.k === embedKey(c)).map((c) => [c.id, unpackVector(cache.cards[c.id]!.v)])) };
-}
-
-/** Recall must agree with one of the repo map's top files for the prompt (bench/recalleval.mjs gates). */
-const RECALL_AGREE = 3;
-
 const agentName = (): "claude" | "codex" => (client === "codex" ? "codex" : "claude");
 
-/**
- * Earlier sessions that bear on this prompt (memory/memory.ts), each offered once per session, or "".
- * Word overlap alone was right about half the time on 485 SWE-bench tasks, with no score that told
- * which half (bench/recalleval.mjs), so a card is offered only when something else agrees: it touched
- * one of the repo map's top files for this prompt (75% precision), or the prompt names one of its files.
- * Logged with its size like map suggestions, so its cost is counted.
- */
-function recallBrief(prompt: string, paths: Paths, cfg: Config, state: SessionState): string {
-  if (!prompt.trim()) return "";
-  try {
-    const seen = new Set(state.recalled ?? []);
-    const cards = readCards(paths.snoutDir);
-    const opts = { session: state.session, projectDir: paths.projectDir };
-    const ranker = vectors ? "hybrid" : "words";
-    const raw = vectors ? hybridRecall(cards, prompt, vectors, opts) : recall(cards, prompt, opts);
-    let hits = raw.filter((h) => !seen.has(h.card.id));
-    const fresh = hits.length;
-    let top: Set<string> | null = null;
-    if (hits.length) {
-      top = new Set(candidates(refreshMap(paths, cfg), prompt, RECALL_AGREE).map((c) => c.path));
-      hits = hits.filter((h) => h.files.length > 0 || cardFiles(h.card).some((f) => top!.has(f)));
-    }
-    const text = renderRecall(hits, paths.projectDir);
-    if (cards.length) {
-      const kept = new Set(text ? hits.map((h) => h.card.id) : []);
-      const reason: RecallReason = text ? "spoke" : !raw.length ? "no-match" : !fresh ? "already-recalled" : "map-gate";
-      try {
-        recordRecallDecision(paths.snoutDir, {
-          ts: new Date().toISOString(), session: state.session, turn: state.turn, ranker, spoke: !!text, reason,
-          cands: raw.map((h) => ({
-            id: h.card.id, agent: h.card.agent, score: Math.round(h.score * 10000) / 10000, named: h.files.length,
-            mapAgree: top ? cardFiles(h.card).some((f) => top!.has(f)) : null, kept: kept.has(h.card.id), files: cardFiles(h.card),
-          })),
-          ...(text ? { tokensEst: estimateTokens(Buffer.byteLength(text), "x.txt") } : {}),
-        });
-      } catch (err) {
-        recordError("recallDecision", err);
-      }
-    }
-    if (!text) return "";
-    state.recalled = [...seen, ...hits.map((h) => h.card.id)].slice(-50);
-    appendRow(join(paths.snoutDir, "recall.jsonl"), {
-      ts: new Date().toISOString(), session: state.session, turn: state.turn, ranker,
-      cards: hits.map((h) => h.card.id), scores: hits.map((h) => Math.round(h.score * 100) / 100),
-      tokensEst: estimateTokens(Buffer.byteLength(text), "x.txt"),
-    });
-    return text;
-  } catch (err) {
-    recordError("recall", err);
-    return "";
-  }
-}
 
 /** This session's memory card, refreshed from its transcript at each Stop. */
 function captureCard(input: HookInput, paths: Paths, cfg: Config, session: string): void {
@@ -1156,9 +1220,15 @@ function captureCard(input: HookInput, paths: Paths, cfg: Config, session: strin
     // The card's lasting facts become private observations (memory/distill.ts), for both agents.
     if (card && !(process.env.CI || process.env.SNOUT_TOKEN)) {
       try {
-        applyDistilled(storesFor(paths.projectDir, paths.snoutDir, configDir()), userPrincipal(paths.projectDir), card);
+        applyDistilled(storesFor(paths.projectDir, paths.snoutDir, configDir()), userPrincipal(paths.projectDir), card, new Date(), installedFor(paths.projectDir), instructionText(paths.projectDir));
       } catch (err) {
         recordError("memoryDistill", err);
+      }
+      // Lessons this session proposed, checked against its record (memory/review.ts). A check never approves one.
+      try {
+        checkProposals(storesFor(paths.projectDir, paths.snoutDir, configDir()), card, facts.said ?? []);
+      } catch (err) {
+        recordError("lessonCheck", err);
       }
     }
     // Opt-in: one Jev call for the sentences not judged before. Stop is the turn's end, so the
@@ -1192,13 +1262,39 @@ async function cmdMemoryModel(v: string | undefined): Promise<void> {
     return say([
       `Memory model ready: ${MODEL} (q8), local, in ${modelDir()}.`,
       cards.length ? `Embedded this repo's ${cards.length} card${cards.length === 1 ? "" : "s"} in ${Date.now() - t0} ms.` : "No cards in this repo yet.",
-      "Recall now ranks past sessions by words and meaning together. `snout serve` keeps the model loaded; without it a prompt falls back to words.",
+      "With memorySemantic on, a prompt no note fits by its words may get the one note closest in meaning. `snout serve` keeps the model loaded; without it a prompt falls back to words.",
     ].join("\n"));
   }
   if (v === "remove") return say(removeModel() ? `Removed ${modelDir()}. Recall is back to words only.` : "No memory model installed.");
   say(modelReady()
-    ? `Memory model installed: ${MODEL} in ${modelDir()}. Recall ranks by words and meaning. Remove with: snout memory model remove`
+    ? `Memory model installed: ${MODEL} in ${modelDir()}. With memorySemantic on, notes may match a prompt by meaning. Remove with: snout memory model remove`
     : "No memory model. Recall ranks past sessions by words, checked against the repo map.\nInstall the optional local model (bge-small, ~34 MB, plus its runtime from npm) with: snout memory model install");
+}
+
+/**
+ * `snout memory reranker [install|remove]`: the optional answerability reranker (memory/rerank.ts)
+ * for search and `snout recall`. It shares the runtime the memory model installs; removing it
+ * leaves that runtime for the memory model.
+ */
+async function cmdMemoryReranker(v: string | undefined): Promise<void> {
+  const where = join(modelDir(), "models", ...RERANKER.split("/"));
+  if (v === "install") {
+    await installModel((line) => say(line), modelDir(), RERANKER, RERANKER_FILES);
+    const t0 = Date.now();
+    await loadReranker();
+    return say([
+      `Reranker ready: ${RERANKER} (q8), local, in ${where}; it loaded in ${Date.now() - t0} ms.`,
+      "snout recall and snout_memory_search now put first the record it is sure answers the question. Notes on prompts never use it. Turn it off with \"memoryRerank\": false.",
+    ].join("\n"));
+  }
+  if (v === "remove") {
+    if (!existsSync(where)) return say("No reranker installed.");
+    rmSync(where, { recursive: true, force: true });
+    return say(`Removed ${where}. Search and recall are back to their own ranking.`);
+  }
+  say(rerankReady()
+    ? `Reranker installed: ${RERANKER} in ${where}. Search and recall ${rerankOn(loadConfig(resolvePaths(process.cwd()))) ? "use it" : "don't use it here (memoryRerank is false)"}. Remove with: snout memory reranker remove`
+    : "No reranker. Search and recall rank by words (and meaning, with the memory model).\nInstall the optional local reranker (ms-marco MiniLM-L6, ~23 MB, plus its runtime from npm) with: snout memory reranker install");
 }
 
 /**
@@ -1210,13 +1306,18 @@ function cmdObservations(paths: Paths, v: string, args: string[]): void {
   const words = args.filter((a, i) => !a.startsWith("--") && args[i - 1] !== "--kind").join(" ").trim();
   const stores = storesFor(paths.projectDir, paths.snoutDir, configDir());
   const user = userPrincipal(paths.projectDir);
-  const line = (o: Observation) => `  ${o.id}  ${o.kind.padEnd(10)} ${o.scope === "shared" ? "shared " : o.project === "*" ? "private, all projects" : "private"}${o.status === "active" ? "" : ` (${o.status})`}\n      ${safeText(o.text, 160)}`;
+  const line = (o: Observation) => `  ${o.id}  ${o.kind.padEnd(10)} ${o.scope === "shared" ? "shared " : o.project === "*" ? "private, all projects" : "private"}${o.status !== "active" ? ` (${o.status})` : heldBack(o, paths.projectDir) ? " (held back: its files changed since it was saved)" : ""} · ${verification(o)}${o.status === "archived" && o.tags.includes("unused") ? ` · archived unused: snout memory restore ${o.id}` : ""}\n      ${safeText(o.text, 160)}`;
   try {
     if (v === "add") {
       const kind = (flag("--kind") ?? "fact") as ObsKind;
       if (!words) return say('Usage: snout memory add "<what to remember>" [--kind convention|decision|gotcha|preference|command|fact] [--shared] [--global]');
       const o = addObservation(stores, user, { kind, text: words, scope: args.includes("--shared") ? "shared" : "private", global: args.includes("--global"), via: "manual", agent: agentName() });
-      return say(`Saved ${o.id} (${o.scope === "shared" ? "shared: everyone with this repository, once .snout/memory is committed" : "private: only you"}).\n${line(o)}`);
+      const replaced = replaceOlder(stores, o);
+      // Yours to keep either way; said so a repeat can be dropped (quality.ts).
+      const like = nearDuplicate(stores, { text: words, scope: o.scope });
+      const warn = coveredBy(o, instructionText(paths.projectDir)) ? `\nNote: an instruction file here (CLAUDE.md or AGENTS.md) already says this, and agents load it themselves. snout memory drop ${o.id} removes the note.`
+        : like && like.id !== o.id && !replaced.some((r) => r.id === like.id) ? `\nNote: ${like.id} says nearly the same: "${safeText(like.text, 120)}".` : "";
+      return say(`Saved ${o.id} (${o.scope === "shared" ? "shared: everyone with this repository, once .snout/memory is committed" : "private: only you"}).\n${line(o)}${replaced.map((r) => `\nIt replaces ${r.id}, now superseded: "${safeText(r.text, 120)}"`).join("")}${warn}`);
     }
     if (v === "list") {
       const all = listObservations(stores);
@@ -1231,12 +1332,17 @@ function cmdObservations(paths: Paths, v: string, args: string[]): void {
     }
     const id = words.split(" ")[0] ?? "";
     if (!id) return say(`Usage: snout memory ${v} <id>${v === "supersede" ? ' "<corrected text>"' : ""}`);
+    if (v === "restore") {
+      const o = restoreObservation(stores, id);
+      return say(o ? `Restored ${o.id}: recalled again.\n${line(o)}` : `No note ${safeText(id, 20)} archived as unused.`);
+    }
     if (v === "archive") {
       const o = archiveObservation(stores, id);
       return say(o ? `Archived ${o.id}: kept on disk, never recalled.` : `No observation ${safeText(id, 20)}.`);
     }
+    if (v === "accept" && listObservations(stores).find((o) => o.id === id || (id.length >= 6 && o.id.startsWith(id)))?.lesson) return cmdLessons(paths, "approve", args);
     if (v === "accept") {
-      const o = acceptObservation(stores, id);
+      const o = acceptObservation(stores, id, new Date(), ["accepted"]);
       return say(o ? `Accepted ${o.id}: recalled from now on.\n${line(o)}` : `No proposal ${safeText(id, 20)} (snout memory list --all shows proposals).`);
     }
     if (v === "share") {
@@ -1256,16 +1362,85 @@ function cmdObservations(paths: Paths, v: string, args: string[]): void {
   }
 }
 
+/**
+ * `snout memory review|show|approve|reject|edit|replace|promote`: the person's side of lessons
+ * (memory/review.ts). Agents propose; only these commands approve, and promotion into a skill
+ * writes only with the code its preview printed (memory/skill.ts).
+ */
+function cmdLessons(paths: Paths, v: string, args: string[]): void {
+  const flag = (name: string) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
+  const FLAGS = new Set(["--replaces", "--note", "--when", "--name", "--yes"]);
+  const words = args.filter((a, i) => !a.startsWith("--") && !FLAGS.has(args[i - 1] ?? ""));
+  const stores = storesFor(paths.projectDir, paths.snoutDir, configDir());
+  const user = userPrincipal(paths.projectDir);
+  const id = words[0] ?? "";
+  const rest = words.slice(1).join(" ").trim();
+  try {
+    if (v === "review") {
+      const waiting = proposals(stores);
+      const ready = waiting.filter((o) => o.lesson!.check === "verified");
+      const others = args.includes("--all") ? allLessons(stores).filter((o) => o.status !== "proposed") : [];
+      const head = waiting.length
+        ? `${ready.length} lesson${ready.length === 1 ? "" : "s"} to review${waiting.length > ready.length ? ` · ${waiting.length - ready.length} more whose evidence isn't on record yet (they can't be approved)` : ""}`
+        : "No lessons waiting for review.";
+      return say([head, ...waiting.map((o) => lessonDetail(o, stores.project)), ...(others.length ? ["", "Reviewed:", ...others.map((o) => lessonDetail(o, stores.project))] : []), "",
+        'snout memory approve <id> [--replaces <id>] · reject <id> ["why"] · edit <id> ["new text"] [--when "where it applies"] · replace <id> "your text" · promote <id>... --name <skill> · review --all'].join("\n"));
+    }
+    if (!id) return say(`Usage: snout memory ${v} <id>${v === "edit" ? ' ["new text"] [--when "where it applies"]' : v === "replace" ? ' "your text" [--when "where it applies"]' : v === "promote" ? " [<id>...] --name <skill>" : ""}`);
+    if (v === "show") {
+      const o = listObservations(stores).find((x) => x.id === id || (id.length >= 6 && x.id.startsWith(id)));
+      return say(o?.lesson ? lessonDetail(o, stores.project) : o ? `${o.id}  ${o.kind}  ${o.status}\n  ${safeText(o.text, 300)}` : `No observation ${safeText(id, 20)}.`);
+    }
+    if (v === "approve") {
+      const o = approveLesson(stores, id, { replaces: flag("--replaces"), note: flag("--note") });
+      return say(`Approved ${o.id}. Claude Code and Codex searches in this project can show it from now on.${o.supersedes ? ` It replaces ${o.supersedes}.` : ""}\n${lessonDetail(o, stores.project)}`);
+    }
+    if (v === "reject") {
+      const o = rejectLesson(stores, id, rest || flag("--note"));
+      return say(`Rejected ${o.id}: kept on disk as rejected, never shown to a session.`);
+    }
+    if (v === "edit") {
+      if (!rest && !flag("--when")) return say('Usage: snout memory edit <id> ["new text"] [--when "where it applies"]');
+      const o = editLesson(stores, id, { text: rest || undefined, applies: flag("--when") });
+      return say(`Edited ${o.id}; still a proposal. Approve it when it reads right.\n${lessonDetail(o, stores.project)}`);
+    }
+    if (v === "replace") {
+      if (!rest) return say('Usage: snout memory replace <id> "your text" [--when "where it applies"]');
+      const o = replaceLesson(stores, user, id, rest, flag("--when"));
+      return say(`Saved your wording as ${o.id}, approved; ${o.supersedes ?? id} is now replaced.\n${lessonDetail(o, stores.project)}`);
+    }
+    // promote
+    const name = flag("--name");
+    if (!name) return say("Usage: snout memory promote <id> [<id>...] --name <skill>   (prints a preview; add --yes <code> to write it)");
+    const p = promotionPreview(paths.projectDir, stores, words, name);
+    const code = flag("--yes");
+    if (code) {
+      const written = promote(p, code);
+      return say(`Wrote skill ${name}:\n${written.map((f) => `  ${toRel(f, paths.projectDir)}`).join("\n")}\nNew Claude Code and Codex sessions in this project load it. Delete those folders to take it back.`);
+    }
+    return say([
+      `Preview: promoting ${p.lessons.length} approved lesson${p.lessons.length === 1 ? "" : "s"} into skill "${name}". Nothing is written yet.`,
+      ...p.files.map((f) => `  ${toRel(f.path, paths.projectDir)}${f.existing === null ? " (new)" : f.existing === f.content ? " (unchanged)" : " (replaces the file there now)"}`),
+      "", "----- SKILL.md -----", p.files[0]!.content, "--------------------", "",
+      "A skill reaches every later session that loads it, without a search. To write it, run:",
+      `  snout memory promote ${p.lessons.map((o) => o.id).join(" ")} --name ${name} --yes ${p.code}`,
+    ].join("\n"));
+  } catch (err) {
+    return say(`snout memory ${v}: ${safeText((err as Error).message, 300)}`);
+  }
+}
+
 /** `snout memory [on|off|forget <session>]`: list the cards, toggle memory, or drop one card. */
 function cmdMemory(paths: Paths, cfg: Config, args: string[]): void {
   const v = args[0];
-  if (v && ["add", "list", "archive", "supersede", "drop", "migrate", "accept"].includes(v)) return cmdObservations(paths, v, args.slice(1));
+  if (v && ["review", "show", "approve", "reject", "edit", "replace", "promote"].includes(v)) return cmdLessons(paths, v, args.slice(1));
+  if (v && ["add", "list", "archive", "restore", "supersede", "drop", "migrate", "accept"].includes(v)) return cmdObservations(paths, v, args.slice(1));
   if (v === "share" && args[1]) return cmdObservations(paths, "share", args.slice(1));
   if (v === "on" || v === "off") {
     setConfigKey(paths.config, "memory", v === "on");
     return say(v === "on"
-      ? "Memory on. Each session leaves a card in .snout/memory (task, files changed, commits, test command, what failed), and a later prompt that bears on one gets a short brief. Local only; commit .snout/memory to share it with your team."
-      : "Memory off. No new cards, and nothing is recalled. Existing cards stay in .snout/memory.");
+      ? "Memory on. Each session leaves a record in .snout/memory: what it was asked, files changed, commits, the test command and result, what failed and what it left open. A new session gets one line saying earlier sessions exist; the agent searches and opens them through Snout's MCP tools when it needs them. Nothing leaves this machine."
+      : "Memory off. No new records, no session-start line, and the memory tools say memory is off. Existing records stay in .snout/memory.");
   }
   if (v === "share") {
     const r = shareMemory(paths.projectDir, paths.snoutDir);
@@ -1281,6 +1456,23 @@ function cmdMemory(paths: Paths, cfg: Config, args: string[]): void {
   if (v === "brief") {
     const text = repoBrief(readCards(paths.snoutDir), { projectDir: paths.projectDir, instructions: instructionText(paths.projectDir), installed: onPath });
     return say(text || "No brief yet: a fact needs to show up in two or more sessions first.");
+  }
+  if (v === "notes") {
+    const w = args[1];
+    if (w !== "on" && w !== "off") return say(`Automatic notes are ${cfg.memoryNotes ? "on" : "off"}.
+Usage: snout memory notes on|off`);
+    setConfigKey(paths.config, "memoryNotes", w === "on" ? true : undefined);
+    return say(w === "on"
+      ? "Automatic notes on. In enforce mode, a prompt gets up to 3 verified notes and lessons you approved that fit it on strong evidence, each with where it came from, and nothing when none does. The session-start line names your approved lessons by where they apply. Words alone don't reach the accuracy bar on every fresh test set (docs/memory-gates.md), so this stays opt-in."
+      : "Automatic notes off. Notes are still saved; snout_memory_search and snout recall find them when asked.");
+  }
+  if (v === "lessons") {
+    const w = args[1];
+    if (w !== "on" && w !== "off") return say(`Lessons are ${cfg.memoryLessons ? "on" : "off"}.\nUsage: snout memory lessons on|off`);
+    setConfigKey(paths.config, "memoryLessons", w === "on" ? true : undefined);
+    return say(w === "on"
+      ? "Lessons on. When a session gets past a failure, the agent is asked once, as it finishes, for a one-line lesson; it's kept as a private note for your next session in Claude Code or Codex. Sessions with no failure are asked nothing."
+      : "Lessons off. Lessons already kept stay; see them with: snout memory list");
   }
   if (v === "judge") {
     const w = args[1];
@@ -1299,16 +1491,49 @@ function cmdMemory(paths: Paths, cfg: Config, args: string[]): void {
     if (!prefs.length) return say(`No saved preferences. ${cfg.memoryJudge === "jev" ? "The judge is on; they appear after a session states one." : "Turn on the judge with: snout memory judge jev"}`);
     return say([`${prefs.length} saved preference${prefs.length === 1 ? "" : "s"} (judge ${cfg.memoryJudge === "jev" ? "on" : "off"}):`, ...prefs.map((p, i) => `  ${String(i + 1).padStart(2)}. ${safeText(p.text, 120)}  (${p.p}, ${p.ts.slice(0, 10)})`), "", "Forget one with: snout memory prefs forget <n>"].join("\n"));
   }
+  if (v === "reindex") {
+    const stores = storesFor(paths.projectDir, paths.snoutDir, configDir());
+    const st = rebuildIndex(stores.indexFile!, [[stores.privateDir, OBS_KIND], [stores.globalDir, OBS_KIND], [stores.sharedDir, OBS_KIND], [cardsDir(paths.snoutDir), CARD_KIND]]);
+    return say(st.available
+      ? `Rebuilt the local index from the files: ${st.records} record${st.records === 1 ? "" : "s"}, ${(st.bytes / 1024).toFixed(0)} KB at ${st.file}. The JSON files are unchanged.`
+      : "No local index on this Node (node:sqlite needs Node 22.13 or later), or SNOUT_INDEX=off: memory reads the files directly, with the same results.");
+  }
   if (v === "forget") {
     const id = args[1];
     if (!id) return say("Usage: snout memory forget <session>");
     return say(forgetCard(paths.snoutDir, id) ? `Forgot ${safeText(id, 80)}.` : `No card for ${safeText(id, 80)}.`);
   }
   const cards = listCards(paths.snoutDir);
-  const head = `Memory is ${cfg.memory === false ? "off" : "on"} · ${cards.length} card${cards.length === 1 ? "" : "s"} in ${toRel(join(paths.snoutDir, "memory"), paths.projectDir)}`;
+  const head = `Memory is ${cfg.memory === false ? "off" : "on"} · ${cards.length} session record${cards.length === 1 ? "" : "s"} in ${toRel(join(paths.snoutDir, "memory"), paths.projectDir)}`;
   const rows = cards.slice(0, 20).map((c) => `  ${c.updated.slice(0, 10)}  ${c.agent.padEnd(6)} ${safeText(c.session, 36)}  ${safeText(c.task ?? c.commits[0]?.subject ?? "", 70)}${c.commits.length ? `  [${c.commits.map((k) => k.sha.slice(0, 7)).join(" ")}]` : ""}`);
-  const ranks = modelReady() ? "words and meaning (memory model installed)" : "words (snout memory model install adds meaning)";
-  say([head, `Recall ranks by ${ranks}`, ...recallStatsLines(paths, cards), ...rows, "", 'Usage: snout memory on|off · snout memory brief · snout memory list [--all] · snout memory add "<note>" · snout memory archive|drop <id> · snout memory share · snout memory judge jev|off · snout memory prefs [forget <n>] · snout memory forget <session> · snout memory model [install|remove] · snout recall "<request>"'].join("\n"));
+  const ranks = `words${rerankReady() ? ", reordered by the reranker when it is sure" : ""}${modelReady() ? "; with memorySemantic on, notes may also match a prompt by meaning" : ""}`;
+  const index = indexStatus(storesFor(paths.projectDir, paths.snoutDir, configDir()).indexFile!);
+  const indexLine = index.available ? `Local index: ${index.records} record${index.records === 1 ? "" : "s"}, ${(index.bytes / 1024).toFixed(0)} KB (SQLite, this machine only; snout memory reindex rebuilds it from the files)` : "Local index: none on this Node; memory reads the files directly";
+  say([head, ...memoryUseLines(paths, cfg), `Search ranks by ${ranks}`, indexLine, ...recallStatsLines(paths, cards), ...rows, "", 'Usage: snout memory on|off · snout memory review · snout memory approve|reject|edit|replace <id> · snout memory promote <id> --name <skill> · snout memory notes on|off · snout memory brief · snout memory list [--all] · snout memory add "<note>" · snout memory archive|drop <id> · snout memory share · snout memory judge jev|off · snout memory prefs [forget <n>] · snout memory forget <session> · snout memory reindex · snout memory model [install|remove] · snout memory reranker [install|remove] · snout recall "<request>"'].join("\n"));
+}
+
+/**
+ * How memory reaches agents here, and whether they use it: the session-start line, the searches and
+ * fetches they made (logged by `snout mcp`), and the agent-written notes waiting for a person.
+ */
+function memoryUseLines(paths: Paths, cfg: Config): string[] {
+  const since = Date.now() - 30 * 86_400_000;
+  const rows = readRows<{ ts?: string; kind?: string; missed?: boolean; shown?: string[] }>(join(paths.snoutDir, "recall.jsonl")).filter((r) => Date.parse(r.ts ?? "") >= since);
+  const n = (k: string) => rows.filter((r) => r.kind === k).length;
+  const empty = rows.filter((r) => r.kind === "search" && !r.shown?.length).length;
+  const opened = rows.filter((r) => r.kind === "fetch" && !r.missed).length;
+  const stores = storesFor(paths.projectDir, paths.snoutDir, configDir());
+  const notes = listObservations(stores).filter((o) => o.project === stores.project);
+  const proposed = notes.filter((o) => o.status === "proposed" && !o.lesson).length;
+  const waiting = proposals(stores);
+  const ready = waiting.filter((o) => o.lesson!.check === "verified").length;
+  const live = notes.filter((o) => o.lesson?.review?.verdict === "approved" && o.status === "active").length;
+  return [
+    `How agents get it: ${cfg.memoryHint === false ? "no session-start line (memoryHint off)" : "one line at session start saying earlier sessions exist"}; they search and open records with Snout's MCP tools. Automatic notes are ${cfg.memoryNotes ? "on" : "off"}.`,
+    `Last 30 days: ${n("hint")} session-start line${n("hint") === 1 ? "" : "s"}, ${n("search")} search${n("search") === 1 ? "" : "es"} (${empty} found nothing), ${opened} record${opened === 1 ? "" : "s"} opened, ${n("propose")} lesson${n("propose") === 1 ? "" : "s"} proposed.`,
+    `Lessons: ${live} approved${ready ? `, ${ready} waiting for your review (snout memory review)` : ""}${waiting.length > ready ? `, ${waiting.length - ready} whose evidence isn't on record yet` : ""}.`,
+    `Saved notes: ${notes.filter((o) => o.status === "active" && !o.lesson).length} in use${proposed ? `, ${proposed} written by an agent and waiting for you (snout memory list --all; snout memory accept <id>)` : ""}.`,
+  ];
 }
 
 /** How recall has done in this repo: when it spoke, whether its files were used; when silent, what it missed. */
@@ -1329,8 +1554,17 @@ function cmdRecall(paths: Paths, args: string[]): void {
   const asOf = i >= 0 ? args[i + 1] : undefined;
   const request = args.filter((_, j) => i < 0 || (j !== i && j !== i + 1)).join(" ").trim();
   if (!request) return say('Usage: snout recall "<request>" [--as-of 2026-10-01]');
-  const text = renderRecall(recall(readCards(paths.snoutDir), request, { asOf, projectDir: paths.projectDir }), paths.projectDir);
-  say(text || "No earlier session bears on that request.");
+  const claims = staleClaims(storesFor(paths.projectDir, paths.snoutDir, configDir()), paths.projectDir);
+  const cards = readCards(paths.snoutDir).map((c) => withoutStaleClaims(c, claims));
+  const opts = { asOf, projectDir: paths.projectDir };
+  const show = () => {
+    const text = renderRecall(rerankedRecall(cards, request, opts), paths.projectDir);
+    say(text || "No earlier session bears on that request.");
+  };
+  // Meaning alone never makes a recall (only delivery uses it, facts.ts); the reranker may reorder one.
+  if (!rerankOn(loadConfig(paths))) return show();
+  pending = true;
+  void prepareRerank(request, recallShortlist(cards, request, opts).map(embedText)).finally(() => { show(); process.exit(0); });
 }
 
 /**
@@ -1486,9 +1720,8 @@ function startServer(): void {
       try {
         const input = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}") as HookInput;
         if (typeof input.cwd === "string" && input.cwd) served.add(resolvePaths(input.cwd).projectDir);
+        if (event === "prompt-submit") await prepareMeaningFor(input).catch((err) => recordError("meaning", err));
         requestStart = performance.now();
-        vectors = null;
-        if (event === "prompt-submit" && modelReady()) await promptVectors(input, async (t) => (await loadEmbedder())(t)).catch((err) => recordError("memoryVectors", err));
         capturing = true;
         captured = null;
         client = undefined;
@@ -1537,7 +1770,7 @@ function serveEmbed(req: import("node:http").IncomingMessage, res: import("node:
   req.on("end", async () => {
     try {
       const { texts } = JSON.parse(Buffer.concat(chunks).toString("utf8")) as { texts?: unknown };
-      if (!modelReady() || !Array.isArray(texts) || texts.length > 4 * EMBED_BATCH || !texts.every((t) => typeof t === "string")) return void res.writeHead(400).end();
+      if (!modelReady() || !Array.isArray(texts) || texts.length > 256 || !texts.every((t) => typeof t === "string")) return void res.writeHead(400).end();
       const out = await (await loadEmbedder())(texts.map((t: string) => t.slice(0, 4000)));
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ vectors: out.map(packVector) }));
@@ -1634,6 +1867,14 @@ function onPreTool(input: HookInput, paths: Paths, cfg: Config): void {
     const command = stringField(input.tool_input, "command");
     const targets = command ? shellDumpTargets(command, paths.projectDir) : [];
     const state = loadState(paths.state, input.session_id ?? "unknown");
+    // A ranged print (`sed -n '40,80p' f`, `head -n 40 f`, Get-Content -TotalCount) of lines
+    // already in this agent's context, the file unchanged since: no agent answers that itself.
+    const range = command && cfg.repeatReads !== false && cfg.mode === "enforce" ? shellRangeRead(command, paths.projectDir) : null;
+    if (range) {
+      const rel = toRel(range.abs, paths.projectDir);
+      const prior = repeatOf(paths.snoutDir, state.session, agentOf(input).agentId, range.abs, rel, range.window);
+      if (prior) return repeatDumpResponse(input, paths, state, [{ abs: range.abs, rel, prior, window: range.window }]);
+    }
     if (targets.length && cfg.repeatReads !== false && cfg.mode === "enforce") {
       const agentId = agentOf(input).agentId;
       const seen = targets.map((a) => ({ abs: a, rel: toRel(a, paths.projectDir) })).map((t) => ({ ...t, prior: repeatOf(paths.snoutDir, state.session, agentId, t.abs, t.rel, "full") }));
@@ -1671,7 +1912,10 @@ function onPreTool(input: HookInput, paths: Paths, cfg: Config): void {
     const rel = toRel(absPath, paths.projectDir);
     const window = requestedWindow(input.tool_input);
     // Claude Code answers an exact repeat itself; other agents (client set) get every case.
-    const prior = repeatOf(paths.snoutDir, state.session, agentOf(input).agentId, absPath, rel, window, !client);
+    // Claude Code answers an exact repeat of its own Read, but not of an image, and not of lines a shell printed.
+    const image = READ_IMAGE.test(absPath);
+    const prior = repeatOf(paths.snoutDir, state.session, agentOf(input).agentId, absPath, rel, window, !client && !image);
+    if (prior && image) return repeatDumpResponse(input, paths, state, [{ abs: absPath, rel, prior, window: "full" }]);
     if (prior) return repeatResponse(input, paths, state, absPath, rel, window, prior);
   }
 
@@ -1717,6 +1961,11 @@ let powerShellRead = false;
 function shellDumpTargets(command: string, cwd: string): string[] {
   const bash = dumpTargets(command, cwd);
   return client === "codex" && bash.length === 0 ? powerShellTargets(command, cwd) : bash;
+}
+
+/** A ranged print of one file's lines, in Bash or (for Codex on Windows) PowerShell. */
+function shellRangeRead(command: string, cwd: string): { abs: string; window: string } | null {
+  return rangeRead(command, cwd) ?? (client === "codex" ? powerShellRangeRead(command, cwd) : null);
 }
 
 function shellReadTargets(command: string, cwd: string): string[] {
@@ -1897,9 +2146,9 @@ function docResponse(input: HookInput, paths: Paths, g: Gated, doc: DocWindow): 
 }
 
 /** A `cat` of files this agent already read whole, unchanged: blocked with a pointer, not re-sent. */
-function repeatDumpResponse(input: HookInput, paths: Paths, state: SessionState, files: { abs: string; rel: string; prior: { turn: number } }[]): void {
+function repeatDumpResponse(input: HookInput, paths: Paths, state: SessionState, files: { abs: string; rel: string; prior: { turn: number; window?: string }; window?: string }[]): void {
   for (const f of files) {
-    const bytes = sizeOf(f.abs);
+    const bytes = f.window && f.window !== "full" ? windowBytes(f.abs, f.window) : sizeOf(f.abs);
     recordRow(paths.ledger, {
       ts: new Date().toISOString(), session: state.session, turn: state.turn, tool: "Bash", path: f.rel, tier: 0,
       rule: "repeat-read", value: 1, confidence: 1, decision: "deny", mode: "enforce",
@@ -1909,13 +2158,31 @@ function repeatDumpResponse(input: HookInput, paths: Paths, state: SessionState,
     });
   }
   const names = files.map((f) => safePath(f.rel)).join(", ");
+  const one = files[0]!;
+  // Some lines of one file: say which are in context, and which earlier read holds them.
+  const lines = files.length === 1 && one.window && one.window !== "full";
+  const held = one.prior.window && one.prior.window !== "full" ? describeWindow(one.prior.window) : "in full";
   emit({
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
       permissionDecision: "deny",
-      permissionDecisionReason: `snout: ${names} ${files.length > 1 ? "are" : "is"} unchanged since you read ${files.length > 1 ? "them" : "it"} in full earlier in this conversation (turn ${files[0]!.prior.turn}). That copy is still accurate; use it instead of printing ${files.length > 1 ? "them" : "it"} again.`,
+      permissionDecisionReason: lines
+        ? held === "in full"
+          ? `snout: ${names} is unchanged since turn ${one.prior.turn}, when you read it in full, so ${describeWindow(one.window!)} are already in this conversation and still accurate. Use that copy instead of printing them again.`
+          : `snout: ${names} is unchanged since turn ${one.prior.turn}, when you read ${held} of it, which include ${describeWindow(one.window!)}. That copy is still in this conversation and accurate; use it instead of printing them again.`
+        : `snout: ${names} ${files.length > 1 ? "are" : "is"} unchanged since you read ${files.length > 1 ? "them" : "it"} in full earlier in this conversation (turn ${one.prior.turn}). That copy is still accurate; use it instead of ${READ_IMAGE.test(one.rel) ? "reading it" : `printing ${files.length > 1 ? "them" : "it"}`} again.`,
     },
   });
+}
+
+/** Bytes of one "start:count" window of a file; the whole file's size when it can't be read. */
+function windowBytes(absPath: string, window: string): number {
+  const [start, count] = window.split(":").map(Number);
+  try {
+    return Buffer.byteLength(readFileSync(absPath, "utf8").split("\n").slice(start! - 1, start! - 1 + count!).join("\n"));
+  } catch {
+    return sizeOf(absPath);
+  }
 }
 
 const describeWindow = (w: string) => {
@@ -1974,6 +2241,8 @@ interface Gated { absPath: string; rel: string; d: Decision; estimated: number; 
 
 /** File types Claude Code's Read renders for the model instead of returning raw bytes. */
 const READ_VIEWABLE = /\.(png|jpe?g|gif|webp|pdf)$/i;
+/** Images among them: a Read returns all of one, whatever its offset and limit. */
+const READ_IMAGE = /\.(png|jpe?g|gif|webp)$/i;
 
 function classifyForGate(input: HookInput, paths: Paths, cfg: Config, state: SessionState, absPath: string, windowBytes?: number): Gated {
   const rel = toRel(absPath, paths.projectDir);
@@ -2096,7 +2365,8 @@ function onPostTool(input: HookInput, paths: Paths, cfg: Config): void {
 
   // Remember what a completed Read returned, for the repeat-read skip.
   if (input.tool_name === "Read" && filePath) {
-    const window = returnedWindow(input.tool_response);
+    // An image has no lines: a Read that returned one holds all of it.
+    const window = returnedWindow(input.tool_response) ?? ((input.tool_response as { type?: unknown } | undefined)?.type === "image" ? "full" : null);
     if (window) {
       const abs = isAbsolute(filePath) ? filePath : join(paths.projectDir, filePath);
       rememberRead(paths.snoutDir, state.session, agentOf(input).agentId, abs, toRel(abs, paths.projectDir), window, state.turn);
@@ -2109,8 +2379,10 @@ function onPostTool(input: HookInput, paths: Paths, cfg: Config): void {
     }
     if (command && resp && typeof resp.stdout === "string" && resp.interrupted !== true) {
       for (const abs of shellDumpTargets(command, paths.projectDir)) {
-        rememberRead(paths.snoutDir, state.session, agentOf(input).agentId, abs, toRel(abs, paths.projectDir), "full", state.turn);
+        rememberRead(paths.snoutDir, state.session, agentOf(input).agentId, abs, toRel(abs, paths.projectDir), "full", state.turn, true);
       }
+      const range = shellRangeRead(command, paths.projectDir);
+      if (range) rememberRead(paths.snoutDir, state.session, agentOf(input).agentId, range.abs, toRel(range.abs, paths.projectDir), range.window, state.turn, true);
     }
   }
 
@@ -2183,10 +2455,53 @@ function onPreCompact(input: HookInput, paths: Paths): void {
   emit({});
 }
 
+/**
+ * The lesson step (memory/lessons.ts), opt-in: the first Stop of a session that got past a failure
+ * asks the agent for one `Lesson:` line (Stop's "block" makes it answer before it ends); the Stop
+ * after that answer keeps the line as a private note. Asked once per session, saved once.
+ */
+function lessonStep(paths: Paths, cfg: Config, session: string): Record<string, unknown> | null {
+  if (!cfg.memoryLessons || cfg.memory === false || cfg.mode === "observe" || replayDir || process.env.CI || process.env.SNOUT_TOKEN) return null;
+  try {
+    const card = readCard(paths.snoutDir, session);
+    if (!card) return null;
+    const log = join(paths.snoutDir, "recall.jsonl");
+    const mine = readRows<{ session?: string; kind?: string }>(log, 2000).filter((r) => r.session === session);
+    if (mine.some((r) => r.kind === "lesson")) return null;
+    const stores = storesFor(paths.projectDir, paths.snoutDir, configDir());
+    if (mine.some((r) => r.kind === "lesson-ask")) {
+      const user = userPrincipal(paths.projectDir);
+      // Proposals, as any agent's lesson: the record already shows the failure and the passing run, so each is checked, never approved.
+      const kept = user && card.recovered ? parseLessons(card.outcome ?? "").flatMap((line) => {
+        const [text, when] = line.split(/\s+When:\s*/i);
+        try {
+          return [proposeLesson(stores, user, { text: text!, basis: "test", applies: when || `running ${card.recovered!.command}`, evidence: card.test?.command ?? card.recovered!.command, session, agent: card.agent, instructions: instructionText(paths.projectDir) })];
+        } catch { return []; }
+      }) : [];
+      if (kept.length) checkProposals(stores, card, []);
+      appendRow(log, { ts: new Date().toISOString(), session, turn: 0, kind: "lesson", items: kept.map((o) => o.id) });
+      return null;
+    }
+    const known = listObservations(stores).filter((o) => o.status === "active" && o.project === stores.project).map((o) => o.text);
+    const question = lessonQuestion(card, known);
+    if (!question) return null;
+    appendRow(log, { ts: new Date().toISOString(), session, turn: 0, kind: "lesson-ask", tokensEst: estimateTokens(Buffer.byteLength(question), "x.txt") });
+    return { decision: "block", reason: question };
+  } catch (err) {
+    recordError("lessonStep", err);
+    return null;
+  }
+}
+
 function onStop(input: HookInput, paths: Paths, cfg: Config): void {
   maybeAutoSync(paths);
   const state = loadState(paths.state, input.session_id ?? "unknown");
   captureCard(input, paths, cfg, input.session_id ?? state.session);
+  const ask = lessonStep(paths, cfg, input.session_id ?? state.session);
+  if (ask) {
+    emit(ask);
+    return;
+  }
   const rows = readDecisions(paths.ledger, 2000).filter(
     (r) => r.session === state.session && r.turn === state.turn && r.rule !== "reversal",
   );
@@ -2223,7 +2538,6 @@ function onStop(input: HookInput, paths: Paths, cfg: Config): void {
   debug("turn", state.turn, "flagged", t.tokensAvoidedEst, "mode", cfg.mode);
   emit({});
 }
-
 
 /**
  * Classifies a file and records it without ever producing a permission decision. Used by
@@ -2808,6 +3122,13 @@ function cmdReset(paths: Paths): void {
   say("Cleared .snout/ledger.jsonl, turns.jsonl, errors.jsonl, hooks.jsonl and state.json.");
 }
 
+/** The local SQLite index of notes and session records, for doctor: where it is and how much it holds. */
+function memoryIndexLine(paths: Paths): string {
+  if (process.env.SNOUT_INDEX === "off") return "off (SNOUT_INDEX=off): memory reads the files";
+  const st = indexStatus(storesFor(paths.projectDir, paths.snoutDir, configDir()).indexFile!);
+  return st.available ? `${st.records} records, ${(st.bytes / 1024).toFixed(0)} KB, ${st.file}` : "none: node:sqlite needs Node 22.13 or later; memory reads the files";
+}
+
 function cmdDoctor(paths: Paths, cfg: Config): void {
   const rows = readDecisions(paths.ledger, 5000);
   const t = totalsOf(rows.filter((r) => r.rule !== "reversal"));
@@ -2827,6 +3148,7 @@ function cmdDoctor(paths: Paths, cfg: Config): void {
     `  p95 latency     ${percentile(t.latencies, 95)} ms`,
     `  errors logged   ${errors.length}`,
     `  blocking hook   ${blockingHookLine(gateMatcher(paths))}`,
+    `  memory index    ${memoryIndexLine(paths)}`,
   ];
 
   // Registration is the first question doctor must answer, because every other number on

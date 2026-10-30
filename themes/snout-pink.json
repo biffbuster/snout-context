@@ -1,0 +1,20 @@
+{
+  "name": "Snout Pink",
+  "base": "dark",
+  "overrides": {
+    "claude": "#F33682",
+    "claudeShimmer": "#FEA9C9",
+    "promptBorder": "#F33682",
+    "promptBorderShimmer": "#FEA9C9",
+    "permission": "#FF6FAE",
+    "permissionShimmer": "#FEA9C9",
+    "suggestion": "#FF8CC0",
+    "remember": "#D7813E",
+    "briefLabelClaude": "#F33682",
+    "rate_limit_fill": "#F33682",
+    "userMessageBackground": "#2B1621",
+    "userMessageBackgroundHover": "#3A1D2C",
+    "selectionBg": "#5C2240",
+    "pink_FOR_SUBAGENTS_ONLY": "#FEA9C9"
+  }
+}

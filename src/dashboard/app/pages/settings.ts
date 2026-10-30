@@ -12,11 +12,11 @@ const ROWS: { key: string; label: string; help: string; cli?: string }[] = [
   { key: "mode", label: "Mode", help: "Observe records only. Advise and enforce trim bulk before the agent reads it." },
   { key: "repeatReads", label: "Repeat reads", help: "Answer a re-read of an unchanged file with a pointer to the earlier copy." },
   { key: "longDocs", label: "Long docs and logs", help: "Whole reads of long docs return a section map; logs return their tail." },
-  { key: "memory", label: "Memory", help: "A card per session, recalled when a later prompt bears on it." },
+  { key: "memory", label: "Memory", help: "A record of each session, on this machine. A new session is told earlier ones exist; the agent searches and opens them when it needs to." },
   { key: "repoMap", label: "Repo map hints", help: "Suggest the files linked to names in each prompt, from a local repo map." },
   { key: "output", label: "Output style", help: "Concise adds one short instruction at session start." },
   { key: "coach", label: "Prompt coach", help: "Tip scores prompts with local rules. Jev sends task prompts to api.typesafe.ai." },
-  { key: "memoryJudge", label: "Memory preference judge", help: "Jev judges which of your sentences are lasting preferences. Sends up to six sentences per session." },
+  { key: "memoryJudge", label: "Memory preference judge", help: "Paused: not part of the current memory workflow. Jev judges which of your sentences are lasting preferences, and sends up to six sentences per session." },
   { key: "fastHooks", label: "Fast hooks", help: "Blocking hooks call a long-running local server instead of starting Node each time.", cli: "snout fast on" },
   { key: "sizeCapBytes", label: "Size cap", help: "Files larger than this are trimmed whatever their kind.", cli: "Edit .snout/config.json" },
 ];

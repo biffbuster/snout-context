@@ -94,3 +94,31 @@ export function powerShellSearchHint(relPath: string): string {
   const quoted = relPath.replace(/'/g, "''");
   return ` Need one fact from it? Search instead of reading it whole: \`Select-String -LiteralPath '${quoted}' -Pattern '<name>' | Select-Object -First 10 LineNumber,Matches\`.`;
 }
+
+const PATH_ARG = String.raw`(?:(?:-LiteralPath|-Path)\s+)?(?:"([^"\x60$]+)"|'([^'\x60$]+)'|([^\s"'\x60;&|<>$(){}\[\]*?]+))`;
+const TOTAL_COUNT = new RegExp(String.raw`^\s*(?:Get-Content|gc)\s+${PATH_ARG}\s+-(?:TotalCount|Head|First)\s+(\d+)\s*$`, "i");
+const SELECT_FIRST = new RegExp(String.raw`^\s*(?:Get-Content|gc)\s+${PATH_ARG}\s*\|\s*Select-Object\s+(?:-Skip\s+(\d+)\s+-First\s+(\d+)|-First\s+(\d+)(?:\s+-Skip\s+(\d+))?)\s*$`, "i");
+
+/**
+ * The one file and the lines a PowerShell command prints, when it is a plain ranged read:
+ * `Get-Content file -TotalCount 40` (or -Head, -First), or `Get-Content file | Select-Object
+ * -Skip 39 -First 40`, also inside Codex's pwsh -Command wrapper. Window "start:count".
+ */
+export function powerShellRangeRead(command: string, cwd: string): { abs: string; window: string } | null {
+  const wrapped = PWSH_COMMAND.exec(command);
+  const exe = wrapped?.[1] ?? wrapped?.[2];
+  const script = exe && /(?:^|[\/])(?:pwsh|powershell)(?:\.exe)?$/i.test(exe) ? (wrapped?.[3] ?? wrapped?.[4] ?? command) : command;
+  let path: string | undefined, start = 1, count = 0;
+  const t = TOTAL_COUNT.exec(script);
+  const s = t ? null : SELECT_FIRST.exec(script);
+  if (t) { path = t[1] ?? t[2] ?? t[3]; count = Number(t[4]); }
+  else if (s) { path = s[1] ?? s[2] ?? s[3]; start = 1 + Number(s[4] ?? s[7] ?? 0); count = Number(s[5] ?? s[6]); }
+  if (!path || path.startsWith("-") || !Number.isInteger(count) || count < 1) return null;
+  const abs = resolve(isAbsolute(path) ? path : resolve(cwd, path));
+  try {
+    if (!existsSync(abs) || !statSync(abs).isFile()) return null;
+  } catch {
+    return null;
+  }
+  return { abs, window: `${start}:${count}` };
+}

@@ -145,6 +145,8 @@ export interface SessionState {
   model?: string;
   /** Memory cards already recalled into this session, so each is offered once. */
   recalled?: string[];
+  /** Facts already shown in this session (memory/facts.ts factKey), so each is shown once. */
+  notesShown?: string[];
 }
 
 export function loadState(path: string, session: string): SessionState {

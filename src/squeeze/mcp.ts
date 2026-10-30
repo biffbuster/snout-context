@@ -21,8 +21,19 @@ export interface McpBlock {
   [k: string]: unknown;
 }
 
+/**
+ * An MCP result's blocks, in any of the shapes a hook receives it: a block list, `{ content }`, or
+ * one string (how Claude Code passes a result of a single text block, as GitHub's server sends).
+ */
+export function mcpBlocks(response: unknown): McpBlock[] | null {
+  if (typeof response === "string") return [{ type: "text", text: response }];
+  if (Array.isArray(response)) return response as McpBlock[];
+  const content = (response as { content?: unknown } | null)?.content;
+  return Array.isArray(content) ? (content as McpBlock[]) : null;
+}
+
 export interface McpTrimmed {
-  /** The replacement, in the same shape the tool returned (a block list or `{ content }`). */
+  /** The replacement, in the same shape the tool returned (a block list, `{ content }` or a string). */
   output: unknown;
   beforeChars: number;
   afterChars: number;
@@ -134,8 +145,7 @@ function trimBlockText(text: string): string {
  * one field per line, so a plain grep or Read finds any part of it. Non-text blocks are named only.
  */
 export function mcpPlainText(tool: string, input: unknown, response: unknown): string {
-  const blocks = Array.isArray(response) ? response : (response as { content?: unknown } | null)?.content;
-  const parts = (Array.isArray(blocks) ? (blocks as McpBlock[]) : []).map((b) => {
+  const parts = (mcpBlocks(response) ?? []).map((b) => {
     if (b?.type !== "text" || typeof b.text !== "string") return `[${String(b?.type ?? "unknown")} block, not saved]`;
     const t = b.text.trim();
     if (t.startsWith("{") || t.startsWith("[")) {
@@ -152,11 +162,7 @@ export function mcpPlainText(tool: string, input: unknown, response: unknown): s
 
 /** The trimmed result, or null when it's small, over Claude Code's cap, or wouldn't shrink enough. */
 export function trimMcp(response: unknown, savedTo: string): McpTrimmed | null {
-  const blocks: McpBlock[] | null = Array.isArray(response)
-    ? (response as McpBlock[])
-    : response && typeof response === "object" && Array.isArray((response as { content?: unknown }).content)
-      ? ((response as { content: McpBlock[] }).content)
-      : null;
+  const blocks = mcpBlocks(response);
   if (!blocks || !blocks.every((b) => b && typeof b === "object" && typeof b.type === "string")) return null;
   const beforeChars = blocks.reduce((a, b) => a + (b.type === "text" && typeof b.text === "string" ? b.text.length : 0), 0);
   if (beforeChars < MIN_CHARS || beforeChars > mcpLimitChars()) return null;
@@ -165,6 +171,8 @@ export function trimMcp(response: unknown, savedTo: string): McpTrimmed | null {
   if (kept > beforeChars * (1 - MIN_CUT)) return null;
   trimmed.push({ type: "text", text: `[Snout trimmed this result from ${beforeChars.toLocaleString()} to ${kept.toLocaleString()} characters: long lists shortened, repeats collapsed, structure kept. Full result, as searchable text: ${savedTo} (grep it for the part you need instead of calling the tool again)]` });
   const afterChars = kept + (trimmed[trimmed.length - 1]!.text as string).length;
-  const output = Array.isArray(response) ? trimmed : { ...(response as object), content: trimmed };
+  const output = typeof response === "string"
+    ? trimmed.map((b) => b.text).join("\n\n")
+    : Array.isArray(response) ? trimmed : { ...(response as object), content: trimmed };
   return { output, beforeChars, afterChars };
 }
