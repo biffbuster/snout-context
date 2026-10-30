@@ -30,17 +30,11 @@ export interface ProjectRef {
 }
 
 export interface Boot {
-  /** "local" for `snout dashboard`; "hosted" when served by Snout Cloud. */
-  host: "local" | "hosted";
   version: string;
   project: ProjectRef;
   projects: ProjectRef[];
   mode: string;
   controls: boolean;
-  /** Hosted sync state for this machine, when the user has signed in. */
-  cloud: { connected: boolean; url: string | null; team: string | null; user: string | null; lastSync: string | null };
-  /** Set only by Snout Cloud: who is signed in and which team the page shows. */
-  hosted?: HostedBoot;
 }
 
 export interface Usage {
@@ -330,7 +324,6 @@ export interface EnvironmentView {
     agents: { client: string; surface: string; sessions: number; last: string }[];
     errors: { ts: string; where: string; message: string }[];
   };
-  hosted: Boot["cloud"] & { environments: { id: string; kind: string; label: string; last: string; sessions: number }[] };
 }
 
 export interface Analytics {
@@ -368,106 +361,5 @@ export interface SettingsView {
 export interface PrivacyView {
   local: { stored: { file: string; holds: string; bytes: number }[]; telemetry: string; network: { feature: string; on: boolean; sends: string; to: string }[] };
   redact: string[];
-  hosted: { connected: boolean; sends: string[]; never: string[] };
   audit: { ts: string; what: string }[];
-}
-
-// ---------------------------------------------------------------- hosted (Snout Cloud)
-//
-// What a signed-in browser gets from Snout Cloud (cloud/). Built only from what `snout sync`
-// sends: per day, project, person, agent and file label, reads and tokens in context or kept out
-// (estimated at the gate), plus measured usage per model. No sessions, paths or prompts exist
-// on the server, so the hosted pages have none.
-
-export interface HostedTeam {
-  id: string;
-  name: string;
-  personal: boolean;
-  plan: string;
-  role: "owner" | "member" | string;
-  members: number;
-}
-
-export interface HostedBoot {
-  user: { id: string; login: string; name: string | null; avatar: string | null; admin: boolean };
-  teams: HostedTeam[];
-  /** The team the page shows. */
-  team: string;
-  /** The command that connects a machine to this server. */
-  connect: string;
-  devLogin: boolean;
-  beta: boolean;
-}
-
-/** Tokens through Snout's gate, all estimated from content size. */
-export interface TeamTotals {
-  reads: number;
-  /** Reads Snout acted on (denied, trimmed or answered with a pointer). */
-  gated: number;
-  inContext: number;
-  keptOut: number;
-  /** In observe mode: what enforce would have kept out. Not a saving. */
-  couldKeepOut: number;
-}
-
-/** Billed usage from the agents' own logs, priced at list (measured). */
-export interface TeamSpend {
-  requests: number;
-  /** Input of all kinds plus output. */
-  tokens: number;
-  cacheRead: number;
-  costUsd: number;
-}
-
-export interface TeamSlice {
-  key: string;
-  name: string;
-  snout: TeamTotals;
-  spend: TeamSpend;
-  /** Latest day this slice has rows for. */
-  last: string | null;
-}
-
-export interface TeamMember extends TeamSlice {
-  avatar: string | null;
-  /** A cloud-agent key reports as its own member ("agent:<label>"). */
-  agent: boolean;
-  clients: string[];
-}
-
-export interface TeamClient extends TeamSlice {
-  members: number;
-  models: string[];
-}
-
-export interface TeamMachine {
-  id: string;
-  label: string;
-  owner: string;
-  kind: "cli" | "workspace";
-  createdAt: string;
-  lastUsedAt: string | null;
-  /** The signed-in user's own CLI login: they can revoke it. */
-  mine: boolean;
-}
-
-export interface TeamView {
-  team: HostedTeam;
-  days: number;
-  /** Set when the plan shows less history than was asked for. */
-  capped: { historyDays: number } | null;
-  totals: TeamTotals;
-  spend: TeamSpend & { unpriced: string[] };
-  /** One point per day in the range, oldest first, zero-filled. */
-  series: { day: string; inContext: number; keptOut: number; costUsd: number; tokens: number }[];
-  byMember: TeamMember[];
-  byClient: TeamClient[];
-  byModel: (TeamSlice & { client: string })[];
-  byProject: TeamSlice[];
-  byLabel: { key: string; reads: number; inContext: number; keptOut: number }[];
-  /** MCP servers, from labels "mcp-<server>". */
-  byMcp: { key: string; reads: number; inContext: number; keptOut: number }[];
-  machines: TeamMachine[];
-  lastSyncAt: string | null;
-  now: string;
 }

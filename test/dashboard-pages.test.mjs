@@ -81,7 +81,7 @@ async function serve(t) {
 test("dashboard pages read the agent's log and Snout's ledger, and count savings once", async (t) => {
   const { port } = await serve(t);
   const boot = await api(port, "/api/boot");
-  assert.equal(boot.host, "local");
+  assert.equal(boot.host, undefined, "the dashboard is local only");
   assert.equal(boot.controls, true);
   assert.equal(boot.project.current, true);
 
@@ -120,11 +120,10 @@ test("dashboard pages read the agent's log and Snout's ledger, and count savings
 
   const integ = await api(port, "/api/integrations");
   assert.ok(!integ.some((i) => i.id === "agent:codex" && i.status === "connected"));
-  assert.equal(integ.find((i) => i.id === "service:cloud").status, "off", "hosted sync is off until you sign in");
+  assert.ok(!integ.some((i) => i.id === "service:cloud"), "there is no hosted sync");
 
   const priv = await api(port, "/api/privacy");
   assert.ok(priv.local.network.every((n) => !n.on), "nothing is sent by default");
-  assert.equal(priv.hosted.connected, false);
 
   const an = await api(port, "/api/analytics?range=24h");
   assert.equal(an.byModel.reduce((a, m) => a + m.keptOut, 0), 9000, "kept out is not counted twice across models");

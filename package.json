@@ -32,7 +32,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p src/dashboard/app && tsc --noEmit -p cloud",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p src/dashboard/app",
     "test": "node scripts/test.mjs",
     "bench": "node test/bench.mjs",
     "check:claims": "node scripts/check-claims.mjs",

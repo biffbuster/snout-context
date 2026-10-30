@@ -3,7 +3,7 @@
  * and walks a new user through the three pages worth seeing first. Each stop opens the page,
  * rings its tab in the sidebar and explains it in the speech bubble.
  *
- * Shown once per dashboard (local, hosted, cloud preview). Closing it at any point counts as
+ * Shown once per dashboard. Closing it at any point counts as
  * seen; the ? button in the top bar starts it again. With reduced motion there is no rise,
  * hop or typing: the bubble and its text simply appear.
  *
@@ -12,11 +12,9 @@
  * does not carry 1 MB of image. If it is missing, the Snout mark stands in.
  */
 import { h, icon, SNOUT_MARK } from "./dom.js";
-import { save, store, type View } from "./ctx.js";
+import { save, store } from "./ctx.js";
 
 export interface TourEnv {
-  view: View;
-  host: "local" | "hosted";
   mode: string;
   /** Opens a page by hash. */
   go(hash: string): void;
@@ -33,28 +31,6 @@ const TYPE_MS = 16;
 
 function script(env: TourEnv): { hello: string; stops: Stop[]; bye: string } {
   const bye = "That's the tour. Press the ? at the top whenever you want me back.";
-  if (env.host === "hosted") {
-    return {
-      hello: "Hi, I'm Snout. This is Snout Cloud: the totals each connected machine syncs, in one place. Want a quick look around? It's three stops.",
-      stops: [
-        { page: "overview", title: "Overview", text: "Overview adds up spend and the tokens I kept out, across every machine in this workspace. Spend comes from the agents' own logs; what I kept out is an estimate and marked that way." },
-        { page: "environments", title: "Environments", text: "Environments lists the machines that sync here. Each one is a snout login; disconnect one and it stops sending." },
-        { page: "settings", title: "Settings", text: "Settings has your workspaces, the people in a team and the command that connects another machine." },
-      ],
-      bye,
-    };
-  }
-  if (env.view === "cloud") {
-    return {
-      hello: "Hi, I'm Snout. This is a preview of Snout Cloud, filled with sample data. Want a quick look around? It's three stops.",
-      stops: [
-        { page: "overview", title: "Overview", text: "Overview adds up your team's spend and the tokens Snout kept out, across every machine. The numbers are samples until you connect." },
-        { page: "agents", title: "Agents", text: "Agents shows each agent your team runs: its requests, what it spent and what Snout kept out." },
-        { page: "integrations", title: "Integrations", text: "Integrations shows the tools, MCP servers and models your team can connect, and which ones are on." },
-      ],
-      bye,
-    };
-  }
   const hello = "Hi, I'm Snout. Welcome to your dashboard! Everything here is read from this machine, and none of it leaves. Want a quick look around? It's three stops.";
   const mode = env.mode === "enforce"
     ? "I'm in enforce, so I trim bulky reads before they reach your agent."
@@ -72,7 +48,7 @@ function script(env: TourEnv): { hello: string; stops: Stop[]; bye: string } {
   };
 }
 
-const seenKey = (env: TourEnv) => `tour.${env.host === "hosted" ? "hosted" : env.view === "cloud" ? "cloud" : "local"}`;
+const seenKey = (_env: TourEnv) => "tour.local";
 
 export interface Tour {
   /** The tab to ring in the sidebar, or null. */
@@ -81,7 +57,7 @@ export interface Tour {
   greet(env: TourEnv): void;
   /** Starts the walkthrough from the first stop (the ? button). */
   replay(env: TourEnv): void;
-  /** The view changed under the tour (Local/Cloud switch): close it quietly. */
+  /** Close the tour quietly. */
   reset(): void;
   el: HTMLElement;
 }

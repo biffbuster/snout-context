@@ -98,16 +98,7 @@ not recorded as a missing tool unless the command runs that module. `memoryBudge
 most 4000) caps the tokens of automatic notes per prompt when `memoryNotes` is on; observe mode
 records what it would add and adds nothing. See [privacy](privacy.md#notes-032-unreleased).
 
-Paused while the memory pilot runs, and unchanged: the reranker, the embedding model and the
-preference judge stay opt-in.
-
-`snout memory reranker install` (optional) adds a local cross-encoder, ms-marco MiniLM-L6 (q8, about 23 MB,
-with the same npm runtime as the memory model). `snout recall` and `snout_memory_search` then score their
-shortlist (today's ranking, then records sharing a word, ten at most, all past the usual filters) and put
-first the record it is sure answers. When the words find nothing, it adds nothing (`src/memory/rerank.ts`;
-the thresholds and their test are in
-[memory gates](memory-gates.md)). The prompt hooks never load it. `memoryRerank: false` or
-`SNOUT_MEMORY_RERANK=0` turns it off; `snout memory reranker remove` deletes it.
+Paused and unchanged: the embedding model and the preference judge stay opt-in.
 
 `snout memory model install` (optional) adds a local embedding model, bge-small-en-v1.5 (q8, about
 34 MB), so recall matches by meaning as well as words. It installs `@huggingface/transformers` with

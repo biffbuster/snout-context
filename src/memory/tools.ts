@@ -20,7 +20,6 @@ import { distinctWords, sharedWords } from "./retrieve.js";
 import { candidates, plain } from "./sqlite.js";
 import { adjacent, confidence, evidence, nameForms, parseQuery, type Query } from "./retrieve.js";
 import { cite, fileHashes, heldBack, staleClaims, TESTS, verified } from "./facts.js";
-import { byWords, rerankChoice, shortlist } from "./rerank.js";
 import { missingTool, replaceOlder, REPLACES } from "./distill.js";
 import { addObservation, KINDS, listObservations, MAX_TEXT, memoryBlock, recallable, type LessonBasis, type Observation, type ObsKind, type Stores, type Viewer } from "./store.js";
 import { approved, BASES, lessonCite, lessonDetail, proposeLesson } from "./review.js";
@@ -236,22 +235,9 @@ function rankSearch(ctx: MemoryContext, query: string): { hits: Candidate[]; all
   return { hits, all };
 }
 
-/** The texts the reranker scores for a search: today's ranking, then records sharing a word (rerank.ts); none when it finds none. */
-export function searchShortlist(ctx: MemoryContext, query: string): string[] {
-  if (!searchWords(query).length) return [];
-  const { hits, all } = rankSearch(ctx, query);
-  if (!hits.length) return [];
-  return searchList(query, hits, all).map((h) => h.semText);
-}
-
-const searchList = (query: string, hits: Candidate[], all: Candidate[]) => shortlist(hits, byWords(query, all.map((h) => ({ item: h, text: h.semText }))), (h) => h.id);
-
 export function memorySearch(ctx: MemoryContext, query: string, limit = 5): string {
   const k = Math.max(1, Math.min(MAX_HITS, Math.floor(limit) || 5));
-  const { hits: ranked, all } = rankSearch(ctx, query);
-  // The answerability reranker (rerank.ts), when it scored this query's shortlist; else today's ranking.
-  const choice = rerankChoice(query, searchList(query, ranked, all).map((h) => ({ item: h, text: h.semText })), ranked.length);
-  const ordered = choice?.mode === "override" ? [choice.item!, ...ranked.filter((h) => h.id !== choice.item!.id)] : ranked;
+  const { hits: ordered } = rankSearch(ctx, query);
   // Approved lessons first, a few at most; then the rest as they rank.
   const lessonHits = ordered.filter((h) => h.lesson).slice(0, MAX_LESSONS);
   const hits = [...lessonHits, ...ordered.filter((h) => !h.lesson)];

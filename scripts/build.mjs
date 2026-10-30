@@ -6,7 +6,7 @@
  * an install failure. CI verifies the committed bundle matches src/.
  */
 import { build } from "esbuild";
-import { copyFileSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, readFileSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
 // The dashboard's page script is TypeScript in src/dashboard/app, bundled for the browser and
@@ -48,9 +48,6 @@ await build({ ...common, entryPoints: ["src/cli.ts"], outfile: "dist/snout.mjs",
 // Snout's corner animation for the dashboard, served by `snout dashboard` from next to the bundle.
 copyFileSync("src/dashboard/assets/snout-mascot.webp", "dist/snout-mascot.webp");
 await build({ ...common, entryPoints: ["src/index.ts"], outfile: "dist/lib.mjs" });
-// Snout Cloud (cloud/) serves the same page at /app; it asks /api/boot and finds itself hosted.
-// Written into cloud/ because the cloud deploys from that folder alone.
-writeFileSync("cloud/public/dashboard.html", readFileSync("src/dashboard/page.html", "utf8").replace(/\r\n/g, "\n").replace("/*__SNOUT_APP__*/", () => appJs));
 
 const cli = readFileSync("dist/snout.mjs", "utf8");
 

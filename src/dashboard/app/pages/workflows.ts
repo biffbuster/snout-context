@@ -152,10 +152,6 @@ function nodeEl(p: Placed, selected: boolean): HTMLElement {
 }
 
 export async function workflowsPage(ctx: Ctx, el: HTMLElement): Promise<PageHandle> {
-  if (ctx.hosted) {
-    el.append(empty("Traces stay on the developer's machine", "The hosted dashboard receives daily totals only. Open `snout dashboard` locally to see a session as a workflow."));
-    return {};
-  }
   const sessions = await ctx.get<SessionRow[]>("sessions", {}, { range: false });
   const id = ctx.route.id ?? sessions.find((x) => x.status === "working")?.id ?? sessions[0]?.id;
   if (!id) {
