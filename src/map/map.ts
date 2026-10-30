@@ -43,6 +43,8 @@ export interface Candidate {
   score: number;
   defines: string[];
   uses: string[];
+  /** The request writes this file's path. */
+  named?: boolean;
 }
 
 const TEXT_EXT = /\.(m?js|cjs|jsx|ts|tsx|mts|cts|py|pyi|go|rs|java|kt|kts|cs|rb|php|swift|scala|c|cc|cpp|h|hpp|m|mm|ex|exs|erl|clj|lua|sh|bash|zsh|sql|graphql|proto|vue|svelte|astro|md|mdx|rst|txt|toml|ya?ml|json|ini|cfg|conf|env\.example|html|css|scss)$/i;
@@ -50,6 +52,8 @@ const SKIP_DIR = new Set(["node_modules", ".git", "dist", "build", "out", "targe
 const MAX_FILE_BYTES = 512 * 1024;
 const MAX_FILES = 20_000;
 const MAX_WORDS = 3000;
+/** What a name counts for when it appears only in output pasted into the request. */
+const OUTPUT_WEIGHT = 0.25;
 
 const WORD = /[A-Za-z_][A-Za-z0-9_]{3,63}/g;
 /** Test files: they use every name a bug report's example uses, so their uses count for less. */
@@ -176,9 +180,86 @@ export function namedExactly(prompt: string, name: string): boolean {
   return /[A-Z_0-9]/.test(name.slice(1)) || name.length >= 8 || (/^[A-Z]/.test(name) && name.length >= 6);
 }
 
-/** The hook's firing rule: suggest only when a candidate declares a name the request types exactly. */
+/**
+ * A line a program printed rather than one the reporter wrote: a timestamped or levelled log line,
+ * a table row drawn with box characters, a version banner ("hugo v0.164.0-…").
+ */
+const LOG_LINE = /^\s*(?:\[?\d{4}-\d{2}-\d{2}[T ]\d|\[?\d{2}:\d{2}:\d{2}\b|(?:INFO|WARN(?:ING)?|ERROR|DEBUG|TRACE|FATAL)\b|[│┃┆─━┼╋┌┐└┘├┤]|[a-z][\w-]* v\d+\.\d+\.\d+\S*\s)/;
+const OUTPUT_FENCE = /^(?:text|txt|plain|plaintext|console|log|logs|output|terminal|shell-session|sh-session)$/i;
+/** Tracebacks and stack frames stay: the frame nearest the error is the strongest pointer there is. */
+const STACK = /Traceback \(most recent call last\)|File "[^"\n]+", line \d+|^\s+at \S+[ (]|^goroutine \d+ \[|^\S+\.go:\d+/m;
+/** One stack frame line: Python's `File "…", line N`, a JS or Java `at …`, a Go `path.go:N +0x…`. */
+const FRAME = /File "[^"\n]+", line \d+|^\s+at \S+[ (]|^\s*\S+\.go:\d+(?:\s+\+0x[0-9a-f]+)?\s*$/;
+
+/**
+ * The request without the program output pasted into it: `<pre>` blocks, fenced blocks marked as
+ * text or console output or made mostly of log lines, and log lines in running text. Build logs and
+ * version banners name a project's own pipeline functions ("step process", "render deferred") on
+ * every report and outweigh the few names the reporter wrote; measured on Hugo #15234, where they
+ * pushed the file the issue itself names out of the top 40.
+ */
+export function withoutOutput(prompt: string): string {
+  const s = prompt
+    .replace(/<pre>[\s\S]*?<\/pre>/gi, "\n")
+    .replace(/```([^\n`]*)\n([\s\S]*?)```/g, (block, info: string, body: string) => {
+      if (STACK.test(body)) return block;
+      const lines = body.split("\n").filter((l) => l.trim());
+      const logged = lines.filter((l) => LOG_LINE.test(l)).length;
+      return OUTPUT_FENCE.test(info.trim()) || (lines.length >= 3 && logged * 2 >= lines.length) ? "\n" : block;
+    });
+  return s.split("\n").filter((l) => !LOG_LINE.test(l)).join("\n");
+}
+
+/** Code files, matched by a path's tail; a `layouts/single.html` or `config/hugo.toml` is usually the reporter's own. */
+const CODE_EXT = /\.(m?js|cjs|jsx|ts|tsx|mts|cts|py|pyi|go|rs|java|kt|kts|cs|rb|php|swift|scala|c|cc|cpp|h|hpp|m|mm|ex|exs|erl|clj|lua|vue|svelte)$/i;
+
+/**
+ * Files the request names by path: a code file's path of two or more segments that ends one project
+ * file's path and no other's (`tpl/tplimpl/templatetransform.go`, `src/cart.ts:41`), or any file's
+ * full path from the project root. Read from the request without its pasted output.
+ */
+export function namedPaths(paths: string[], signal: string): Set<string> {
+  const bySuffix = new Map<string, string | null>();
+  for (const p of paths) {
+    const segs = p.split("/");
+    for (let i = 0; i + 1 < segs.length; i++) {
+      const s = segs.slice(i).join("/");
+      bySuffix.set(s, bySuffix.has(s) && bySuffix.get(s) !== p ? null : p);
+    }
+  }
+  const files = new Set(paths);
+  const out = new Set<string>();
+  // Stack frames are weighed by `locations` (innermost first), not lifted all at once.
+  const text = signal.replace(URL, " ").split("\n").filter((l) => !FRAME.test(l)).join("\n");
+  for (const m of text.matchAll(/(?<![\w.\/-])((?:[\w.-]+[\\/])*[\w-][\w.-]*\.[A-Za-z]\w{0,5})(?![\w\/])/g)) {
+    const raw = m[1]!.replace(/\\/g, "/").replace(/^\.\//, "");
+    const segs = raw.split("/").filter(Boolean);
+    // A bare name (`changelog.py`) keeps the smaller boost `candidates` gives a file named as a file.
+    if (segs.length < 2) continue;
+    // A site, config or content file the reporter names (`layouts/single.html`) is usually their own,
+    // matching some docs or skeleton copy by its tail: only a code file is matched that way.
+    if (!CODE_EXT.test(raw)) {
+      if (files.has(segs.join("/"))) out.add(segs.join("/"));
+      continue;
+    }
+    // An absolute or checkout-relative path (`/home/me/hugo/tpl/x.go`) is matched by its longest known tail.
+    for (let i = 0; i + 1 < segs.length; i++) {
+      const hit = bySuffix.get(segs.slice(i).join("/"));
+      if (hit) out.add(hit);
+      if (hit !== undefined) break;
+    }
+  }
+  // A test the reporter points at shows the bug; the fix is rarely in it (SWE-bench: 2 of 5 losses).
+  return new Set([...out].filter((p) => !TESTS.test(p)));
+}
+
+/**
+ * The hook's firing rule: suggest when the request names a candidate's file by path, or when a
+ * candidate declares a name the request types exactly outside pasted output.
+ */
 export function shouldSuggest(cs: Candidate[], prompt: string): boolean {
-  return cs.some((c) => c.defines.some((name) => namedExactly(prompt, name)));
+  const signal = withoutOutput(prompt);
+  return cs.some((c) => c.named || c.defines.some((name) => namedExactly(signal, name)));
 }
 
 /**
@@ -191,7 +272,12 @@ export function candidates(map: RepoMap, prompt: string, k = 15): Candidate[] {
   const N = paths.length;
   if (!N) return [];
   const asked = requestNames(prompt.replace(URL, " "));
-  const asCode = codeNames(prompt);
+  const signal = withoutOutput(prompt);
+  const written = requestNames(signal.replace(URL, " "));
+  const writtenLower = new Set([...written].map((a) => a.toLowerCase()));
+  // A name that appears only in pasted output counts a quarter, and never as code.
+  const weight = (name: string) => (written.has(name) || writtenLower.has(name.toLowerCase()) ? 1 : OUTPUT_WEIGHT);
+  const asCode = codeNames(signal);
   const askedLower = new Map<string, string>();
   for (const a of asked) if (a.length >= 6) askedLower.set(a.toLowerCase(), a);
 
@@ -223,7 +309,7 @@ export function candidates(map: RepoMap, prompt: string, k = 15): Candidate[] {
     // A name typed exactly as declared is the strongest signal there is, even in one file.
     if (linked.size < 2 && !(defs.length && asked.has(name))) continue;
     if (linked.size > Math.max(25, N * 0.05)) continue;
-    const idf = Math.log(1 + N / linked.size);
+    const idf = Math.log(1 + N / linked.size) * weight(name);
     for (const p of defs) add(p, 2 * idf, name, true);
     // A plain word ("update", "select") that the request doesn't write as code points to the files
     // declaring it; every file that merely uses the word is noise.
@@ -233,7 +319,7 @@ export function candidates(map: RepoMap, prompt: string, k = 15): Candidate[] {
   }
   // A request that names a file as a file ("fix utils.py", "src/cart", "the cart module"); a word
   // that only matches a stem ("tests", "query", "changelog") is not a file reference.
-  const lower = prompt.replace(URL, " ").toLowerCase();
+  const lower = signal.replace(URL, " ").toLowerCase();
   for (const p of paths) {
     const stem = basename(p, extname(p)).toLowerCase();
     if (stem.length < 5) continue;
@@ -241,6 +327,14 @@ export function candidates(map: RepoMap, prompt: string, k = 15): Candidate[] {
     if (new RegExp(`(^|[^\\w.])${esc}\\.[a-z]{1,5}\\b|/${esc}\\b|\\b${esc} (module|file|package)\\b`).test(lower)) add(p, Math.log(1 + N), stem, true);
   }
   for (const [p, w] of locations(paths, prompt)) add(p, Math.log(1 + N) * w, basename(p), true);
+  // A file the request names by path leads, whatever the names around it add up to: a long issue
+  // sums scores for the files that use many of its words, and the file it points at falls behind.
+  const named = namedPaths(paths, signal);
+  const lead = Math.max(0, ...[...scored.values()].map((c) => c.score));
+  for (const p of named) {
+    const c = scored.get(p) ?? { path: p, score: 0, defines: [], uses: [] };
+    scored.set(p, { ...c, score: c.score + lead + 1, named: true });
+  }
   return [...scored.values()].sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)).slice(0, k);
 }
 
@@ -292,6 +386,6 @@ export function locations(paths: string[], prompt: string): Map<string, number> 
 /** The line handed to the agent: paths and why, never file contents. */
 export function renderCandidates(cs: Candidate[]): string {
   if (!cs.length) return "";
-  const why = (c: Candidate) => [c.defines.length ? `defines ${c.defines.slice(0, 3).join(", ")}` : "", c.uses.length ? `uses ${c.uses.slice(0, 3).join(", ")}` : ""].filter(Boolean).join("; ");
+  const why = (c: Candidate) => [c.named ? "named in the request" : "", c.defines.length ?`defines ${c.defines.slice(0, 3).join(", ")}` : "", c.uses.length ? `uses ${c.uses.slice(0, 3).join(", ")}` : ""].filter(Boolean).join("; ");
   return `snout map: files in this repo that define or use names in this request, most relevant first (candidates from a local index, not a plan): ${cs.map((c) => `${c.path} (${why(c)})`).join(" · ")}`;
 }

@@ -17,7 +17,8 @@ const MODEL_FILES = ["config.json", "tokenizer.json", "tokenizer_config.json", "
 /** bge models rank passages for a query only when the query carries this instruction. */
 export const QUERY_PREFIX = "Represent this sentence for searching relevant passages: ";
 
-export const modelDir = (): string => join(configDir(), "model");
+/** Where the optional models and their runtime live. SNOUT_MODEL_DIR points elsewhere (a benchmark's shared copy). */
+export const modelDir = (): string => process.env.SNOUT_MODEL_DIR || join(configDir(), "model");
 const modelPath = (dir = modelDir()) => join(dir, "models", ...MODEL.split("/"));
 
 /** Test stand-in: a hashed bag of words, so the vector path runs without the library or a download. */
@@ -83,7 +84,7 @@ async function download(url: string, file: string): Promise<void> {
  * Installs the library with npm and the model files from Hugging Face into the per-user config folder.
  * About 34 MB of model plus the ONNX runtime the library brings (a few hundred MB on disk).
  */
-export async function installModel(log: (s: string) => void, dir = modelDir()): Promise<void> {
+export async function installModel(log: (s: string) => void, dir = modelDir(), model = MODEL, files = MODEL_FILES): Promise<void> {
   mkdirSync(dir, { recursive: true });
   if (!existsSync(join(dir, "package.json"))) writeFileSync(join(dir, "package.json"), '{ "name": "snout-model", "private": true }\n');
   if (!existsSync(join(dir, "node_modules", "@huggingface", "transformers", "package.json"))) {
@@ -91,12 +92,12 @@ export async function installModel(log: (s: string) => void, dir = modelDir()): 
     const npm = spawnSync("npm", ["install", LIBRARY, "--no-audit", "--no-fund", "--loglevel=error"], { cwd: dir, stdio: "inherit", shell: process.platform === "win32", windowsHide: true });
     if (npm.status !== 0) throw new Error("npm install failed (is npm on PATH?)");
   }
-  for (const f of MODEL_FILES) {
-    const file = join(modelPath(dir), ...f.split("/"));
+  for (const f of files) {
+    const file = join(dir, "models", ...model.split("/"), ...f.split("/"));
     if (existsSync(file)) continue;
     mkdirSync(join(file, ".."), { recursive: true });
-    log(`Downloading ${MODEL}/${f} ...`);
-    await download(`https://huggingface.co/${MODEL}/resolve/main/${f}`, `${file}.part`);
+    log(`Downloading ${model}/${f} ...`);
+    await download(`https://huggingface.co/${model}/resolve/main/${f}`, `${file}.part`);
     renameSync(`${file}.part`, file);
   }
 }

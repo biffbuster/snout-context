@@ -340,7 +340,8 @@ export interface Analytics {
   byAgent: { key: string; usage: Usage; keptOut: number; sessions: number }[];
   composition: Slice[];
   growth: { session: string; title: string; points: { i: number; context: number }[]; compactions: number[] }[];
-  retention: { compactions: number; recalls: number; briefs: number };
+  /** Compactions, and memory as agents get it: session-start lines, searches, records opened, automatic notes shown (off by default). */
+  retention: { compactions: number; hints: number; searches: number; opened: number; notesShown: number };
   files: Slice[];
   turns: { session: string; prompt: string; tokens: number; costUsd: number; keptOut: number; durationMs: number | null }[];
   repeats: { count: number; tokens: number };

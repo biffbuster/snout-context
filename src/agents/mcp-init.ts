@@ -45,8 +45,15 @@ export function mcpConfigFile(client: McpClient, projectDir: string): string {
 
 const serverKey = (client: McpClient) => (client === "vscode" ? "servers" : "mcpServers");
 
+/**
+ * The server's arguments. Claude Code and Codex already have Snout's hooks gating their reads, so they
+ * get memory search and fetch only; other clients get the default tools (snout_read among them).
+ */
+const serverArgs = (client: McpClient, script: string, projectDir: string) =>
+  [script, "mcp", projectDir, ...(client === "claude" || client === "codex" ? ["--tools", "snout_memory_search,snout_memory_fetch,snout_memory_propose"] : [])];
+
 function entry(client: McpClient, script: string, projectDir: string): Json {
-  const base = { command: "node", args: [script, "mcp", projectDir] };
+  const base = { command: "node", args: serverArgs(client, script, projectDir) };
   return client === "cursor" || client === "vscode" ? { type: "stdio", ...base } : base;
 }
 
@@ -54,7 +61,7 @@ function entry(client: McpClient, script: string, projectDir: string): Json {
 export function addMcp(client: McpClient, projectDir: string, script = selfScript()): string {
   const file = mcpConfigFile(client, projectDir);
   if (client === "codex") {
-    writeText(file, withTomlServer(readText(file), tomlBlock(script, projectDir)));
+    writeText(file, withTomlServer(readText(file), tomlBlock(serverArgs(client, script, projectDir))));
     return file;
   }
   const cfg = loadJson(file);
@@ -90,8 +97,8 @@ export function removeMcp(client: McpClient, projectDir: string): { file: string
 /** A TOML string: literal ('...') when it can be, so Windows backslashes stay as they are. */
 const tomlString = (s: string) => (/['\n\r]/.test(s) ? JSON.stringify(s) : `'${s}'`);
 
-function tomlBlock(script: string, projectDir: string): string {
-  return `[mcp_servers.${NAME}]\ncommand = 'node'\nargs = [${[script, "mcp", projectDir].map(tomlString).join(", ")}]\n`;
+function tomlBlock(args: string[]): string {
+  return `[mcp_servers.${NAME}]\ncommand = 'node'\nargs = [${args.map(tomlString).join(", ")}]\n`;
 }
 
 /**

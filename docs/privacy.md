@@ -34,6 +34,12 @@ with it as hashes of your git email and of the repository, never the email or pa
   `snout memory share <id>`). They are kept in `.snout/memory/obs/` and reach anyone with the
   repository once you commit them.
 - CI and token-only sessions get shared notes only.
+- **Local index.** On Node 22.13 or later, Snout keeps a SQLite copy of this project's notes and
+  session cards in your user config folder (`%APPDATA%\snout\index\` on Windows,
+  `~/.config/snout/index/` elsewhere), one file per project, to search them quickly. It holds the
+  same text as the JSON files, never leaves the machine, and is never in the repository. Deleting
+  it loses nothing: it is rebuilt from the JSON files (`snout memory reindex`). `SNOUT_INDEX=off`
+  turns it off.
 
 The MCP memory tools (`snout mcp`) read and write the same notes under the same rules. A note an
 agent saves without being asked stays a proposal, never recalled, until you run
@@ -104,18 +110,21 @@ semantic tier.
 | `config.json` | Only what you changed. |
 | `state.json` | Turn counter and a hash of the current prompt. |
 | `errors.jsonl` | Anything that went wrong. |
-| `memory/<session>.json` | One card per session: the start of your first and last request, the agent's last message, files changed, commits (sha, subject, files), test command, last error, instructions you gave, branch and git user name. `snout memory off` stops it. |
-| `recall.jsonl` | Which cards were recalled into which prompt, and their size. No prompt text. |
+| `memory/<session>.json` | One record per session: the start of your first and last request, the agent's last message, files changed, commits (sha, subject, files), test command and result, a failure it got past, last error, open to-dos, instructions you gave, branch and git user name. `snout memory off` stops it. |
+| `recall.jsonl` | Memory's log: when a session was told earlier ones exist; each search and fetch an agent made, with the query (up to 120 characters) and the ids of the records shown; and, with automatic notes on, which notes reached which prompt. No prompt text. |
 | `memory-vectors.json` | Only with `snout memory model install`: a vector per card, computed on this machine. Not shared. |
 | `memory/obs/` | Shared notes, only those you shared. Private notes are in your user config folder, not here. |
 
-**File paths are recorded. File contents are not**, except the request text a memory card keeps.
+The local index of notes and cards (above) is in your user config folder, not in `.snout/`.
+
+**File paths are recorded. File contents are not**, except the request text a memory record keeps and the search queries agents write.
 Add `.snout/` to your `.gitignore` — paths alone can reveal more about a private codebase than you
 would want in a commit. To share memory with a team, commit only `.snout/memory/`, after reading it.
 
 Nothing is uploaded unless you sign in to Snout Cloud (above), and there is no telemetry.
-`telemetry: "local-only"` is the only permitted value. `snout memory model install` is the one command that downloads (the library from
-npm, the model from Hugging Face), and only when you run it.
+`telemetry: "local-only"` is the only permitted value. `snout memory model install` and `snout memory reranker install` are the only
+commands that download (the library from npm, the model from Hugging Face), and only when you run them. Both models run on this
+machine; the reranker reads a search or recall question with its candidate records and sends nothing anywhere.
 
 ## TypeSafe's side
 
