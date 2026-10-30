@@ -1,7 +1,7 @@
 {
   "description": "Classifies files entering context and reports the savings. Recording is non-blocking; the blocking permission hook is opt-in via /snout:mode.",
   "modules": [
-    "./register.js"
+    "./register.tsx"
   ],
   "hooks": {
     "SessionStart": [

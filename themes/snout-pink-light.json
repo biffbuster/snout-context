@@ -1,0 +1,19 @@
+{
+  "name": "Snout Pink (light)",
+  "base": "light",
+  "overrides": {
+    "claude": "#D61F6E",
+    "claudeShimmer": "#F33682",
+    "promptBorder": "#D61F6E",
+    "promptBorderShimmer": "#F33682",
+    "permission": "#C2185B",
+    "permissionShimmer": "#F33682",
+    "suggestion": "#C2185B",
+    "remember": "#914115",
+    "briefLabelClaude": "#D61F6E",
+    "rate_limit_fill": "#D61F6E",
+    "userMessageBackground": "#FDE8F1",
+    "userMessageBackgroundHover": "#FBD5E6",
+    "selectionBg": "#FBC4DC"
+  }
+}

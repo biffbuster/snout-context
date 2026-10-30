@@ -42,3 +42,6 @@ bench/frozen/
 # Python caches
 __pycache__/
 *.pyc
+
+# Written by Claude Code when it loads the mod from this folder (API types for the editor).
+.claude-plugin/types/
