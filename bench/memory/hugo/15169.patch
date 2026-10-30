@@ -1,0 +1,31 @@
+diff --git a/resources/jsconfig/jsconfig.go b/resources/jsconfig/jsconfig.go
+index 4aabf69f715..d347cab190c 100644
+--- a/resources/jsconfig/jsconfig.go
++++ b/resources/jsconfig/jsconfig.go
+@@ -39,6 +39,11 @@ func (b *Builder) Build(dir string) *Config {
+ 	}
+ 	var roots []string
+ 	for root := range b.sourceRoots.All() {
++		if root == dir {
++			// We need mappings for other source roots (e.g. mounted modules), but not for the current one.
++			// See issue 15169.
++			continue
++		}
+ 		rel, err := filepath.Rel(dir, filepath.Join(root, "*"))
+ 		if err == nil {
+ 			roots = append(roots, rel)
+diff --git a/resources/jsconfig/jsconfig_test.go b/resources/jsconfig/jsconfig_test.go
+index ab9b739d18a..1fb8ef3cdb7 100644
+--- a/resources/jsconfig/jsconfig_test.go
++++ b/resources/jsconfig/jsconfig_test.go
+@@ -37,4 +37,10 @@ func TestJsConfigBuilder(t *testing.T) {
+ 	c.Assert(string(data), qt.Not(qt.Contains), "baseUrl")
+ 
+ 	c.Assert(NewBuilder().Build("/a/b"), qt.IsNil)
++
++	// Issue 15169.
++	b = NewBuilder()
++	b.AddSourceRoot("/c/assets")
++	conf = b.Build("/c/assets")
++	c.Assert(conf, qt.IsNil)
+ }

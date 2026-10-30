@@ -1,0 +1,322 @@
+{
+  "name": "Decision handoff: a decision given only in conversation, Snout against plain agents with their own memory",
+  "written": "2026-10-30",
+  "purpose": "Memory can only help with what the next session can't get from the code or work out on its own. In each task the user gives a decision in the first session (an export format, a payroll rule, a retry policy) that the project does not hold; the next session's task depends on it, and hidden tests check it. Each direction's receiver runs with Snout (search, fetch, the session-start line and the memory skill) and without it, from the same snapshot. Without Snout, Claude Code keeps its own memory on, as a user has it, carried from the giver when the giver is also Claude Code: the comparison is Snout against plain agents, not against no memory. Three tasks in three directions (Claude Code to Codex, Codex to Claude Code, Claude Code to Claude Code).",
+  "ownMemory": "claude",
+  "skill": true,
+  "settings": {
+    "claudeCode": "2.1.306",
+    "codex": "0.163.0",
+    "claudeModel": "claude-sonnet-5-5",
+    "codexModel": "gpt-6.1-sol",
+    "codexEffort": "low",
+    "budgetUsd": "2.00",
+    "limitMinutes": 30
+  },
+  "arms": {
+    "giver": "on: Snout's hooks in enforce, memory on, automatic notes off, the session-start line, Snout's MCP server with snout_memory_search, snout_memory_fetch and snout_memory_propose, and the memory skill. The store starts empty. Claude Code's own memory on.",
+    "on": "As the giver, on a copy of the giver's store. Claude Code's own memory on, starting from what the giver left when the giver was Claude Code.",
+    "off": "Claude Code with no Snout, its own memory on and starting from what the giver left (Claude Code to Claude Code); Codex with Snout's hooks in observe on an empty store, memory off, no MCP server, no skill, no session-start line, and its usual setup."
+  },
+  "order": "Per direction: giver, then the receiver with Snout, then without. No review stop: a lesson a giver proposes is reported, and receivers rely on the session record.",
+  "directions": [
+    {
+      "id": "decision-berthbook-claude-to-codex",
+      "project": "berthbook",
+      "language": "python",
+      "remote": "https://git.example.com/harbour/berthbook.git",
+      "giverPrompt": "Finance sent their export rules. Invoices: CSV with semicolons and a decimal comma, two decimals, no thousands separator. Fuel sales, for the supplier's portal: tab-separated, litres with three decimals and a decimal point, amounts in whole cents. Add `berthbook export-invoices <YYYY-MM>` now (header invoice;vessel;amount, one row per invoice) and leave fuel for later. Add tests and run the suite.",
+      "receiverPrompt": "Add the fuel sales export for the supplier's portal: a `berthbook export-fuel <YYYY-MM>` command that writes it to standard output, with a header row and then one row per vessel that bought fuel that month, sorted by vessel name, with the columns vessel, litres and amount (the vessel's totals for the month), in the format finance gave us for it. Run the tests before you finish.",
+      "expectedFact": "The portal format finance gave in the giver's session: tab-separated, litres with three decimals and a decimal point, amounts in whole cents. The project has only the invoice format (semicolons, decimal comma), which is the wrong one to copy.",
+      "recordPattern": "tab-separated|whole cents|three decimals",
+      "repoPattern": "tab[- ]separated|whole cents|three decimals",
+      "codePattern": "\\\\t|:\\.3f",
+      "dryRunSay": "Added export-invoices for finance (semicolons, decimal comma); fuel export left for later as asked. Tests pass.",
+      "grade": {
+        "runner": "pytest",
+        "baseTests": [
+          "tests/conftest.py",
+          "tests/test_billing.py",
+          "tests/test_report.py",
+          "tests/test_cli.py"
+        ],
+        "giverTests": [
+          "hidden/test_handoff_giver.py"
+        ],
+        "receiverTests": [
+          "hidden/test_record_receiver.py"
+        ],
+        "testDir": "tests",
+        "refGiver": "ref-giver",
+        "refReceiver": "ref-receiver-record"
+      },
+      "giver": "claude",
+      "receiver": "codex"
+    },
+    {
+      "id": "decision-berthbook-codex-to-claude",
+      "project": "berthbook",
+      "language": "python",
+      "remote": "https://git.example.com/harbour/berthbook.git",
+      "giverPrompt": "Finance sent their export rules. Invoices: CSV with semicolons and a decimal comma, two decimals, no thousands separator. Fuel sales, for the supplier's portal: tab-separated, litres with three decimals and a decimal point, amounts in whole cents. Add `berthbook export-invoices <YYYY-MM>` now (header invoice;vessel;amount, one row per invoice) and leave fuel for later. Add tests and run the suite.",
+      "receiverPrompt": "Add the fuel sales export for the supplier's portal: a `berthbook export-fuel <YYYY-MM>` command that writes it to standard output, with a header row and then one row per vessel that bought fuel that month, sorted by vessel name, with the columns vessel, litres and amount (the vessel's totals for the month), in the format finance gave us for it. Run the tests before you finish.",
+      "expectedFact": "The portal format finance gave in the giver's session: tab-separated, litres with three decimals and a decimal point, amounts in whole cents. The project has only the invoice format (semicolons, decimal comma), which is the wrong one to copy.",
+      "recordPattern": "tab-separated|whole cents|three decimals",
+      "repoPattern": "tab[- ]separated|whole cents|three decimals",
+      "codePattern": "\\\\t|:\\.3f",
+      "dryRunSay": "Added export-invoices for finance (semicolons, decimal comma); fuel export left for later as asked. Tests pass.",
+      "grade": {
+        "runner": "pytest",
+        "baseTests": [
+          "tests/conftest.py",
+          "tests/test_billing.py",
+          "tests/test_report.py",
+          "tests/test_cli.py"
+        ],
+        "giverTests": [
+          "hidden/test_handoff_giver.py"
+        ],
+        "receiverTests": [
+          "hidden/test_record_receiver.py"
+        ],
+        "testDir": "tests",
+        "refGiver": "ref-giver",
+        "refReceiver": "ref-receiver-record"
+      },
+      "giver": "codex",
+      "receiver": "claude"
+    },
+    {
+      "id": "decision-berthbook-claude-to-claude",
+      "project": "berthbook",
+      "language": "python",
+      "remote": "https://git.example.com/harbour/berthbook.git",
+      "giverPrompt": "Finance sent their export rules. Invoices: CSV with semicolons and a decimal comma, two decimals, no thousands separator. Fuel sales, for the supplier's portal: tab-separated, litres with three decimals and a decimal point, amounts in whole cents. Add `berthbook export-invoices <YYYY-MM>` now (header invoice;vessel;amount, one row per invoice) and leave fuel for later. Add tests and run the suite.",
+      "receiverPrompt": "Add the fuel sales export for the supplier's portal: a `berthbook export-fuel <YYYY-MM>` command that writes it to standard output, with a header row and then one row per vessel that bought fuel that month, sorted by vessel name, with the columns vessel, litres and amount (the vessel's totals for the month), in the format finance gave us for it. Run the tests before you finish.",
+      "expectedFact": "The portal format finance gave in the giver's session: tab-separated, litres with three decimals and a decimal point, amounts in whole cents. The project has only the invoice format (semicolons, decimal comma), which is the wrong one to copy.",
+      "recordPattern": "tab-separated|whole cents|three decimals",
+      "repoPattern": "tab[- ]separated|whole cents|three decimals",
+      "codePattern": "\\\\t|:\\.3f",
+      "dryRunSay": "Added export-invoices for finance (semicolons, decimal comma); fuel export left for later as asked. Tests pass.",
+      "grade": {
+        "runner": "pytest",
+        "baseTests": [
+          "tests/conftest.py",
+          "tests/test_billing.py",
+          "tests/test_report.py",
+          "tests/test_cli.py"
+        ],
+        "giverTests": [
+          "hidden/test_handoff_giver.py"
+        ],
+        "receiverTests": [
+          "hidden/test_record_receiver.py"
+        ],
+        "testDir": "tests",
+        "refGiver": "ref-giver",
+        "refReceiver": "ref-receiver-record"
+      },
+      "giver": "claude",
+      "receiver": "claude"
+    },
+    {
+      "id": "decision-depotclock-claude-to-codex",
+      "project": "depotclock",
+      "language": "javascript",
+      "remote": "https://git.example.com/depots/depotclock.git",
+      "giverPrompt": "Payroll changed its rule: from November a shift counts in the week it ends, in the depot's local time, not the week it starts. Leave the weekly report alone until payroll confirms. First fix this: Toronto deliveries finished late in the evening show up under the next day in the daily delivery report. Find the cause, fix it and run the tests.",
+      "receiverPrompt": "Update the weekly hours report to payroll's new rule. Run the tests before you finish.",
+      "expectedFact": "Payroll's rule as the user gave it in the giver's session: a shift counts in the week it ends, in the depot's local time. The project's weekly report counts the week a shift starts.",
+      "recordPattern": "week it ends|shift ends|end of the shift",
+      "repoPattern": "week (?:it|the shift|a shift) ends|counts? in the week .{0,20}ends?",
+      "codePattern": "\\.end\\b.*tz|localDay\\([^)]*end",
+      "dryRunSay": "Fixed: the daily report grouped deliveries by their UTC date; it now uses each depot's own time zone. The weekly report is unchanged, as asked. Tests pass.",
+      "grade": {
+        "runner": "node",
+        "baseTests": [
+          "test/time.test.js",
+          "test/reports.test.js"
+        ],
+        "giverTests": [
+          "hidden/handoff-giver.test.js"
+        ],
+        "receiverTests": [
+          "hidden/record-receiver.test.js"
+        ],
+        "testDir": "test",
+        "refGiver": "ref-giver",
+        "refReceiver": "ref-receiver-record"
+      },
+      "giver": "claude",
+      "receiver": "codex"
+    },
+    {
+      "id": "decision-depotclock-codex-to-claude",
+      "project": "depotclock",
+      "language": "javascript",
+      "remote": "https://git.example.com/depots/depotclock.git",
+      "giverPrompt": "Payroll changed its rule: from November a shift counts in the week it ends, in the depot's local time, not the week it starts. Leave the weekly report alone until payroll confirms. First fix this: Toronto deliveries finished late in the evening show up under the next day in the daily delivery report. Find the cause, fix it and run the tests.",
+      "receiverPrompt": "Update the weekly hours report to payroll's new rule. Run the tests before you finish.",
+      "expectedFact": "Payroll's rule as the user gave it in the giver's session: a shift counts in the week it ends, in the depot's local time. The project's weekly report counts the week a shift starts.",
+      "recordPattern": "week it ends|shift ends|end of the shift",
+      "repoPattern": "week (?:it|the shift|a shift) ends|counts? in the week .{0,20}ends?",
+      "codePattern": "\\.end\\b.*tz|localDay\\([^)]*end",
+      "dryRunSay": "Fixed: the daily report grouped deliveries by their UTC date; it now uses each depot's own time zone. The weekly report is unchanged, as asked. Tests pass.",
+      "grade": {
+        "runner": "node",
+        "baseTests": [
+          "test/time.test.js",
+          "test/reports.test.js"
+        ],
+        "giverTests": [
+          "hidden/handoff-giver.test.js"
+        ],
+        "receiverTests": [
+          "hidden/record-receiver.test.js"
+        ],
+        "testDir": "test",
+        "refGiver": "ref-giver",
+        "refReceiver": "ref-receiver-record"
+      },
+      "giver": "codex",
+      "receiver": "claude"
+    },
+    {
+      "id": "decision-depotclock-claude-to-claude",
+      "project": "depotclock",
+      "language": "javascript",
+      "remote": "https://git.example.com/depots/depotclock.git",
+      "giverPrompt": "Payroll changed its rule: from November a shift counts in the week it ends, in the depot's local time, not the week it starts. Leave the weekly report alone until payroll confirms. First fix this: Toronto deliveries finished late in the evening show up under the next day in the daily delivery report. Find the cause, fix it and run the tests.",
+      "receiverPrompt": "Update the weekly hours report to payroll's new rule. Run the tests before you finish.",
+      "expectedFact": "Payroll's rule as the user gave it in the giver's session: a shift counts in the week it ends, in the depot's local time. The project's weekly report counts the week a shift starts.",
+      "recordPattern": "week it ends|shift ends|end of the shift",
+      "repoPattern": "week (?:it|the shift|a shift) ends|counts? in the week .{0,20}ends?",
+      "codePattern": "\\.end\\b.*tz|localDay\\([^)]*end",
+      "dryRunSay": "Fixed: the daily report grouped deliveries by their UTC date; it now uses each depot's own time zone. The weekly report is unchanged, as asked. Tests pass.",
+      "grade": {
+        "runner": "node",
+        "baseTests": [
+          "test/time.test.js",
+          "test/reports.test.js"
+        ],
+        "giverTests": [
+          "hidden/handoff-giver.test.js"
+        ],
+        "receiverTests": [
+          "hidden/record-receiver.test.js"
+        ],
+        "testDir": "test",
+        "refGiver": "ref-giver",
+        "refReceiver": "ref-receiver-record"
+      },
+      "giver": "claude",
+      "receiver": "claude"
+    },
+    {
+      "id": "decision-dunning-claude-to-codex",
+      "project": "dunning",
+      "language": "javascript",
+      "remote": "https://git.example.com/payments/dunning.git",
+      "giverPrompt": "Finance settled the retry policy for failed charges, for when we add scheduling later: retry 2, 12 and 48 hours after the last attempt; if the third retry fails, the invoice goes to collections and is never written off; invoices under $5 are not retried and go straight to collections. Don't build that yet. First: several Pro customers were charged twice for their October invoice, two successful charges seconds apart at the provider. Find the cause, fix it and run the tests.",
+      "receiverPrompt": "Finance wants failed charges retried on a schedule instead of being written off. Add `retryFailedInvoices(invoices, gateway, now)` in a new src/retries.js that follows finance's retry policy: at most one scheduled retry per invoice per run, and only when it is due. Leave paid and declined invoices alone. Add tests and run the suite before you finish.",
+      "expectedFact": "Finance's retry policy as the user gave it in the giver's session: retries 2, 12 and 48 hours after the last attempt; after the third fails the invoice goes to collections; invoices under $5 are not retried and go straight to collections. The project holds none of it, and a reasonable guess (1, 6 and 24 hours, written off) fails the hidden tests.",
+      "recordPattern": "2, 12 and 48|collections|under $5",
+      "repoPattern": "2, 12(?:,| and) 48|collections|under $5",
+      "codePattern": "\b48\b|collections|\b500\b",
+      "dryRunSay": "Fixed the duplicate charges: each retry made a new idempotency key, so a timed-out try that had gone through was charged again; every try now reuses the invoice's key. The retry schedule is left for later as asked. Tests pass.",
+      "grade": {
+        "runner": "node",
+        "baseTests": [
+          "test/billing.test.js",
+          "test/gateway.test.js"
+        ],
+        "giverTests": [
+          "hidden/handoff-giver.test.js"
+        ],
+        "receiverTests": [
+          "hidden/handoff-receiver.test.js"
+        ],
+        "testDir": "test",
+        "refGiver": "ref-giver",
+        "refReceiver": "ref-receiver"
+      },
+      "giver": "claude",
+      "receiver": "codex"
+    },
+    {
+      "id": "decision-dunning-codex-to-claude",
+      "project": "dunning",
+      "language": "javascript",
+      "remote": "https://git.example.com/payments/dunning.git",
+      "giverPrompt": "Finance settled the retry policy for failed charges, for when we add scheduling later: retry 2, 12 and 48 hours after the last attempt; if the third retry fails, the invoice goes to collections and is never written off; invoices under $5 are not retried and go straight to collections. Don't build that yet. First: several Pro customers were charged twice for their October invoice, two successful charges seconds apart at the provider. Find the cause, fix it and run the tests.",
+      "receiverPrompt": "Finance wants failed charges retried on a schedule instead of being written off. Add `retryFailedInvoices(invoices, gateway, now)` in a new src/retries.js that follows finance's retry policy: at most one scheduled retry per invoice per run, and only when it is due. Leave paid and declined invoices alone. Add tests and run the suite before you finish.",
+      "expectedFact": "Finance's retry policy as the user gave it in the giver's session: retries 2, 12 and 48 hours after the last attempt; after the third fails the invoice goes to collections; invoices under $5 are not retried and go straight to collections. The project holds none of it, and a reasonable guess (1, 6 and 24 hours, written off) fails the hidden tests.",
+      "recordPattern": "2, 12 and 48|collections|under $5",
+      "repoPattern": "2, 12(?:,| and) 48|collections|under $5",
+      "codePattern": "\b48\b|collections|\b500\b",
+      "dryRunSay": "Fixed the duplicate charges: each retry made a new idempotency key, so a timed-out try that had gone through was charged again; every try now reuses the invoice's key. The retry schedule is left for later as asked. Tests pass.",
+      "grade": {
+        "runner": "node",
+        "baseTests": [
+          "test/billing.test.js",
+          "test/gateway.test.js"
+        ],
+        "giverTests": [
+          "hidden/handoff-giver.test.js"
+        ],
+        "receiverTests": [
+          "hidden/handoff-receiver.test.js"
+        ],
+        "testDir": "test",
+        "refGiver": "ref-giver",
+        "refReceiver": "ref-receiver"
+      },
+      "giver": "codex",
+      "receiver": "claude"
+    },
+    {
+      "id": "decision-dunning-claude-to-claude",
+      "project": "dunning",
+      "language": "javascript",
+      "remote": "https://git.example.com/payments/dunning.git",
+      "giverPrompt": "Finance settled the retry policy for failed charges, for when we add scheduling later: retry 2, 12 and 48 hours after the last attempt; if the third retry fails, the invoice goes to collections and is never written off; invoices under $5 are not retried and go straight to collections. Don't build that yet. First: several Pro customers were charged twice for their October invoice, two successful charges seconds apart at the provider. Find the cause, fix it and run the tests.",
+      "receiverPrompt": "Finance wants failed charges retried on a schedule instead of being written off. Add `retryFailedInvoices(invoices, gateway, now)` in a new src/retries.js that follows finance's retry policy: at most one scheduled retry per invoice per run, and only when it is due. Leave paid and declined invoices alone. Add tests and run the suite before you finish.",
+      "expectedFact": "Finance's retry policy as the user gave it in the giver's session: retries 2, 12 and 48 hours after the last attempt; after the third fails the invoice goes to collections; invoices under $5 are not retried and go straight to collections. The project holds none of it, and a reasonable guess (1, 6 and 24 hours, written off) fails the hidden tests.",
+      "recordPattern": "2, 12 and 48|collections|under $5",
+      "repoPattern": "2, 12(?:,| and) 48|collections|under $5",
+      "codePattern": "\b48\b|collections|\b500\b",
+      "dryRunSay": "Fixed the duplicate charges: each retry made a new idempotency key, so a timed-out try that had gone through was charged again; every try now reuses the invoice's key. The retry schedule is left for later as asked. Tests pass.",
+      "grade": {
+        "runner": "node",
+        "baseTests": [
+          "test/billing.test.js",
+          "test/gateway.test.js"
+        ],
+        "giverTests": [
+          "hidden/handoff-giver.test.js"
+        ],
+        "receiverTests": [
+          "hidden/handoff-receiver.test.js"
+        ],
+        "testDir": "test",
+        "refGiver": "ref-giver",
+        "refReceiver": "ref-receiver"
+      },
+      "giver": "claude",
+      "receiver": "claude"
+    }
+  ],
+  "scoring": {
+    "giverGate": "As spec-record.json: receivers run only if the giver solved its task, its record is in the store from the giver's agent, and the record states the decision (recordPattern).",
+    "recordOnly": "Reported: whether the snapshot states the decision anywhere (repoPattern) or applies it in code (codePattern). A direction where it does is reported as not record-only.",
+    "found": "The receiver with Snout was shown or opened the giver's record by its id (search or fetch, from the MCP server's own traffic). Whether the shown text words the decision as recordPattern expects is reported apart.",
+    "solved": "The hidden receiver tests (they encode the decision), the giver's hidden tests and the project's own.",
+    "headline": "Per arm, over the nine directions: tasks solved, and cost per solved task (dollars at list prices, tokens beside it). Snout is ahead only if it solves more at no more than the cost per solved task.",
+    "ownMemory": "Reported per Claude Code session: files in Claude Code's own memory for the folder at the start and at the end."
+  },
+  "validity": [
+    "As spec-record.json, and: Claude Code's own memory is on in every arm and isolated from the operator's (--plan or --api is required live).",
+    "Each Claude Code receiver starts from the memory the giver left, not from what the other receiver wrote.",
+    "Snapshots and grading copies never hold .claude, .codex, .agents, .snout or .mcp.json."
+  ]
+}

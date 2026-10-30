@@ -1,0 +1,23 @@
+{
+  "about": "Gate 3 unseen check: prompts for unseen/history.json, scored exactly as the main set (see ../prompts.json).",
+  "prompts": [
+    { "id": "Q01", "prompt": "Add a test for the --json export flag and run the tests.", "query": "run tests", "delivery": ["T_cur"], "recall": "any", "search": ["T_cur"] },
+    { "id": "Q02", "prompt": "How do I run the test suite?", "query": "test suite", "delivery": ["T_cur"], "recall": "any", "search": ["T_cur"] },
+    { "id": "Q03", "prompt": "Run pytest on the parser tests.", "query": "pytest", "delivery": ["T_cur"], "recall": "any", "search": ["T_cur"] },
+    { "id": "Q04", "prompt": "Check the code with ruff before committing.", "query": "ruff check", "delivery": ["RUFF"], "recall": "any", "search": ["RUFF"] },
+    { "id": "Q05", "prompt": "Where does the config file live?", "query": "config file location", "delivery": ["CFG_CUR"], "recall": "any", "search": ["CFG_CUR"] },
+    { "id": "Q06", "prompt": "Read the API key setting from the environment.", "query": "environment settings", "delivery": ["CFG_CUR"], "recall": "any", "search": ["CFG_CUR"] },
+    { "id": "Q07", "prompt": "How are note IDs generated?", "query": "note ids", "delivery": ["IDS"], "recall": "any", "search": ["IDS"] },
+    { "id": "Q08", "prompt": "Does the export still write a BOM in inkwell/export.py?", "query": "export bom", "delivery": "any", "recall": ["BOM_CUR"], "search": ["BOM_CUR"] },
+    { "id": "Q09", "prompt": "When did we switch the tests to tox?", "query": "switch tests tox", "delivery": "any", "recall": ["TOX_MOVE"], "search": ["TOX_MOVE"] },
+    { "id": "Q10", "prompt": "How did we make saves atomic?", "query": "atomic saves", "delivery": "any", "recall": ["ATOMIC"], "search": ["ATOMIC"] },
+    { "id": "Q11", "prompt": "Continue where the last session left off.", "query": "tagging", "delivery": ["TAGS"], "recall": "any", "search": ["TAGS"] },
+    { "id": "Q12", "prompt": "Add logging to the sync command.", "query": "logging secrets", "delivery": ["SECRETS"], "recall": "any", "search": ["SECRETS"] },
+    { "id": "Q13", "prompt": "Please run the linter and fix what it finds.", "query": "linter", "delivery": "any", "recall": "any", "search": "any" },
+    { "id": "Q14", "prompt": "Add a dark theme to the TUI.", "query": "dark theme tui", "delivery": "silent", "recall": "silent", "search": "silent" },
+    { "id": "Q15", "prompt": "Write a Dockerfile for deployment.", "query": "dockerfile deployment", "delivery": "silent", "recall": "silent", "search": "silent" },
+    { "id": "Q16", "prompt": "Use poetry to add a dependency.", "query": "poetry dependency", "delivery": "silent", "recall": "silent", "search": "silent" },
+    { "id": "Q17", "prompt": "Why is sync slow on large vaults?", "query": "sync slow vaults", "delivery": "silent", "recall": "silent", "search": "silent" },
+    { "id": "Q18", "prompt": "Translate the help text to French.", "query": "translate help french", "delivery": "silent", "recall": "silent", "search": "silent" }
+  ]
+}

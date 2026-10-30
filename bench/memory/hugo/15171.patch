@@ -1,0 +1,63 @@
+diff --git a/config/security/securityConfig.go b/config/security/securityConfig.go
+index 510abe6bbfe..daf642129f5 100644
+--- a/config/security/securityConfig.go
++++ b/config/security/securityConfig.go
+@@ -39,12 +39,11 @@ const securityConfigKey = "security"
+ var DefaultConfig = Config{
+ 	Exec: Exec{
+ 		Allow: MustNewWhitelist(
+-			"^(dart-)?sass(-embedded)?$", // sass, dart-sass, dart-sass-embedded.
+-			"^go$",                       // for Go Modules
+-			"^git$",                      // For Git info
+-			"^node$",                     // Used as the runtime for Node tools.
++			"^(dart-)?sass$", // sass, dart-sass
++			"^go$",           // for Go Modules
++			"^git$",          // For Git info
++			"^node$",         // Used as the runtime for Node tools.
+ 			"^postcss$",
+-			"^tailwindcss$",
+ 		),
+ 		// These have been tested to work with Hugo's external programs
+ 		// on Windows, Linux and MacOS.
+diff --git a/config/security/securityConfig_test.go b/config/security/securityConfig_test.go
+index 69feae85822..8318d5d6f91 100644
+--- a/config/security/securityConfig_test.go
++++ b/config/security/securityConfig_test.go
+@@ -135,7 +135,7 @@ func TestToTOML(t *testing.T) {
+ 	got := DefaultConfig.ToTOML()
+ 
+ 	c.Assert(got, qt.Equals,
+-		"[security]\n  allowContent = ['! ^text/html$']\n  enableInlineShortcodes = false\n\n  [security.exec]\n    allow = ['^(dart-)?sass(-embedded)?$', '^go$', '^git$', '^node$', '^postcss$', '^tailwindcss$']\n    osEnv = ['(?i)^((HTTPS?|NO)_PROXY|PATH(EXT)?|APPDATA|TE?MP|TERM|GO\\w+|(XDG_CONFIG_)?HOME|USERPROFILE|SSH_AUTH_SOCK|DISPLAY|LANG|SYSTEMDRIVE|PROGRAMDATA)$']\n\n  [security.funcs]\n    getenv = ['^HUGO_', '^CI$']\n\n  [security.http]\n    methods = ['(?i)GET|POST']\n    urls = ['(?i)^https?://[a-z0-9]', '! ^https?://\\d+\\.', '! (?i)localhost', '! (?i)^https?://[^/?#]*@']\n\n  [security.node]\n    [security.node.permissions]\n      allowAddons = ['tailwindcss']\n      allowChildProcess = ['tailwindcss']\n      allowRead = ['.']\n      allowWorker = ['tailwindcss']\n      allowWrite = []\n      disable = false",
++		"[security]\n  allowContent = ['! ^text/html$']\n  enableInlineShortcodes = false\n\n  [security.exec]\n    allow = ['^(dart-)?sass$', '^go$', '^git$', '^node$', '^postcss$']\n    osEnv = ['(?i)^((HTTPS?|NO)_PROXY|PATH(EXT)?|APPDATA|TE?MP|TERM|GO\\w+|(XDG_CONFIG_)?HOME|USERPROFILE|SSH_AUTH_SOCK|DISPLAY|LANG|SYSTEMDRIVE|PROGRAMDATA)$']\n\n  [security.funcs]\n    getenv = ['^HUGO_', '^CI$']\n\n  [security.http]\n    methods = ['(?i)GET|POST']\n    urls = ['(?i)^https?://[a-z0-9]', '! ^https?://\\d+\\.', '! (?i)localhost', '! (?i)^https?://[^/?#]*@']\n\n  [security.node]\n    [security.node.permissions]\n      allowAddons = ['tailwindcss']\n      allowChildProcess = ['tailwindcss']\n      allowRead = ['.']\n      allowWorker = ['tailwindcss']\n      allowWrite = []\n      disable = false",
+ 	)
+ }
+ 
+diff --git a/resources/resource_transformers/cssjs/tailwindcss_integration_test.go b/resources/resource_transformers/cssjs/tailwindcss_integration_test.go
+index 03cd1e07eb7..21702c303bc 100644
+--- a/resources/resource_transformers/cssjs/tailwindcss_integration_test.go
++++ b/resources/resource_transformers/cssjs/tailwindcss_integration_test.go
+@@ -28,6 +28,7 @@ func TestTailwindV4Basic(t *testing.T) {
+ 
+ 	files := `
+ -- hugo.toml --
++security.exec.allow = ['^go$', '^git$', '^node$', '^tailwindcss$']
+ -- package.json --
+ {
+   "license": "MIT",
+@@ -72,6 +73,7 @@ func TestTailwindCSSImportContext(t *testing.T) {
+ 	files := `
+ -- hugo.toml --
+ disableKinds = ['page','rss','section','sitemap','taxonomy','term']
++security.exec.allow = ['^go$', '^git$', '^node$', '^tailwindcss$']
+ -- assets/css/main.css --
+ @import "tailwindcss";
+ 
+@@ -112,6 +114,8 @@ func TestTailwindCSSNoInlineImportsIssue13719(t *testing.T) {
+ disableKinds = ['page','rss','section','sitemap','taxonomy','term']
+ theme = 'my-theme'
+ 
++security.exec.allow = ['^go$', '^git$', '^node$', '^tailwindcss$']
++
+ [[module.mounts]]
+ source = 'assets'
+ target = 'assets'

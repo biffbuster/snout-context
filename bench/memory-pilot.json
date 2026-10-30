@@ -1,0 +1,111 @@
+{
+  "name": "Gate 4 pilot: plain, trimming only, trimming plus memory",
+  "written": "2026-10-28",
+  "protocol": "docs/benchmark-protocol.md#memory-study, Amendment 2026-10-28",
+  "question": "On the same real tasks, does memory add anything to trimming (search vs trim), and does the complete workflow lower cost per solved task (search vs plain)?",
+  "arms": {
+    "plain": "no Snout (Codex: Snout's hooks from the trusted checkout in observe, memory off: they add nothing)",
+    "trim": "Snout's read gate and output trimming (enforce), memory off",
+    "search": "trim plus memory as it ships: sessions recorded, automatic notes off, Snout's MCP server with snout_memory_search and snout_memory_fetch only, and the session-start hint (memoryHint) once earlier sessions are on record"
+  },
+  "armOrder": [
+    "plain",
+    "trim",
+    "search"
+  ],
+  "repeats": 1,
+  "agents": [
+    "claude",
+    "codex"
+  ],
+  "tasks": {
+    "bench/memory-tasks-hugo.json": [
+      "hugo-15167",
+      "hugo-15169",
+      "hugo-15206",
+      "hugo-15208",
+      "hugo-15245"
+    ],
+    "bench/memory-tasks-vite.json": [
+      "vite-23134",
+      "vite-23294",
+      "vite-23238",
+      "vite-23232",
+      "vite-23355"
+    ]
+  },
+  "labelRule": "Fixed before any session (labelTasks in bench/study-checks.mjs, from the reference fixes, which no agent sees): a task is a candidate when an earlier task in its repository changed files in a related folder (the same folder, its parent, or a sibling under a folder other than the root), so that record could help; every other task is a control, the first of each repository always.",
+  "labels": {
+    "hugo-15167": {
+      "label": "control",
+      "from": []
+    },
+    "hugo-15169": {
+      "label": "control",
+      "from": []
+    },
+    "hugo-15206": {
+      "label": "control",
+      "from": []
+    },
+    "hugo-15208": {
+      "label": "candidate",
+      "from": [
+        "hugo-15167"
+      ]
+    },
+    "hugo-15245": {
+      "label": "control",
+      "from": []
+    },
+    "vite-23134": {
+      "label": "control",
+      "from": []
+    },
+    "vite-23294": {
+      "label": "candidate",
+      "from": [
+        "vite-23134"
+      ]
+    },
+    "vite-23238": {
+      "label": "candidate",
+      "from": [
+        "vite-23134",
+        "vite-23294"
+      ]
+    },
+    "vite-23232": {
+      "label": "candidate",
+      "from": [
+        "vite-23134",
+        "vite-23294",
+        "vite-23238"
+      ]
+    },
+    "vite-23355": {
+      "label": "candidate",
+      "from": [
+        "vite-23134",
+        "vite-23294",
+        "vite-23238",
+        "vite-23232"
+      ]
+    }
+  },
+  "maxSpendUsdPerTasksFile": {
+    "claude": 6
+  },
+  "spend": "Claude Code on the API, $6 in all: Hugo runs first with --max-spend 3, then vite with --max-spend 6 minus what Hugo spent. A task group (one session per arm) starts only if it fits the cap at the costliest session so far (groupFits), so every group run is complete. Codex runs on the plan.",
+  "sessions": "3 arms x 5 tasks per tasks file = 15; two files per agent = 30 per agent, 60 in all (30 Claude Code on the API, 30 Codex on the plan)",
+  "measures": {
+    "gating": "per agent over both repositories: solved tasks and cost per solved task, search vs trim (memory), search vs plain (complete workflow), trim vs plain (trimming); pilotVerdict in bench/study-checks.mjs",
+    "reported": "total tokens and tokens per solved task, tool calls, minutes; memory use (searched, empty searches, records opened, records acted on: memoryUse); wrong recalls (wrongRecalls)",
+    "path": "each search session: hint, searched, a record from a labeled earlier task shown, opened, acted on, result (memoryPath); arms split by label (byLabel); what to work on next (memoryDiagnosis): never searched, fix discovery; searched but nothing useful, improve what memory captures or choose more representative tasks; used but cost rose, reduce retrieval overhead. Reported, not gating."
+  },
+  "excluded": {
+    "hugo-15171": "flaky on this machine (see bench/memory-tasks-hugo.json); replaced by the next oldest validated task, hugo-15245, before any session"
+  },
+  "runRules": "No code, prompt or setting changes once the first paid session starts. A mixed result says which agent or task type needs work; it is not a reason to change the scoring afterwards.",
+  "amended": "2026-10-29: labels, the memory path, the $6 cap with whole groups, before any paid session"
+}

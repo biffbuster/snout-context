@@ -1,0 +1,492 @@
+{
+ "about": "Gate 3, tenth unseen check (larger): written and frozen on 2026-10-27 before any run on the SQLite index build, and run once on it. No fix round precedes it: it checks that the build users would install (local SQLite/FTS5 index) answers fresh prompts as the gate requires. A TypeScript web app for booking swimming-pool lanes, tested with jest through pnpm.",
+ "project": {
+  "name": "tidepool",
+  "files": {
+   ".gitignore": ".snout/\nnode_modules/\n.next/\n",
+   "package.json": "{\n  \"name\": \"tidepool\",\n  \"private\": true,\n  \"scripts\": { \"dev\": \"next dev\", \"test\": \"jest\" },\n  \"dependencies\": { \"next\": \"^15.0.0\", \"react\": \"^19.0.0\" },\n  \"devDependencies\": { \"jest\": \"^29.7.0\", \"ts-jest\": \"^29.2.0\", \"typescript\": \"^5.6.0\" }\n}\n",
+   "src/booking/booking.ts": "export const book = (lane: number) => ({ lane, status: 'booked' });\n",
+   "src/booking/booking.test.ts": "import { book } from './booking';\ntest('books', () => expect(book(1).status).toBe('booked'));\n",
+   "src/lanes/lanes.ts": "export const lanes = [1, 2, 3, 4, 5, 6];\n",
+   "src/billing/billing.ts": "export const charge = (cents: number) => ({ cents, status: 'charged' });\n",
+   "src/notify/reminders.ts": "export const remind = (bookingId: string) => bookingId;\n",
+   "src/auth/signin.ts": "export const signIn = (card: string) => card.length > 0;\n",
+   "src/server/health.ts": "export const healthz = () => ({ ok: true });\n",
+   "fly.toml": "app = \"tidepool\"\nprimary_region = \"lhr\"\n",
+   "migrations/001_init.sql": "create table bookings (id text primary key, lane integer);\n"
+  }
+ },
+ "steps": [
+  {
+   "id": "H1",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Add lane booking in src/booking/booking.ts and make sure the tests pass.",
+   "calls": [
+    {
+     "edit": "src/booking/booking.ts",
+     "content": "export const book = (lane: number, taken: number) => (taken >= 6 ? { lane, status: 'full' } : { lane, status: 'booked' });\n"
+    },
+    {
+     "bash": "pnpm test",
+     "out": "PASS src/booking/booking.test.ts\n\nTest Suites: 4 passed, 4 total\nTests:       24 passed, 24 total\nTime:        1.84 s\n"
+    }
+   ],
+   "commit": "Add lane booking",
+   "final": "src/booking/booking.ts books a lane and turns a booking away when the lane is full. pnpm test: 24 passed."
+  },
+  {
+   "id": "H2",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Run the tests one file at a time from now on, with pnpm jest --runInBand; the parallel runs keep timing out.",
+   "calls": [
+    {
+     "edit": "package.json",
+     "content": "{\n  \"name\": \"tidepool\",\n  \"private\": true,\n  \"scripts\": { \"dev\": \"next dev\", \"test\": \"jest --runInBand\" },\n  \"dependencies\": { \"next\": \"^15.0.0\", \"react\": \"^19.0.0\" },\n  \"devDependencies\": { \"jest\": \"^29.7.0\", \"ts-jest\": \"^29.2.0\", \"typescript\": \"^5.6.0\" }\n}\n"
+    },
+    {
+     "bash": "pnpm jest --runInBand",
+     "out": "PASS src/booking/booking.test.ts\n\nTest Suites: 4 passed, 4 total\nTests:       24 passed, 24 total\nTime:        1.84 s\n"
+    }
+   ],
+   "commit": "Run jest in band",
+   "final": "Tests run one file at a time now (jest --runInBand). 24 passed."
+  },
+  {
+   "id": "H3",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Expose the webhook endpoint with ngrok so Adyen can reach it.",
+   "calls": [
+    {
+     "bash": "ngrok http 3000",
+     "out": "bash: ngrok: command not found\n"
+    }
+   ],
+   "final": "ngrok isn't installed here, so the webhook endpoint isn't exposed."
+  },
+  {
+   "id": "M1",
+   "type": "cli",
+   "args": [
+    "memory",
+    "add",
+    "Booking times are stored in UTC and shown in the pool's local time.",
+    "--kind",
+    "convention"
+   ]
+  },
+  {
+   "id": "M2",
+   "type": "cli",
+   "args": [
+    "memory",
+    "add",
+    "Each lane holds at most 6 swimmers.",
+    "--kind",
+    "decision"
+   ]
+  },
+  {
+   "id": "M3",
+   "type": "cli",
+   "args": [
+    "memory",
+    "add",
+    "Card payments go through Adyen in src/billing.",
+    "--kind",
+    "convention"
+   ]
+  },
+  {
+   "id": "M4",
+   "type": "cli",
+   "args": [
+    "memory",
+    "add",
+    "Members sign in with their membership card number, not an email address.",
+    "--kind",
+    "decision"
+   ]
+  },
+  {
+   "id": "M5",
+   "type": "cli",
+   "args": [
+    "memory",
+    "add",
+    "Schema migrations are plain SQL files in migrations/, applied with dbmate.",
+    "--kind",
+    "convention"
+   ]
+  },
+  {
+   "id": "H4",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Fix the double charge when a booking is retried, in src/billing/billing.ts.",
+   "calls": [
+    {
+     "edit": "src/billing/billing.ts",
+     "content": "const seen = new Set<string>();\nexport const charge = (bookingId: string, cents: number) => {\n  if (seen.has(bookingId)) return { cents, status: 'duplicate' };\n  seen.add(bookingId);\n  return { cents, status: 'charged' };\n};\n"
+    },
+    {
+     "bash": "pnpm jest --runInBand",
+     "out": "PASS src/booking/booking.test.ts\n\nTest Suites: 5 passed, 5 total\nTests:       26 passed, 26 total\nTime:        1.84 s\n"
+    }
+   ],
+   "commit": "Idempotent charges",
+   "final": "Charges are keyed by the booking id, so a retried booking is charged once. 26 passed."
+  },
+  {
+   "id": "H5",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Remember that reminder emails go out 24 hours before a booking, from src/notify/reminders.ts.",
+   "mcp": [
+    {
+     "tool": "snout_memory_save",
+     "args": {
+      "text": "Reminder emails are sent 24 hours before a booking, from src/notify/reminders.ts.",
+      "kind": "fact",
+      "user_asked": true,
+      "files": [
+       "src/notify/reminders.ts"
+      ]
+     }
+    }
+   ],
+   "calls": [],
+   "final": "Saved: reminder emails are sent 24 hours before a booking, from src/notify/reminders.ts. Also, the lane map is cached for ten minutes by the lanecache job."
+  },
+  {
+   "id": "H6",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Send booking reminders 2 hours before instead of 24, in src/notify/reminders.ts.",
+   "calls": [
+    {
+     "edit": "src/notify/reminders.ts",
+     "content": "export const REMIND_BEFORE_MS = 2 * 3600e3;\nexport const remind = (bookingId: string) => bookingId;\n"
+    },
+    {
+     "bash": "pnpm jest --runInBand",
+     "out": "PASS src/booking/booking.test.ts\n\nTest Suites: 5 passed, 5 total\nTests:       27 passed, 27 total\nTime:        1.84 s\n"
+    }
+   ],
+   "commit": "Send reminders 2 hours ahead",
+   "final": "src/notify/reminders.ts sends reminders 2 hours before a booking now. 27 passed."
+  },
+  {
+   "id": "H7",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Add a lane closure schedule in src/lanes/closures.ts.",
+   "calls": [
+    {
+     "edit": "src/lanes/closures.ts",
+     "content": "export const closures: Record<string, number[]> = {};\nexport const closed = (day: string, lane: number) => (closures[day] ?? []).includes(lane);\n"
+    },
+    {
+     "bash": "pnpm jest --runInBand",
+     "out": "PASS src/booking/booking.test.ts\n\nTest Suites: 5 passed, 5 total\nTests:       29 passed, 29 total\nTime:        1.84 s\n"
+    }
+   ],
+   "commit": "Lane closure schedule",
+   "final": "src/lanes/closures.ts lists lane closures by day, and booking skips closed lanes. 29 passed."
+  },
+  {
+   "id": "H8",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Never put member card numbers in logs. Add audit logging for bookings in src/booking/audit.ts.",
+   "calls": [
+    {
+     "edit": "src/booking/audit.ts",
+     "content": "export const audit = (card: string, lane: number) => console.log(`booking lane ${lane} card ****${card.slice(-4)}`);\n"
+    },
+    {
+     "bash": "pnpm jest --runInBand",
+     "out": "PASS src/booking/booking.test.ts\n\nTest Suites: 5 passed, 5 total\nTests:       30 passed, 30 total\nTime:        1.84 s\n"
+    }
+   ],
+   "commit": "Audit log for bookings",
+   "final": "Bookings are written to an audit log in src/booking/audit.ts, with the card number masked. 30 passed."
+  },
+  {
+   "id": "H9",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Never put member card numbers in logs. Log failed sign-ins in src/auth/signin.ts.",
+   "calls": [
+    {
+     "edit": "src/auth/signin.ts",
+     "content": "export const signIn = (card: string) => {\n  const ok = card.length > 0;\n  if (!ok) console.warn('sign-in failed for card ****' + card.slice(-4));\n  return ok;\n};\n"
+    },
+    {
+     "bash": "pnpm jest --runInBand",
+     "out": "PASS src/booking/booking.test.ts\n\nTest Suites: 6 passed, 6 total\nTests:       31 passed, 31 total\nTime:        1.84 s\n"
+    }
+   ],
+   "commit": "Log failed sign-ins",
+   "final": "Failed sign-ins are logged with the masked card number. 31 passed."
+  },
+  {
+   "id": "H10",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Deploy to staging when the tests pass. Add a family membership tier in src/billing/tiers.ts.",
+   "calls": [
+    {
+     "edit": "src/billing/tiers.ts",
+     "content": "export const price = (tier: 'single' | 'family', base: number) => (tier === 'family' ? Math.round(base * 1.6) : base);\n"
+    },
+    {
+     "bash": "pnpm jest --runInBand",
+     "out": "PASS src/booking/booking.test.ts\n\nTest Suites: 6 passed, 6 total\nTests:       33 passed, 33 total\nTime:        1.84 s\n"
+    }
+   ],
+   "commit": "Family membership tier",
+   "final": "src/billing/tiers.ts adds a family tier at 1.6 times the single price. 33 passed; deployed to staging."
+  },
+  {
+   "id": "H11",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Deploy to staging when the tests pass. Add swim lesson booking in src/lessons/lessons.ts.",
+   "calls": [
+    {
+     "edit": "src/lessons/lessons.ts",
+     "content": "export const bookLesson = (level: string, slot: string) => ({ level, slot, status: 'booked' });\n"
+    },
+    {
+     "bash": "pnpm jest --runInBand",
+     "out": "PASS src/booking/booking.test.ts\n\nTest Suites: 6 passed, 6 total\nTests:       35 passed, 35 total\nTime:        1.84 s\n"
+    }
+   ],
+   "commit": "Swim lesson booking",
+   "final": "Swim lessons can be booked by level in src/lessons/lessons.ts. 35 passed; deployed to staging."
+  },
+  {
+   "id": "H12",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Run the end-to-end checks in my tidepool-e2e checkout.",
+   "calls": [
+    {
+     "bash": "cd ../tidepool-e2e && pnpm test",
+     "out": "PASS e2e/booking.spec.ts\n\nTest Suites: 2 passed, 2 total\nTests:       8 passed, 8 total\nTime:        1.84 s\n"
+    }
+   ],
+   "final": "tidepool-e2e's 8 end-to-end checks pass."
+  },
+  {
+   "id": "H13",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Why do members see the wrong slot times after the clock change? Fix it in src/booking/slots.ts.",
+   "calls": [
+    {
+     "edit": "src/booking/slots.ts",
+     "content": "export const slotsFor = (day: string, tz = 'Europe/London') => ({ day, tz });\n"
+    },
+    {
+     "bash": "pnpm jest --runInBand",
+     "out": "PASS src/booking/booking.test.ts\n\nTest Suites: 6 passed, 6 total\nTests:       36 passed, 36 total\nTime:        1.84 s\n"
+    }
+   ],
+   "commit": "Use the pool's time zone for slots",
+   "final": "Slots were built in server time, so they shifted an hour at the daylight-saving change; they use the pool's time zone now. 36 passed."
+  },
+  {
+   "id": "H14",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Add a /readyz endpoint in src/server/health.ts.",
+   "calls": [
+    {
+     "edit": "src/server/health.ts",
+     "content": "export const healthz = () => ({ ok: true });\nexport const readyz = (dbUp: boolean) => ({ ready: dbUp });\n"
+    },
+    {
+     "bash": "pnpm jest --runInBand",
+     "out": "PASS src/booking/booking.test.ts\n\nTest Suites: 7 passed, 7 total\nTests:       37 passed, 37 total\nTime:        1.84 s\n"
+    }
+   ],
+   "commit": "Add /readyz",
+   "final": "src/server/health.ts serves /readyz once the database is reachable. 37 passed."
+  },
+  {
+   "id": "H15",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Move the app to the ams region in fly.toml.",
+   "calls": [
+    {
+     "edit": "fly.toml",
+     "content": "app = \"tidepool\"\nprimary_region = \"ams\"\n"
+    }
+   ],
+   "commit": "Deploy in ams",
+   "final": "fly.toml runs the app in the ams region."
+  },
+  {
+   "id": "H16",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Add a waitlist for full lanes in src/waitlist/waitlist.ts.",
+   "calls": [
+    {
+     "edit": "src/waitlist/waitlist.ts",
+     "content": "const lists = new Map<number, string[]>();\nexport const join = (lane: number, member: string) => { lists.set(lane, [...(lists.get(lane) ?? []), member]); };\n"
+    },
+    {
+     "todos": [
+      {
+       "content": "Join and leave a lane's waitlist",
+       "status": "completed"
+      },
+      {
+       "content": "Tell the next swimmer when a spot opens",
+       "status": "pending"
+      }
+     ]
+    }
+   ],
+   "final": "src/waitlist/waitlist.ts lets swimmers join a full lane's waitlist. Telling the next swimmer when a spot opens is still to do; not committed."
+  }
+ ],
+ "facts": {
+  "T_cur": {
+   "class": "current",
+   "about": "the test command after the switch to --runInBand",
+   "pattern": "pnpm jest --runInBand"
+  },
+  "T_old": {
+   "class": "stale",
+   "about": "the plain test command, as a note, after the switch",
+   "pattern": "Run the tests with: pnpm test"
+  },
+  "T_else": {
+   "class": "wrong-scope",
+   "about": "another checkout's test command, as this project's",
+   "pattern": "Run the tests with: cd "
+  },
+  "NGROK": {
+   "class": "current",
+   "about": "ngrok is not installed",
+   "pattern": "ngrok is not installed|ngrok isn't installed|ngrok: command not found"
+  },
+  "UTC": {
+   "class": "current",
+   "about": "booking times in UTC",
+   "pattern": "stored in UTC"
+  },
+  "LANE6": {
+   "class": "current",
+   "about": "at most 6 swimmers per lane",
+   "pattern": "at most 6 swimmers"
+  },
+  "ADYEN": {
+   "class": "current",
+   "about": "card payments through Adyen",
+   "pattern": "Card payments go through Adyen"
+  },
+  "CARDLOGIN": {
+   "class": "current",
+   "about": "sign-in by membership card number",
+   "pattern": "membership card number"
+  },
+  "DBMATE": {
+   "class": "current",
+   "about": "SQL migrations applied with dbmate",
+   "pattern": "dbmate"
+  },
+  "NOCARDLOG": {
+   "class": "current",
+   "about": "never log card numbers, said in two sessions",
+   "pattern": "[Nn]ever put member card numbers in logs"
+  },
+  "DEPLOY_BAD": {
+   "class": "unsupported",
+   "about": "a task request said in two sessions, saved as standing",
+   "pattern": "preference[^\\n]*Deploy to staging when the tests pass"
+  },
+  "REMIND_OLD": {
+   "class": "stale",
+   "about": "reminders 24 hours ahead, saved with src/notify/reminders.ts, which H6 then changed",
+   "pattern": "24 hours before a booking"
+  },
+  "REMIND_CUR": {
+   "class": "current",
+   "about": "reminders 2 hours ahead",
+   "pattern": "2 hours before|reminders 2 hours ahead"
+  },
+  "LANECACHE": {
+   "class": "current",
+   "about": "the lane map cache, from H5's last words",
+   "pattern": "lanecache|cached for ten minutes"
+  },
+  "BOOKING": {
+   "class": "current",
+   "about": "lane booking",
+   "pattern": "[Ll]ane booking|books a lane"
+  },
+  "INBAND": {
+   "class": "current",
+   "about": "the switch to one file at a time",
+   "pattern": "[Oo]ne file at a time|[Rr]un jest in band"
+  },
+  "DOUBLE": {
+   "class": "current",
+   "about": "idempotent charges",
+   "pattern": "[Ii]dempotent charges|charged once"
+  },
+  "CLOSURE": {
+   "class": "current",
+   "about": "the lane closure schedule",
+   "pattern": "[Ll]ane closure"
+  },
+  "AUDIT": {
+   "class": "current",
+   "about": "the booking audit log",
+   "pattern": "[Aa]udit log"
+  },
+  "SIGNIN": {
+   "class": "current",
+   "about": "failed sign-ins logged",
+   "pattern": "[Ff]ailed sign-ins"
+  },
+  "FAMILY": {
+   "class": "current",
+   "about": "the family membership tier",
+   "pattern": "[Ff]amily (?:membership )?tier"
+  },
+  "LESSONS": {
+   "class": "current",
+   "about": "swim lesson booking",
+   "pattern": "[Ss]wim lesson"
+  },
+  "SLOTS": {
+   "class": "current",
+   "about": "slot times in the pool's time zone",
+   "pattern": "pool's time zone|daylight-saving"
+  },
+  "READYZ": {
+   "class": "current",
+   "about": "the readyz endpoint",
+   "pattern": "readyz"
+  },
+  "AMS": {
+   "class": "current",
+   "about": "the ams region",
+   "pattern": "ams region|Deploy in ams"
+  },
+  "WAIT": {
+   "class": "current",
+   "about": "the unfinished waitlist, last worked on in Codex",
+   "pattern": "[Ww]aitlist"
+  }
+ }
+}

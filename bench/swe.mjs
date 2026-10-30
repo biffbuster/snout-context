@@ -23,7 +23,7 @@
  *   node bench/swe.mjs --select-memory               # memory pilot draw → bench/swe-memory-tasks.json
  *   SWE_TASKS_FILE=bench/swe-memory-tasks.json node bench/swe.mjs --arms plain,enforce,memory   # memory pilot
  *   node bench/swe.mjs --resume bench/ab-results/swe-<ts>.json --n 2 --arms off,map   # rerun infra rows, finish the plan
- *   options: --jobs 2  --budget 2.00 (per session)  --max-spend 40 (whole run)  --keep  --api (bill ANTHROPIC_API_KEY from .env.local)  --min-mem-gb 5.5
+ *   options: --jobs 2  --budget 2.00 (per session)  --max-spend 40 (whole run)  --keep  --api (bill ANTHROPIC_API_KEY from .env.local)  --plan (the operator's Claude plan, via `claude setup-token`)  --min-mem-gb 5.5
  *
  * Docker is checked before the run and after every session: a starved Docker VM (2 GB) wedges
  * the engine, so `python` hangs and sessions measure the hang instead of the agent.
@@ -46,12 +46,20 @@ const MODEL = typeof args.model === "string" ? args.model : "haiku";
 /** --api: bill ANTHROPIC_API_KEY from .env.local instead of the Claude login (real billed cost, no plan usage). */
 const API_KEY = args.api ? (readFileSync(join(fileURLToPath(new URL("..", import.meta.url)), ".env.local"), "utf8").split("\n").find((l) => l.startsWith("ANTHROPIC_API_KEY=")) ?? "").slice("ANTHROPIC_API_KEY=".length).trim() : null;
 if (args.api && !API_KEY) throw new Error("--api: no ANTHROPIC_API_KEY in .env.local");
+/**
+ * --plan: the operator's own Claude subscription, through the token `claude setup-token` prints for
+ * scripted use of Claude Code (CLAUDE_CODE_OAUTH_TOKEN, from the environment or .env.local). The
+ * sessions still run against the empty config folder, so the operator's plugins never reach an arm.
+ * Cost is priced from each transcript at list prices, as with --api; nothing is billed per token.
+ */
+const PLAN_TOKEN = args.plan && !API_KEY ? (process.env.CLAUDE_CODE_OAUTH_TOKEN || (() => { try { return (readFileSync(join(fileURLToPath(new URL("..", import.meta.url)), ".env.local"), "utf8").split("\n").find((l) => l.startsWith("CLAUDE_CODE_OAUTH_TOKEN=")) ?? "").slice("CLAUDE_CODE_OAUTH_TOKEN=".length).trim(); } catch { return ""; } })()) : null;
+if (args.plan && !API_KEY && !PLAN_TOKEN) throw new Error("--plan: run `claude setup-token` and put CLAUDE_CODE_OAUTH_TOKEN=<token> in .env.local");
 const ARMS = (typeof args.arms === "string" ? args.arms : "off,enforce").split(",");
 const BUDGET = String(args.budget ?? "2.00");
 const MAX_SPEND = args["max-spend"] ? Number(args["max-spend"]) : 0; // total for the run; halts, resumable
 // SWE_FAKE_AGENT=1: bench/fake-claude.mjs stands in for Claude Code (free dry run of everything around the agent).
 const FAKE = process.env.SWE_FAKE_AGENT === "1";
-const API_REFUSED = /credit balance|billing|invalid.*api.key|authentication|rate.limit|overloaded|\b(401|403|429|529)\b/i;
+const API_REFUSED = /credit balance|billing|invalid.*api.key|authentication|rate.limit|usage limit|overloaded|\b(401|403|429|529)\b/i;
 const JOBS = Number(args.jobs ?? 2);
 const REPO = fileURLToPath(new URL("..", import.meta.url)).replace(/\/$/, "");
 const SNOUT_BIN = process.env.SNOUT_BIN || join(REPO, "dist/snout.mjs");
@@ -89,11 +97,11 @@ function sweArgs(argv) {
   return argv;
 }
 /**
- * With --api, every session runs against an empty Claude Code config folder: none of the operator's
+ * With --api or --plan, every session runs against an empty Claude Code config folder: none of the operator's
  * own settings, plugins, skills, connectors, memory or history can reach either arm. (Plan login
- * lives in the user's config, so without --api the sessions use it as is.)
+ * lives in the user's config, so without --api or --plan the sessions use it as is.)
  */
-const CLEAN_HOME = API_KEY ? join(homedir(), ".snout-bench", "claude-home") : null;
+const CLEAN_HOME = API_KEY || PLAN_TOKEN ? join(homedir(), ".snout-bench", "claude-home") : null;
 const DATASET = "SWE-bench/SWE-bench_Verified";
 const MIN_MEM_GB = Number(args["min-mem-gb"] ?? 5.5);
 const SESSION_LIMIT_MS = 30 * 60_000;
@@ -149,7 +157,7 @@ export function frozenBuild() {
     ...(FROZEN_COMMIT ? { frozenCopy: SNOUT_BIN } : {}),
     snoutDistSha256: createHash("sha256").update(readFileSync(SNOUT_BIN)).digest("hex"),
     claudeCode: FAKE ? "stand-in (SWE_FAKE_AGENT=1)" : sh(CLAUDE, ["--version"]).stdout.trim(),
-    claudeConfig: CLEAN_HOME ? "isolated (empty CLAUDE_CONFIG_DIR, API key)" : "operator login",
+    claudeConfig: CLEAN_HOME ? `isolated (empty CLAUDE_CONFIG_DIR, ${API_KEY ? "API key" : "plan token"})` : "operator login",
   };
   if (FROZEN_COMMIT) for (const [file, inRepo] of [[SNOUT_BIN, "dist/snout.mjs"], [SNOUT_LIB, "dist/lib.mjs"]]) {
     const committed = spawnSync("git", ["show", `${FROZEN_COMMIT}:${inRepo}`], { cwd: REPO, maxBuffer: 256 << 20 });
@@ -530,7 +538,7 @@ export function launchClaude(dir, argv, { env: extra = {}, goldPatch, limitMs = 
     const path = Object.entries(process.env).find(([k]) => k.toUpperCase() === "PATH")?.[1] ?? "";
     if (CLEAN_HOME) mkdirSync(CLEAN_HOME, { recursive: true });
     const [bin, args] = FAKE ? [process.execPath, [join(REPO, "bench/fake-claude.mjs"), ...argv]] : [CLAUDE, argv];
-    const child = spawn(bin, args, { cwd: dir, env: { ...env, ...(FAKE && goldPatch ? { SWE_FAKE_PATCH: goldPatch } : {}), SNOUT_MODE: "", DISABLE_AUTOUPDATER: "1", ...extra, [WIN ? "Path" : "PATH"]: `${join(dir, ".bin")}${delimiter}${path}`, ...(API_KEY ? { ANTHROPIC_API_KEY: API_KEY } : {}), ...(CLEAN_HOME ? { CLAUDE_CONFIG_DIR: CLEAN_HOME } : {}) }, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(bin, args, { cwd: dir, env: { ...env, ...(FAKE && goldPatch ? { SWE_FAKE_PATCH: goldPatch } : {}), SNOUT_MODE: "", DISABLE_AUTOUPDATER: "1", ...extra, [WIN ? "Path" : "PATH"]: `${join(dir, ".bin")}${delimiter}${path}`, ...(API_KEY ? { ANTHROPIC_API_KEY: API_KEY } : {}), ...(PLAN_TOKEN ? { CLAUDE_CODE_OAUTH_TOKEN: PLAN_TOKEN, ANTHROPIC_API_KEY: "" } : {}), ...(CLEAN_HOME ? { CLAUDE_CONFIG_DIR: CLEAN_HOME } : {}) }, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "", stderr = "";
     child.stdout.on("data", (d) => (stdout += d));
     child.stderr.on("data", (d) => (stderr += d));

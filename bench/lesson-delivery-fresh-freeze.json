@@ -1,0 +1,16 @@
+{
+  "frozenAt": "2026-10-30T18:13:22.767Z",
+  "criteria": {
+    "minAnswerRate": 0.9,
+    "maxWrong": 0,
+    "maxUnanswerableShown": 0,
+    "maxItemsPerPrompt": 3,
+    "maxMedianTokens": 150
+  },
+  "files": {
+    "bench/lesson-delivery-fresh.json": "cc68a0418389346e84bf91f3823beae42c82b64a81110a52c88c5ce6a4be4d6f",
+    "bench/lesson-delivery-safety.mjs": "e1ac4dbf9dba1ea5dbc3c0ccb78d2572249fe2326a7b9fde09365a30cfc8f946",
+    "dist/snout.mjs": "ef60d1551416980758383beb357939bf0f8f944dfcd59504f097fb8f7651f065",
+    "dist/lib.mjs": "3cac5c2978054721b127e93799779f79da862fee1c3776fba99a7972abb37852"
+  }
+}
