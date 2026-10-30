@@ -1,0 +1,214 @@
+{
+  "about": "Gate 3, seventh unseen check (larger): written and frozen on 2026-10-26 before round 8 (five ranking and consistency fixes), and run once after them. A Python photo-sharing API with a Celery worker, tested with pytest.",
+  "project": {
+    "name": "lumen",
+    "files": {
+      ".gitignore": ".snout/\n__pycache__/\n",
+      "pyproject.toml": "[project]\nname = \"lumen\"\nversion = \"0.8.0\"\ndependencies = [\"flask\", \"celery\", \"pillow\", \"boto3\"]\n\n[project.optional-dependencies]\ndev = [\"pytest>=8\", \"pytest-xdist\"]\n",
+      "app/__init__.py": "",
+      "app/photos.py": "def upload(f):\n    return {'ok': True}\n",
+      "app/thumbs.py": "from PIL import Image\n\ndef thumb(path):\n    return Image.open(path).resize((320, 320))\n",
+      "app/tasks.py": "from celery import Celery\napp = Celery('lumen')\n",
+      "app/ids.py": "import uuid\n\ndef new_id():\n    return uuid.uuid4()\n",
+      "app/i18n.py": "import gettext\n_ = gettext.gettext\n",
+      "app/flags.py": "FLAGS = {}\n",
+      "app/exif.py": "def strip(meta):\n    return {}\n",
+      "app/albums.py": "def album(photos):\n    return photos\n",
+      "app/storage.py": "import boto3\nclient = boto3.client('s3')\n",
+      "tests/test_photos.py": "def test_upload():\n    assert True\n"
+    }
+  },
+  "steps": [
+    {
+      "id": "L1", "type": "session", "agent": "claude",
+      "prompt": "Add an endpoint to upload photos in app/photos.py and make sure the tests pass.",
+      "calls": [
+        { "edit": "app/photos.py", "content": "def upload(f):\n    return {'ok': True, 'name': f.filename}\n" },
+        { "bash": "pytest -q", "out": ".....................................                                    [100%]\n37 passed in 1.21s\n" }
+      ],
+      "commit": "Add photo upload endpoint",
+      "final": "app/photos.py has an upload endpoint. pytest -q: 37 passed."
+    },
+    {
+      "id": "L2", "type": "session", "agent": "codex",
+      "prompt": "Thumbnails come out rotated for phone photos; fix it in app/thumbs.py.",
+      "calls": [
+        { "edit": "app/thumbs.py", "content": "from PIL import Image, ImageOps\n\ndef thumb(path):\n    return ImageOps.exif_transpose(Image.open(path)).resize((320, 320))\n" },
+        { "bash": "pytest -q", "out": "38 passed in 1.25s\n" }
+      ],
+      "commit": "Respect EXIF orientation in thumbnails",
+      "final": "Phone photos carry their rotation in EXIF orientation; thumbs now apply it before resizing. 38 passed."
+    },
+    {
+      "id": "L3", "type": "session", "agent": "claude",
+      "prompt": "Start the background worker with celery.",
+      "calls": [
+        { "bash": "celery -A app.tasks worker", "out": "bash: celery: command not found\n" },
+        { "bash": "python -m celery -A app.tasks worker --help", "out": "Usage: python -m celery worker [OPTIONS]\n" }
+      ],
+      "final": "Bare celery isn't on PATH; python -m celery -A app.tasks worker starts it."
+    },
+    {
+      "id": "L4", "type": "session", "agent": "codex",
+      "prompt": "Resize the sample images with ImageMagick.",
+      "calls": [
+        { "bash": "magick mogrify -resize 50% samples/*.jpg", "out": "bash: magick: command not found\n" }
+      ],
+      "final": "ImageMagick isn't installed here (magick: command not found), so the samples weren't resized."
+    },
+    { "id": "M1", "type": "cli", "args": ["memory", "add", "Image files are stored in S3 under photos/<user_id>/<photo_id>; never on local disk.", "--kind", "convention"] },
+    { "id": "M2", "type": "cli", "args": ["memory", "add", "Photo ids are UUIDv7 values generated in app/ids.py.", "--kind", "decision"] },
+    { "id": "M3", "type": "cli", "args": ["memory", "add", "Thumbnails are 320 pixels on the long edge.", "--kind", "decision"] },
+    { "id": "M4", "type": "cli", "args": ["memory", "add", "Background tasks are Celery tasks in app/tasks.py with acks_late enabled.", "--kind", "convention"] },
+    { "id": "M5", "type": "cli", "args": ["memory", "add", "User-facing strings go through gettext in app/i18n.py.", "--kind", "convention"] },
+    { "id": "M6", "type": "cli", "args": ["memory", "add", "Uploads larger than 25 MB are rejected with HTTP 413.", "--kind", "decision"] },
+    { "id": "M7", "type": "cli", "args": ["memory", "add", "Feature flags are read from app/flags.py, never from environment variables directly.", "--kind", "convention"] },
+    {
+      "id": "L5", "type": "session", "agent": "claude",
+      "prompt": "Add rate limiting to the upload endpoint in app/photos.py.",
+      "calls": [
+        { "edit": "app/photos.py", "content": "LIMIT = 30\n\ndef upload(f, recent=0):\n    if recent > LIMIT:\n        return {'error': 'rate limited'}, 429\n    return {'ok': True, 'name': f.filename}\n" },
+        { "bash": "pytest -q", "out": "40 passed in 1.30s\n" }
+      ],
+      "commit": "Rate limit uploads",
+      "final": "Uploads are limited to 30 a minute per user in app/photos.py, answering 429 past that. 40 passed."
+    },
+    {
+      "id": "L6", "type": "session", "agent": "claude",
+      "prompt": "Remember how we strip metadata from uploads.",
+      "mcp": [
+        { "tool": "snout_memory_save", "args": { "text": "Uploads have all EXIF metadata stripped in app/exif.py before storage.", "kind": "fact", "user_asked": true, "files": ["app/exif.py"] } }
+      ],
+      "calls": [],
+      "final": "Saved: uploads have all EXIF metadata stripped in app/exif.py before storage."
+    },
+    {
+      "id": "L7", "type": "session", "agent": "codex",
+      "prompt": "Keep the camera model metadata but still strip GPS in app/exif.py.",
+      "calls": [
+        { "edit": "app/exif.py", "content": "def strip(meta):\n    return {k: v for k, v in meta.items() if k == 'Model'}\n" },
+        { "bash": "pytest -q", "out": "41 passed in 1.31s\n" }
+      ],
+      "commit": "Keep camera model, strip GPS only",
+      "final": "app/exif.py keeps the camera model and drops GPS and everything else. 41 passed."
+    },
+    {
+      "id": "L8", "type": "session", "agent": "claude",
+      "prompt": "Run the tests in parallel with pytest-xdist from now on.",
+      "calls": [
+        { "edit": "pyproject.toml", "content": "[project]\nname = \"lumen\"\nversion = \"0.8.0\"\ndependencies = [\"flask\", \"celery\", \"pillow\", \"boto3\"]\n\n[project.optional-dependencies]\ndev = [\"pytest>=8\", \"pytest-xdist\"]\n\n[tool.pytest.ini_options]\naddopts = \"-n auto\"\n" },
+        { "bash": "pytest -q -n auto", "out": "8 workers [41 items]\n.........................................                                [100%]\n41 passed in 0.82s\n" }
+      ],
+      "commit": "Run tests in parallel with xdist",
+      "final": "pytest runs with -n auto (pytest-xdist) now. 41 passed in 0.8 s."
+    },
+    { "id": "M8", "type": "cli", "args": ["memory", "add", "Thumbnails are now 480 pixels on the long edge instead of 320.", "--kind", "decision"] },
+    {
+      "id": "L9", "type": "session", "agent": "claude",
+      "prompt": "Push when the tests pass. Never log full image URLs; they contain signed tokens. Add album sharing links in app/albums.py.",
+      "calls": [
+        { "edit": "app/albums.py", "content": "import secrets\n\ndef album(photos):\n    return photos\n\ndef share_link(album_id):\n    return f'/a/{album_id}/{secrets.token_urlsafe(16)}'\n" },
+        { "bash": "pytest -q -n auto", "out": "43 passed in 0.85s\n" }
+      ],
+      "commit": "Album sharing links",
+      "final": "app/albums.py makes sharing links with a random token. 43 passed; pushed."
+    },
+    {
+      "id": "L10", "type": "session", "agent": "codex",
+      "prompt": "Push when the tests pass. Never log full image URLs; they contain signed tokens. Add a caption length limit in app/photos.py.",
+      "calls": [
+        { "edit": "app/photos.py", "content": "LIMIT = 30\nCAPTION_MAX = 500\n\ndef upload(f, recent=0, caption=''):\n    if recent > LIMIT:\n        return {'error': 'rate limited'}, 429\n    return {'ok': True, 'name': f.filename, 'caption': caption[:CAPTION_MAX]}\n" },
+        { "bash": "pytest -q -n auto", "out": "44 passed in 0.86s\n" }
+      ],
+      "commit": "Limit captions to 500 characters",
+      "final": "Captions are cut at 500 characters in app/photos.py. 44 passed; pushed."
+    },
+    {
+      "id": "L11", "type": "session", "agent": "claude",
+      "prompt": "Run the load tests in my lumen-load checkout.",
+      "calls": [
+        { "bash": "cd ../lumen-load && pytest -q", "out": "9 passed in 3.40s\n" }
+      ],
+      "final": "lumen-load's 9 tests pass against this build."
+    },
+    {
+      "id": "L12", "type": "session", "agent": "codex",
+      "prompt": "Do not merge this yet. Fix duplicate thumbnails when the same photo is uploaded twice, in app/thumbs.py.",
+      "calls": [
+        { "edit": "app/thumbs.py", "content": "import hashlib\nfrom PIL import Image, ImageOps\n\ndef thumb(path):\n    key = hashlib.sha256(open(path, 'rb').read()).hexdigest()\n    return key, ImageOps.exif_transpose(Image.open(path)).resize((320, 320))\n" },
+        { "bash": "pytest -q -n auto", "out": "45 passed in 0.88s\n" }
+      ],
+      "commit": "Dedupe thumbnails by content hash",
+      "final": "Thumbnails are keyed by the photo's content hash, so a second upload of the same photo reuses the first. 45 passed; not merged."
+    },
+    {
+      "id": "L13", "type": "session", "agent": "claude",
+      "prompt": "Why do deleted photos still show in albums? Fix it in app/albums.py.",
+      "calls": [
+        { "edit": "app/albums.py", "content": "import secrets\n\ndef album(photos):\n    return [p for p in photos if not p.get('deleted_at')]\n\ndef share_link(album_id):\n    return f'/a/{album_id}/{secrets.token_urlsafe(16)}'\n" },
+        { "bash": "pytest -q -n auto", "out": "46 passed in 0.90s\n" }
+      ],
+      "commit": "Hide deleted photos from albums",
+      "final": "Albums listed soft-deleted photos; album() filters out anything with deleted_at now. 46 passed."
+    },
+    {
+      "id": "L14", "type": "session", "agent": "codex",
+      "prompt": "Switch the S3 client to a boto3 session per request in app/storage.py.",
+      "calls": [
+        { "edit": "app/storage.py", "content": "import boto3\n\ndef client():\n    return boto3.session.Session().client('s3')\n" },
+        { "bash": "pytest -q -n auto", "out": "46 passed in 0.91s\n" }
+      ],
+      "commit": "Per-request boto3 sessions",
+      "final": "app/storage.py makes a boto3 session per request; the shared client wasn't thread-safe. 46 passed."
+    },
+    {
+      "id": "L15", "type": "session", "agent": "claude",
+      "prompt": "Add a /healthz endpoint in app/health.py.",
+      "calls": [
+        { "edit": "app/health.py", "content": "def healthz():\n    return {'ok': True}\n" },
+        { "bash": "pytest -q -n auto", "out": "47 passed in 0.92s\n" }
+      ],
+      "commit": "Add /healthz",
+      "final": "app/health.py serves /healthz. 47 passed."
+    },
+    {
+      "id": "L16", "type": "session", "agent": "claude",
+      "prompt": "Add face blurring to uploads in app/blur.py.",
+      "calls": [
+        { "edit": "app/blur.py", "content": "def blur_faces(img, boxes):\n    return img\n" },
+        { "todos": [{ "content": "Blur detected boxes", "status": "completed" }, { "content": "Add tests for images with no faces", "status": "pending" }] }
+      ],
+      "final": "app/blur.py blurs the given face boxes. Tests for images with no faces are still to do; not committed."
+    }
+  ],
+  "facts": {
+    "T_cur": { "class": "current", "about": "the test command", "pattern": "pytest -q -n auto" },
+    "T_old": { "class": "stale", "about": "the test command before xdist, as a note", "pattern": "Run the tests with: pytest -q(?! -n)" },
+    "T_else": { "class": "wrong-scope", "about": "another checkout's test command, as this project's", "pattern": "Run the tests with: cd " },
+    "MAGICK": { "class": "current", "about": "magick is not installed", "pattern": "magick is not installed|magick: command not found|ImageMagick isn't installed" },
+    "CELERY_BAD": { "class": "unsupported", "about": "celery reported missing, though it is a dependency and python -m celery works", "pattern": "celery is not installed" },
+    "S3": { "class": "current", "about": "image storage in S3", "pattern": "photos/<user_id>/<photo_id>" },
+    "IDS": { "class": "current", "about": "photo ids", "pattern": "UUIDv7" },
+    "THUMB_OLD": { "class": "stale", "about": "320-pixel thumbnails, replaced by M8", "pattern": "Thumbnails are 320 pixels" },
+    "THUMB_CUR": { "class": "current", "about": "480-pixel thumbnails", "pattern": "480 pixels" },
+    "TASKS": { "class": "current", "about": "Celery task convention", "pattern": "acks_late" },
+    "I18N": { "class": "current", "about": "user-facing strings through gettext", "pattern": "gettext" },
+    "LIMIT": { "class": "current", "about": "upload size limit", "pattern": "25 MB" },
+    "FLAGS": { "class": "current", "about": "feature flags convention", "pattern": "app/flags\\.py" },
+    "EXIF_NOTE": { "class": "stale", "about": "all EXIF stripped, saved with app/exif.py, which L7 then changed", "pattern": "all EXIF metadata stripped" },
+    "EXIF_CHANGE": { "class": "current", "about": "keep camera model, strip GPS", "pattern": "[Kk]eep (?:the )?camera model" },
+    "NOLOG": { "class": "current", "about": "never log full image URLs, said in two sessions", "pattern": "[Nn]ever log full image URLs" },
+    "PUSH_BAD": { "class": "unsupported", "about": "a task request said in two sessions, saved as standing", "pattern": "preference[^\\n]*Push when the tests pass" },
+    "UPLOAD": { "class": "current", "about": "the upload endpoint", "pattern": "[Pp]hoto upload endpoint|endpoint to upload photos" },
+    "EXIF": { "class": "current", "about": "the rotated thumbnails fix", "pattern": "EXIF orientation" },
+    "RATELIMIT": { "class": "current", "about": "upload rate limiting", "pattern": "[Rr]ate limit uploads|rate limiting to the upload" },
+    "XDIST_MOVE": { "class": "current", "about": "when tests moved to xdist", "pattern": "xdist" },
+    "ALBUM": { "class": "current", "about": "album sharing links", "pattern": "[Aa]lbum sharing" },
+    "CAPTION": { "class": "current", "about": "the caption length limit", "pattern": "[Cc]aption" },
+    "DEDUPE": { "class": "current", "about": "deduplicated thumbnails", "pattern": "[Dd]edupe thumbnails|duplicate thumbnails" },
+    "DELETED": { "class": "current", "about": "deleted photos hidden from albums", "pattern": "[Hh]ide deleted photos|deleted photos still show" },
+    "BOTO": { "class": "current", "about": "per-request boto3 sessions", "pattern": "boto3 session" },
+    "HEALTH": { "class": "current", "about": "the healthz endpoint", "pattern": "healthz" },
+    "BLUR": { "class": "current", "about": "the unfinished face blurring", "pattern": "[Ff]ace blurring|no faces" }
+  }
+}

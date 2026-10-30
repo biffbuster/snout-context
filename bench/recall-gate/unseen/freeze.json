@@ -1,0 +1,22 @@
+{
+  "frozenAt": "2026-10-26T16:03:05.861Z",
+  "files": {
+    "bench/recall-gate/unseen/history.json": "8cd4fa92564861fe1193d37bb8be856f40f331bdfa0e72150e8d072d0d7ee896",
+    "bench/recall-gate/unseen/prompts.json": "53e34b95b048ed1c9308aa20e68900cba96a2edb54efceb7d1738cbff158510b",
+    "bench/recall-gate.mjs": "ec0980eb2840b5d1319dae19ea1922af570e9a2a6af0f4b9d78a81df6806b89a"
+  },
+  "refrozen": [
+    "Refrozen 2026-10-26 before round 4: bench/recall-gate.mjs pins PATH to git alone (so a tool the history scripts as missing is missing on any machine) and refuses to run otherwise. Inputs and scoring are unchanged.",
+    "Refrozen 2026-10-26 before round 6: bench/recall-gate.mjs gained --semantic (the optional local model, served on a port of the run's own) and records each path's time per call. Inputs and scoring are unchanged."
+  ],
+  "previous": [
+    {
+      "frozenAt": "2026-10-26T13:44:45.567Z",
+      "bench/recall-gate.mjs": "3c3c11c9b3375634a2f3a207a187b0a0cf67850a1f71c8091eb5724fa6069c5b"
+    },
+    {
+      "frozenAt": "2026-10-26T14:26:27.788Z",
+      "bench/recall-gate.mjs": "dd46aab0440954c0670d17b5efe72b4bc627fe51f193e1012251e20985424881"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+[
+  {"vessel_id": "v1", "berth": "A3", "start": "2026-09-02T08:00", "end": "2026-09-02T18:30", "rate_cents_per_hour": 11760},
+  {"vessel_id": "v2", "berth": "B1", "start": "2026-09-05T09:00", "end": "2026-09-05T12:00", "rate_cents_per_hour": 4550},
+  {"vessel_id": "v4", "berth": "A1", "start": "2026-09-12T06:00", "end": "2026-09-14T06:00", "rate_cents_per_hour": 15800},
+  {"vessel_id": "v1", "berth": "A3", "start": "2026-09-20T07:00", "end": "2026-09-20T11:00", "rate_cents_per_hour": 11760},
+  {"vessel_id": "v3", "berth": "C2", "start": "2026-08-28T10:00", "end": "2026-08-28T16:00", "rate_cents_per_hour": 6100}
+]

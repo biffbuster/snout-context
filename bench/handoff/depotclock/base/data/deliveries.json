@@ -1,0 +1,9 @@
+[
+  { "id": "d-1001", "depot": "OSL", "driver": "ingrid", "finishedAt": "2026-10-19T09:12:00Z" },
+  { "id": "d-1002", "depot": "OSL", "driver": "ingrid", "finishedAt": "2026-10-19T13:40:00Z" },
+  { "id": "d-1003", "depot": "YYZ", "driver": "marc", "finishedAt": "2026-10-19T15:05:00Z" },
+  { "id": "d-1004", "depot": "YYZ", "driver": "marc", "finishedAt": "2026-10-20T02:30:00Z" },
+  { "id": "d-1005", "depot": "SYD", "driver": "tash", "finishedAt": "2026-10-19T23:20:00Z" },
+  { "id": "d-1006", "depot": "SYD", "driver": "tash", "finishedAt": "2026-10-20T04:45:00Z" },
+  { "id": "d-1007", "depot": "OSL", "driver": "per", "finishedAt": "2026-10-20T10:00:00Z" }
+]

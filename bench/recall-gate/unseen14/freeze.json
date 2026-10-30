@@ -1,0 +1,8 @@
+{
+  "frozenAt": "2026-10-27T22:19:37.792Z",
+  "files": {
+    "bench/recall-gate/unseen14/history.json": "84deb97f2b4c40f0caf442e4dc68387fbabff89858cb1a6dbf3d154d4ef72824",
+    "bench/recall-gate/unseen14/prompts.json": "b8d3bd7a34282de10e132955546e325e693ebea5c45e31eb864491cb4c6c128c",
+    "bench/recall-gate.mjs": "ec0980eb2840b5d1319dae19ea1922af570e9a2a6af0f4b9d78a81df6806b89a"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "about": "Gate 3, second unseen check: prompts for unseen2/history.json, scored exactly as the main set (see ../prompts.json).",
+  "prompts": [
+    { "id": "R01", "prompt": "Add a test for the --dry-run flag and run the tests.", "query": "run tests", "delivery": ["T_cur"], "recall": "any", "search": ["T_cur"] },
+    { "id": "R02", "prompt": "How do I run the test suite here?", "query": "test command", "delivery": ["T_cur"], "recall": "any", "search": ["T_cur"] },
+    { "id": "R03", "prompt": "Use make to run the lint target.", "query": "make lint", "delivery": ["MAKE"], "recall": "any", "search": ["MAKE"] },
+    { "id": "R04", "prompt": "Format src/sync.rs with rustfmt.", "query": "rustfmt", "delivery": "any", "recall": "any", "search": "any" },
+    { "id": "R05", "prompt": "What delay do retries use?", "query": "retry delay", "delivery": ["RETRY_CUR"], "recall": "any", "search": ["RETRY_CUR"] },
+    { "id": "R06", "prompt": "Add a retry to the upload step with the usual backoff.", "query": "retry backoff", "delivery": ["RETRY_CUR"], "recall": "any", "search": ["RETRY_CUR"] },
+    { "id": "R07", "prompt": "How should errors be handled in new code?", "query": "error handling", "delivery": ["ERR"], "recall": "any", "search": ["ERR"] },
+    { "id": "R08", "prompt": "Does sync still use a lock file in src/sync.rs?", "query": "sync lock", "delivery": "any", "recall": ["LOCK_CUR"], "search": ["LOCK_CUR"] },
+    { "id": "R09", "prompt": "When did we start testing the whole workspace?", "query": "workspace tests", "delivery": "any", "recall": ["WS"], "search": ["T_cur", "WS"] },
+    { "id": "R10", "prompt": "How did we cap the retries?", "query": "cap retries", "delivery": "any", "recall": ["CAP"], "search": ["CAP"] },
+    { "id": "R11", "prompt": "Continue where the last session left off.", "query": "progress bar", "delivery": ["PROGRESS"], "recall": "any", "search": ["PROGRESS"] },
+    { "id": "R12", "prompt": "Fix the changelog entry for the retry fix.", "query": "changelog", "delivery": ["CHANGELOG"], "recall": "any", "search": ["CHANGELOG"] },
+    { "id": "R13", "prompt": "Commit the fix when the tests pass.", "query": "commit fix", "delivery": "any", "recall": "any", "search": "any" },
+    { "id": "R14", "prompt": "Add a Windows installer.", "query": "windows installer", "delivery": "silent", "recall": "silent", "search": "silent" },
+    { "id": "R15", "prompt": "Write a man page for the CLI.", "query": "man page", "delivery": "silent", "recall": "silent", "search": "silent" },
+    { "id": "R16", "prompt": "Use bazel to build the project.", "query": "bazel build", "delivery": "silent", "recall": "silent", "search": "silent" },
+    { "id": "R17", "prompt": "Why does the TUI flicker on resize?", "query": "tui flicker resize", "delivery": "silent", "recall": "silent", "search": "silent" },
+    { "id": "R18", "prompt": "Add OAuth login.", "query": "oauth login", "delivery": "silent", "recall": "silent", "search": "silent" }
+  ]
+}

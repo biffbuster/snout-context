@@ -1,0 +1,113 @@
+diff --git a/packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts b/packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts
+index 59c45c93b16a9c..7b91e6d4bb06cf 100644
+--- a/packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts
++++ b/packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts
+@@ -777,6 +777,63 @@ function c({ _ = bar() + foo() }) {}
+   `)
+ })
+ 
++// #23232
++test('function argument destructure with a default parameter', async () => {
++  expect(
++    await ssrTransformSimpleCode(
++      `
++import { key } from 'foo'
++function noParameterDefault({ [key]: value = null }) {}
++function declaration({ [key]: value = null } = {}) {}
++function compound({ [key.name]: value } = {}) {}
++const arrow = ({ [key]: value = null } = {}) => {}
++function nested({ a: { [key]: value } = {} } = {}) {}
++function array([{ [key]: value } = {}] = []) {}
++class Foo { method({ [key]: value } = {}) {} }
++`,
++    ),
++  ).toMatchInlineSnapshot(`
++    "const __vite_ssr_import_0__ = await __vite_ssr_import__("foo", {"importedNames":["key"]});
++
++
++    function noParameterDefault({ [__vite_ssr_import_0__.key]: value = null }) {}
++    function declaration({ [__vite_ssr_import_0__.key]: value = null } = {}) {}
++    function compound({ [__vite_ssr_import_0__.key.name]: value } = {}) {}
++    const arrow = ({ [__vite_ssr_import_0__.key]: value = null } = {}) => {};
++    function nested({ a: { [__vite_ssr_import_0__.key]: value } = {} } = {}) {}
++    function array([{ [__vite_ssr_import_0__.key]: value } = {}] = []) {}
++    class Foo { method({ [__vite_ssr_import_0__.key]: value } = {}) {} }
++    "
++  `)
++})
++
++test('function argument destructure with a default parameter preserves shadowing', async () => {
++  expect(
++    await ssrTransformSimpleCode(
++      `
++import { key } from 'foo'
++function shorthand({ key } = {}) { return key }
++function aliased({ prop: key } = {}) { return key }
++function defaulted({ key = 'default' } = {}) { return key }
++function array([key] = []) { return key }
++function plain(key) { return key }
++console.log(key)
++`,
++    ),
++  ).toMatchInlineSnapshot(`
++    "const __vite_ssr_import_0__ = await __vite_ssr_import__("foo", {"importedNames":["key"]});
++
++
++    function shorthand({ key } = {}) { return key }
++    function aliased({ prop: key } = {}) { return key }
++    function defaulted({ key = 'default' } = {}) { return key }
++    function array([key] = []) { return key }
++    function plain(key) { return key }
++    console.log((0,__vite_ssr_import_0__.key))
++    "
++  `)
++})
++
+ test('object destructure alias', async () => {
+   expect(
+     await ssrTransformSimpleCode(
+diff --git a/packages/vite/src/node/ssr/ssrTransform.ts b/packages/vite/src/node/ssr/ssrTransform.ts
+index 65a5c67da7905d..22a42801679df4 100644
+--- a/packages/vite/src/node/ssr/ssrTransform.ts
++++ b/packages/vite/src/node/ssr/ssrTransform.ts
+@@ -575,38 +575,8 @@ function walk(
+         if (node.type === 'FunctionExpression' && node.id) {
+           setScope(node, node.id.name)
+         }
+-        // walk function expressions and add its arguments to known identifiers
+-        // so that we don't prefix them
+-        node.params.forEach((p) => {
+-          if (p.type === 'ObjectPattern' || p.type === 'ArrayPattern') {
+-            handlePattern(p, node)
+-            return
+-          }
+-          ;(eswalk as any)(p.type === 'AssignmentPattern' ? p.left : p, {
+-            enter(child: ESTree.Node, parent: ESTree.Node | undefined) {
+-              // skip params default value of destructure
+-              if (
+-                parent?.type === 'AssignmentPattern' &&
+-                parent.right === child
+-              ) {
+-                return this.skip()
+-              }
+-              if (child.type !== 'Identifier') return
+-              // do not record as scope variable if is a destructuring keyword
+-              if (isStaticPropertyKey(child, parent)) return
+-              // do not record if this is a default value
+-              // assignment of a destructuring variable
+-              if (
+-                (parent?.type === 'TemplateLiteral' &&
+-                  parent.expressions.includes(child as ESTree.Expression)) ||
+-                (parent?.type === 'CallExpression' && parent.callee === child)
+-              ) {
+-                return
+-              }
+-              setScope(node, child.name)
+-            },
+-          })
+-        })
++        // add function arguments to known identifiers so that we don't prefix them
++        node.params.forEach((p) => handlePattern(p, node))
+       } else if (node.type === 'ClassDeclaration') {
+         // A class declaration name could shadow an import, so add its name to the parent scope
+         const parentScope = findParentScope(parentStack)

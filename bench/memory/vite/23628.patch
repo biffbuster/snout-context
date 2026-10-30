@@ -1,0 +1,73 @@
+diff --git a/packages/vite/src/node/__tests__/html.spec.ts b/packages/vite/src/node/__tests__/html.spec.ts
+index 906a20fbfe6e40..0eff4742628c20 100644
+--- a/packages/vite/src/node/__tests__/html.spec.ts
++++ b/packages/vite/src/node/__tests__/html.spec.ts
+@@ -229,6 +229,32 @@ describe('getCssFilesForChunk', () => {
+     ])
+   })
+ 
++  test('chunk reached through an import cycle is not cached with a partial list (#23628)', () => {
++    //   index        dashboard
++    //     |              |
++    //   shared  <-->  feature
++    const shared = createChunk('shared.js', ['feature.js'], ['shared.css'])
++    const feature = createChunk('feature.js', ['shared.js'], ['feature.css'])
++    const index = createChunk('index.js', ['shared.js'], ['index.css'])
++    const dashboard = createChunk(
++      'dashboard.js',
++      ['feature.js'],
++      ['dashboard.css'],
++    )
++    const bundle = createBundle(index, dashboard, shared, feature)
++    const cache = new Map<OutputChunk, string[]>()
++    expect(getCssFilesForChunk(index, bundle, cache)).toStrictEqual([
++      'feature.css',
++      'shared.css',
++      'index.css',
++    ])
++    expect(getCssFilesForChunk(dashboard, bundle, cache)).toStrictEqual([
++      'shared.css',
++      'feature.css',
++      'dashboard.css',
++    ])
++  })
++
+   test('circular imports do not cause infinite loop', () => {
+     const a = createChunk('a.js', ['b.js'], ['a.css'])
+     const b = createChunk('b.js', ['a.js'], ['b.css'])
+diff --git a/packages/vite/src/node/plugins/html.ts b/packages/vite/src/node/plugins/html.ts
+index 02dd6de33389e6..d1c41fa266e3d7 100644
+--- a/packages/vite/src/node/plugins/html.ts
++++ b/packages/vite/src/node/plugins/html.ts
+@@ -392,6 +392,7 @@ export function getCssFilesForChunk(
+   // Collect all CSS from imports (unfiltered for caching, filtered for return)
+   const allFiles: string[] = []
+   const filteredFiles: string[] = []
++  let complete = true
+   chunk.imports.forEach((file) => {
+     const importee = bundle[file]
+     if (importee?.type === 'chunk') {
+@@ -407,7 +408,11 @@ export function getCssFilesForChunk(
+       if (analyzedImportedCssFiles.has(importee)) {
+         allFiles.push(...analyzedImportedCssFiles.get(importee)!)
+       } else {
+-        allFiles.push(...importeeCss)
++        // The importee is still being analyzed (an import cycle), so its CSS
++        // is not known yet. The returned list is still right for this entry,
++        // which adds the importee's CSS further up the walk, but it must not
++        // be cached for other entries.
++        complete = false
+       }
+     }
+   })
+@@ -420,7 +425,9 @@ export function getCssFilesForChunk(
+     }
+   })
+ 
+-  analyzedImportedCssFiles.set(chunk, unique(allFiles))
++  if (complete) {
++    analyzedImportedCssFiles.set(chunk, unique(allFiles))
++  }
+ 
+   return filteredFiles
+ }

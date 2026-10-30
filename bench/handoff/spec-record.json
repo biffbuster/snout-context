@@ -1,0 +1,83 @@
+{
+  "name": "Cross-agent handoff check: a decision only in the record",
+  "written": "2026-10-28",
+  "purpose": "The first check (spec.json) put the needed fact in the giver's code as well as its record, and neither receiver searched. Here the decision the receiver needs was given by the user in the giver's session and is not in the project: does the receiver search, find the cited decision, and use it correctly? Snout's on arm now includes the session-start hint (memoryHint): when other sessions are on record, one line says so and how to search them, with nothing from the records.",
+  "settings": {
+    "claudeCode": "2.1.306",
+    "codex": "0.163.0",
+    "claudeModel": "claude-sonnet-5-5",
+    "codexModel": "gpt-6.1-sol",
+    "codexEffort": "low",
+    "budgetUsd": "2.00",
+    "limitMinutes": 30
+  },
+  "arms": {
+    "giver": "search: Snout's hooks in enforce (trimming), memory on so the session is recorded, automatic notes off, the session-start hint on, and Snout's MCP server with snout_memory_search and snout_memory_fetch only. The store starts empty, so the giver gets no hint.",
+    "on": "search, as the giver, on a copy of the giver's store: one record, so the receiver's session starts with the hint.",
+    "off": "plain: Claude Code with no Snout at all; Codex with Snout's hooks in observe on an empty store, memory off, no MCP server, no hint."
+  },
+  "order": "Per direction: giver, then the receiver with Snout on, then the receiver with Snout off. Claude Code to Codex first, then Codex to Claude Code.",
+  "directions": [
+    {
+      "id": "record-claude-to-codex",
+      "project": "berthbook",
+      "language": "python",
+      "giver": "claude",
+      "receiver": "codex",
+      "remote": "https://git.example.com/harbour/berthbook.git",
+      "giverPrompt": "Finance sent their export rules. Invoices: CSV with semicolons and a decimal comma, two decimals, no thousands separator. Fuel sales, for the supplier's portal: tab-separated, litres with three decimals and a decimal point, amounts in whole cents. Add `berthbook export-invoices <YYYY-MM>` now (header invoice;vessel;amount, one row per invoice) and leave fuel for later. Add tests and run the suite.",
+      "receiverPrompt": "Add the fuel sales export for the supplier's portal: a `berthbook export-fuel <YYYY-MM>` command that writes it to standard output, with a header row and then one row per vessel that bought fuel that month, sorted by vessel name, with the columns vessel, litres and amount (the vessel's totals for the month), in the format finance gave us for it. Run the tests before you finish.",
+      "expectedFact": "The portal format finance gave in the giver's session: tab-separated, litres with three decimals and a decimal point, amounts in whole cents. The project has only the invoice format (semicolons, decimal comma), which is the wrong one to copy.",
+      "recordPattern": "tab-separated|whole cents|three decimals",
+      "repoPattern": "tab[- ]separated|whole cents|three decimals",
+      "codePattern": "\\\\t|:\\.3f",
+      "dryRunSay": "Added export-invoices for finance (semicolons, decimal comma); fuel export left for later as asked. Tests pass.",
+      "grade": {
+        "runner": "pytest",
+        "baseTests": ["tests/conftest.py", "tests/test_billing.py", "tests/test_report.py", "tests/test_cli.py"],
+        "giverTests": ["hidden/test_handoff_giver.py"],
+        "receiverTests": ["hidden/test_record_receiver.py"],
+        "testDir": "tests",
+        "refGiver": "ref-giver",
+        "refReceiver": "ref-receiver-record"
+      }
+    },
+    {
+      "id": "record-codex-to-claude",
+      "project": "depotclock",
+      "language": "javascript",
+      "giver": "codex",
+      "receiver": "claude",
+      "remote": "https://git.example.com/depots/depotclock.git",
+      "giverPrompt": "Payroll changed its rule: from November a shift counts in the week it ends, in the depot's local time, not the week it starts. Leave the weekly report alone until payroll confirms. First fix this: Toronto deliveries finished late in the evening show up under the next day in the daily delivery report. Find the cause, fix it and run the tests.",
+      "receiverPrompt": "Update the weekly hours report to payroll's new rule. Run the tests before you finish.",
+      "expectedFact": "Payroll's rule as the user gave it in the giver's session: a shift counts in the week it ends, in the depot's local time. The project's weekly report counts the week a shift starts.",
+      "recordPattern": "week it ends|shift ends|end of the shift",
+      "repoPattern": "week (?:it|the shift|a shift) ends|counts? in the week .{0,20}ends?",
+      "codePattern": "\\.end\\b.*tz|localDay\\([^)]*end",
+      "dryRunSay": "Fixed: the daily report grouped deliveries by their UTC date; it now uses each depot's own time zone. The weekly report is unchanged, as asked. Tests pass.",
+      "grade": {
+        "runner": "node",
+        "baseTests": ["test/time.test.js", "test/reports.test.js"],
+        "giverTests": ["hidden/handoff-giver.test.js"],
+        "receiverTests": ["hidden/record-receiver.test.js"],
+        "testDir": "test",
+        "refGiver": "ref-giver",
+        "refReceiver": "ref-receiver-record"
+      }
+    }
+  ],
+  "scoring": {
+    "giverGate": "As spec.json: a direction's receivers run only if the giver solved its task, its record is in the shared store from the giver's agent, and the record's task, request or outcome matches recordPattern.",
+    "recordOnly": "Reported, not a gate: whether any line in the snapshot (code, docs, tests) states the decision (repoPattern) or its code applies it (codePattern). If either does, the giver wrote the decision into the project and the direction no longer tests a decision held only in the record; its receivers still run and it is reported as such.",
+    "hint": "Per Snout-on receiver: the hint was logged by Snout (a 'hint' row for the session) and delivered to the model (its text is in the session's transcript or rollout).",
+    "searched": "The receiver called snout_memory_search or snout_memory_fetch at least once (from the MCP server's own log).",
+    "found": "A search or fetch result the receiver got shows the giver's record (session:<giver session>) and that record's text there matches recordPattern.",
+    "current": "As spec.json: not marked out of date where the receiver got it, and the giver's work is in the snapshot.",
+    "cited": "As spec.json: the record names its session, its agent and its date where the receiver got it.",
+    "usedCorrectly": "The receiver's work passes the hidden tests that encode the decision, the giver's hidden tests and the project's own tests. A session cut by its time or budget limit counts as not solved.",
+    "handoff": "In a direction: the receiver with Snout on searched, found the giver's record, current and cited, and used the decision correctly. Reported apart from cost.",
+    "cost": "As spec.json: per receiver session, total tokens, tool calls, minutes and dollars; one pair per direction is an anecdote, not a result."
+  },
+  "validity": "As spec.json, plus: the off arm gets no hint."
+}

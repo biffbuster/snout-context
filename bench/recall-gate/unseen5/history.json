@@ -1,0 +1,331 @@
+{
+  "about": "Gate 3, fifth unseen check (docs/memory-gates.md): written and frozen on 2026-10-26 before round 6 (the R02 and W05 fixes and the optional local semantic retriever), and run once per arm after them. A Python web app tested with pytest.",
+  "project": {
+    "name": "quill",
+    "files": {
+      ".gitignore": ".snout/\n__pycache__/\n",
+      "pyproject.toml": "[project]\nname = \"quill\"\nversion = \"1.2.0\"\ndependencies = [\"fastapi\", \"argon2-cffi\"]\n\n[project.optional-dependencies]\ndev = [\"pytest>=8\", \"pytest-cov\", \"ruff\"]\n",
+      "app/__init__.py": "",
+      "app/routes.py": "def health():\n    return {'ok': True}\n",
+      "app/models.py": "class User:\n    id: int\n    email: str\n",
+      "app/auth.py": "from argon2 import PasswordHasher\nph = PasswordHasher()\n",
+      "app/jobs.py": "SCHEDULE = 'weekly'\n",
+      "app/mailer.py": "def send(msg, queue):\n    queue.put(msg)\n",
+      "migrations/0001_init.py": "# initial\n",
+      "tests/test_routes.py": "def test_health():\n    assert True\n"
+    }
+  },
+  "steps": [
+    {
+      "id": "K1",
+      "type": "session",
+      "agent": "claude",
+      "prompt": "Add a /signup endpoint in app/routes.py and make sure the tests pass.",
+      "calls": [
+        {
+          "edit": "app/routes.py",
+          "content": "def health():\n    return {'ok': True}\n\ndef signup(email, password):\n    return {'email': email}\n"
+        },
+        {
+          "bash": "pytest -q",
+          "out": "..................                                                       [100%]\n18 passed in 0.62s\n"
+        }
+      ],
+      "commit": "Add /signup endpoint",
+      "final": "app/routes.py has a /signup endpoint. pytest -q: 18 passed."
+    },
+    {
+      "id": "K2",
+      "type": "session",
+      "agent": "codex",
+      "prompt": "Lint with ruff before editing app/models.py, then add a created_at column.",
+      "calls": [
+        {
+          "bash": "ruff check .",
+          "out": "bash: ruff: command not found\n"
+        },
+        {
+          "bash": "python -m ruff check .",
+          "out": "All checks passed!\n"
+        },
+        {
+          "edit": "app/models.py",
+          "content": "class User:\n    id: int\n    email: str\n    created_at: str\n"
+        },
+        {
+          "edit": "migrations/0002_created_at.py",
+          "content": "# add users.created_at\n"
+        }
+      ],
+      "commit": "Add created_at to users",
+      "final": "Bare ruff isn't on PATH, but python -m ruff check passes. app/models.py has a created_at column, with migration 0002."
+    },
+    {
+      "id": "K3",
+      "type": "session",
+      "agent": "claude",
+      "prompt": "Build the docs with sphinx.",
+      "calls": [
+        {
+          "bash": "sphinx-build docs out",
+          "out": "bash: sphinx-build: command not found\n"
+        }
+      ],
+      "final": "sphinx-build isn't installed on this machine, so the docs weren't built."
+    },
+    {
+      "id": "M1",
+      "type": "cli",
+      "args": [
+        "memory",
+        "add",
+        "Passwords are hashed with argon2 in app/auth.py; never store plaintext.",
+        "--kind",
+        "convention"
+      ]
+    },
+    {
+      "id": "M2",
+      "type": "cli",
+      "args": [
+        "memory",
+        "add",
+        "Background jobs run every week via the scheduler in app/jobs.py.",
+        "--kind",
+        "decision"
+      ]
+    },
+    {
+      "id": "K4",
+      "type": "session",
+      "agent": "codex",
+      "prompt": "Run the tests with coverage from now on: pytest --cov=app.",
+      "calls": [
+        {
+          "edit": "pyproject.toml",
+          "content": "[project]\nname = \"quill\"\nversion = \"1.2.0\"\ndependencies = [\"fastapi\", \"argon2-cffi\"]\n\n[project.optional-dependencies]\ndev = [\"pytest>=8\", \"pytest-cov\", \"ruff\"]\n\n[tool.pytest.ini_options]\naddopts = \"--cov=app\"\n"
+        },
+        {
+          "bash": "pytest -q --cov=app",
+          "out": "....................                                                     [100%]\n---------- coverage: platform linux, python 3.12 ----------\nTOTAL                412     38    91%\n20 passed in 1.10s\n"
+        }
+      ],
+      "commit": "Run tests with coverage",
+      "final": "pytest -q --cov=app: 20 passed, 91% coverage."
+    },
+    {
+      "id": "M3",
+      "type": "cli",
+      "args": [
+        "memory",
+        "add",
+        "Background jobs now run every night instead of every week, via the scheduler in app/jobs.py.",
+        "--kind",
+        "decision"
+      ]
+    },
+    {
+      "id": "K5",
+      "type": "session",
+      "agent": "claude",
+      "prompt": "Remember that signup emails are sent through the queue.",
+      "mcp": [
+        {
+          "tool": "snout_memory_save",
+          "args": {
+            "text": "Signup emails are sent through the queue (app/mailer.py).",
+            "kind": "convention",
+            "user_asked": true,
+            "files": [
+              "app/mailer.py"
+            ]
+          }
+        }
+      ],
+      "calls": [],
+      "final": "Saved: signup emails go through the queue, in app/mailer.py."
+    },
+    {
+      "id": "K6",
+      "type": "session",
+      "agent": "codex",
+      "prompt": "Send signup emails directly from app/mailer.py instead of the queue; the queue drops messages.",
+      "calls": [
+        {
+          "edit": "app/mailer.py",
+          "content": "def send(msg, smtp):\n    smtp.send(msg)\n"
+        },
+        {
+          "bash": "pytest -q --cov=app",
+          "out": "TOTAL                410     36    91%\n20 passed in 1.05s\n"
+        }
+      ],
+      "commit": "Send signup emails directly",
+      "final": "app/mailer.py sends signup emails over SMTP directly; the queue is no longer used. 20 passed."
+    },
+    {
+      "id": "K7",
+      "type": "session",
+      "agent": "claude",
+      "prompt": "Push the branch when the tests pass. Always add a migration when a model changes. Add a phone field to the user model in app/models.py.",
+      "calls": [
+        {
+          "edit": "app/models.py",
+          "content": "class User:\n    id: int\n    email: str\n    created_at: str\n    phone: str\n"
+        },
+        {
+          "edit": "migrations/0003_phone.py",
+          "content": "# add users.phone\n"
+        },
+        {
+          "bash": "pytest -q --cov=app",
+          "out": "21 passed in 1.12s\n"
+        }
+      ],
+      "commit": "Add phone to users",
+      "final": "User has a phone field, with migration 0003. 21 passed; pushed."
+    },
+    {
+      "id": "K8",
+      "type": "session",
+      "agent": "codex",
+      "prompt": "Push the branch when the tests pass. Always add a migration when a model changes. Make email unique in app/models.py.",
+      "calls": [
+        {
+          "edit": "app/models.py",
+          "content": "class User:\n    id: int\n    email: str  # unique\n    created_at: str\n    phone: str\n"
+        },
+        {
+          "edit": "migrations/0004_unique_email.py",
+          "content": "# unique users.email\n"
+        },
+        {
+          "bash": "pytest -q --cov=app",
+          "out": "22 passed in 1.15s\n"
+        }
+      ],
+      "commit": "Unique emails",
+      "final": "Email is unique, with migration 0004. 22 passed; pushed."
+    },
+    {
+      "id": "K9",
+      "type": "session",
+      "agent": "claude",
+      "prompt": "Run the smoke tests in my quill-smoke checkout.",
+      "calls": [
+        {
+          "bash": "cd ~/quill-smoke && pytest -q",
+          "out": "......                                                                   [100%]\n6 passed in 0.31s\n"
+        }
+      ],
+      "final": "quill-smoke's 6 tests pass against this build."
+    },
+    {
+      "id": "K10",
+      "type": "session",
+      "agent": "claude",
+      "prompt": "Add CSV export of users in app/export.py.",
+      "calls": [
+        {
+          "edit": "app/export.py",
+          "content": "import csv\n\ndef export(users, f):\n    w = csv.writer(f)\n    for u in users:\n        w.writerow([u.id, u.email])\n"
+        },
+        {
+          "todos": [
+            {
+              "content": "Write rows",
+              "status": "completed"
+            },
+            {
+              "content": "Add tests for the CSV header row",
+              "status": "pending"
+            }
+          ]
+        }
+      ],
+      "final": "app/export.py writes one row per user. The header row and its tests are still to do; not committed."
+    }
+  ],
+  "facts": {
+    "T_cur": {
+      "class": "current",
+      "about": "the test command",
+      "pattern": "pytest -q --cov=app"
+    },
+    "T_old": {
+      "class": "stale",
+      "about": "the test command before coverage, as a note",
+      "pattern": "Run the tests with: pytest -q(?! --cov)"
+    },
+    "T_else": {
+      "class": "wrong-scope",
+      "about": "another checkout's test command, as this project's",
+      "pattern": "Run the tests with: cd "
+    },
+    "SPHINX": {
+      "class": "current",
+      "about": "sphinx-build is not installed",
+      "pattern": "sphinx-build is not installed|sphinx-build isn't installed|sphinx-build: command not found"
+    },
+    "RUFF_BAD": {
+      "class": "unsupported",
+      "about": "ruff reported missing, though it is a dev dependency and python -m ruff works",
+      "pattern": "ruff is not installed"
+    },
+    "PW": {
+      "class": "current",
+      "about": "password hashing convention",
+      "pattern": "argon2"
+    },
+    "JOBS_OLD": {
+      "class": "stale",
+      "about": "weekly jobs, replaced by M3",
+      "pattern": "Background jobs run every week"
+    },
+    "JOBS_CUR": {
+      "class": "current",
+      "about": "nightly jobs",
+      "pattern": "every night"
+    },
+    "MAIL_NOTE": {
+      "class": "stale",
+      "about": "emails through the queue, saved with app/mailer.py, which K6 then changed",
+      "pattern": "through the queue \\(app"
+    },
+    "MAIL_CUR": {
+      "class": "current",
+      "about": "emails sent directly",
+      "pattern": "Send signup emails directly"
+    },
+    "PUSH_BAD": {
+      "class": "unsupported",
+      "about": "a task request said in two sessions, saved as standing",
+      "pattern": "preference[^\\n]*Push the branch when the tests pass"
+    },
+    "MIGR": {
+      "class": "current",
+      "about": "always add a migration when a model changes, said in two sessions",
+      "pattern": "add a migration when a model changes"
+    },
+    "SIGNUP": {
+      "class": "current",
+      "about": "the signup endpoint",
+      "pattern": "/signup endpoint"
+    },
+    "CREATED": {
+      "class": "current",
+      "about": "the created_at column",
+      "pattern": "created_at"
+    },
+    "COV_MOVE": {
+      "class": "current",
+      "about": "when coverage started being measured",
+      "pattern": "[Rr]un tests with coverage|tests with coverage from now on"
+    },
+    "CSV": {
+      "class": "current",
+      "about": "the unfinished CSV export",
+      "pattern": "CSV export|header row"
+    }
+  }
+}

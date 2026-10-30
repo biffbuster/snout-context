@@ -1,0 +1,51 @@
+diff --git a/packages/vite/src/node/__tests__/plugins/css.spec.ts b/packages/vite/src/node/__tests__/plugins/css.spec.ts
+index b7400aa6f06dfd..da8d27417b03ce 100644
+--- a/packages/vite/src/node/__tests__/plugins/css.spec.ts
++++ b/packages/vite/src/node/__tests__/plugins/css.spec.ts
+@@ -280,6 +280,15 @@ describe('convertTargets', () => {
+   test('supports es6 as an alias of es2015', () => {
+     expect(convertTargets('es6')).toStrictEqual(convertTargets('es2015'))
+   })
++
++  test('returns undefined when there is no constraint', () => {
++    expect(convertTargets('esnext')).toBeUndefined()
++    expect(convertTargets(['esnext'])).toBeUndefined()
++    expect(convertTargets(false)).toBeUndefined()
++    expect(convertTargets(['esnext', 'chrome148'])).toStrictEqual({
++      chrome: 0x94_00_00,
++    })
++  })
+ })
+ 
+ describe('getEmptyChunkReplacer', () => {
+diff --git a/packages/vite/src/node/plugins/css.ts b/packages/vite/src/node/plugins/css.ts
+index a758037d494d8b..fdbb8b24c3c4c2 100644
+--- a/packages/vite/src/node/plugins/css.ts
++++ b/packages/vite/src/node/plugins/css.ts
+@@ -3616,9 +3616,10 @@ const convertTargetsCache = new Map<
+ export const convertTargets = (
+   esbuildTarget: string | string[] | false,
+ ): LightningCSSOptions['targets'] => {
+-  if (!esbuildTarget) return {}
+-  const cached = convertTargetsCache.get(esbuildTarget)
+-  if (cached) return cached
++  if (!esbuildTarget) return undefined
++  if (convertTargetsCache.has(esbuildTarget)) {
++    return convertTargetsCache.get(esbuildTarget)
++  }
+   const targets: LightningCSSOptions['targets'] = {}
+ 
+   const entriesWithoutES = arraify(esbuildTarget).flatMap((e) => {
+@@ -3652,8 +3653,10 @@ export const convertTargets = (
+     throw new Error(`Unsupported target "${entry}"`)
+   }
+ 
+-  convertTargetsCache.set(esbuildTarget, targets)
+-  return targets
++  // an empty object means "no browser supports anything" to lightningcss
++  const result = Object.keys(targets).length > 0 ? targets : undefined
++  convertTargetsCache.set(esbuildTarget, result)
++  return result
+ }
+ 
+ export function resolveLibCssFilename(

@@ -1,0 +1,201 @@
+{
+  "about": "Gate 3, eighth unseen check (larger): written and frozen on 2026-10-26 before round 9 (the freshness fix: sessions that repeat an out-of-date note), and run once per mode after it. A Node bookings API tested with node --test.",
+  "project": {
+    "name": "fernway",
+    "files": {
+      ".gitignore": ".snout/\nnode_modules/\n",
+      "package.json": "{\n  \"name\": \"fernway\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"scripts\": { \"test\": \"node --test\" },\n  \"devDependencies\": { \"c8\": \"^10.1.0\", \"eslint\": \"^9.0.0\" }\n}\n",
+      "src/bookings.ts": "export const book = (slot: string) => ({ slot, status: 'booked' });\n",
+      "src/mail.ts": "export const sendConfirmation = (to: string) => smtp.send(to, 'confirmed');\ndeclare const smtp: { send(to: string, body: string): void };\n",
+      "src/pricing.ts": "export const price = (n: number) => n;\n",
+      "src/availability.ts": "export const free = (slot: { taken: number; size: number }) => slot.taken < slot.size;\n",
+      "src/webhooks.ts": "export const deliver = (url: string, body: unknown) => fetch(url, { method: 'POST', body: JSON.stringify(body) });\n",
+      "src/i18n.ts": "export const t = (key: string) => key;\n",
+      "src/search.ts": "export const search = (q: string) => q;\n",
+      "test/bookings.test.ts": "import { test } from 'node:test';\ntest('ok', () => {});\n"
+    }
+  },
+  "steps": [
+    {
+      "id": "B1", "type": "session", "agent": "claude",
+      "prompt": "Add booking cancellation with a 24-hour refund window in src/bookings.ts and run the tests.",
+      "calls": [
+        { "edit": "src/bookings.ts", "content": "export const book = (slot: string) => ({ slot, status: 'booked' });\nexport const cancel = (b: { at: number }, now = Date.now()) => ({ status: 'cancelled', refund: now - b.at < 24 * 3600e3 });\n" },
+        { "install": "node_modules/.bin/c8", "content": "#!/bin/sh\n" },
+        { "bash": "node --test", "out": "✔ cancels within 24 hours (0.4ms)\nℹ tests 31\nℹ suites 4\nℹ pass 31\nℹ fail 0\n" }
+      ],
+      "commit": "Booking cancellation with 24h refund window",
+      "final": "cancel() in src/bookings.ts refunds bookings cancelled within 24 hours. node --test: 31 pass."
+    },
+    {
+      "id": "B2", "type": "session", "agent": "codex",
+      "prompt": "Measure coverage with c8 before touching src/pricing.ts, then add a roundPrice helper there.",
+      "calls": [
+        { "bash": "c8 node --test", "out": "bash: c8: command not found\n" },
+        { "bash": "npx c8 node --test", "out": "ℹ tests 31\nℹ pass 31\nℹ fail 0\nAll files |   84.2 |    71.0 |   80.5 |   84.2 |\n" },
+        { "edit": "src/pricing.ts", "content": "export const price = (n: number) => n;\nexport const roundPrice = (n: number) => Math.round(n);\n" }
+      ],
+      "commit": "Add roundPrice",
+      "final": "Bare c8 isn't on PATH; npx c8 works (84% of lines covered). src/pricing.ts exports roundPrice. It rounds prices to whole euros."
+    },
+    {
+      "id": "B3", "type": "session", "agent": "claude",
+      "prompt": "Deploy the staging app with flyctl.",
+      "calls": [
+        { "bash": "flyctl deploy --app fernway-staging", "out": "bash: flyctl: command not found\n" }
+      ],
+      "final": "flyctl isn't installed on this machine, so staging wasn't deployed."
+    },
+    { "id": "M1", "type": "cli", "args": ["memory", "add", "Prices are rounded to whole euros.", "--kind", "decision"] },
+    { "id": "M2", "type": "cli", "args": ["memory", "add", "Times are stored as UTC ISO strings and shown in the venue's timezone.", "--kind", "convention"] },
+    { "id": "M3", "type": "cli", "args": ["memory", "add", "Webhook payloads are signed with HMAC-SHA256 using WEBHOOK_SECRET.", "--kind", "convention"] },
+    { "id": "M4", "type": "cli", "args": ["memory", "add", "Search uses Postgres full-text search, not Elasticsearch.", "--kind", "decision"] },
+    { "id": "M5", "type": "cli", "args": ["memory", "add", "All user-facing text goes through t() in src/i18n.ts.", "--kind", "convention"] },
+    {
+      "id": "B4", "type": "session", "agent": "claude",
+      "prompt": "Remember that booking confirmations are emailed synchronously from src/mail.ts during checkout.",
+      "mcp": [
+        { "tool": "snout_memory_save", "args": { "text": "Booking confirmations are emailed synchronously from src/mail.ts during checkout.", "kind": "fact", "user_asked": true, "files": ["src/mail.ts"] } }
+      ],
+      "calls": [],
+      "final": "Saved: booking confirmations are emailed synchronously from src/mail.ts during checkout. Also, the mail templates live in templates/email/ and are written in MJML."
+    },
+    {
+      "id": "B5", "type": "session", "agent": "codex",
+      "prompt": "Send booking confirmation emails from the job queue instead of during checkout, in src/mail.ts.",
+      "calls": [
+        { "edit": "src/mail.ts", "content": "export const sendConfirmation = (to: string) => jobs.add('confirmation', { to });\ndeclare const jobs: { add(name: string, data: unknown): void };\n" },
+        { "bash": "node --test", "out": "ℹ tests 32\nℹ pass 32\nℹ fail 0\n" }
+      ],
+      "commit": "Queue booking confirmation emails",
+      "final": "src/mail.ts enqueues a confirmation job; the worker sends it, so checkout no longer waits on SMTP. 32 pass."
+    },
+    {
+      "id": "B6", "type": "session", "agent": "claude",
+      "prompt": "Switch the test run to node --test with c8 coverage from now on.",
+      "calls": [
+        { "edit": "package.json", "content": "{\n  \"name\": \"fernway\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"scripts\": { \"test\": \"c8 node --test\" },\n  \"devDependencies\": { \"c8\": \"^10.1.0\", \"eslint\": \"^9.0.0\" }\n}\n" },
+        { "bash": "npx c8 node --test", "out": "ℹ tests 34\nℹ pass 34\nℹ fail 0\nAll files |   86.1 |    72.4 |   81.0 |   86.1 |\n" }
+      ],
+      "commit": "Run tests with c8 coverage",
+      "final": "The test script runs node --test under c8 now. 34 pass, 86% of lines covered."
+    },
+    {
+      "id": "B7", "type": "session", "agent": "claude",
+      "prompt": "Prices should be rounded to the cent now; update roundPrice in src/pricing.ts.",
+      "calls": [
+        { "edit": "src/pricing.ts", "content": "export const price = (n: number) => n;\nexport const roundPrice = (n: number) => Math.round(n * 100) / 100;\n" },
+        { "bash": "npx c8 node --test", "out": "ℹ tests 35\nℹ pass 35\nℹ fail 0\n" }
+      ],
+      "commit": "Round prices to the cent",
+      "final": "roundPrice in src/pricing.ts rounds to the cent now. 35 pass."
+    },
+    { "id": "M6", "type": "cli", "args": ["memory", "add", "Prices are now rounded to the cent instead of whole euros.", "--kind", "decision"] },
+    {
+      "id": "B8", "type": "session", "agent": "codex",
+      "prompt": "Push the branch after the tests pass. Never log card numbers or CVCs. Add a waitlist when a slot is full, in src/availability.ts.",
+      "calls": [
+        { "edit": "src/availability.ts", "content": "export const free = (slot: { taken: number; size: number }) => slot.taken < slot.size;\nexport const waitlist: string[] = [];\n" },
+        { "bash": "npx c8 node --test", "out": "ℹ tests 36\nℹ pass 36\nℹ fail 0\n" }
+      ],
+      "commit": "Waitlist for full slots",
+      "final": "Full slots take a waitlist in src/availability.ts. 36 pass; pushed."
+    },
+    {
+      "id": "B9", "type": "session", "agent": "claude",
+      "prompt": "Push the branch after the tests pass. Never log card numbers or CVCs. Make the booking search typo-tolerant in src/search.ts.",
+      "calls": [
+        { "edit": "src/search.ts", "content": "export const search = (q: string) => `%${q.split('').join('%')}%`;\n" },
+        { "bash": "npx c8 node --test", "out": "ℹ tests 37\nℹ pass 37\nℹ fail 0\n" }
+      ],
+      "commit": "Typo-tolerant booking search",
+      "final": "Booking search in src/search.ts tolerates typos with trigram matching. 37 pass; pushed."
+    },
+    {
+      "id": "B10", "type": "session", "agent": "claude",
+      "prompt": "Run the e2e suite in my fernway-e2e checkout.",
+      "calls": [
+        { "bash": "cd ../fernway-e2e && node --test", "out": "ℹ tests 12\nℹ pass 12\nℹ fail 0\n" }
+      ],
+      "final": "fernway-e2e's 12 tests pass against this build."
+    },
+    {
+      "id": "B11", "type": "session", "agent": "codex",
+      "prompt": "Do not deploy yet. Fix double charging when the pay button is clicked twice, in src/bookings.ts.",
+      "calls": [
+        { "edit": "src/bookings.ts", "content": "const paid = new Set<string>();\nexport const book = (slot: string) => ({ slot, status: 'booked' });\nexport const cancel = (b: { at: number }, now = Date.now()) => ({ status: 'cancelled', refund: now - b.at < 24 * 3600e3 });\nexport const pay = (key: string) => (paid.has(key) ? 'duplicate' : (paid.add(key), 'charged'));\n" },
+        { "bash": "npx c8 node --test", "out": "ℹ tests 38\nℹ pass 38\nℹ fail 0\n" }
+      ],
+      "commit": "Prevent double charges",
+      "final": "pay() in src/bookings.ts takes an idempotency key, so a second click doesn't charge twice. 38 pass; not deployed."
+    },
+    {
+      "id": "B12", "type": "session", "agent": "claude",
+      "prompt": "Why do webhook retries arrive out of order? Fix it in src/webhooks.ts.",
+      "calls": [
+        { "edit": "src/webhooks.ts", "content": "let seq = 0;\nexport const deliver = (url: string, body: unknown) => fetch(url, { method: 'POST', headers: { 'X-Sequence': String(++seq) }, body: JSON.stringify(body) });\n" },
+        { "bash": "npx c8 node --test", "out": "ℹ tests 39\nℹ pass 39\nℹ fail 0\n" }
+      ],
+      "commit": "Order webhook retries by sequence number",
+      "final": "Retries went out with no ordering; each delivery carries a sequence number now, so receivers can reorder. 39 pass."
+    },
+    {
+      "id": "B13", "type": "session", "agent": "codex",
+      "prompt": "Add Spanish translations in src/i18n.ts.",
+      "calls": [
+        { "edit": "src/i18n.ts", "content": "const es: Record<string, string> = { booked: 'reservado' };\nexport const t = (key: string, lang = 'en') => (lang === 'es' ? es[key] ?? key : key);\n" },
+        { "bash": "npx c8 node --test", "out": "ℹ tests 40\nℹ pass 40\nℹ fail 0\n" }
+      ],
+      "commit": "Spanish translations",
+      "final": "src/i18n.ts has Spanish strings. 40 pass."
+    },
+    {
+      "id": "B14", "type": "session", "agent": "claude",
+      "prompt": "Add a /healthz endpoint in src/health.ts.",
+      "calls": [
+        { "edit": "src/health.ts", "content": "export const healthz = () => ({ ok: true });\n" },
+        { "bash": "npx c8 node --test", "out": "ℹ tests 41\nℹ pass 41\nℹ fail 0\n" }
+      ],
+      "commit": "Add /healthz",
+      "final": "src/health.ts serves /healthz. 41 pass."
+    },
+    {
+      "id": "B15", "type": "session", "agent": "codex",
+      "prompt": "Add group bookings in src/bookings.ts.",
+      "calls": [
+        { "edit": "src/bookings.ts", "content": "const paid = new Set<string>();\nexport const book = (slot: string, people = 1) => ({ slot, people, status: 'booked' });\nexport const cancel = (b: { at: number }, now = Date.now()) => ({ status: 'cancelled', refund: now - b.at < 24 * 3600e3 });\nexport const pay = (key: string) => (paid.has(key) ? 'duplicate' : (paid.add(key), 'charged'));\n" },
+        { "todos": [{ "content": "Accept a party size", "status": "completed" }, { "content": "Add tests for oversized groups", "status": "pending" }] }
+      ],
+      "final": "book() in src/bookings.ts takes a party size. Tests for oversized groups are still to do; not committed."
+    }
+  ],
+  "facts": {
+    "T_cur": { "class": "current", "about": "the test command", "pattern": "npx c8 node --test" },
+    "T_old": { "class": "stale", "about": "the test command before c8, as a note", "pattern": "Run the tests with: node --test" },
+    "T_else": { "class": "wrong-scope", "about": "another checkout's test command, as this project's", "pattern": "Run the tests with: cd " },
+    "FLY": { "class": "current", "about": "flyctl is not installed", "pattern": "flyctl is not installed|flyctl isn't installed|flyctl: command not found" },
+    "C8_BAD": { "class": "unsupported", "about": "c8 reported missing, though it is a dev dependency and npx c8 works", "pattern": "c8 is not installed" },
+    "PRICE_OLD": { "class": "stale", "about": "whole-euro rounding, superseded by M6 and repeated in B2's last words", "pattern": "rounds prices to whole euros|rounded to whole euros\\." },
+    "PRICE_CUR": { "class": "current", "about": "rounding to the cent", "pattern": "rounded to the cent|rounds to the cent" },
+    "TZ": { "class": "current", "about": "times in UTC, shown in the venue's timezone", "pattern": "venue's timezone" },
+    "HMAC": { "class": "current", "about": "webhook signing", "pattern": "HMAC-SHA256" },
+    "SEARCHDB": { "class": "current", "about": "Postgres full-text search", "pattern": "full-text search" },
+    "I18N": { "class": "current", "about": "user-facing text through t()", "pattern": "t\\(\\) in src/i18n\\.ts" },
+    "MAIL_OLD": { "class": "stale", "about": "synchronous confirmation emails, saved with src/mail.ts (which B5 then changed) and repeated in B4's request and last words", "pattern": "emailed synchronously" },
+    "MAIL_CUR": { "class": "current", "about": "confirmation emails from the job queue", "pattern": "[Qq]ueue booking confirmation emails|from the job queue" },
+    "TEMPLATES": { "class": "current", "about": "mail templates in MJML, from B4's last words", "pattern": "MJML|templates/email" },
+    "ROUND_EXPORT": { "class": "current", "about": "src/pricing.ts exports roundPrice (still true after B7 changed the file)", "pattern": "exports roundPrice" },
+    "CENT_MOVE": { "class": "current", "about": "when rounding moved to the cent", "pattern": "[Rr]ound prices to the cent|rounded to the cent now" },
+    "COVERAGE_MOVE": { "class": "current", "about": "when c8 joined the test run", "pattern": "c8 coverage from now on|Run tests with c8 coverage" },
+    "NOCARD": { "class": "current", "about": "never log card numbers, said in two sessions", "pattern": "[Nn]ever log card numbers" },
+    "PUSH_BAD": { "class": "unsupported", "about": "a task request said in two sessions, saved as standing", "pattern": "preference[^\\n]*Push the branch after the tests pass" },
+    "CANCEL": { "class": "current", "about": "booking cancellation with a 24-hour refund window", "pattern": "24-hour refund window|24h refund window|within 24 hours" },
+    "WAITLIST": { "class": "current", "about": "waitlist for full slots", "pattern": "[Ww]aitlist" },
+    "TYPO": { "class": "current", "about": "typo-tolerant search", "pattern": "[Tt]ypo-tolerant|tolerates typos" },
+    "DOUBLE": { "class": "current", "about": "double charges prevented", "pattern": "[Dd]ouble charg|[Pp]revent double charges" },
+    "SEQ": { "class": "current", "about": "webhook retries ordered by sequence number", "pattern": "sequence number" },
+    "ES": { "class": "current", "about": "Spanish translations", "pattern": "Spanish" },
+    "HEALTH": { "class": "current", "about": "the healthz endpoint", "pattern": "healthz" },
+    "GROUP": { "class": "current", "about": "the unfinished group bookings, last worked on in Codex", "pattern": "[Gg]roup bookings|oversized groups" }
+  }
+}

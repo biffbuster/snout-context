@@ -1,0 +1,464 @@
+{
+ "about": "Gate 3, fourteenth unseen check: written and frozen on 2026-10-27 before the on-demand search fixes (the five unseen 13 searches that returned nothing relevant), and run once after them under the on-demand gate (bench/ondemand-gate.mjs). A Deno community-garden plot-rental API.",
+ "project": {
+  "name": "sprout",
+  "files": {
+   ".gitignore": "node_modules/\n.env\n",
+   "deno.json": "{\n  \"tasks\": {\n    \"test\": \"deno test\"\n  },\n  \"imports\": {\n    \"oak\": \"jsr:@oak/oak@17\"\n  }\n}\n",
+   "src/plots/rent.ts": "export function rent(plot: string, member: string): boolean {\n  return !!plot && !!member;\n}\n",
+   "src/plots/list.ts": "export const plots: { id: string }[] = [];\n",
+   "src/plots/availability.ts": "export const freeOn = (_plot: string, _day: string) => true;\n",
+   "src/billing/rent.ts": "export const SEASON_RENT_EUR = 40;\n",
+   "src/mail/mailgun.ts": "export async function send(_to: string, _body: string): Promise<void> {}\n",
+   "docker-compose.yml": "services:\n  cache:\n    image: valkey/valkey:7.2\n",
+   "tests/rent_test.ts": "Deno.test('placeholder', () => {});\n"
+  }
+ },
+ "steps": [
+  {
+   "id": "H1",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Add a plot rental endpoint in src/plots/rent.ts and make sure the tests pass.",
+   "calls": [
+    {
+     "edit": "src/plots/rent.ts",
+     "content": "const taken = new Set<string>();\nexport function rent(plot: string, member: string): boolean {\n  if (taken.has(plot)) return false;\n  taken.add(plot);\n  return !!member;\n}\n"
+    },
+    {
+     "bash": "deno test",
+     "out": "running 14 tests from ./tests/rent_test.ts\nrents a free plot ... ok (3ms)\n\nok | 14 passed | 0 failed (412ms)\n"
+    }
+   ],
+   "commit": "Add plot rental",
+   "final": "src/plots/rent.ts rents a plot to a member and refuses one already rented. deno test: 14 passed."
+  },
+  {
+   "id": "H2",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Run the tests with deno test --allow-env --allow-read from now on; the config loader needs env and file access.",
+   "calls": [
+    {
+     "edit": "deno.json",
+     "content": "{\n  \"tasks\": {\n    \"test\": \"deno test --allow-env --allow-read\"\n  },\n  \"imports\": {\n    \"oak\": \"jsr:@oak/oak@17\"\n  }\n}\n"
+    },
+    {
+     "bash": "deno test --allow-env --allow-read",
+     "out": "running 15 tests from ./tests/rent_test.ts\nrents a free plot ... ok (3ms)\n\nok | 15 passed | 0 failed (412ms)\n"
+    }
+   ],
+   "commit": "Give tests env and file access",
+   "final": "Tests run with deno test --allow-env --allow-read now, so the config loader gets env and file access. 15 passed."
+  },
+  {
+   "id": "H3",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Seed the local database with psql.",
+   "calls": [
+    {
+     "bash": "psql -f db/seed.sql",
+     "out": "bash: psql: command not found\n"
+    }
+   ],
+   "final": "psql isn't installed here, so the database was not seeded."
+  },
+  {
+   "id": "M1",
+   "type": "cli",
+   "args": [
+    "memory",
+    "add",
+    "Plot sizes are stored in square metres as integers.",
+    "--kind",
+    "decision"
+   ]
+  },
+  {
+   "id": "M2",
+   "type": "cli",
+   "args": [
+    "memory",
+    "add",
+    "A member can rent at most 2 plots per season.",
+    "--kind",
+    "convention"
+   ]
+  },
+  {
+   "id": "M3",
+   "type": "cli",
+   "args": [
+    "memory",
+    "add",
+    "Watering-rota emails are sent through Mailgun from src/mail/mailgun.ts.",
+    "--kind",
+    "convention"
+   ]
+  },
+  {
+   "id": "M4",
+   "type": "cli",
+   "args": [
+    "memory",
+    "add",
+    "The growing season opens on the local last-frost date.",
+    "--kind",
+    "decision"
+   ]
+  },
+  {
+   "id": "M5",
+   "type": "cli",
+   "args": [
+    "memory",
+    "add",
+    "Deposits are refunded within 14 days of the plot inspection.",
+    "--kind",
+    "convention"
+   ]
+  },
+  {
+   "id": "H4",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Fix a plot being rented twice when two members book it at the same moment, in src/plots/rent.ts.",
+   "calls": [
+    {
+     "edit": "src/plots/rent.ts",
+     "content": "const taken = new Set<string>();\n// one row lock per plot\nexport function rent(plot: string, member: string): boolean {\n  if (taken.has(plot)) return false;\n  taken.add(plot);\n  return !!member;\n}\n"
+    },
+    {
+     "bash": "deno test --allow-env --allow-read",
+     "out": "running 16 tests from ./tests/rent_test.ts\nrents a free plot ... ok (3ms)\n\nok | 16 passed | 0 failed (412ms)\n"
+    }
+   ],
+   "commit": "Lock the plot row when renting",
+   "final": "Renting takes a row lock on the plot, so the same plot can no longer be rented twice. 16 passed."
+  },
+  {
+   "id": "H5",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Remember that plot rent is 40 euros per season, set in src/billing/rent.ts.",
+   "mcp": [
+    {
+     "tool": "snout_memory_save",
+     "args": {
+      "text": "Plot rent is 40 euros per season, set in src/billing/rent.ts.",
+      "kind": "fact",
+      "user_asked": true,
+      "files": [
+       "src/billing/rent.ts"
+      ]
+     }
+    }
+   ],
+   "calls": [],
+   "final": "Saved: plot rent is 40 euros per season, set in src/billing/rent.ts. Also, the plot queue is re-ranked every night at 01:00 by the queue job."
+  },
+  {
+   "id": "H6",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Charge 45 euros per season instead of 40, in src/billing/rent.ts.",
+   "calls": [
+    {
+     "edit": "src/billing/rent.ts",
+     "content": "export const SEASON_RENT_EUR = 45;\n"
+    },
+    {
+     "bash": "deno test --allow-env --allow-read",
+     "out": "running 17 tests from ./tests/rent_test.ts\nrents a free plot ... ok (3ms)\n\nok | 17 passed | 0 failed (412ms)\n"
+    }
+   ],
+   "commit": "Season rent 45 euros",
+   "final": "src/billing/rent.ts charges 45 euros per season now. 17 passed."
+  },
+  {
+   "id": "H7",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Record soil test results per plot in src/plots/soil.ts.",
+   "calls": [
+    {
+     "edit": "src/plots/soil.ts",
+     "content": "export interface SoilTest { plot: string; ph: number; tested: string }\n"
+    },
+    {
+     "bash": "deno test --allow-env --allow-read",
+     "out": "running 19 tests from ./tests/rent_test.ts\nrents a free plot ... ok (3ms)\n\nok | 19 passed | 0 failed (412ms)\n"
+    }
+   ],
+   "commit": "Soil tests per plot",
+   "final": "src/plots/soil.ts records a soil test (pH and date) for each plot. 19 passed."
+  },
+  {
+   "id": "H8",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Never put a member's home address in logs. Add a members table in src/members/members.ts.",
+   "calls": [
+    {
+     "edit": "src/members/members.ts",
+     "content": "export interface Member { id: string; address: string }\n"
+    },
+    {
+     "bash": "deno test --allow-env --allow-read",
+     "out": "running 20 tests from ./tests/rent_test.ts\nrents a free plot ... ok (3ms)\n\nok | 20 passed | 0 failed (412ms)\n"
+    }
+   ],
+   "commit": "Members table",
+   "final": "src/members/members.ts holds the members table; logs carry the member id only. 20 passed."
+  },
+  {
+   "id": "H9",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Never put a member's home address in logs. Email members when their plot inspection is due, in src/inspections/notify.ts.",
+   "calls": [
+    {
+     "edit": "src/inspections/notify.ts",
+     "content": "export const dueSoon = (days: number) => days <= 7;\n"
+    },
+    {
+     "bash": "deno test --allow-env --allow-read",
+     "out": "running 21 tests from ./tests/rent_test.ts\nrents a free plot ... ok (3ms)\n\nok | 21 passed | 0 failed (412ms)\n"
+    }
+   ],
+   "commit": "Inspection reminders",
+   "final": "src/inspections/notify.ts emails a member a week before their plot inspection is due. 21 passed."
+  },
+  {
+   "id": "H10",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Bump the version after merging. Add a sunlight filter to the plot list in src/plots/list.ts.",
+   "calls": [
+    {
+     "edit": "src/plots/list.ts",
+     "content": "export const plots: { id: string; sun: 'full' | 'part' | 'shade' }[] = [];\nexport const bySun = (s: string) => plots.filter((p) => p.sun === s);\n"
+    },
+    {
+     "bash": "deno test --allow-env --allow-read",
+     "out": "running 22 tests from ./tests/rent_test.ts\nrents a free plot ... ok (3ms)\n\nok | 22 passed | 0 failed (412ms)\n"
+    }
+   ],
+   "commit": "Sunlight filter",
+   "final": "src/plots/list.ts filters plots by sunlight (full sun, part shade, shade). 22 passed; version bumped to 1.4.1."
+  },
+  {
+   "id": "H11",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Bump the version after merging. Add compost bin booking in src/compost/book.ts.",
+   "calls": [
+    {
+     "edit": "src/compost/book.ts",
+     "content": "export const bins = 4;\n"
+    },
+    {
+     "bash": "deno test --allow-env --allow-read",
+     "out": "running 23 tests from ./tests/rent_test.ts\nrents a free plot ... ok (3ms)\n\nok | 23 passed | 0 failed (412ms)\n"
+    }
+   ],
+   "commit": "Compost bin booking",
+   "final": "src/compost/book.ts lets members book one of the 4 compost bins for a week. 23 passed; version bumped to 1.4.2."
+  },
+  {
+   "id": "H12",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Run the load tests in my sprout-load checkout.",
+   "calls": [
+    {
+     "bash": "cd ../sprout-load && deno test",
+     "out": "running 6 tests from ./tests/load_test.ts\nrents a free plot ... ok (3ms)\n\nok | 6 passed | 0 failed (412ms)\n"
+    }
+   ],
+   "final": "sprout-load's 6 load tests pass."
+  },
+  {
+   "id": "H13",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Why do some plots show as free the day after they were rented? Fix it in src/plots/availability.ts.",
+   "calls": [
+    {
+     "edit": "src/plots/availability.ts",
+     "content": "export const freeOn = (plot: { until: string }, day: string) => day > plot.until;\n"
+    },
+    {
+     "bash": "deno test --allow-env --allow-read",
+     "out": "running 24 tests from ./tests/rent_test.ts\nrents a free plot ... ok (3ms)\n\nok | 24 passed | 0 failed (412ms)\n"
+    }
+   ],
+   "commit": "Treat the rental end date as inclusive",
+   "final": "The rental's end date was treated as exclusive, so a plot showed as free on its last rented day; the end date is inclusive now. 24 passed."
+  },
+  {
+   "id": "H14",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Add a tool shed key log in src/shed/keys.ts.",
+   "calls": [
+    {
+     "edit": "src/shed/keys.ts",
+     "content": "export interface KeyLoan { member: string; out: string; back?: string }\n"
+    },
+    {
+     "bash": "deno test --allow-env --allow-read",
+     "out": "running 25 tests from ./tests/rent_test.ts\nrents a free plot ... ok (3ms)\n\nok | 25 passed | 0 failed (412ms)\n"
+    }
+   ],
+   "commit": "Shed key log",
+   "final": "src/shed/keys.ts keeps a key log of who has the tool shed key and since when. 25 passed."
+  },
+  {
+   "id": "H15",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Move the cache to Valkey 8 in docker-compose.yml.",
+   "calls": [
+    {
+     "edit": "docker-compose.yml",
+     "content": "services:\n  cache:\n    image: valkey/valkey:8.0\n"
+    }
+   ],
+   "commit": "Valkey 8",
+   "final": "docker-compose.yml runs Valkey 8."
+  },
+  {
+   "id": "H16",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Add a harvest-swap board in src/swap/board.ts.",
+   "calls": [
+    {
+     "edit": "src/swap/board.ts",
+     "content": "export const offers: { member: string; crop: string }[] = [];\n"
+    },
+    {
+     "todos": [
+      {
+       "content": "List harvest-swap offers",
+       "status": "completed"
+      },
+      {
+       "content": "Let members claim an offer",
+       "status": "pending"
+      }
+     ]
+    }
+   ],
+   "final": "src/swap/board.ts lists harvest-swap offers. Letting members claim an offer is still to do; not committed."
+  }
+ ],
+ "facts": {
+  "T_cur": {
+   "class": "current",
+   "pattern": "deno test --allow-env --allow-read"
+  },
+  "T_old": {
+   "class": "stale",
+   "pattern": "Run the tests with: deno test(?! --allow-env)"
+  },
+  "T_else": {
+   "class": "wrong-scope",
+   "pattern": "Run the tests with: cd "
+  },
+  "PSQL": {
+   "class": "current",
+   "pattern": "psql is not installed|psql isn't installed|psql: command not found"
+  },
+  "SQM": {
+   "class": "current",
+   "pattern": "square metres"
+  },
+  "MAX2": {
+   "class": "current",
+   "pattern": "at most 2 plots"
+  },
+  "MAILGUN": {
+   "class": "current",
+   "pattern": "Mailgun"
+  },
+  "FROST": {
+   "class": "current",
+   "pattern": "last-frost date"
+  },
+  "REFUND14": {
+   "class": "current",
+   "pattern": "within 14 days"
+  },
+  "NOADDR": {
+   "class": "current",
+   "pattern": "[Nn]ever put a member's home address in logs"
+  },
+  "BUMP_BAD": {
+   "class": "unsupported",
+   "pattern": "preference[^\\n]*Bump the version after merging"
+  },
+  "RENT_OLD": {
+   "class": "stale",
+   "pattern": "40 euros per season"
+  },
+  "RENT_CUR": {
+   "class": "current",
+   "pattern": "45 euros per season"
+  },
+  "QJOB": {
+   "class": "current",
+   "pattern": "queue job|every night at 01:00"
+  },
+  "RENTAL": {
+   "class": "current",
+   "pattern": "[Pp]lot rental|rents a plot"
+  },
+  "FLAGS": {
+   "class": "current",
+   "pattern": "env and file access"
+  },
+  "DOUBLEPLOT": {
+   "class": "current",
+   "pattern": "row lock|rented twice"
+  },
+  "SOIL": {
+   "class": "current",
+   "pattern": "[Ss]oil test"
+  },
+  "MEMBERS": {
+   "class": "current",
+   "pattern": "[Mm]embers table"
+  },
+  "INSPECT": {
+   "class": "current",
+   "pattern": "[Ii]nspection reminders|plot inspection is due"
+  },
+  "SUN": {
+   "class": "current",
+   "pattern": "[Ss]unlight filter|filters plots by sunlight"
+  },
+  "COMPOST": {
+   "class": "current",
+   "pattern": "[Cc]ompost bin"
+  },
+  "INCLUSIVE": {
+   "class": "current",
+   "pattern": "end date is inclusive|end date as inclusive"
+  },
+  "KEYS": {
+   "class": "current",
+   "pattern": "[Kk]ey log"
+  },
+  "VALKEY": {
+   "class": "current",
+   "pattern": "Valkey 8"
+  },
+  "SWAP": {
+   "class": "current",
+   "pattern": "[Hh]arvest-swap"
+  }
+ }
+}

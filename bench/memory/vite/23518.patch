@@ -1,0 +1,121 @@
+diff --git a/packages/vite/src/node/server/__tests__/sourcemap.spec.ts b/packages/vite/src/node/server/__tests__/sourcemap.spec.ts
+index d71118e32790b2..a79d5ef8995ce9 100644
+--- a/packages/vite/src/node/server/__tests__/sourcemap.spec.ts
++++ b/packages/vite/src/node/server/__tests__/sourcemap.spec.ts
+@@ -1,6 +1,11 @@
+-import { describe, expect, test } from 'vitest'
++import { describe, expect, test, vi } from 'vitest'
+ import { isWindows } from '../../../shared/utils'
+-import { getNodeModulesPackageRoot } from '../sourcemap'
++import { createLogger } from '../../logger'
++import {
++  getNodeModulesPackageRoot,
++  injectSourcesContent,
++  type SourceMapLike,
++} from '../sourcemap'
+ 
+ describe('getNodeModulesPackageRoot', () => {
+   const cases = [
+@@ -69,3 +74,62 @@ describe('getNodeModulesPackageRoot', () => {
+     })
+   }
+ })
++
++describe('injectSourcesContent', () => {
++  function createMockLogger() {
++    const logger = createLogger()
++    logger.warnOnce = vi.fn()
++    return logger
++  }
++
++  test('leaves maps with a remote sourceRoot alone', async () => {
++    const map: SourceMapLike = {
++      sources: ['index.ts'],
++      sourceRoot: 'https://raw.githubusercontent.com/fb55/domutils/abc123/src/',
++    }
++    const logger = createMockLogger()
++
++    await injectSourcesContent(
++      map,
++      '/project/node_modules/domutils/lib/esm/index.js',
++      logger,
++    )
++
++    expect(logger.warnOnce).not.toHaveBeenCalled()
++    expect(map.sourcesContent).toBeUndefined()
++  })
++
++  test('does not inject content for remote sources', async () => {
++    const map: SourceMapLike = {
++      sources: [
++        'https://raw.githubusercontent.com/fb55/domutils/abc123/src/index.ts',
++      ],
++    }
++    const logger = createMockLogger()
++
++    await injectSourcesContent(
++      map,
++      '/project/node_modules/domutils/lib/esm/index.js',
++      logger,
++    )
++
++    expect(logger.warnOnce).not.toHaveBeenCalled()
++    expect(map.sourcesContent).toStrictEqual([])
++  })
++
++  test('warns for sources that resolve outside the package', async () => {
++    const map: SourceMapLike = {
++      sources: ['/outside/project/index.ts'],
++    }
++    const logger = createMockLogger()
++
++    await injectSourcesContent(
++      map,
++      '/project/node_modules/foo/dist/index.js',
++      logger,
++    )
++
++    expect(logger.warnOnce).toHaveBeenCalledOnce()
++    expect(map.sourcesContent).toStrictEqual([null])
++  })
++})
+diff --git a/packages/vite/src/node/server/sourcemap.ts b/packages/vite/src/node/server/sourcemap.ts
+index 41943dab731a3e..5ee14c663153be 100644
+--- a/packages/vite/src/node/server/sourcemap.ts
++++ b/packages/vite/src/node/server/sourcemap.ts
+@@ -9,6 +9,7 @@ import type { Logger } from '../logger'
+ import {
+   blankReplacer,
+   createDebugger,
++  isExternalUrl,
+   isParentDirectory,
+   normalizePath,
+ } from '../utils'
+@@ -49,7 +50,7 @@ export function getNodeModulesPackageRoot(
+ // prefixes used for special handling in esbuildDepPlugin.
+ const virtualSourceRE = /^(?:dep:|browser-external:|virtual:)|\0/
+ 
+-interface SourceMapLike {
++export interface SourceMapLike {
+   sources: string[]
+   sourcesContent?: (string | null)[]
+   sourceRoot?: string
+@@ -71,6 +72,10 @@ export async function injectSourcesContent(
+   file: string,
+   logger: Logger,
+ ): Promise<void> {
++  if (map.sourceRoot && isExternalUrl(map.sourceRoot)) {
++    return
++  }
++
+   let sourceRootPromise: Promise<string | undefined>
+ 
+   const packageRoot = getNodeModulesPackageRoot(file)
+@@ -82,6 +87,7 @@ export async function injectSourcesContent(
+     if (
+       sourcesContent[index] == null &&
+       sourcePath &&
++      !isExternalUrl(sourcePath) &&
+       !virtualSourceRE.test(sourcePath)
+     ) {
+       sourcesContentPromises.push(

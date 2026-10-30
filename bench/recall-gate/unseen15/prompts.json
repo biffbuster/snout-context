@@ -1,0 +1,541 @@
+{
+ "about": "Gate 3, fifteenth unseen check: prompts for unseen15/history.json. Written and frozen before the run, after this round's search fixes and the scorer's equivalent-answer rule were locked; scored by bench/recall-gate.mjs as every set, and by bench/ondemand-gate.mjs for the on-demand gate. FARE_OLD must reach no path; H5's other fact (SWEEP) stays findable. TAG_BAD, a request said in two sessions, must never be shown as standing. S08 shares a word with a session record that does not answer it. searchAlso (D12): the session that moved departure dates to the harbour's local time answers how to show departure times as the UTC note does.",
+ "prompts": [
+  {
+   "id": "D01",
+   "prompt": "Add a test for seat booking and run the tests.",
+   "query": "run tests",
+   "delivery": [
+    "T_cur"
+   ],
+   "recall": [
+    "BOOKING"
+   ],
+   "search": [
+    "T_cur"
+   ]
+  },
+  {
+   "id": "D02",
+   "prompt": "What's the command for the test suite?",
+   "query": "test command",
+   "delivery": [
+    "T_cur"
+   ],
+   "recall": "any",
+   "search": [
+    "T_cur"
+   ]
+  },
+  {
+   "id": "D03",
+   "prompt": "Run the tests.",
+   "query": "tests",
+   "delivery": [
+    "T_cur"
+   ],
+   "recall": "any",
+   "search": [
+    "T_cur"
+   ]
+  },
+  {
+   "id": "D04",
+   "prompt": "Regenerate the query code with sqlc.",
+   "query": "sqlc",
+   "delivery": [
+    "SQLC"
+   ],
+   "recall": [
+    "SQLC"
+   ],
+   "search": [
+    "SQLC"
+   ]
+  },
+  {
+   "id": "D05",
+   "prompt": "How do we store fares?",
+   "query": "fare storage",
+   "delivery": [
+    "CENTS"
+   ],
+   "recall": "any",
+   "search": [
+    "CENTS"
+   ]
+  },
+  {
+   "id": "D06",
+   "prompt": "Show fares with two decimals on the receipt.",
+   "query": "fare amounts",
+   "delivery": [
+    "CENTS"
+   ],
+   "recall": "any",
+   "search": [
+    "CENTS"
+   ]
+  },
+  {
+   "id": "D07",
+   "prompt": "How long is a seat held before payment?",
+   "query": "seat hold time",
+   "delivery": [
+    "HOLD15"
+   ],
+   "recall": "any",
+   "search": [
+    "HOLD15"
+   ]
+  },
+  {
+   "id": "D08",
+   "prompt": "Let a customer keep their seat for an hour while they find their card.",
+   "query": "seat hold expiry",
+   "delivery": [
+    "HOLD15"
+   ],
+   "recall": "any",
+   "search": [
+    "HOLD15"
+   ]
+  },
+  {
+   "id": "D09",
+   "prompt": "How are boarding-pass texts sent?",
+   "query": "boarding pass sms",
+   "delivery": [
+    "TWILIO"
+   ],
+   "recall": "any",
+   "search": [
+    "TWILIO"
+   ]
+  },
+  {
+   "id": "D10",
+   "prompt": "Send a test SMS through Twilio.",
+   "query": "twilio",
+   "delivery": [
+    "TWILIO"
+   ],
+   "recall": "any",
+   "search": [
+    "TWILIO"
+   ]
+  },
+  {
+   "id": "D11",
+   "prompt": "What timezone are sailing times stored in?",
+   "query": "sailing time zone",
+   "delivery": [
+    "UTC"
+   ],
+   "recall": "any",
+   "search": [
+    "UTC"
+   ]
+  },
+  {
+   "id": "D12",
+   "prompt": "Show tomorrow's departures on the board.",
+   "query": "departure times",
+   "delivery": [
+    "UTC"
+   ],
+   "recall": "any",
+   "search": [
+    "UTC"
+   ],
+   "searchAlso": [
+    "LOCALDAY"
+   ]
+  },
+  {
+   "id": "D13",
+   "prompt": "Can I log the passport number when a check-in fails?",
+   "query": "log passport number",
+   "delivery": [
+    "NOPASS"
+   ],
+   "recall": "any",
+   "search": [
+    "NOPASS"
+   ]
+  },
+  {
+   "id": "D14",
+   "prompt": "Tag a release after merging.",
+   "query": "release tag",
+   "delivery": "any",
+   "recall": "any",
+   "search": "any"
+  },
+  {
+   "id": "D15",
+   "prompt": "Pick up where the last session stopped.",
+   "query": "group booking discount",
+   "delivery": [
+    "GROUP"
+   ],
+   "recall": "any",
+   "search": [
+    "GROUP"
+   ]
+  },
+  {
+   "id": "D16",
+   "prompt": "Never log a passenger's passport number; check that internal/tickets/cabin.go follows that.",
+   "query": "passport in logs",
+   "delivery": [
+    "NOPASS"
+   ],
+   "recall": "any",
+   "search": [
+    "NOPASS"
+   ]
+  },
+  {
+   "id": "D17",
+   "prompt": "Add a window-seat flag in internal/tickets/book.go.",
+   "query": "seat booking",
+   "delivery": "any",
+   "recall": [
+    "BOOKING",
+    "DOUBLESEAT"
+   ],
+   "search": "any"
+  },
+  {
+   "id": "D18",
+   "prompt": "Run the tests with go test -race ./...",
+   "query": "race flag tests",
+   "delivery": [
+    "T_cur"
+   ],
+   "recall": "any",
+   "search": [
+    "T_cur",
+    "RACE"
+   ]
+  },
+  {
+   "id": "D19",
+   "prompt": "Raise the adult fare to 23 euros, in internal/fares/fares.go.",
+   "query": "adult fare",
+   "delivery": "any",
+   "recall": [
+    "FARE_CUR"
+   ],
+   "search": [
+    "FARE_CUR"
+   ]
+  },
+  {
+   "id": "D20",
+   "prompt": "Mrs. Lindqvist's car needs a ticket for Friday.",
+   "query": "vehicle tickets",
+   "delivery": [
+    "PLATE"
+   ],
+   "recall": "any",
+   "search": [
+    "PLATE"
+   ]
+  },
+  {
+   "id": "D21",
+   "prompt": "Text the passengers when their sailing is late.",
+   "query": "delay sms",
+   "delivery": [
+    "TWILIO"
+   ],
+   "recall": "any",
+   "search": [
+    "TWILIO",
+    "DELAY"
+   ]
+  },
+  {
+   "id": "Q01",
+   "prompt": "Why do the tests run with the race detector?",
+   "query": "race detector",
+   "delivery": "any",
+   "recall": [
+    "RACE"
+   ],
+   "search": [
+    "RACE"
+   ]
+  },
+  {
+   "id": "Q02",
+   "prompt": "How did we stop two passengers getting the same seat?",
+   "query": "double booked seat",
+   "delivery": "any",
+   "recall": [
+    "DOUBLESEAT"
+   ],
+   "search": [
+    "DOUBLESEAT"
+   ]
+  },
+  {
+   "id": "Q03",
+   "prompt": "When did the adult fare go up to 21 euros?",
+   "query": "fare increase",
+   "delivery": "any",
+   "recall": [
+    "FARE_CUR"
+   ],
+   "search": [
+    "FARE_CUR"
+   ]
+  },
+  {
+   "id": "Q04",
+   "prompt": "How often are unpaid holds released?",
+   "query": "hold sweeper",
+   "delivery": "any",
+   "recall": [
+    "SWEEP"
+   ],
+   "search": [
+    "SWEEP"
+   ]
+  },
+  {
+   "id": "Q05",
+   "prompt": "Which change added the waitlist?",
+   "query": "waitlist",
+   "delivery": "any",
+   "recall": [
+    "WAITLIST"
+   ],
+   "search": [
+    "WAITLIST"
+   ]
+  },
+  {
+   "id": "Q06",
+   "prompt": "Where are passenger profiles kept?",
+   "query": "passenger profiles",
+   "delivery": "any",
+   "recall": [
+    "PROFILES"
+   ],
+   "search": [
+    "PROFILES"
+   ]
+  },
+  {
+   "id": "Q07",
+   "prompt": "When did we start sending delay alerts?",
+   "query": "delay alerts",
+   "delivery": "any",
+   "recall": [
+    "DELAY"
+   ],
+   "search": [
+    "DELAY"
+   ]
+  },
+  {
+   "id": "Q08",
+   "prompt": "Which session added cabin upgrades?",
+   "query": "cabin upgrade",
+   "delivery": "any",
+   "recall": [
+    "CABIN"
+   ],
+   "search": [
+    "CABIN"
+   ]
+  },
+  {
+   "id": "Q09",
+   "prompt": "When was the pet fee added?",
+   "query": "pet fees",
+   "delivery": "any",
+   "recall": [
+    "PETS"
+   ],
+   "search": [
+    "PETS"
+   ]
+  },
+  {
+   "id": "Q10",
+   "prompt": "Why were some sailings shown a day early?",
+   "query": "sailings shown early",
+   "delivery": "any",
+   "recall": [
+    "LOCALDAY"
+   ],
+   "search": [
+    "LOCALDAY"
+   ]
+  },
+  {
+   "id": "Q11",
+   "prompt": "Which session added the lost-property log?",
+   "query": "lost property",
+   "delivery": "any",
+   "recall": [
+    "LOST"
+   ],
+   "search": [
+    "LOST"
+   ]
+  },
+  {
+   "id": "Q12",
+   "prompt": "Which Postgres version do we run?",
+   "query": "postgres version",
+   "delivery": "any",
+   "recall": [
+    "PG16"
+   ],
+   "search": [
+    "PG16"
+   ]
+  },
+  {
+   "id": "Q13",
+   "prompt": "Why wasn't the query code generated?",
+   "query": "query code generation",
+   "delivery": "any",
+   "recall": [
+    "SQLC"
+   ],
+   "search": [
+    "SQLC"
+   ]
+  },
+  {
+   "id": "Q14",
+   "prompt": "Where did the group discount work stop?",
+   "query": "group discount",
+   "delivery": "any",
+   "recall": [
+    "GROUP"
+   ],
+   "search": [
+    "GROUP"
+   ]
+  },
+  {
+   "id": "Q15",
+   "prompt": "What changed about the adult fare?",
+   "query": "adult fare change",
+   "delivery": "any",
+   "recall": [
+    "FARE_CUR"
+   ],
+   "search": [
+    "FARE_CUR"
+   ]
+  },
+  {
+   "id": "Q16",
+   "prompt": "Which session added seat booking?",
+   "query": "seat booking",
+   "delivery": "any",
+   "recall": [
+    "BOOKING"
+   ],
+   "search": [
+    "BOOKING"
+   ]
+  },
+  {
+   "id": "S01",
+   "prompt": "Add a dark mode to the booking site.",
+   "query": "dark mode",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S02",
+   "prompt": "Translate the timetable page into Norwegian.",
+   "query": "norwegian translation",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S03",
+   "prompt": "Set up golangci-lint with the default linters.",
+   "query": "golangci-lint",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S04",
+   "prompt": "Why does the CSV export of waitlists drop the phone column?",
+   "query": "csv export",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S05",
+   "prompt": "Write a haiku about the sea.",
+   "query": "haiku",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S06",
+   "prompt": "Explain Go generics.",
+   "query": "generics",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S07",
+   "prompt": "Switch the router to chi.",
+   "query": "chi router",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S08",
+   "prompt": "Replace the logo on the receipt.",
+   "query": "receipt logo",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S09",
+   "prompt": "Sort the crew roster.",
+   "query": "crew roster",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S10",
+   "prompt": "Add a cookie banner.",
+   "query": "cookie banner",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S11",
+   "prompt": "Handle an expired voucher when a passenger pays for a cabin.",
+   "query": "expired voucher",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  }
+ ]
+}

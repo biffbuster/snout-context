@@ -1,0 +1,265 @@
+diff --git a/scripts/fork_go_templates/main.go b/scripts/fork_go_templates/main.go
+index 68890636dfa..f617e48be77 100644
+--- a/scripts/fork_go_templates/main.go
++++ b/scripts/fork_go_templates/main.go
+@@ -73,6 +73,7 @@ var (
+ 		"func (s *state) walkTemplate(", "func (s *state) walkTemplateOld(",
+ 		"func (s *state) validateType(", "func (s *state) _validateType(",
+ 		"func isTrue(val reflect.Value) (truth, ok bool) {", "func isTrueOld(val reflect.Value) (truth, ok bool) {",
++		"func safeCall(", "func safeCallOld(",
+ 	)
+ 
+ 	testEnvReplacers = strings.NewReplacer(
+diff --git a/tpl/internal/go_templates/texttemplate/funcs.go b/tpl/internal/go_templates/texttemplate/funcs.go
+index ed9c7ea5d55..518474b4a38 100644
+--- a/tpl/internal/go_templates/texttemplate/funcs.go
++++ b/tpl/internal/go_templates/texttemplate/funcs.go
+@@ -353,7 +353,7 @@ func call(name string, fn reflect.Value, args ...reflect.Value) (reflect.Value,
+ 
+ // safeCall runs fun.Call(args), and returns the resulting value and error, if
+ // any. If the call panics, the panic value is returned as an error.
+-func safeCall(fun reflect.Value, args []reflect.Value) (val reflect.Value, err error) {
++func safeCallOld(fun reflect.Value, args []reflect.Value) (val reflect.Value, err error) {
+ 	defer func() {
+ 		if r := recover(); r != nil {
+ 			if e, ok := r.(error); ok {
+diff --git a/tpl/internal/go_templates/texttemplate/hugo_template.go b/tpl/internal/go_templates/texttemplate/hugo_template.go
+index 7720f3e9407..05f8830e944 100644
+--- a/tpl/internal/go_templates/texttemplate/hugo_template.go
++++ b/tpl/internal/go_templates/texttemplate/hugo_template.go
+@@ -21,6 +21,7 @@ import (
+ 	"reflect"
+ 
+ 	"github.com/gohugoio/hugo/common/herrors"
++	"github.com/gohugoio/hugo/common/hmaps"
+ 	"github.com/gohugoio/hugo/common/hreflect"
+ 
+ 	"github.com/gohugoio/hugo/tpl/internal/go_templates/texttemplate/parse"
+@@ -579,3 +580,119 @@ func (t *Template) All() iter.Seq[*Template] {
+ 		}
+ 	}
+ }
++
++var (
++	anyType                  = reflect.TypeFor[any]()
++	funcVariadicAnyString    = reflect.TypeFor[func(...any) string]()
++	funcString               = reflect.TypeFor[func() string]()
++	funcCtxVariadicAnyAnyErr = reflect.TypeFor[func(context.Context, ...any) (any, error)]()
++	funcAnyVariadicAnyBool   = reflect.TypeFor[func(any, ...any) bool]()
++	funcParams               = reflect.TypeFor[func() hmaps.Params]()
++	funcAnyAnyBoolErr        = reflect.TypeFor[func(any, any) (bool, error)]()
++	funcAnyStringErr         = reflect.TypeFor[func(any) (string, error)]()
++	funcCtxStringVariadicAny = reflect.TypeFor[func(context.Context, string, ...any) (any, error)]()
++	funcReflectValueBool     = reflect.TypeFor[func(reflect.Value) bool]()
++	funcMap                  = reflect.TypeFor[func() map[string]any]()
++	funcVariadicAnyMapErr    = reflect.TypeFor[func(...any) (map[string]any, error)]()
++	funcAny                  = reflect.TypeFor[func() any]()
++	funcBool                 = reflect.TypeFor[func() bool]()
++	funcStringVariadicAny    = reflect.TypeFor[func(string, ...any) string]()
++	funcAnyVariadicAnyAnyErr = reflect.TypeFor[func(any, ...any) (any, error)]()
++)
++
++// safeCall runs fun with args and returns the result and error, if any.
++// If the call panics, the panic value is returned as an error.
++// This replaces the upstream safeCall and calls the most common function
++// signatures directly, avoiding the allocations in reflect.Value.Call.
++// See issue 15385.
++func safeCall(fun reflect.Value, args []reflect.Value) (val reflect.Value, err error) {
++	defer func() {
++		if r := recover(); r != nil {
++			if e, ok := r.(error); ok {
++				err = e
++			} else {
++				err = fmt.Errorf("%v", r)
++			}
++		}
++	}()
++
++	switch fun.Type() {
++	case funcVariadicAnyString:
++		f, _ := reflect.TypeAssert[func(...any) string](fun)
++		return reflect.ValueOf(f(anyArgs(args)...)), nil
++	case funcString:
++		f, _ := reflect.TypeAssert[func() string](fun)
++		return reflect.ValueOf(f()), nil
++	case funcCtxVariadicAnyAnyErr:
++		f, _ := reflect.TypeAssert[func(context.Context, ...any) (any, error)](fun)
++		ctx, _ := args[0].Interface().(context.Context)
++		v, err := f(ctx, anyArgs(args[1:])...)
++		return anyValue(v), err
++	case funcAnyVariadicAnyBool:
++		f, _ := reflect.TypeAssert[func(any, ...any) bool](fun)
++		return reflect.ValueOf(f(args[0].Interface(), anyArgs(args[1:])...)), nil
++	case funcParams:
++		f, _ := reflect.TypeAssert[func() hmaps.Params](fun)
++		return reflect.ValueOf(f()), nil
++	case funcAnyAnyBoolErr:
++		f, _ := reflect.TypeAssert[func(any, any) (bool, error)](fun)
++		v, err := f(args[0].Interface(), args[1].Interface())
++		return reflect.ValueOf(v), err
++	case funcAnyStringErr:
++		f, _ := reflect.TypeAssert[func(any) (string, error)](fun)
++		v, err := f(args[0].Interface())
++		return reflect.ValueOf(v), err
++	case funcCtxStringVariadicAny:
++		f, _ := reflect.TypeAssert[func(context.Context, string, ...any) (any, error)](fun)
++		ctx, _ := args[0].Interface().(context.Context)
++		v, err := f(ctx, args[1].String(), anyArgs(args[2:])...)
++		return anyValue(v), err
++	case funcReflectValueBool:
++		f, _ := reflect.TypeAssert[func(reflect.Value) bool](fun)
++		v, _ := reflect.TypeAssert[reflect.Value](args[0])
++		return reflect.ValueOf(f(v)), nil
++	case funcMap:
++		f, _ := reflect.TypeAssert[func() map[string]any](fun)
++		return reflect.ValueOf(f()), nil
++	case funcVariadicAnyMapErr:
++		f, _ := reflect.TypeAssert[func(...any) (map[string]any, error)](fun)
++		v, err := f(anyArgs(args)...)
++		return reflect.ValueOf(v), err
++	case funcAny:
++		f, _ := reflect.TypeAssert[func() any](fun)
++		return anyValue(f()), nil
++	case funcBool:
++		f, _ := reflect.TypeAssert[func() bool](fun)
++		return reflect.ValueOf(f()), nil
++	case funcStringVariadicAny:
++		f, _ := reflect.TypeAssert[func(string, ...any) string](fun)
++		return reflect.ValueOf(f(args[0].String(), anyArgs(args[1:])...)), nil
++	case funcAnyVariadicAnyAnyErr:
++		f, _ := reflect.TypeAssert[func(any, ...any) (any, error)](fun)
++		v, err := f(args[0].Interface(), anyArgs(args[1:])...)
++		return anyValue(v), err
++	}
++
++	ret := fun.Call(args)
++	if len(ret) == 2 && !ret[1].IsNil() {
++		return ret[0], ret[1].Interface().(error)
++	}
++	return ret[0], nil
++}
++
++func anyArgs(args []reflect.Value) []any {
++	s := make([]any, len(args))
++	for i, arg := range args {
++		s[i] = arg.Interface()
++	}
++	return s
++}
++
++// anyValue returns a valid reflect.Value also for nil, matching what
++// reflect.Value.Call returns for an any result.
++func anyValue(v any) reflect.Value {
++	if v == nil {
++		return reflect.Zero(anyType)
++	}
++	return reflect.ValueOf(v)
++}
+diff --git a/tpl/internal/go_templates/texttemplate/hugo_template_test.go b/tpl/internal/go_templates/texttemplate/hugo_template_test.go
+index 920d96fac54..462c2ab9abf 100644
+--- a/tpl/internal/go_templates/texttemplate/hugo_template_test.go
++++ b/tpl/internal/go_templates/texttemplate/hugo_template_test.go
+@@ -16,11 +16,13 @@ package template
+ import (
+ 	"bytes"
+ 	"context"
++	"errors"
+ 	"reflect"
+ 	"strings"
+ 	"testing"
+ 
+ 	qt "github.com/frankban/quicktest"
++	"github.com/gohugoio/hugo/common/hmaps"
+ 	"github.com/gohugoio/hugo/common/hreflect"
+ )
+ 
+@@ -93,3 +95,89 @@ Method: {{ .Hello1 "v1" }}
+ 	c.Assert(got, qt.Contains, "Map: av")
+ 	c.Assert(got, qt.Contains, "Method: v2 v1")
+ }
++
++// See issue 15385.
++func TestSafeCallFastPaths(t *testing.T) {
++	c := qt.New(t)
++
++	vals := func(args ...any) []reflect.Value {
++		var argv []reflect.Value
++		for _, a := range args {
++			argv = append(argv, reflect.ValueOf(a))
++		}
++		return argv
++	}
++	ctx := context.WithValue(context.Background(), "k", "v")
++	errBoom := errors.New("boom")
++	m := map[string]any{"a": 1}
++	params := hmaps.Params{"a": 1}
++
++	for _, test := range []struct {
++		name   string
++		fn     any
++		args   []reflect.Value
++		expect any
++		err    string
++		allocs float64
++	}{
++		{"variadic string", func(args ...any) string { return args[0].(string) }, vals("a", 1), "a", "", 2},
++		{"string", func() string { return "s" }, nil, "s", "", 1},
++		{"ctx variadic any error", func(c context.Context, args ...any) (any, error) { return c.Value("k"), nil }, vals(ctx, "x"), "v", "", 1},
++		{"ctx variadic nil", func(c context.Context, args ...any) (any, error) { return nil, nil }, vals(ctx), nil, "", 0},
++		{"ctx variadic error", func(c context.Context, args ...any) (any, error) { return nil, errBoom }, vals(ctx), nil, "boom", 0},
++		{"any variadic bool", func(a any, args ...any) bool { return a == args[0] }, vals(1, 1), true, "", 1},
++		{"params", func() hmaps.Params { return params }, nil, params, "", 0},
++		{"any any bool error", func(a, b any) (bool, error) { return a == b, nil }, vals("a", "b"), false, "", 0},
++		{"any string error", func(a any) (string, error) { return "", errBoom }, vals("a"), "", "boom", 0},
++		{"ctx string variadic", func(c context.Context, s string, args ...any) (any, error) { return args[0], nil }, vals(ctx, "s", "1"), "1", "", 1},
++		{"reflect value bool", func(v reflect.Value) bool { return v.Int() == 1 }, []reflect.Value{reflect.ValueOf(reflect.ValueOf(1))}, true, "", 0},
++		{"map", func() map[string]any { return m }, nil, m, "", 0},
++		{"variadic map error", func(args ...any) (map[string]any, error) { return m, nil }, vals(1), m, "", 1},
++		{"any", func() any { return 42 }, nil, 42, "", 0},
++		{"bool", func() bool { return true }, nil, true, "", 0},
++		{"string variadic", func(s string, args ...any) string { return s }, vals("s", "1"), "s", "", 2},
++		{"any variadic any error", func(a any, args ...any) (any, error) { return args[0], nil }, vals(1, "b"), "b", "", 1},
++		{"panic", func() string { panic("bad") }, nil, nil, "bad", -1},
++		{"slow path", func(a, b string) string { return a + b }, vals("a", "b"), "ab", "", -1},
++	} {
++		c.Run(test.name, func(c *qt.C) {
++			fn := reflect.ValueOf(test.fn)
++			v, err := safeCall(fn, test.args)
++			if test.err != "" {
++				c.Assert(err, qt.ErrorMatches, test.err)
++			} else {
++				c.Assert(err, qt.IsNil)
++				c.Assert(v.IsValid(), qt.IsTrue)
++				if test.expect == nil {
++					c.Assert(v.Interface(), qt.IsNil)
++				} else {
++					c.Assert(v.Interface(), qt.DeepEquals, test.expect)
++				}
++			}
++			if test.allocs >= 0 {
++				allocs := testing.AllocsPerRun(100, func() { safeCall(fn, test.args) })
++				c.Assert(allocs, qt.Equals, test.allocs)
++			}
++		})
++	}
++}
++
++func BenchmarkSafeCall(b *testing.B) {
++	for _, bench := range []struct {
++		name string
++		fn   any
++		args []reflect.Value
++	}{
++		{"variadic string", func(args ...any) string { return "" }, []reflect.Value{reflect.ValueOf("a")}},
++		{"string", func() string { return "" }, nil},
++		{"ctx variadic any error", func(context.Context, ...any) (any, error) { return nil, nil }, []reflect.Value{reflect.ValueOf(context.Background()), reflect.ValueOf("a")}},
++		{"slow path", func(a, b string) string { return a + b }, []reflect.Value{reflect.ValueOf("a"), reflect.ValueOf("b")}},
++	} {
++		fn := reflect.ValueOf(bench.fn)
++		b.Run(bench.name, func(b *testing.B) {
++			for b.Loop() {
++				safeCall(fn, bench.args)
++			}
++		})
++	}
++}

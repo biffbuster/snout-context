@@ -70,11 +70,13 @@ const DRAWN = {
 };
 
 /** $/M tokens: [input, cache read, cache write 5m, output], and the prompt size above which all four scale. */
-// List prices checked 2026-10-08 (Anthropic docs). Only Haiku 5.5 has a long-prompt step; the 1M
-// models bill flat (Opus 5.5's $8/$40 is fast mode, not a context tier). Cache writes are 1.25× input.
+// List prices checked 2026-10-24 (platform.claude.com pricing page). Only Haiku 5.5 has a long-prompt
+// step; the 1M models bill flat (Opus 5.5's $8/$40 is fast mode, not a context tier). Cache writes
+// are 1.25× input. Cache reads are 0.05× input on Sonnet 5.5 and Opus 5.5 (Sonnet 5.5 was priced at
+// 0.1× here until 2026-10-24, which overstated its sessions by about 20%).
 const PRICES = {
   "claude-haiku-5-5": { p: [0.1, 0.01, 0.125, 0.5], tierAt: 100_000, tierX: 5 },
-  "claude-sonnet-5-5": { p: [2, 0.2, 2.5, 10], tierAt: Infinity, tierX: 1 },
+  "claude-sonnet-5-5": { p: [2, 0.1, 2.5, 10], tierAt: Infinity, tierX: 1 },
   "claude-opus-5-5": { p: [4, 0.2, 5, 20], tierAt: Infinity, tierX: 1 },
   "claude-fable-5-1": { p: [10, 0.25, 12.5, 50], tierAt: Infinity, tierX: 1 },
 };
@@ -416,7 +418,7 @@ print(json.dumps([{k: d[k] for k in ("instance_id","repo","base_commit","problem
   summarize(JSON.parse(readFileSync(outFile, "utf8")));
 }
 
-export { transcriptFacts, PRICES };
+export { transcriptFacts, callCost, PRICES };
 
 // Only when run directly: bench/nl2repo.mjs imports the cost functions above.
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) main().catch((e) => { console.error(e); process.exit(1); });

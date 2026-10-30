@@ -1,0 +1,138 @@
+{
+  "about": "Gate 3, second unseen check (docs/memory-gates.md): written and frozen on 2026-10-26 before the third round of fixes, and run once after them. A Rust project, so the commands, tools and wording differ from both earlier sets.",
+  "project": {
+    "name": "ferry",
+    "files": {
+      ".gitignore": ".snout/\ntarget/\n",
+      "Cargo.toml": "[package]\nname = \"ferry\"\nversion = \"0.9.0\"\nedition = \"2021\"\n\n[dependencies]\nanyhow = \"1\"\n",
+      "CHANGELOG.md": "# Changelog\n",
+      "src/main.rs": "mod sync;\nmod retry;\nmod config;\n\nfn main() {\n    sync::run();\n}\n",
+      "src/sync.rs": "pub fn run() {\n    let _lock = std::fs::File::create(\".ferry/lock\");\n}\n",
+      "src/retry.rs": "pub fn delay(attempt: u32) -> u64 {\n    200 * 2u64.pow(attempt)\n}\n",
+      "src/config.rs": "pub struct Config { pub remote: String }\n",
+      "tests/sync.rs": "#[test]\nfn runs() {}\n"
+    }
+  },
+  "steps": [
+    {
+      "id": "F1", "type": "session", "agent": "claude",
+      "prompt": "Add a --dry-run flag to the sync command in src/main.rs and make sure the tests pass.",
+      "calls": [
+        { "edit": "src/main.rs", "content": "mod sync;\nmod retry;\nmod config;\n\nfn main() {\n    let dry_run = std::env::args().any(|a| a == \"--dry-run\");\n    if !dry_run { sync::run(); }\n}\n" },
+        { "bash": "cargo test", "out": "   Compiling ferry v0.9.0\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.12s\n     Running unittests src/main.rs\n\nrunning 18 tests\n..................\ntest result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s\n" }
+      ],
+      "commit": "Add --dry-run to sync",
+      "final": "sync takes --dry-run (src/main.rs). cargo test: 18 passed."
+    },
+    {
+      "id": "F2", "type": "session", "agent": "codex",
+      "prompt": "Run the lint target before changing src/retry.rs, then cap retries at five.",
+      "calls": [
+        { "bash": "make lint", "out": "bash: make: command not found\n" },
+        { "bash": "cargo clippy -- -D warnings", "out": "    Checking ferry v0.9.0\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.80s\n" },
+        { "edit": "src/retry.rs", "content": "pub const MAX_RETRIES: u32 = 5;\n\npub fn delay(attempt: u32) -> u64 {\n    200 * 2u64.pow(attempt.min(MAX_RETRIES))\n}\n" }
+      ],
+      "commit": "Cap retries at five",
+      "final": "make isn't installed here, so I ran cargo clippy directly. Retries are capped at five in src/retry.rs."
+    },
+    {
+      "id": "F3", "type": "session", "agent": "claude",
+      "prompt": "Format src/config.rs and check the formatting.",
+      "calls": [
+        { "bash": "rustfmt --check src/config.rs", "out": "bash: line 1: rustfmt: command not found\n" },
+        { "bash": "cargo fmt --check", "out": "" },
+        { "edit": "src/config.rs", "content": "pub struct Config {\n    pub remote: String,\n}\n" }
+      ],
+      "commit": "Format config",
+      "final": "rustfmt isn't on PATH in this shell, but cargo fmt --check runs it and is clean. src/config.rs is formatted."
+    },
+    { "id": "M1", "type": "cli", "args": ["memory", "add", "Retries use exponential backoff starting at 200 ms.", "--kind", "decision"] },
+    { "id": "M2", "type": "cli", "args": ["memory", "add", "Errors are wrapped with anyhow::Context; no unwrap() outside tests.", "--kind", "convention"] },
+    {
+      "id": "F4", "type": "session", "agent": "codex",
+      "prompt": "Run the whole workspace's tests from now on, the bench crate too.",
+      "calls": [
+        { "edit": "Cargo.toml", "content": "[package]\nname = \"ferry\"\nversion = \"0.9.0\"\nedition = \"2021\"\n\n[workspace]\nmembers = [\".\", \"bench\"]\n\n[dependencies]\nanyhow = \"1\"\n" },
+        { "bash": "cargo test --workspace", "out": "     Running unittests src/main.rs\n\nrunning 26 tests\n..........................\ntest result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s\n" }
+      ],
+      "commit": "Test the whole workspace",
+      "final": "Cargo.toml has a workspace with the bench crate; cargo test --workspace: 26 passed."
+    },
+    {
+      "id": "F5", "type": "session", "agent": "claude",
+      "prompt": "Remember that sync writes a lock file so two syncs never run at once.",
+      "mcp": [
+        { "tool": "snout_memory_save", "args": { "text": "Sync takes a lock file at .ferry/lock (src/sync.rs) so two syncs never overlap.", "kind": "convention", "user_asked": true, "files": ["src/sync.rs"] } }
+      ],
+      "calls": [],
+      "final": "Saved: sync takes a lock file at .ferry/lock, in src/sync.rs."
+    },
+    {
+      "id": "F6", "type": "session", "agent": "codex",
+      "prompt": "Replace the lock file in src/sync.rs with an advisory flock on the database.",
+      "calls": [
+        { "edit": "src/sync.rs", "content": "pub fn run() {\n    let db = std::fs::File::open(\"ferry.db\").unwrap();\n    fs2::FileExt::lock_exclusive(&db).ok();\n}\n" },
+        { "bash": "cargo test --workspace", "out": "test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s\n" }
+      ],
+      "commit": "flock instead of lock file",
+      "final": "src/sync.rs takes an advisory flock on ferry.db; the .ferry/lock file is gone. 26 tests pass."
+    },
+    { "id": "M3", "type": "cli", "args": ["memory", "add", "Retries now use a fixed 1 s delay instead of exponential backoff.", "--kind", "decision"] },
+    {
+      "id": "F7", "type": "session", "agent": "claude",
+      "prompt": "The retry test fails on Windows. Commit the fix when the tests pass. Always keep the changelog updated with each fix.",
+      "calls": [
+        { "bash": "cargo test --workspace", "out": "test retry::delay_windows ... FAILED\n\ntest result: FAILED. 25 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s\n" },
+        { "edit": "src/retry.rs", "content": "pub const MAX_RETRIES: u32 = 5;\n\npub fn delay(_attempt: u32) -> u64 {\n    1000\n}\n" },
+        { "edit": "CHANGELOG.md", "content": "# Changelog\n\n- Retry delay is a fixed 1 s.\n" },
+        { "bash": "cargo test --workspace", "out": "test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s\n" }
+      ],
+      "commit": "fix: retry delay on Windows",
+      "final": "The retry test expected exponential delays; delay() returns a fixed 1 s now. Changelog updated, 26 tests pass, committed."
+    },
+    {
+      "id": "F8", "type": "session", "agent": "codex",
+      "prompt": "The config test is flaky. Commit the fix when the tests pass. Always keep the changelog updated with each fix.",
+      "calls": [
+        { "edit": "CHANGELOG.md", "content": "# Changelog\n\n- Retry delay is a fixed 1 s.\n- Config test no longer depends on HOME.\n" },
+        { "bash": "cargo test --workspace", "out": "test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s\n" }
+      ],
+      "commit": "fix: flaky config test",
+      "final": "The config test read HOME; it uses a temp dir now. Changelog updated, 26 tests pass, committed."
+    },
+    {
+      "id": "F9", "type": "session", "agent": "claude",
+      "prompt": "Run the benchmarks in my ferry-bench checkout next door.",
+      "calls": [
+        { "bash": "cd ../ferry-bench && cargo test", "out": "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.02s\n" }
+      ],
+      "final": "ferry-bench's 7 tests pass with this build."
+    },
+    {
+      "id": "F10", "type": "session", "agent": "claude",
+      "prompt": "Add a progress bar to sync in src/progress.rs.",
+      "calls": [
+        { "edit": "src/progress.rs", "content": "pub struct Progress { pub done: u64, pub total: u64 }\n" },
+        { "todos": [{ "content": "Add the Progress struct", "status": "completed" }, { "content": "Hook the progress bar into retries", "status": "pending" }] }
+      ],
+      "final": "src/progress.rs has a Progress struct. Hooking it into retries is still to do; not committed."
+    }
+  ],
+  "facts": {
+    "T_cur": { "class": "current", "about": "the test command", "pattern": "cargo test --workspace" },
+    "T_old": { "class": "stale", "about": "the test command before the workspace, as a note", "pattern": "Run the tests with: cargo test(?! --workspace)" },
+    "T_else": { "class": "wrong-scope", "about": "another checkout's test command, as this project's", "pattern": "Run the tests with: cd " },
+    "MAKE": { "class": "current", "about": "make is not installed", "pattern": "make is not installed|make isn't installed|make: command not found" },
+    "RUSTFMT_BAD": { "class": "unsupported", "about": "rustfmt reported missing, though cargo fmt runs it", "pattern": "rustfmt is not installed" },
+    "RETRY_OLD": { "class": "stale", "about": "exponential backoff, replaced by M3", "pattern": "exponential backoff starting at 200" },
+    "RETRY_CUR": { "class": "current", "about": "a fixed 1 s retry delay", "pattern": "fixed 1 s delay" },
+    "ERR": { "class": "current", "about": "error handling convention", "pattern": "anyhow::Context" },
+    "LOCK_NOTE": { "class": "stale", "about": "the lock file, saved with src/sync.rs, which F6 then changed", "pattern": "lock file at \\.ferry/lock \\(src" },
+    "LOCK_CUR": { "class": "current", "about": "the advisory flock", "pattern": "flock" },
+    "COMMIT_BAD": { "class": "unsupported", "about": "a task request said in two sessions, saved as standing", "pattern": "preference[^\\n]*Commit the fix when the tests pass" },
+    "CHANGELOG": { "class": "current", "about": "keep the changelog updated, said in two sessions", "pattern": "changelog updated with each fix" },
+    "WS": { "class": "current", "about": "when the whole workspace started being tested", "pattern": "whole workspace" },
+    "CAP": { "class": "current", "about": "the retry cap", "pattern": "[Cc]ap retries" },
+    "PROGRESS": { "class": "current", "about": "the unfinished progress bar", "pattern": "[Pp]rogress bar|Progress struct" }
+  }
+}
