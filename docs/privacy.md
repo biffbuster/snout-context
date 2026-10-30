@@ -45,17 +45,6 @@ The MCP memory tools (`snout mcp`) read and write the same notes under the same 
 agent saves without being asked stays a proposal, never recalled, until you run
 `snout memory accept <id>`.
 
-## Snout Cloud (opt-in, private beta)
-
-Nothing is sent unless you run `snout login` (or set `SNOUT_TOKEN`). Signing in sends a label for
-this machine, its hostname cut to 40 characters, so the team dashboard can tell machines apart.
-After that, `snout sync` sends per-day totals for each agent and label: read counts, tokens that
-reached context and tokens held back, and token usage and list-price cost per model from the
-agents' own logs. It also sends a hash of the project's git remote (or folder), the project's folder
-name, and a hash of the agent session. It never sends file contents, file paths, prompts, notes or
-command output. `snout sync --dry-run` prints the exact payload without sending it.
-`snout logout` deletes the saved credentials and disconnects the machine.
-
 ## Planned: semantic classification
 
 A planned opt-in tier will call `api.typesafe.ai`. What goes in the request is a **digest**, not the
@@ -121,10 +110,9 @@ The local index of notes and cards (above) is in your user config folder, not in
 Add `.snout/` to your `.gitignore` — paths alone can reveal more about a private codebase than you
 would want in a commit. To share memory with a team, commit only `.snout/memory/`, after reading it.
 
-Nothing is uploaded unless you sign in to Snout Cloud (above), and there is no telemetry.
-`telemetry: "local-only"` is the only permitted value. `snout memory model install` and `snout memory reranker install` are the only
-commands that download (the library from npm, the model from Hugging Face), and only when you run them. Both models run on this
-machine; the reranker reads a search or recall question with its candidate records and sends nothing anywhere.
+Nothing is uploaded, and there is no telemetry. `telemetry: "local-only"` is the only permitted
+value. `snout memory model install` is the only command that downloads (the library from npm, the
+model from Hugging Face), and only when you run it. The model runs on this machine.
 
 ## TypeSafe's side
 

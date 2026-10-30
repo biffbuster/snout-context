@@ -47,12 +47,6 @@ export interface Config {
    * (cli.ts startBrief, memory/tools.ts memoryHint). On unless false.
    */
   memoryHint?: boolean;
-  /**
-   * The answerability reranker (memory/rerank.ts) for search and `snout recall`: on once
-   * `snout memory reranker install` has put the local model in place; false keeps today's ranking.
-   * The prompt hooks never use it.
-   */
-  memoryRerank?: boolean;
   /** Blocking hooks call a long-running `snout serve` over HTTP instead of starting Node each time. Default on; false keeps command hooks. */
   fastHooks?: boolean;
   /**
@@ -225,7 +219,6 @@ export function loadConfig(paths: Paths): Config {
   if (process.env.SNOUT_REPO_MAP === "1" || process.env.SNOUT_REPO_MAP === "0") cfg.repoMap = process.env.SNOUT_REPO_MAP === "1";
   if (process.env.SNOUT_MEMORY_NOTES === "1" || process.env.SNOUT_MEMORY_NOTES === "0") cfg.memoryNotes = process.env.SNOUT_MEMORY_NOTES === "1";
   if (process.env.SNOUT_MEMORY_HINT === "1" || process.env.SNOUT_MEMORY_HINT === "0") cfg.memoryHint = process.env.SNOUT_MEMORY_HINT === "1";
-  if (process.env.SNOUT_MEMORY_RERANK === "1" || process.env.SNOUT_MEMORY_RERANK === "0") cfg.memoryRerank = process.env.SNOUT_MEMORY_RERANK === "1";
 
   return cfg;
 }

@@ -154,26 +154,6 @@ h2.section { font-size: 13px; font-weight: 600; color: var(--muted); text-transf
 .logo svg, .logo img { display: block; }
 :root[data-theme="dark"] .logo img.inv { filter: invert(1); }
 .logo-stack { display: inline-flex; gap: 4px; }
-.view-seg button .ic { color: inherit; }
-.view-seg button.on.cloud { background: var(--accent-soft); color: var(--accent-ink); }
-.cloud-banner { align-items: center; }
-.cloud-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
-.cloud-list li { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.cloud-list b { display: block; font-size: 13px; }
-.cloud-list small { display: block; font-size: 11.5px; }
-/* Snout Cloud (hosted): connect steps, the signed-in person, small forms. */
-img.avatar { object-fit: cover; }
-.who .grow { min-width: 0; }
-.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 18px; counter-reset: step; max-width: 640px; }
-.steps li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 12px; counter-increment: step; }
-.steps li::before { content: counter(step); width: 26px; height: 26px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-ink); font-weight: 650; font-size: 12px; display: grid; place-items: center; }
-.steps b { display: block; }
-.steps p { color: var(--muted); margin-top: 2px; }
-.row-between { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.inline-form { display: flex; gap: 8px; margin-top: 14px; }
-.input { flex: 1; min-width: 0; border: 1px solid var(--line-2); background: var(--card); color: var(--ink); border-radius: 8px; padding: 4px 10px; height: 32px; font: inherit; font-size: 12.5px; }
-.input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-.cell-logo .avatar { width: 28px; height: 28px; font-weight: 650; font-size: 12px; }
 .cell-logo { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
 .cell-logo small { display: block; color: var(--muted); font-size: 11.5px; }
 .cell-main b { display: block; font-weight: 550; }
@@ -450,12 +430,6 @@ i.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex
 .paths .icon-btn { width: 26px; height: 26px; }
 .patterns { flex-direction: row; flex-wrap: wrap; gap: 6px; }
 .patterns li { background: var(--tile); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; }
-.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.ticks-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
-.ticks-list li { display: flex; gap: 7px; align-items: flex-start; }
-.ticks-list li .ic { margin-top: 3px; }
-.ticks-list.ok .ic { color: var(--ok); }
-.ticks-list.no .ic { color: var(--bad); }
 .card > .card { margin-top: 0; }
 .grid > div > .card + .card { flex: none; }
 
@@ -586,7 +560,7 @@ i.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex
   .main { padding: 16px 16px 48px; }
   .grid > div { grid-column: span 12; }
   .agent-grid, .int-grid, .proj-grid { grid-template-columns: 1fr; }
-  .agent-b, .agent-c, .two-col, .tiles.two { grid-template-columns: 1fr; }
+  .agent-b, .agent-c, .tiles.two { grid-template-columns: 1fr; }
   .card.models { grid-template-columns: 1fr; }
   .model { border-left: 0; border-top: 1px solid var(--line); padding: 14px 18px; }
   .model:first-child { border-top: 0; }
