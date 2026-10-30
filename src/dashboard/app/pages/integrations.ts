@@ -20,7 +20,6 @@ export function integrationLogo(i: Integration, size = 30): Element {
   if (i.kind === "agent") return logo(i.id.slice(6), size);
   if (i.kind === "repo") return logo(i.name.startsWith("github.com") ? "github" : "git", size);
   if (i.id === "service:jev") return logo("jev", size);
-  if (i.id === "service:cloud") return logo("cloud", size);
   if (i.kind === "mcp") return /github/i.test(i.name) ? logo("github", size) : logo(i.name, size);
   return logo(i.name, size);
 }

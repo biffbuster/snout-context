@@ -7,7 +7,6 @@ import { writeAtomic } from "../util/atomic.js";
 import { safeText } from "../util/safe.js";
 import { adjacent, closestInMeaning, distinctWords, identsIn, indexForms, MEANING_ALONE, nameForms, namesFile, namesTopic, TOPIC_WORDS, pathsIn, sharedWords, variants, wordForms } from "./retrieve.js";
 import { folderChanged, indexedRecords, indexFileFor, latestWork, type RecordKind } from "./sqlite.js";
-import { byWords, rerankChoice, shortlist } from "./rerank.js";
 import { configDir } from "../config.js";
 
 /**
@@ -301,27 +300,6 @@ export function recall(cards: Card[], prompt: string, opts: RecallOptions = {}):
   // then the newest, which describes the code as it is (a later change to the file about something else waits).
   const named = out.filter((h) => h.files.length).sort((a, b) => b.matched.length - a.matched.length || b.card.updated.localeCompare(a.card.updated));
   return [...named, ...out.filter((h) => !h.files.length).sort((a, b) => b.score - a.score)].slice(0, opts.limit ?? MAX_CARDS);
-}
-
-/** The cards the reranker scores for a prompt (rerank.ts): today's recall, then cards sharing a word with it; none when recall finds none. */
-export function recallShortlist(cards: Card[], prompt: string, opts: RecallOptions = {}): Card[] {
-  const hits = recall(cards, prompt, { ...opts, limit: 50 }).map((h) => h.card);
-  if (!hits.length) return [];
-  return shortlist(hits, byWords(prompt, liveCards(cards, opts).map((c) => ({ item: c, text: embedText(c) }))), (c) => c.session);
-}
-
-/**
- * Recall with the answerability reranker, when it scored this prompt's shortlist: the card it is
- * sure of first, else recall's own order. When recall finds nothing, nothing. Without the
- * reranker's scores, exactly recall.
- */
-export function rerankedRecall(cards: Card[], prompt: string, opts: RecallOptions = {}): Recalled[] {
-  const limit = opts.limit ?? MAX_CARDS;
-  const hits = recall(cards, prompt, { ...opts, limit: 50 });
-  const choice = rerankChoice(prompt, recallShortlist(cards, prompt, opts).map((c) => ({ item: c, text: embedText(c) })), hits.length);
-  if (choice?.mode !== "override") return hits.slice(0, limit);
-  const pick = hits.find((h) => h.card.session === choice.item!.session) ?? { card: choice.item!, score: 0, matched: [], files: [] };
-  return [pick, ...hits.filter((h) => h !== pick)].slice(0, limit);
 }
 
 /** What a card's embedding is computed from: what the session set out to do, how it ended, its commits and files. */

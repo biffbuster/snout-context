@@ -46,7 +46,6 @@ import { compactionWhatIf, COMPACTION_COSTS, renderReplay, replaySession, totals
 import { codexSessionFacts, sessionFacts } from "./compact/memory.js";
 import { installGate, refreshGate, removeGate, HOOK_PORT, isSnoutUrl } from "./gate/install.js";
 import { readSpend } from "./spend/usage.js";
-import { AGENT_SYNC_MS, AUTO_SYNC_MS, buildPayload, cloudUrl, lastSync, loadCredentials, login, logout, sync } from "./cloud/client.js";
 import { summarizeSpend } from "./spend/summary.js";
 import { PRICES_AS_OF } from "./spend/prices.js";
 import { dailyAggregates, summarizeLedger } from "./dashboard/summary.js";
@@ -57,7 +56,7 @@ import { auditServers, disableHint } from "./audit/mcp-servers.js";
 import { archiveFiles, auditContext, listArchives, renderAudit, renderMap, restoreArchive, toJson } from "./audit/context.js";
 import { auditCi, renderCi } from "./audit/ci.js";
 import { docWindow, type DocWindow } from "./gate/longdoc.js";
-import { asksToContinue, captureSession, COMMITS, embedKey, embedText, withoutStaleClaims, forgetCard, leftOff, linkCommit, listCards, packVector, readCard, readCards, readVectors, recall, recallShortlist, renderRecall, repoBrief, rerankedRecall, shareMemory, unpackVector, workCards, workingState, writeVectors, CARD_KIND, cardsDir } from "./memory/memory.js";
+import { asksToContinue, captureSession, COMMITS, embedKey, embedText, withoutStaleClaims, forgetCard, leftOff, linkCommit, listCards, packVector, readCard, readCards, readVectors, recall, renderRecall, repoBrief, shareMemory, unpackVector, workCards, workingState, writeVectors, CARD_KIND, cardsDir } from "./memory/memory.js";
 import { memoryHint } from "./memory/tools.js";
 import { applyDistilled, installedFor, replaceOlder, retireElsewhere, retireInstalled, retireOneOff } from "./memory/distill.js";
 import { coveredBy, instructionText, lastUses, nearDuplicate, restoreObservation, retireUnused, verification } from "./memory/quality.js";
@@ -72,12 +71,11 @@ import { readRecallDecisions, recallOutcomes, summarizeRecall } from "./memory/r
 import { forgetPref, judgeAndSave, prefCandidates, readPrefs } from "./memory/prefs.js";
 import { installModel, loadEmbedder, MODEL, modelDir, modelReady, removeModel } from "./memory/embed.js";
 import { prepareMeaning, semanticOn } from "./memory/semantic.js";
-import { loadReranker, prepareRerank, RERANKER, RERANKER_FILES, rerankOn, rerankReady } from "./memory/rerank.js";
 import { buildMap, candidates, renderCandidates, shouldSuggest, type RepoMap } from "./map/map.js";
 import { forgetReads, rememberRead, repeatOf, repeatOutput, requestedWindow, returnedWindow } from "./gate/repeat.js";
 
 const VERSION = "0.3.2";
-/** This bundle, by absolute path: what the gate hook and the login flow run. */
+/** This bundle, by absolute path: what the gate hook runs. */
 const BIN = resolve(process.argv[1] ?? "dist/snout.mjs");
 
 /** When the current hook call started. A one-shot hook starts at process start; `snout serve` resets it per request. */
@@ -115,18 +113,6 @@ function main(): void {
   }
   if (command === "audit") {
     void cmdAudit(process.argv.slice(3)).catch((err) => recordError("audit", err)).finally(() => process.exit(0));
-    return;
-  }
-  if (command === "login" || command === "logout" || command === "sync") {
-    pending = true;
-    // Let the process end on its own: process.exit() while fetch's sockets close trips a libuv
-    // assertion on Windows (exit 127 after a successful login). Nothing else keeps it alive.
-    void cmdCloud(command, process.argv.slice(3)).catch((err) => recordError(command, err));
-    return;
-  }
-  if (command === "memory" && process.argv[3] === "reranker") {
-    pending = true;
-    void cmdMemoryReranker(process.argv[4]).catch((err) => say(`snout memory reranker: ${safeText((err as Error).message, 200)}`)).finally(() => process.exit(0));
     return;
   }
   if (command === "memory" && process.argv[3] === "model") {
@@ -293,38 +279,6 @@ function cmdDashboard(args: string[]): void {
       if (open) openBrowser(url);
     },
   });
-}
-
-/**
- * After a turn, a logged-in user's totals go to Snout Cloud, at most every AUTO_SYNC_MS.
- * The upload runs in a detached process so the hook returns at once, online or not.
- * Nothing happens until `snout login` has saved credentials (or SNOUT_TOKEN is set).
- */
-function maybeAutoSync(paths: Paths): void {
-  if (replayDir) return; // replay is offline
-  try {
-    if (!loadCredentials()) return;
-    const last = lastSync(paths);
-    if (last && Date.now() - Date.parse(last.at) < (process.env.SNOUT_TOKEN ? AGENT_SYNC_MS : AUTO_SYNC_MS)) return;
-    spawn(process.execPath, [BIN, "sync", "--quiet", paths.projectDir], { stdio: "ignore", detached: true, windowsHide: true }).on("error", () => {}).unref();
-  } catch (err) {
-    recordError("autoSync", err);
-  }
-}
-
-/** `snout login [--url <cloud>] [--no-open]`, `snout logout`, `snout sync [dir] [--dry-run] [--quiet]`. */
-async function cmdCloud(command: string, args: string[]): Promise<void> {
-  const flag = (name: string) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
-  const dir = args.find((a, i) => !a.startsWith("-") && args[i - 1] !== "--url");
-  if (command === "logout") return say(await logout());
-  if (command === "login") {
-    await login(cloudUrl(flag("--url")), say, args.includes("--no-open") ? () => {} : openBrowser);
-    return;
-  }
-  const paths = resolvePaths(dir);
-  if (args.includes("--dry-run")) return say(JSON.stringify(buildPayload(paths, VERSION), null, 2));
-  const r = await sync(paths, VERSION);
-  if (!args.includes("--quiet") || !r.ok) say(r.message);
 }
 
 function openBrowser(url: string): void {
@@ -1272,32 +1226,6 @@ async function cmdMemoryModel(v: string | undefined): Promise<void> {
 }
 
 /**
- * `snout memory reranker [install|remove]`: the optional answerability reranker (memory/rerank.ts)
- * for search and `snout recall`. It shares the runtime the memory model installs; removing it
- * leaves that runtime for the memory model.
- */
-async function cmdMemoryReranker(v: string | undefined): Promise<void> {
-  const where = join(modelDir(), "models", ...RERANKER.split("/"));
-  if (v === "install") {
-    await installModel((line) => say(line), modelDir(), RERANKER, RERANKER_FILES);
-    const t0 = Date.now();
-    await loadReranker();
-    return say([
-      `Reranker ready: ${RERANKER} (q8), local, in ${where}; it loaded in ${Date.now() - t0} ms.`,
-      "snout recall and snout_memory_search now put first the record it is sure answers the question. Notes on prompts never use it. Turn it off with \"memoryRerank\": false.",
-    ].join("\n"));
-  }
-  if (v === "remove") {
-    if (!existsSync(where)) return say("No reranker installed.");
-    rmSync(where, { recursive: true, force: true });
-    return say(`Removed ${where}. Search and recall are back to their own ranking.`);
-  }
-  say(rerankReady()
-    ? `Reranker installed: ${RERANKER} in ${where}. Search and recall ${rerankOn(loadConfig(resolvePaths(process.cwd()))) ? "use it" : "don't use it here (memoryRerank is false)"}. Remove with: snout memory reranker remove`
-    : "No reranker. Search and recall rank by words (and meaning, with the memory model).\nInstall the optional local reranker (ms-marco MiniLM-L6, ~23 MB, plus its runtime from npm) with: snout memory reranker install");
-}
-
-/**
  * `snout memory add|list|archive|supersede|drop|migrate`: observations (memory/store.ts), private
  * by default. `list` shows what this machine's user may see here, the admission rule applied.
  */
@@ -1506,10 +1434,10 @@ Usage: snout memory notes on|off`);
   const cards = listCards(paths.snoutDir);
   const head = `Memory is ${cfg.memory === false ? "off" : "on"} · ${cards.length} session record${cards.length === 1 ? "" : "s"} in ${toRel(join(paths.snoutDir, "memory"), paths.projectDir)}`;
   const rows = cards.slice(0, 20).map((c) => `  ${c.updated.slice(0, 10)}  ${c.agent.padEnd(6)} ${safeText(c.session, 36)}  ${safeText(c.task ?? c.commits[0]?.subject ?? "", 70)}${c.commits.length ? `  [${c.commits.map((k) => k.sha.slice(0, 7)).join(" ")}]` : ""}`);
-  const ranks = `words${rerankReady() ? ", reordered by the reranker when it is sure" : ""}${modelReady() ? "; with memorySemantic on, notes may also match a prompt by meaning" : ""}`;
+  const ranks = `words${modelReady() ? "; with memorySemantic on, notes may also match a prompt by meaning" : ""}`;
   const index = indexStatus(storesFor(paths.projectDir, paths.snoutDir, configDir()).indexFile!);
   const indexLine = index.available ? `Local index: ${index.records} record${index.records === 1 ? "" : "s"}, ${(index.bytes / 1024).toFixed(0)} KB (SQLite, this machine only; snout memory reindex rebuilds it from the files)` : "Local index: none on this Node; memory reads the files directly";
-  say([head, ...memoryUseLines(paths, cfg), `Search ranks by ${ranks}`, indexLine, ...recallStatsLines(paths, cards), ...rows, "", 'Usage: snout memory on|off · snout memory review · snout memory approve|reject|edit|replace <id> · snout memory promote <id> --name <skill> · snout memory notes on|off · snout memory brief · snout memory list [--all] · snout memory add "<note>" · snout memory archive|drop <id> · snout memory share · snout memory judge jev|off · snout memory prefs [forget <n>] · snout memory forget <session> · snout memory reindex · snout memory model [install|remove] · snout memory reranker [install|remove] · snout recall "<request>"'].join("\n"));
+  say([head, ...memoryUseLines(paths, cfg), `Search ranks by ${ranks}`, indexLine, ...recallStatsLines(paths, cards), ...rows, "", 'Usage: snout memory on|off · snout memory review · snout memory approve|reject|edit|replace <id> · snout memory promote <id> --name <skill> · snout memory notes on|off · snout memory brief · snout memory list [--all] · snout memory add "<note>" · snout memory archive|drop <id> · snout memory share · snout memory judge jev|off · snout memory prefs [forget <n>] · snout memory forget <session> · snout memory reindex · snout memory model [install|remove] · snout recall "<request>"'].join("\n"));
 }
 
 /**
@@ -1557,14 +1485,9 @@ function cmdRecall(paths: Paths, args: string[]): void {
   const claims = staleClaims(storesFor(paths.projectDir, paths.snoutDir, configDir()), paths.projectDir);
   const cards = readCards(paths.snoutDir).map((c) => withoutStaleClaims(c, claims));
   const opts = { asOf, projectDir: paths.projectDir };
-  const show = () => {
-    const text = renderRecall(rerankedRecall(cards, request, opts), paths.projectDir);
-    say(text || "No earlier session bears on that request.");
-  };
-  // Meaning alone never makes a recall (only delivery uses it, facts.ts); the reranker may reorder one.
-  if (!rerankOn(loadConfig(paths))) return show();
-  pending = true;
-  void prepareRerank(request, recallShortlist(cards, request, opts).map(embedText)).finally(() => { show(); process.exit(0); });
+  // Meaning alone never makes a recall (only delivery uses it, facts.ts).
+  const text = renderRecall(recall(cards, request, opts), paths.projectDir);
+  say(text || "No earlier session bears on that request.");
 }
 
 /**
@@ -2355,7 +2278,6 @@ function onPostTool(input: HookInput, paths: Paths, cfg: Config): void {
   // A server gone mid-turn (crash, killed, a reboot of its process) comes back after one call,
   // not at the next prompt: this hook runs as its own process after every tool call.
   reviveServer(paths, cfg);
-  maybeAutoSync(paths); // a team dashboard stays about a minute behind, mid-turn included
   const state = loadState(paths.state, input.session_id ?? "unknown");
   const pending = state as SessionState & { pending?: Record<string, { path: string; decision: Verdict }> };
   const id = input.tool_use_id;
@@ -2494,7 +2416,6 @@ function lessonStep(paths: Paths, cfg: Config, session: string): Record<string, 
 }
 
 function onStop(input: HookInput, paths: Paths, cfg: Config): void {
-  maybeAutoSync(paths);
   const state = loadState(paths.state, input.session_id ?? "unknown");
   captureCard(input, paths, cfg, input.session_id ?? state.session);
   const ask = lessonStep(paths, cfg, input.session_id ?? state.session);
@@ -3254,7 +3175,6 @@ const HELP = `snout ${VERSION} · the context gate for coding agents
   snout mode observe|enforce record only, or trim low-value reads
   snout explain <file>       why a file was trimmed        snout allow <file>   never trim it
   snout memory               what earlier sessions left     snout recall "<q>"   what a prompt would get
-  snout login                team dashboard (syncs daily totals, never code)  snout sync --dry-run  what is sent
 
   Docs and advanced commands: https://github.com/biffbuster/snout-context#cli`;
 

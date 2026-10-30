@@ -39,7 +39,7 @@ export { fromInternal } from "./agents/adapt.js";
 export { initAgent } from "./agents/init.js";
 export { buildMap, candidates, renderCandidates, requestNames, codeNames, namedExactly, namedPaths, withoutOutput, shouldSuggest, listFiles, entryFor, type RepoMap, type Candidate } from "./map/map.js";
 export { replaySession, totals as replayTotals, renderReplay, compactionWhatIf, COMPACTION_COSTS, type SessionReplay, type WhatIf } from "./replay/replay.js";
-export { captureSession, linkCommit, readCards, workCards, cardIndex, CARD_KIND, recall, recallShortlist, rerankedRecall, hybridRecall, embedText, packVector, unpackVector, renderRecall, repoBrief, leftOff, workingState, shareMemory, sharedWords, statesClaim, staleClaimsIn, terms, asksToContinue, variants, withoutStaleClaims, wordForms, COMMITS, HYBRID_CUT, type Card } from "./memory/memory.js";
+export { captureSession, linkCommit, readCards, workCards, cardIndex, CARD_KIND, recall, hybridRecall, embedText, packVector, unpackVector, renderRecall, repoBrief, leftOff, workingState, shareMemory, sharedWords, statesClaim, staleClaimsIn, terms, asksToContinue, variants, withoutStaleClaims, wordForms, COMMITS, HYBRID_CUT, type Card } from "./memory/memory.js";
 export { forgetPref, judgeAndSave, prefCandidates, readPrefs, renderPrefs, SAVE_AT, type JevCall, type Preference } from "./memory/prefs.js";
 export { recallOutcomes, summarizeRecall, readRecallDecisions, type RecallDecision } from "./memory/receipts.js";
 export { applyDistilled, distillCard, generalTestCommand, installedFor, missingTool, oneOff, replaceOlder, retireElsewhere, retireInstalled, retireOneOff, runsElsewhere, sameTestPlace, standing, testPlace } from "./memory/distill.js";
@@ -51,8 +51,7 @@ export { adjacent, closestInMeaning, confidence, evidence, identsIn, indexForms,
 export { candidates as indexCandidates, closeIndex, dropIndex, folderChanged, indexedRecords, indexEnabled, indexFileFor, indexStatus, openIndex, plain, rebuildIndex, SCHEMA } from "./memory/sqlite.js";
 export { onPath } from "./util/path.js";
 export { acceptObservation, proposeObservation, OBS_KIND, addObservation, admit, archiveObservation, deleteObservation, listObservations, localViewer, memoryBlock, shareObservation, migratePrefs, recallable, repoPrincipal, sessionViewer, storesFor, supersedeObservation, userPrincipal, KINDS, MAX_TEXT, MEMORY_BUDGET, type MemoryBlock, type Observation, type Stores, type Viewer } from "./memory/store.js";
-export { memoryFetch, memoryHint, memoryIndex, memoryPropose, memorySave, memorySearch, searchShortlist, cardsFor, LESSON_INDEX, MAX_LESSONS, type MemoryContext } from "./memory/tools.js";
+export { memoryFetch, memoryHint, memoryIndex, memoryPropose, memorySave, memorySearch, cardsFor, LESSON_INDEX, MAX_LESSONS, type MemoryContext } from "./memory/tools.js";
 export { approved, approveLesson, checkProposals, editLesson, lessonCite, lessonDetail, lessons, proposals, proposeLesson, rejectLesson, replaceLesson, saidByUser, BASES, LESSON_CHARS, type LessonProposal } from "./memory/review.js";
 export { coveredBy, instructionText, INSTRUCTION_FILES, lastUses, likeness, nearDuplicate, PROPOSAL_DAYS, restoreObservation, retireUnused, UNUSED, UNUSED_DAYS, verification } from "./memory/quality.js";
 export { codexSkillFile, installMemorySkill, MEMORY_SKILL, MEMORY_SKILL_NAME, promote, promotionPreview, removeMemorySkill } from "./memory/skill.js";
-export { byWords, FLOOR, loadReranker, OVERRIDE_MARGIN, OVERRIDE_P, prepareRerank, RERANK_SHORTLIST, RERANKER, rerankChoice, rerankOn, rerankReady, shortlist } from "./memory/rerank.js";

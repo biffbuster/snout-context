@@ -22,11 +22,7 @@ export async function privacyPage(ctx: Ctx, el: HTMLElement): Promise<PageHandle
       h("div.span-7", null, card("Stored on this machine", "Plain files in .snout/; delete any of them at any time", table(
         [{ label: "File" }, { label: "Holds" }, { label: "Size", cls: "r" }],
         p.local.stored.map((s) => [h("span.mono", null, s.file), h("small", null, s.holds), h("span.num", null, kb(s.bytes))]), "compact"),
-        h("p.note", null, "Telemetry: ", p.local.telemetry))),
-      h("div.span-5", null, card("Hosted dashboard", p.hosted.connected ? "Connected" : "Not connected",
-        h("div.two-col", null,
-          h("div", null, h("b.small", null, "Sends"), h("ul.ticks-list.ok", null, p.hosted.sends.map((x) => h("li", null, icon("check", 13), x)))),
-          h("div", null, h("b.small", null, "Never sends"), h("ul.ticks-list.no", null, p.hosted.never.map((x) => h("li", null, icon("x", 13), x)))))))),
+        h("p.note", null, "Telemetry: ", p.local.telemetry)))),
   );
   return {};
 }
