@@ -1,0 +1,50 @@
+diff --git a/packages/vite/src/node/__tests__/build.spec.ts b/packages/vite/src/node/__tests__/build.spec.ts
+index 16e885348be2a6..27457caed68763 100644
+--- a/packages/vite/src/node/__tests__/build.spec.ts
++++ b/packages/vite/src/node/__tests__/build.spec.ts
+@@ -2,7 +2,7 @@ import { basename, resolve } from 'node:path'
+ import { stripVTControlCharacters } from 'node:util'
+ import fsp from 'node:fs/promises'
+ import colors from 'picocolors'
+-import { afterEach, describe, expect, test, vi } from 'vitest'
++import { afterEach, describe, expect, assert, test, vi } from 'vitest'
+ import type {
+   LogLevel,
+   OutputChunk,
+@@ -1087,6 +1087,22 @@ test('sharedConfigBuild and emitAssets', async () => {
+   ])
+ })
+ 
++test('resolving lib entry from the top-level input does not mutate the user config', async () => {
++  const userLib: LibraryOptions = { formats: ['es'] }
++  const config = await resolveConfig(
++    {
++      configFile: false,
++      input: 'src/main.ts',
++      build: { lib: userLib },
++    },
++    'build',
++  )
++  const resolvedLib = config.environments.client.build.lib
++  assert(resolvedLib !== false)
++  expect(resolvedLib.entry).toBe('src/main.ts')
++  expect(userLib.entry).toBeUndefined()
++})
++
+ describe('onRollupLog', () => {
+   const pluginName = 'rollup-plugin-test'
+   const msgInfo = 'This is the INFO message.'
+diff --git a/packages/vite/src/node/build.ts b/packages/vite/src/node/build.ts
+index 15c4022858d310..aa690d0241b7cd 100644
+--- a/packages/vite/src/node/build.ts
++++ b/packages/vite/src/node/build.ts
+@@ -471,7 +471,8 @@ export function resolveBuildEnvironmentOptions(
+     ...merged.rolldownOptions,
+   }
+   if (merged.lib && merged.lib.entry == null && input != null) {
+-    merged.lib.entry = input
++    // avoid mutating the user-provided lib options object
++    merged.lib = { ...merged.lib, entry: input }
+   }
+ 
+   // handle special build targets

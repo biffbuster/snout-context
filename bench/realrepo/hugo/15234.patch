@@ -1,0 +1,51 @@
+diff --git a/tpl/templates/defer_integration_test.go b/tpl/templates/defer_integration_test.go
+index 4f67898bc63..46c126ac166 100644
+--- a/tpl/templates/defer_integration_test.go
++++ b/tpl/templates/defer_integration_test.go
+@@ -323,6 +323,30 @@ End.
+ 	b.AssertFileContent("public/index.html", "Home.", "Defer 1", "Defer 2", "Defer 3", "End.")
+ }
+ 
++// See issue 15234.
++func TestDeferDifferentOutputFormats(t *testing.T) {
++	t.Parallel()
++
++	files := `
++-- hugo.toml --
++[outputFormats.probe]
++mediaType = "text/plain"
++baseName = "index"
++isPlainText = true
++[outputs]
++home = ["html", "probe"]
++-- layouts/home.html --
++{{ $v := "<b>&" }}OUT[{{ $v }}]{{ with (templates.Defer (dict "key" "K" "data" (dict "v" $v))) }}IN[{{ .v }}]{{ end }}
++-- layouts/home.probe.txt --
++{{ $v := "<b>&" }}OUT[{{ $v }}]{{ with (templates.Defer (dict "key" "K" "data" (dict "v" $v))) }}IN[{{ .v }}]{{ end }}
++`
++
++	b := hugolib.Test(t, files)
++
++	b.AssertFileContent("public/index.html", "OUT[&lt;b&gt;&amp;]IN[&lt;b&gt;&amp;]")
++	b.AssertFileContent("public/index.txt", "OUT[<b>&]IN[<b>&]")
++}
++
+ // See issue 13492.
+ func TestDeferInsidePartialCachedShouldFail(t *testing.T) {
+ 	t.Parallel()
+diff --git a/tpl/tplimpl/templatetransform.go b/tpl/tplimpl/templatetransform.go
+index ab42412eb32..dcb59abe735 100644
+--- a/tpl/tplimpl/templatetransform.go
++++ b/tpl/tplimpl/templatetransform.go
+@@ -408,7 +408,10 @@ func (c *templateTransformContext) handleWith(withNode *parse.WithNode) {
+ 		c.err = errors.New("resources.PostProcess cannot be used in a deferred template")
+ 		return
+ 	}
+-	innerHash := hashing.XxHashFromStringHexEncoded(s)
++	// The deferred template is parsed using the owner's escaping mode. Keep
++	// identical bodies shared within that mode, but don't let HTML and plain
++	// text templates register the same deferred template.
++	innerHash := hashing.XxHashFromStringHexEncoded(fmt.Sprintf("%t:%s", c.t.D.IsPlainText, s))
+ 	deferredID := tpl.HugoDeferredTemplatePrefix + innerHash
+ 
+ 	c.deferNodes[deferredID] = inner

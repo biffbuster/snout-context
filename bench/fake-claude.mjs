@@ -15,12 +15,14 @@ import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statS
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { randomUUID } from "node:crypto";
+import { fakeMcpCalls } from "./fake-mcp.mjs";
 
 const cwd = process.cwd();
 // Long sessions (bench/swelong.mjs): --resume continues a session, and the issue's own folder is in
 // .current (the session runs in the chain folder above it).
 const resumed = process.argv.includes("--resume") ? process.argv[process.argv.indexOf("--resume") + 1] : null;
-const session_id = resumed ?? randomUUID();
+const given = process.argv.includes("--session-id") ? process.argv[process.argv.indexOf("--session-id") + 1] : null;
+const session_id = resumed ?? given ?? randomUUID();
 const work = existsSync(".current") ? readFileSync(".current", "utf8").trim() : cwd;
 const prompt = process.argv[process.argv.indexOf("-p") + 1] ?? "";
 const issue = Number(/Issue (\d+) of \d+:/.exec(prompt)?.[1] ?? 0);
@@ -66,19 +68,23 @@ function fire(event, payload) {
   return outs;
 }
 
-function biggestPython() {
-  let best = null;
+/** The largest Python file, or in a repository without Python (bench/realrepo.mjs) the largest Go or TypeScript file. */
+function biggestSource() {
+  const best = { py: null, other: null };
   const walk = (d, depth) => {
     if (depth > 6) return;
     for (const e of readdirSync(d, { withFileTypes: true })) {
       if (e.name.startsWith(".") || e.name === "node_modules") continue;
       const p = join(d, e.name);
       if (e.isDirectory()) walk(p, depth + 1);
-      else if (e.name.endsWith(".py")) { const s = statSync(p).size; if (!best || s > best.size) best = { p, size: s }; }
+      else {
+        const k = e.name.endsWith(".py") ? "py" : /.(go|ts)$/.test(e.name) ? "other" : null;
+        if (k) { const s = statSync(p).size; if (!best[k] || s > best[k].size) best[k] = { p, size: s }; }
+      }
     }
   };
   walk(work, 0);
-  return best?.p;
+  return (best.py ?? best.other)?.p;
 }
 
 function tool(name, input, response) {
@@ -110,7 +116,7 @@ if (resumed && issue % 2 === 0) {
 fire("UserPromptSubmit", { prompt });
 record("user", prompt);
 
-const big = biggestPython();
+const big = biggestSource();
 if (big) {
   const content = readFileSync(big, "utf8");
   const lines = content.split("\n");
@@ -119,8 +125,11 @@ if (big) {
   tool("Read", { file_path: big }, resp); // the repeat
   log(`read ${relative(work, big)} (${lines.length} lines) twice`);
 }
-const passing = Array.from({ length: 300 }, (_, i) => `tests/test_mod.py::test_case_${i} PASSED`).join("\n");
-tool("Bash", { command: "python -m pytest -v tests/test_mod.py" }, { stdout: `${passing}\n============ 300 passed in 4.21s ============\n`, stderr: "", interrupted: false, isImage: false });
+const fakeTestCommand = process.env.SWE_FAKE_TEST_COMMAND || "python -m pytest -v tests/test_mod.py";
+const passing = fakeTestCommand.startsWith("node --test")
+  ? Array.from({ length: 300 }, (_, i) => `ok ${i + 1} - case ${i}`).join("\n") + "\n# tests 300\n# pass 300\n# fail 0\n"
+  : Array.from({ length: 300 }, (_, i) => `tests/test_mod.py::test_case_${i} PASSED`).join("\n") + "\n============ 300 passed in 4.21s ============\n";
+tool("Bash", { command: fakeTestCommand }, { stdout: passing, stderr: "", interrupted: false, isImage: false });
 
 if (process.env.SWE_FAKE_PATCH && existsSync(process.env.SWE_FAKE_PATCH)) {
   const r = spawnSync("git", ["apply", "--whitespace=nowarn", process.env.SWE_FAKE_PATCH], { cwd: work, encoding: "utf8" });
@@ -130,6 +139,21 @@ if (process.env.SWE_FAKE_PATCH && existsSync(process.env.SWE_FAKE_PATCH)) {
     const file_path = join(work, m[1].trim());
     record("assistant", [{ type: "tool_use", id: `toolu_${randomUUID().replace(/-/g, "")}`, name: "Edit", input: { file_path, old_string: "", new_string: "" } }]);
   }
+}
+// SWE_FAKE_MCP: tool calls a real agent might make on its MCP server, made before Stop (bench/fake-mcp.mjs).
+for (const c of fakeMcpCalls()) {
+  const id = `toolu_${randomUUID().replace(/-/g, "")}`;
+  record("assistant", [{ type: "tool_use", id, name: `mcp__snout__${c.name}`, input: c.arguments }]);
+  record("user", [{ type: "tool_result", tool_use_id: id, content: c.text }]);
+  log(`${c.name}: ${c.text.slice(0, 80)}`);
+}
+// SWE_FAKE_SAY: the closing summary a real agent writes, which Snout keeps as the session's outcome (bench/handoff-check.mjs).
+if (process.env.SWE_FAKE_SAY) record("assistant", [{ type: "text", text: process.env.SWE_FAKE_SAY }]);
+// SWE_FAKE_AUTO_MEMORY_DIR: Claude Code's own memory for this folder (bench/handoff-check.mjs, ownMemory).
+// The stand-in keeps its closing summary there, so a dry run shows what each session starts from.
+if (process.env.SWE_FAKE_AUTO_MEMORY_DIR && process.env.SWE_FAKE_SAY) {
+  mkdirSync(process.env.SWE_FAKE_AUTO_MEMORY_DIR, { recursive: true });
+  appendFileSync(join(process.env.SWE_FAKE_AUTO_MEMORY_DIR, "MEMORY.md"), `- ${process.env.SWE_FAKE_SAY}\n`);
 }
 fire("Stop", {});
 

@@ -1,0 +1,538 @@
+{
+ "about": "Gate 3, twelfth unseen check: prompts for unseen12/history.json, scored exactly as the main set (see ../prompts.json). Written and frozen before the answerability reranker was built or calibrated. FEE_OLD must reach no path; H5's other fact (CATSYNC) stays findable. PR_BAD, a request said in two sessions, must never be shown as standing. S11 shares one word (checkout) with a session record that does not answer it, and must stay silent.",
+ "prompts": [
+  {
+   "id": "D01",
+   "prompt": "Add a test for the checkout endpoint and run the tests.",
+   "query": "run tests",
+   "delivery": [
+    "T_cur"
+   ],
+   "recall": [
+    "CHECKOUT"
+   ],
+   "search": [
+    "T_cur"
+   ]
+  },
+  {
+   "id": "D02",
+   "prompt": "How do I run the test suite?",
+   "query": "test command",
+   "delivery": [
+    "T_cur"
+   ],
+   "recall": "any",
+   "search": [
+    "T_cur"
+   ]
+  },
+  {
+   "id": "D03",
+   "prompt": "Run the tests.",
+   "query": "tests",
+   "delivery": [
+    "T_cur"
+   ],
+   "recall": "any",
+   "search": [
+    "T_cur"
+   ]
+  },
+  {
+   "id": "D04",
+   "prompt": "Forward the webhooks to my local server with stripe listen.",
+   "query": "stripe",
+   "delivery": [
+    "STRIPE"
+   ],
+   "recall": [
+    "STRIPE"
+   ],
+   "search": [
+    "STRIPE"
+   ]
+  },
+  {
+   "id": "D05",
+   "prompt": "How are loan due dates stored?",
+   "query": "due dates",
+   "delivery": [
+    "DUE"
+   ],
+   "recall": "any",
+   "search": [
+    "DUE"
+   ]
+  },
+  {
+   "id": "D06",
+   "prompt": "Show the due date in the member's local time on the receipt.",
+   "query": "due date display",
+   "delivery": [
+    "DUE"
+   ],
+   "recall": "any",
+   "search": [
+    "DUE",
+    "EARLY"
+   ]
+  },
+  {
+   "id": "D07",
+   "prompt": "How many tools can a member borrow at once?",
+   "query": "borrow limit",
+   "delivery": [
+    "LIMIT"
+   ],
+   "recall": "any",
+   "search": [
+    "LIMIT"
+   ]
+  },
+  {
+   "id": "D08",
+   "prompt": "Let members borrow five tools.",
+   "query": "borrowing limit",
+   "delivery": [
+    "LIMIT"
+   ],
+   "recall": "any",
+   "search": [
+    "LIMIT"
+   ]
+  },
+  {
+   "id": "D09",
+   "prompt": "How do overdue reminders reach members?",
+   "query": "overdue reminders",
+   "delivery": [
+    "TWILIO"
+   ],
+   "recall": "any",
+   "search": [
+    "TWILIO"
+   ]
+  },
+  {
+   "id": "D10",
+   "prompt": "Send a test SMS through Twilio.",
+   "query": "twilio",
+   "delivery": [
+    "TWILIO"
+   ],
+   "recall": "any",
+   "search": [
+    "TWILIO"
+   ]
+  },
+  {
+   "id": "D11",
+   "prompt": "What barcode format do the tools use?",
+   "query": "barcode format",
+   "delivery": [
+    "BARCODE"
+   ],
+   "recall": "any",
+   "search": [
+    "BARCODE"
+   ]
+  },
+  {
+   "id": "D12",
+   "prompt": "Print a barcode label for a new drill.",
+   "query": "barcode label",
+   "delivery": [
+    "BARCODE"
+   ],
+   "recall": "any",
+   "search": [
+    "BARCODE"
+   ]
+  },
+  {
+   "id": "D13",
+   "prompt": "Can I log the member's phone number when a text fails to send?",
+   "query": "log phone number",
+   "delivery": [
+    "NOPHONE"
+   ],
+   "recall": "any",
+   "search": [
+    "NOPHONE"
+   ]
+  },
+  {
+   "id": "D14",
+   "prompt": "Open a pull request when the build is green.",
+   "query": "pull request",
+   "delivery": "any",
+   "recall": "any",
+   "search": "any"
+  },
+  {
+   "id": "D15",
+   "prompt": "Pick up where the last session stopped.",
+   "query": "repair queue",
+   "delivery": [
+    "REPAIR"
+   ],
+   "recall": "any",
+   "search": [
+    "REPAIR"
+   ]
+  },
+  {
+   "id": "D16",
+   "prompt": "Never log members' phone numbers; check that toolshed/repairs.py follows that.",
+   "query": "phone number logs",
+   "delivery": [
+    "NOPHONE"
+   ],
+   "recall": "any",
+   "search": [
+    "NOPHONE"
+   ]
+  },
+  {
+   "id": "D17",
+   "prompt": "Add a tool photo field in toolshed/catalog.py.",
+   "query": "catalog",
+   "delivery": "any",
+   "recall": [
+    "CATEGORY",
+    "NAMESEARCH"
+   ],
+   "search": "any"
+  },
+  {
+   "id": "D18",
+   "prompt": "Run the tests with uv run pytest.",
+   "query": "uv run pytest",
+   "delivery": [
+    "T_cur"
+   ],
+   "recall": "any",
+   "search": [
+    "T_cur",
+    "UVLOCK"
+   ]
+  },
+  {
+   "id": "D19",
+   "prompt": "Charge 1 dollar a day for late returns, in toolshed/fees.py.",
+   "query": "late fees",
+   "delivery": "any",
+   "recall": [
+    "FEE_CUR"
+   ],
+   "search": [
+    "FEE_CUR"
+   ]
+  },
+  {
+   "id": "D20",
+   "prompt": "Refund a member's deposit.",
+   "query": "deposit amounts",
+   "delivery": [
+    "CENTS"
+   ],
+   "recall": "any",
+   "search": [
+    "CENTS"
+   ]
+  },
+  {
+   "id": "D21",
+   "prompt": "Text the member when their loan is overdue.",
+   "query": "overdue text",
+   "delivery": [
+    "TWILIO"
+   ],
+   "recall": "any",
+   "search": [
+    "TWILIO"
+   ]
+  },
+  {
+   "id": "Q01",
+   "prompt": "When did the tests switch to uv?",
+   "query": "uv tests",
+   "delivery": "any",
+   "recall": [
+    "UVLOCK"
+   ],
+   "search": [
+    "UVLOCK"
+   ]
+  },
+  {
+   "id": "Q02",
+   "prompt": "How did we stop double bookings?",
+   "query": "double booking",
+   "delivery": "any",
+   "recall": [
+    "DOUBLE"
+   ],
+   "search": [
+    "DOUBLE"
+   ]
+  },
+  {
+   "id": "Q03",
+   "prompt": "When did late fees go up to 75 cents?",
+   "query": "late fee",
+   "delivery": "any",
+   "recall": [
+    "FEE_CUR"
+   ],
+   "search": [
+    "FEE_CUR"
+   ]
+  },
+  {
+   "id": "Q04",
+   "prompt": "How often is the tool catalog re-synced?",
+   "query": "catalog sync",
+   "delivery": "any",
+   "recall": [
+    "CATSYNC"
+   ],
+   "search": [
+    "CATSYNC"
+   ]
+  },
+  {
+   "id": "Q05",
+   "prompt": "Which change added condition reports?",
+   "query": "condition report",
+   "delivery": "any",
+   "recall": [
+    "CONDITION"
+   ],
+   "search": [
+    "CONDITION"
+   ]
+  },
+  {
+   "id": "Q06",
+   "prompt": "Where are member contacts kept?",
+   "query": "member contacts",
+   "delivery": "any",
+   "recall": [
+    "CONTACTS"
+   ],
+   "search": [
+    "CONTACTS"
+   ]
+  },
+  {
+   "id": "Q07",
+   "prompt": "When did we start texting members about returned tools?",
+   "query": "returned tool text",
+   "delivery": "any",
+   "recall": [
+    "BACKTEXT"
+   ],
+   "search": [
+    "BACKTEXT"
+   ]
+  },
+  {
+   "id": "Q08",
+   "prompt": "Which session added the category filter?",
+   "query": "category filter",
+   "delivery": "any",
+   "recall": [
+    "CATEGORY"
+   ],
+   "search": [
+    "CATEGORY"
+   ]
+  },
+  {
+   "id": "Q09",
+   "prompt": "When was search by tool name added?",
+   "query": "tool name search",
+   "delivery": "any",
+   "recall": [
+    "NAMESEARCH"
+   ],
+   "search": [
+    "NAMESEARCH"
+   ]
+  },
+  {
+   "id": "Q10",
+   "prompt": "Why were some loans due a day early?",
+   "query": "loans due early",
+   "delivery": "any",
+   "recall": [
+    "EARLY"
+   ],
+   "search": [
+    "EARLY"
+   ]
+  },
+  {
+   "id": "Q11",
+   "prompt": "Which session added the health check?",
+   "query": "health check",
+   "delivery": "any",
+   "recall": [
+    "HEALTH"
+   ],
+   "search": [
+    "HEALTH"
+   ]
+  },
+  {
+   "id": "Q12",
+   "prompt": "Which PostgreSQL version do we run?",
+   "query": "postgresql version",
+   "delivery": "any",
+   "recall": [
+    "PG17"
+   ],
+   "search": [
+    "PG17"
+   ]
+  },
+  {
+   "id": "Q13",
+   "prompt": "Why weren't the webhooks forwarded?",
+   "query": "webhooks forwarded",
+   "delivery": "any",
+   "recall": [
+    "STRIPE"
+   ],
+   "search": [
+    "STRIPE"
+   ]
+  },
+  {
+   "id": "Q14",
+   "prompt": "Where did the repair queue work stop?",
+   "query": "repair queue",
+   "delivery": "any",
+   "recall": [
+    "REPAIR"
+   ],
+   "search": [
+    "REPAIR"
+   ]
+  },
+  {
+   "id": "Q15",
+   "prompt": "What changed about late fees?",
+   "query": "late fee change",
+   "delivery": "any",
+   "recall": [
+    "FEE_CUR"
+   ],
+   "search": [
+    "FEE_CUR"
+   ]
+  },
+  {
+   "id": "Q16",
+   "prompt": "Which session added the checkout endpoint?",
+   "query": "checkout endpoint",
+   "delivery": "any",
+   "recall": [
+    "CHECKOUT"
+   ],
+   "search": [
+    "CHECKOUT"
+   ]
+  },
+  {
+   "id": "S01",
+   "prompt": "Add a light theme to the admin pages.",
+   "query": "light theme",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S02",
+   "prompt": "Translate the help pages into Portuguese.",
+   "query": "portuguese",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S03",
+   "prompt": "Set up Dependabot for the Python packages.",
+   "query": "dependabot",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S04",
+   "prompt": "Why is the CSV export missing a header row?",
+   "query": "csv export",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S05",
+   "prompt": "Write a limerick about rain.",
+   "query": "limerick",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S06",
+   "prompt": "Explain Python decorators.",
+   "query": "decorators",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S07",
+   "prompt": "Switch the CLI to Typer.",
+   "query": "typer",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S08",
+   "prompt": "Resize the logo.",
+   "query": "logo",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S09",
+   "prompt": "Sort the sponsors list.",
+   "query": "sponsors",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S10",
+   "prompt": "Add a cookie banner to the homepage.",
+   "query": "cookie banner",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S11",
+   "prompt": "Handle an empty coupon code at checkout.",
+   "query": "coupon code",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  }
+ ]
+}

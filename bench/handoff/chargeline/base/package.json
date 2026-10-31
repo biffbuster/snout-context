@@ -1,0 +1,11 @@
+{
+  "name": "chargeline",
+  "version": "1.3.0",
+  "private": true,
+  "description": "Monthly subscription billing: invoices and the charges behind them",
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "run-month": "node src/cli.js run-month"
+  }
+}

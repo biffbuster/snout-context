@@ -1,0 +1,322 @@
+diff --git a/hugolib/page.go b/hugolib/page.go
+index 761274f358b..5969670e502 100644
+--- a/hugolib/page.go
++++ b/hugolib/page.go
+@@ -628,15 +628,25 @@ func (po *pageOutput) GetInternalTemplateBasePathAndDescriptor() (string, tplimp
+ }
+ 
+ func (ps *pageState) resolveTemplate(layouts ...string) (*tplimpl.TemplInfo, bool, error) {
+-	dir, d := ps.GetInternalTemplateBasePathAndDescriptor()
++	pth, d := ps.GetInternalTemplateBasePathAndDescriptor()
++	var subPath string
+ 
+ 	if len(layouts) > 0 {
+-		d.LayoutFromUser = layouts[0]
++		layout := layouts[0]
++		if i := strings.LastIndexByte(layout, '/'); i != -1 {
++			// A layout in a sub path, e.g. "foo/mylayout".
++			subPath, layout = layout[:i], layout[i+1:]
++			if layout == "" {
++				return nil, false, nil
++			}
++		}
++		d.LayoutFromUser = layout
+ 		d.LayoutFromUserMustMatch = true
+ 	}
+ 
+ 	q := tplimpl.TemplateQuery{
+-		Path:     dir,
++		Path:     pth,
++		SubPath:  subPath,
+ 		Category: tplimpl.CategoryLayout,
+ 		Sites:    ps.s.siteVector,
+ 		Desc:     d,
+diff --git a/hugolib/page_test.go b/hugolib/page_test.go
+index 49d7c456c12..e4b39533117 100644
+--- a/hugolib/page_test.go
++++ b/hugolib/page_test.go
+@@ -2167,3 +2167,177 @@ EF
+ 	b.AssertFileContent("public/s4/p9/index.html", "EF")
+ 	b.AssertFileContent("public/s4/p10/index.html", "EF")
+ }
++
++// See issue 15056.
++func TestRenderViewSubdir(t *testing.T) {
++	t.Parallel()
++
++	files := `
++-- hugo.toml --
++disableKinds = ['home','rss','section','sitemap','taxonomy','term']
++-- content/s1/p1.md --
++---
++title: p1
++---
++-- layouts/s1/p1/page.html --
++{{ .Render "a" }}|{{ .Render "b" }}|{{ .Render "c" }}|{{ .Render "foo/d" }}|{{ .Render "foo/e" }}|{{ .Render "foo/f" }}|{{ .Render "sub/foo/g" }}
++-- layouts/s1/p1/a.html --
++a{{- /**/ -}}
++-- layouts/s1/b.html --
++b{{- /**/ -}}
++-- layouts/c.html --
++c{{- /**/ -}}
++-- layouts/s1/p1/foo/d.html --
++d{{- /**/ -}}
++-- layouts/s1/foo/e.html --
++e{{- /**/ -}}
++-- layouts/foo/f.html --
++f{{- /**/ -}}
++-- layouts/sub/foo/g.html --
++g{{- /**/ -}}
++`
++
++	b := Test(t, files)
++	b.AssertFileContent("public/s1/p1/index.html", "a|b|c|d|e|f|g")
++}
++
++// See issue 15056.
++func TestRenderViewSubdirRootPage(t *testing.T) {
++	t.Parallel()
++
++	files := `
++-- hugo.toml --
++disableKinds = ['home','rss','section','sitemap','taxonomy','term']
++-- content/p1.md --
++---
++title: p1
++---
++-- layouts/page.html --
++{{ .Render "foo/a" }}
++-- layouts/foo/a.html --
++a{{- /**/ -}}
++`
++
++	b := Test(t, files)
++	b.AssertFileContent("public/p1/index.html", "a")
++}
++
++// See issue 15056.
++func TestRenderViewSubdirNotFound(t *testing.T) {
++	t.Parallel()
++
++	files := `
++-- hugo.toml --
++disableKinds = ['home','rss','section','sitemap','taxonomy','term']
++-- content/s1/p1.md --
++---
++title: p1
++---
++-- layouts/s1/p1/page.html --
++{{ .Render "foo/missing" }}
++-- layouts/s1/p1/missing.html --
++should-not-match{{- /**/ -}}
++`
++
++	b, err := TestE(t, files)
++	b.Assert(err, qt.ErrorMatches, `.*template "foo/missing" not found.*`)
++}
++
++// See issue 15056.
++func TestRenderViewSubdirTrailingSlash(t *testing.T) {
++	t.Parallel()
++
++	files := `
++-- hugo.toml --
++disableKinds = ['home','rss','section','sitemap','taxonomy','term']
++-- content/s1/p1.md --
++---
++title: p1
++---
++-- layouts/s1/p1/page.html --
++{{ .Render "foo/" }}
++-- layouts/s1/p1/foo.html --
++should-not-match{{- /**/ -}}
++`
++
++	b, err := TestE(t, files)
++	b.Assert(err, qt.ErrorMatches, `.*template "foo/" not found.*`)
++}
++
++// See issue 15056.
++func TestRenderViewSubdirCaseInsensitiveArgument(t *testing.T) {
++	t.Parallel()
++
++	files := `
++-- hugo.toml --
++disableKinds = ['home','rss','section','sitemap','taxonomy','term']
++-- content/s1/p1.md --
++---
++title: p1
++---
++-- layouts/s1/p1/page.html --
++{{ .Render "Foo/Bar" }}
++-- layouts/s1/p1/foo/bar.html --
++bar{{- /**/ -}}
++`
++
++	b := Test(t, files)
++	b.AssertFileContent("public/s1/p1/index.html", "bar")
++}
++
++// See issue 15056.
++func TestRenderViewSubdirCaseInsensitivePath(t *testing.T) {
++	t.Parallel()
++
++	files := `
++-- hugo.toml --
++disableKinds = ['home','rss','section','sitemap','taxonomy','term']
++-- content/s1/p1.md --
++---
++title: p1
++---
++-- layouts/s1/p1/page.html --
++{{ .Render "foo/bar" }}
++-- layouts/s1/p1/Foo/Bar.html --
++bar{{- /**/ -}}
++`
++
++	b := Test(t, files)
++	b.AssertFileContent("public/s1/p1/index.html", "bar")
++}
++
++// See issue 15056.
++func TestRenderViewSubdirWithUnderscore(t *testing.T) {
++	t.Parallel()
++
++	files := `
++-- hugo.toml --
++disableKinds = ['home','rss','section','sitemap','taxonomy','term']
++-- content/p1.md --
++---
++title: p1
++---
++-- content/s1/p2.md --
++---
++title: p2
++---
++-- content/s1/p3.md --
++---
++title: p3
++---
++-- layouts/page.html --
++{{ .Title }}: {{ .Render "_views/a" }}
++-- layouts/_views/a.html --
++layouts/_views/a.html
++-- layouts/s1/_views/a.html --
++layouts/s1/_views/a.html
++-- layouts/s1/p3/_views/a.html --
++layouts/s1/p3/_views/a.html
++`
++
++	b := Test(t, files)
++
++	b.AssertFileContent("public/p1/index.html", "p1: layouts/_views/a.html")
++	b.AssertFileContent("public/s1/p2/index.html", "p2: layouts/s1/_views/a.html")    // fails
++	b.AssertFileContent("public/s1/p3/index.html", "p3: layouts/s1/p3/_views/a.html") // fails
++}
+diff --git a/tpl/tplimpl/templatestore.go b/tpl/tplimpl/templatestore.go
+index 3b3fccff5c3..4721c1f4a23 100644
+--- a/tpl/tplimpl/templatestore.go
++++ b/tpl/tplimpl/templatestore.go
+@@ -388,6 +388,10 @@ type TemplateQuery struct {
+ 	// The path to walk down to.
+ 	Path string
+ 
++	// Currently only set for page.Render, e.g. using "foo/bar/mylayout";
++	// in that example SubPath will be "foo/bar" and LayoutFromUser will be "mylayout".
++	SubPath string
++
+ 	// The name to look for. Used for shortcode queries.
+ 	Name string
+ 
+@@ -426,6 +430,9 @@ func (q *TemplateQuery) init() {
+ 
+ 	q.Name = strings.ToLower(q.Name)
+ 	q.Desc.LayoutFromUser = strings.ToLower(q.Desc.LayoutFromUser)
++	if q.SubPath != "" {
++		q.SubPath = paths.AddLeadingSlash(strings.ToLower(paths.ToSlashTrim(q.SubPath)))
++	}
+ 
+ 	if q.Category == 0 {
+ 		panic("category not set")
+@@ -857,34 +864,53 @@ func (s *TemplateStore) inPath(k1, k2 string) bool {
+ }
+ 
+ func (s *TemplateStore) findBestMatchWalkPath(q TemplateQuery, k1 string, slashCountK1 int, best *bestMatch) {
++	if q.SubPath != "" {
++		// Match templates in <dir><SubPath> only, for every ancestor dir of k1.
++		// Walk from the root down (as WalkPath does) so the nearest match wins
++		// on equal-weight ties.
++		for i, distance := 0, slashCountK1; ; distance-- {
++			k2 := k1[:i] + q.SubPath
++			if v := s.treeMain.Get(k2); v != nil {
++				s.findBestMatchIn(q, k2, distance, v, best)
++			}
++			if i == len(k1) {
++				break
++			}
++			if j := strings.IndexByte(k1[i+1:], '/'); j >= 0 {
++				i += j + 1
++			} else {
++				i = len(k1)
++			}
++		}
++		return
++	}
++
+ 	s.treeMain.WalkPath(k1, func(k2 string, v map[nodeKey]*TemplInfo) (bool, error) {
+ 		if !s.inPath(k1, k2) {
+ 			return false, nil
+ 		}
+-		slashCountK2 := strings.Count(k2, "/")
+-		distance := slashCountK1 - slashCountK2
+-
+-		for k, vv := range v {
+-			if vv.category != q.Category {
+-				continue
+-			}
++		s.findBestMatchIn(q, k2, slashCountK1-strings.Count(k2, "/"), v, best)
++		return false, nil
++	})
++}
+ 
+-			if !q.Consider(vv) {
+-				continue
+-			}
++func (s *TemplateStore) findBestMatchIn(q TemplateQuery, k2 string, distance int, v map[nodeKey]*TemplInfo, best *bestMatch) {
++	for k, vv := range v {
++		if vv.category != q.Category {
++			continue
++		}
+ 
+-			weight := s.dh.compareDescriptors(q.Category, q.Desc, k.d, q.Sites, vv.matrix)
++		if !q.Consider(vv) {
++			continue
++		}
+ 
+-			weight.distance = distance
+-			isBetter := best.isBetter(weight, vv)
++		weight := s.dh.compareDescriptors(q.Category, q.Desc, k.d, q.Sites, vv.matrix)
++		weight.distance = distance
+ 
+-			if isBetter {
+-				best.updateValues(weight, k2, k.d, vv)
+-			}
++		if best.isBetter(weight, vv) {
++			best.updateValues(weight, k2, k.d, vv)
+ 		}
+-
+-		return false, nil
+-	})
++	}
+ }
+ 
+ func (t *TemplateStore) addDeferredTemplate(owner *TemplInfo, name string, n *parse.ListNode) error {
+@@ -1678,7 +1704,7 @@ func (s *TemplateStore) parseTemplates() error {
+ 		return err
+ 	}
+ 
+-	// Prese shortcodes.
++	// Parse shortcodes.
+ 	for _, v := range s.treeShortcodes.All() {
+ 		for _, vv := range v {
+ 			for _, vvv := range vv {

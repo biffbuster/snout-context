@@ -1,0 +1,6 @@
+[
+  { "id": "sub_001", "customer": "cus_alder", "plan": "pro", "priceCents": 4900, "active": true },
+  { "id": "sub_002", "customer": "cus_birch", "plan": "team", "priceCents": 12900, "active": true },
+  { "id": "sub_003", "customer": "cus_cedar", "plan": "pro", "priceCents": 4900, "active": false },
+  { "id": "sub_004", "customer": "cus_dogwood", "plan": "starter", "priceCents": 900, "active": true }
+]

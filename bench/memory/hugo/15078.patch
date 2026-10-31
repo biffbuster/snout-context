@@ -1,0 +1,54 @@
+diff --git a/create/content_test.go b/create/content_test.go
+index deafaed0943..c8c3c1cdd99 100644
+--- a/create/content_test.go
++++ b/create/content_test.go
+@@ -159,6 +159,37 @@ site RegularPages: {{ len site.RegularPages  }}
+ 	cContains(c, readFileFromFs(t, fs.Source, filepath.Join("content", "mypage.md")), `draft: true`)
+ }
+ 
++// See issue 15078.
++func TestNewContentWithBuildCascade(t *testing.T) {
++	t.Parallel()
++
++	mm := afero.NewMemMapFs()
++	c := qt.New(t)
++
++	c.Assert(initFs(mm), qt.IsNil)
++	c.Assert(mm.MkdirAll(filepath.Join("content", "posts", "drafts"), 0o755), qt.IsNil)
++	c.Assert(afero.WriteFile(mm, filepath.Join("content", "posts", "drafts", "_index.md"), []byte(`---
++title: Drafts
++build:
++  render: never
++cascade:
++  draft: true
++  build:
++    render: link
++draft: true
++---
++`), 0o755), qt.IsNil)
++
++	cfg, fs := newTestCfg(c, mm)
++	conf := testconfig.GetTestConfigs(fs.Source, cfg)
++	h, err := hugolib.NewHugoSites(deps.DepsCfg{Configs: conf, Fs: fs})
++	c.Assert(err, qt.IsNil)
++
++	const target = "posts/drafts/trip-to-puebla/index.md"
++	c.Assert(create.NewContent(h, "", target, false), qt.IsNil)
++	c.Assert(readFileFromFs(c, fs.Source, filepath.Join("content", target)), qt.Contains, `title: "Trip to Puebla"`)
++}
++
+ func initFs(fs afero.Fs) error {
+ 	perm := os.FileMode(0o755)
+ 	var err error
+diff --git a/hugolib/content_factory.go b/hugolib/content_factory.go
+index 36cb29e633c..6757c64e364 100644
+--- a/hugolib/content_factory.go
++++ b/hugolib/content_factory.go
+@@ -114,6 +114,7 @@ func (f ContentFactory) CreateContentPlaceHolder(filename string, force bool) (s
+ 	// the paths correct.
+ 	placeholder := `---
+ title: "Content Placeholder"
++draft: false
+ build:
+   render: never
+   list: never

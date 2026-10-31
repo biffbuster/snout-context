@@ -1,0 +1,103 @@
+diff --git a/packages/vite/src/node/server/middlewares/__tests__/fixtures/outside.html b/packages/vite/src/node/server/middlewares/__tests__/fixtures/outside.html
+new file mode 100644
+index 00000000000000..11532ec0bc5dc6
+--- /dev/null
++++ b/packages/vite/src/node/server/middlewares/__tests__/fixtures/outside.html
+@@ -0,0 +1,6 @@
++<!doctype html>
++<html>
++  <body>
++    <div>Outside root</div>
++  </body>
++</html>
+diff --git a/packages/vite/src/node/server/middlewares/__tests__/indexHtml.spec.ts b/packages/vite/src/node/server/middlewares/__tests__/indexHtml.spec.ts
+index 9a32915346aedf..35be9e4c387cf9 100644
+--- a/packages/vite/src/node/server/middlewares/__tests__/indexHtml.spec.ts
++++ b/packages/vite/src/node/server/middlewares/__tests__/indexHtml.spec.ts
+@@ -1,12 +1,14 @@
+ import fs from 'node:fs'
+ import path from 'node:path'
+-import { describe, expect, onTestFinished, test } from 'vitest'
++import { describe, expect, onTestFinished, test, vi } from 'vitest'
+ import { FS_PREFIX } from '../../../constants'
+ import { createServer } from '../../../server'
+ 
+ const FIXTURE_DIR = path.resolve(import.meta.dirname, 'fixtures')
+ const HTML_PATH = path.resolve(FIXTURE_DIR, 'root/index.html')
+ const HTML_CONTENT = fs.readFileSync(HTML_PATH, 'utf-8')
++const OUTSIDE_HTML_PATH = path.resolve(FIXTURE_DIR, 'outside.html')
++const OUTSIDE_HTML_CONTENT = fs.readFileSync(OUTSIDE_HTML_PATH, 'utf-8')
+ const VITE_PACKAGE_DIR = path.resolve(import.meta.dirname, '../../../../..')
+ 
+ async function createTestServer(rootDir?: string) {
+@@ -107,6 +109,32 @@ describe('indexHtml middleware — inline script proxy cache', () => {
+   }
+ })
+ 
++describe('indexHtml middleware — file watching', () => {
++  test('watches an /@fs/ HTML file outside root', async () => {
++    const server = await createTestServer()
++    const addSpy = vi
++      .spyOn(server.watcher, 'add')
++      .mockImplementation(() => server.watcher)
++    const fsUrl = path.posix.join(FS_PREFIX, OUTSIDE_HTML_PATH)
++
++    await server.transformIndexHtml(fsUrl, OUTSIDE_HTML_CONTENT)
++
++    expect(addSpy).toHaveBeenCalledWith(OUTSIDE_HTML_PATH)
++  })
++
++  test('does not watch a directory for a root URL with a query', async () => {
++    const server = await createTestServer()
++    const addSpy = vi
++      .spyOn(server.watcher, 'add')
++      .mockImplementation(() => server.watcher)
++    const html = '<style>body { color: red; }</style>'
++
++    await server.transformIndexHtml('/?foo=bar', html)
++
++    expect(addSpy).not.toHaveBeenCalledWith('/')
++  })
++})
++
+ describe('indexHtml middleware — HMR timestamp injection with non-root base', () => {
+   test('entry script URL gets the lastHMRTimestamp query when base is not root', async () => {
+     const root = path.resolve(import.meta.dirname, 'fixtures/base-root')
+diff --git a/packages/vite/src/node/server/middlewares/indexHtml.ts b/packages/vite/src/node/server/middlewares/indexHtml.ts
+index f64c54919ef9f1..d49e90ac238309 100644
+--- a/packages/vite/src/node/server/middlewares/indexHtml.ts
++++ b/packages/vite/src/node/server/middlewares/indexHtml.ts
+@@ -43,6 +43,7 @@ import {
+   normalizePath,
+   processSrcSetSync,
+   stripBase,
++  tryStatSync,
+ } from '../../utils'
+ import {
+   BasicMinimalPluginContext,
+@@ -223,7 +224,8 @@ const devHtmlHook: IndexHtmlTransformHook = async (
+   let proxyModuleUrl: string
+ 
+   const trailingSlash = htmlPath.endsWith('/')
+-  if (!trailingSlash && fs.existsSync(filename)) {
++  if (!trailingSlash && tryStatSync(filename)?.isFile()) {
++    ensureWatchedFile(watcher, filename, config.root)
+     // If htmlPath is a /@fs/ URL (e.g. vitest-browser always uses this form
+     // for testerHtmlPath), normalise to an absolute FS path so proxyCacheUrl
+     // is always root-relative.
+@@ -404,7 +406,6 @@ const devHtmlHook: IndexHtmlTransformHook = async (
+           url,
+           false,
+         )
+-      ensureWatchedFile(watcher, mod.file, config.root)
+ 
+       const result =
+         await server!.environments.client.pluginContainer.transform(
+@@ -431,7 +432,6 @@ const devHtmlHook: IndexHtmlTransformHook = async (
+           url,
+           false,
+         )
+-      ensureWatchedFile(watcher, mod.file, config.root)
+ 
+       await server?.environments.client.pluginContainer.transform(code, mod.id!)
+ 

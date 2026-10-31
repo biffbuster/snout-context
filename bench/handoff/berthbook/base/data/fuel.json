@@ -1,0 +1,7 @@
+[
+  {"vessel_id": "v1", "date": "2026-09-02", "litres": 400.0, "price_cents_per_litre": 189},
+  {"vessel_id": "v4", "date": "2026-09-12", "litres": 2250.0, "price_cents_per_litre": 176},
+  {"vessel_id": "v1", "date": "2026-09-20", "litres": 120.5, "price_cents_per_litre": 192},
+  {"vessel_id": "v2", "date": "2026-09-05", "litres": 85.0, "price_cents_per_litre": 189},
+  {"vessel_id": "v3", "date": "2026-08-28", "litres": 310.0, "price_cents_per_litre": 185}
+]

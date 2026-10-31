@@ -1,0 +1,102 @@
+diff --git a/commands/gen.go b/commands/gen.go
+index f3747722c3d..42b22165d33 100644
+--- a/commands/gen.go
++++ b/commands/gen.go
+@@ -46,6 +46,8 @@ func newGenCommand() *genCommand {
+ 		style                  string
+ 		mode                   string
+ 		modeSelector           bool
++		classDark              string
++		classLight             string
+ 		highlightStyle         string
+ 		lineNumbersInlineStyle string
+ 		lineNumbersTableStyle  string
+@@ -70,6 +72,8 @@ See https://gohugo.io/quick-reference/syntax-highlighting-styles/ for a preview
+ 					Style:                  style,
+ 					Mode:                   mode,
+ 					ModeSelector:           modeSelector,
++					ClassDark:              classDark,
++					ClassLight:             classLight,
+ 					HighlightStyle:         highlightStyle,
+ 					LineNumbersInlineStyle: lineNumbersInlineStyle,
+ 					LineNumbersTableStyle:  lineNumbersTableStyle,
+@@ -91,6 +95,10 @@ See https://gohugo.io/quick-reference/syntax-highlighting-styles/ for a preview
+ 				_ = cmd.RegisterFlagCompletionFunc("mode", cobra.FixedCompletions([]string{"light", "dark"}, cobra.ShellCompDirectiveNoFileComp))
+ 				cmd.PersistentFlags().BoolVar(&modeSelector, "modeSelector", false, `scope selectors under a top level mode class, e.g. ".dark .chroma"`)
+ 				_ = cmd.RegisterFlagCompletionFunc("modeSelector", cobra.NoFileCompletions)
++				cmd.PersistentFlags().StringVar(&classDark, "classDark", "dark", `class name used by --modeSelector for dark styles`)
++				_ = cmd.RegisterFlagCompletionFunc("classDark", cobra.NoFileCompletions)
++				cmd.PersistentFlags().StringVar(&classLight, "classLight", "light", `class name used by --modeSelector for light styles`)
++				_ = cmd.RegisterFlagCompletionFunc("classLight", cobra.NoFileCompletions)
+ 				cmd.PersistentFlags().StringVar(&highlightStyle, "highlightStyle", "", `foreground and background colors for highlighted lines, e.g. --highlightStyle "#fff000 bg:#000fff"`)
+ 				_ = cmd.RegisterFlagCompletionFunc("highlightStyle", cobra.NoFileCompletions)
+ 				cmd.PersistentFlags().StringVar(&lineNumbersInlineStyle, "lineNumbersInlineStyle", "", `foreground and background colors for inline line numbers, e.g. --lineNumbersInlineStyle "#fff000 bg:#000fff"`)
+diff --git a/markup/highlight/chromastyles.go b/markup/highlight/chromastyles.go
+index c595c780ab8..f17170ad0b0 100644
+--- a/markup/highlight/chromastyles.go
++++ b/markup/highlight/chromastyles.go
+@@ -35,6 +35,12 @@ type ChromaStylesOptions struct {
+ 	// Scope selectors under a top level mode class, e.g. ".dark .chroma".
+ 	ModeSelector bool
+ 
++	// Class name used by ModeSelector for dark styles, defaults to "dark".
++	ClassDark string
++
++	// Class name used by ModeSelector for light styles, defaults to "light".
++	ClassLight string
++
+ 	// Foreground and background colors for highlighted lines, e.g. "#fff000 bg:#000fff".
+ 	HighlightStyle string
+ 
+@@ -105,12 +111,19 @@ func ChromaStylesCSS(opts ChromaStylesOptions) (string, error) {
+ 		// them with a parent class on the page.
+ 		// There's no upstream option for this (I think), so do string replacements for now.
+ 		// TODO(bep) upstream option for this.
++		classDark, classLight := opts.ClassDark, opts.ClassLight
++		if classDark == "" {
++			classDark = "dark"
++		}
++		if classLight == "" {
++			classLight = "light"
++		}
+ 		var prefix string
+ 		switch style.Mode() {
+ 		case chroma.Light:
+-			prefix = ".light "
++			prefix = "." + classLight + " "
+ 		case chroma.Dark:
+-			prefix = ".dark "
++			prefix = "." + classDark + " "
+ 		default:
+ 			return "", fmt.Errorf("style %q does not have a light or dark mode", style.Name)
+ 		}
+diff --git a/tpl/css/chromastyles_integration_test.go b/tpl/css/chromastyles_integration_test.go
+index 402ef2ca698..682f117241c 100644
+--- a/tpl/css/chromastyles_integration_test.go
++++ b/tpl/css/chromastyles_integration_test.go
+@@ -47,6 +47,25 @@ Light: {{ $light.RelPermalink }}|Dark: {{ $dark.RelPermalink }}|Default: {{ $def
+ 	b.AssertFileContent("public/css/chroma.css", "/* Background */ .bg {", "background-color:#272822")
+ }
+ 
++// See issue 15167.
++func TestChromaStylesCustomModeClasses(t *testing.T) {
++	t.Parallel()
++
++	files := `
++-- hugo.toml --
++disableKinds = ["taxonomy", "term", "rss", "sitemap", "section", "page"]
++-- layouts/home.html --
++{{ $light := css.ChromaStyles (dict "targetPath" "css/chroma-light.css" "style" "github" "mode" "light" "modeSelector" true "classLight" "theme-light") }}
++{{ $dark := css.ChromaStyles (dict "targetPath" "css/chroma-dark.css" "style" "github" "mode" "dark" "modeSelector" true "classDark" "theme-dark") }}
++Light: {{ $light.RelPermalink }}|Dark: {{ $dark.RelPermalink }}|
++`
++
++	b := hugolib.Test(t, files)
++
++	b.AssertFileContent("public/css/chroma-light.css", ".theme-light .chroma ", ".theme-light .bg {")
++	b.AssertFileContent("public/css/chroma-dark.css", ".theme-dark .chroma ", ".theme-dark .bg {")
++}
++
+ // Chroma's minifier drops token rules whose color equals the style's default
+ // foreground (e.g. .nx in github-dark). In a paired light/dark setup the light
+ // sheet's explicit rule would then leak into dark mode, so these must be re-emitted.

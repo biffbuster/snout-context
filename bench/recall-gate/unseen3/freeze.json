@@ -1,0 +1,17 @@
+{
+  "frozenAt": "2026-10-26T16:03:05.964Z",
+  "files": {
+    "bench/recall-gate/unseen3/history.json": "6e40b7f25f29fe706a1e734e2b2c2f9ed08f02fbd5cd50e88d8937ac99e6e69d",
+    "bench/recall-gate/unseen3/prompts.json": "a052e733e109b84b59b9e07a11f481a7993401a709f3e174ba1cd54422c3f06f",
+    "bench/recall-gate.mjs": "ec0980eb2840b5d1319dae19ea1922af570e9a2a6af0f4b9d78a81df6806b89a"
+  },
+  "refrozen": [
+    "Refrozen 2026-10-26 before round 6: bench/recall-gate.mjs gained --semantic (the optional local model, served on a port of the run's own) and records each path's time per call. Inputs and scoring are unchanged."
+  ],
+  "previous": [
+    {
+      "frozenAt": "2026-10-26T14:26:27.910Z",
+      "bench/recall-gate.mjs": "dd46aab0440954c0670d17b5efe72b4bc627fe51f193e1012251e20985424881"
+    }
+  ]
+}

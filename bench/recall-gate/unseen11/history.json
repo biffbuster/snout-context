@@ -1,0 +1,492 @@
+{
+ "about": "Gate 3, eleventh unseen check (larger): written and frozen on 2026-10-27 before the fix round for unseen 10's misses (general ranking and one-word matches), and run once after it. A Rust weather-station telemetry service tested with cargo test.",
+ "project": {
+  "name": "kestrel",
+  "files": {
+   ".gitignore": ".snout/\ntarget/\n",
+   "Cargo.toml": "[package]\nname = \"kestrel\"\nversion = \"0.4.0\"\nedition = \"2021\"\n\n[features]\ndefault = []\nmqtt = [\"dep:rumqttc\"]\n\n[dependencies]\naxum = \"0.7\"\nrumqttc = { version = \"0.24\", optional = true }\n",
+   "src/main.rs": "mod ingest;\nmod alerts;\nmod storage;\nmod api;\nmod units;\nfn main() {}\n",
+   "src/ingest.rs": "pub fn ingest(station: &str, value: i32) -> (String, i32) { (station.to_string(), value) }\n",
+   "src/alerts.rs": "pub const MISSED: u32 = 3;\n",
+   "src/storage.rs": "pub fn store(_station: &str, _ts: i64, _v: i32) {}\n",
+   "src/api.rs": "pub fn readings() -> Vec<i32> { vec![] }\n",
+   "src/units.rs": "pub fn tenths(c: f64) -> i32 { (c * 10.0).round() as i32 }\n",
+   "deploy/compose.yaml": "services:\n  db:\n    image: timescale/timescaledb:2.14.2-pg16\n",
+   "migrations/0001_init.sql": "create table readings (station text, ts bigint, value int);\n",
+   "tests/ingest.rs": "#[test]\nfn ingests() { assert!(true); }\n"
+  }
+ },
+ "steps": [
+  {
+   "id": "H1",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Add a readings ingest endpoint in src/ingest.rs and make sure the tests pass.",
+   "calls": [
+    {
+     "edit": "src/ingest.rs",
+     "content": "pub fn ingest(station: &str, value: i32) -> Result<(String, i32), &'static str> {\n    if station.is_empty() { return Err(\"no station id\"); }\n    Ok((station.to_string(), value))\n}\n"
+    },
+    {
+     "bash": "cargo test",
+     "out": "   Compiling kestrel v0.4.0\n    Finished test [unoptimized + debuginfo] target(s) in 3.12s\n     Running unittests src/main.rs\n\ntest result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s\n"
+    }
+   ],
+   "commit": "Add readings ingest",
+   "final": "src/ingest.rs accepts sensor readings over HTTP and rejects ones without a station id. cargo test: 18 passed."
+  },
+  {
+   "id": "H2",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Run the tests with cargo test --all-features from now on; the mqtt feature was never tested.",
+   "calls": [
+    {
+     "edit": "Cargo.toml",
+     "content": "[package]\nname = \"kestrel\"\nversion = \"0.4.0\"\nedition = \"2021\"\n\n[features]\ndefault = []\nmqtt = [\"dep:rumqttc\"]\n\n[dependencies]\naxum = \"0.7\"\nrumqttc = { version = \"0.24\", optional = true }\n\n[package.metadata.ci]\ntest = \"cargo test --all-features\"\n"
+    },
+    {
+     "bash": "cargo test --all-features",
+     "out": "   Compiling kestrel v0.4.0\n    Finished test [unoptimized + debuginfo] target(s) in 3.12s\n     Running unittests src/main.rs\n\ntest result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s\n"
+    }
+   ],
+   "commit": "Test all features",
+   "final": "Tests run with cargo test --all-features now, so the mqtt feature is covered. 21 passed."
+  },
+  {
+   "id": "H3",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Publish a test reading to the broker with mosquitto_pub.",
+   "calls": [
+    {
+     "bash": "mosquitto_pub -t stations/test -m 215",
+     "out": "bash: mosquitto_pub: command not found\n"
+    }
+   ],
+   "final": "mosquitto_pub isn't installed here, so no test reading was published."
+  },
+  {
+   "id": "M1",
+   "type": "cli",
+   "args": [
+    "memory",
+    "add",
+    "Temperatures are stored in tenths of a degree Celsius, as integers.",
+    "--kind",
+    "decision"
+   ]
+  },
+  {
+   "id": "M2",
+   "type": "cli",
+   "args": [
+    "memory",
+    "add",
+    "Readings older than 90 days are moved to cold storage.",
+    "--kind",
+    "convention"
+   ]
+  },
+  {
+   "id": "M3",
+   "type": "cli",
+   "args": [
+    "memory",
+    "add",
+    "Alerts are sent through PagerDuty from src/alerts.rs.",
+    "--kind",
+    "convention"
+   ]
+  },
+  {
+   "id": "M4",
+   "type": "cli",
+   "args": [
+    "memory",
+    "add",
+    "Station ids are the sensor's MAC address in lowercase.",
+    "--kind",
+    "decision"
+   ]
+  },
+  {
+   "id": "M5",
+   "type": "cli",
+   "args": [
+    "memory",
+    "add",
+    "The API returns timestamps as Unix milliseconds.",
+    "--kind",
+    "convention"
+   ]
+  },
+  {
+   "id": "H4",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Fix duplicate readings when a sensor resends after a timeout, in src/storage.rs.",
+   "calls": [
+    {
+     "edit": "src/storage.rs",
+     "content": "use std::collections::HashSet;\npub fn store(seen: &mut HashSet<(String, i64)>, station: &str, ts: i64, _v: i32) -> bool {\n    seen.insert((station.to_string(), ts))\n}\n"
+    },
+    {
+     "bash": "cargo test --all-features",
+     "out": "   Compiling kestrel v0.4.0\n    Finished test [unoptimized + debuginfo] target(s) in 3.12s\n     Running unittests src/main.rs\n\ntest result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s\n"
+    }
+   ],
+   "commit": "Deduplicate resent readings",
+   "final": "Readings are keyed by station and timestamp, so a resent reading is stored once. 22 passed."
+  },
+  {
+   "id": "H5",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Remember that alerts fire after 3 missed readings, set in src/alerts.rs.",
+   "mcp": [
+    {
+     "tool": "snout_memory_save",
+     "args": {
+      "text": "Alerts fire after 3 missed readings in a row, set in src/alerts.rs.",
+      "kind": "fact",
+      "user_asked": true,
+      "files": [
+       "src/alerts.rs"
+      ]
+     }
+    }
+   ],
+   "calls": [],
+   "final": "Saved: alerts fire after 3 missed readings in a row, set in src/alerts.rs. Also, the station list is refreshed every 5 minutes by the roster task."
+  },
+  {
+   "id": "H6",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Fire alerts after 5 missed readings instead of 3, in src/alerts.rs.",
+   "calls": [
+    {
+     "edit": "src/alerts.rs",
+     "content": "pub const MISSED: u32 = 5;\n"
+    },
+    {
+     "bash": "cargo test --all-features",
+     "out": "   Compiling kestrel v0.4.0\n    Finished test [unoptimized + debuginfo] target(s) in 3.12s\n     Running unittests src/main.rs\n\ntest result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s\n"
+    }
+   ],
+   "commit": "Alert after 5 missed readings",
+   "final": "src/alerts.rs fires an alert after 5 missed readings in a row now. 23 passed."
+  },
+  {
+   "id": "H7",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Add a calibration offset per station in src/units.rs.",
+   "calls": [
+    {
+     "edit": "src/units.rs",
+     "content": "pub fn tenths(c: f64, offset: f64) -> i32 { ((c + offset) * 10.0).round() as i32 }\n"
+    },
+    {
+     "bash": "cargo test --all-features",
+     "out": "   Compiling kestrel v0.4.0\n    Finished test [unoptimized + debuginfo] target(s) in 3.12s\n     Running unittests src/main.rs\n\ntest result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s\n"
+    }
+   ],
+   "commit": "Per-station calibration offsets",
+   "final": "src/units.rs applies a calibration offset per station before a reading is stored. 25 passed."
+  },
+  {
+   "id": "H8",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Never log the station owners' email addresses. Add an owner contact table in src/owners.rs.",
+   "calls": [
+    {
+     "edit": "src/owners.rs",
+     "content": "pub struct Owner { pub station: String, pub email: String }\n"
+    },
+    {
+     "bash": "cargo test --all-features",
+     "out": "   Compiling kestrel v0.4.0\n    Finished test [unoptimized + debuginfo] target(s) in 3.12s\n     Running unittests src/main.rs\n\ntest result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s\n"
+    }
+   ],
+   "commit": "Owner contacts",
+   "final": "src/owners.rs keeps owner contacts; logs show the station id only. 26 passed."
+  },
+  {
+   "id": "H9",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Never log the station owners' email addresses. Email owners when their station goes quiet, in src/notify.rs.",
+   "calls": [
+    {
+     "edit": "src/notify.rs",
+     "content": "pub fn quiet(station: &str, minutes: u32) -> bool { minutes >= 60 && !station.is_empty() }\n"
+    },
+    {
+     "bash": "cargo test --all-features",
+     "out": "   Compiling kestrel v0.4.0\n    Finished test [unoptimized + debuginfo] target(s) in 3.12s\n     Running unittests src/main.rs\n\ntest result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s\n"
+    }
+   ],
+   "commit": "Email owners of quiet stations",
+   "final": "src/notify.rs emails a station's owner after an hour without readings. 27 passed."
+  },
+  {
+   "id": "H10",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Tag a release when the tests pass. Add humidity readings in src/ingest.rs.",
+   "calls": [
+    {
+     "edit": "src/ingest.rs",
+     "content": "pub struct Reading { pub station: String, pub tenths_c: i32, pub humidity_pct: u8 }\n"
+    },
+    {
+     "bash": "cargo test --all-features",
+     "out": "   Compiling kestrel v0.4.0\n    Finished test [unoptimized + debuginfo] target(s) in 3.12s\n     Running unittests src/main.rs\n\ntest result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s\n"
+    }
+   ],
+   "commit": "Humidity readings",
+   "final": "src/ingest.rs accepts relative humidity in percent. 29 passed; tagged v0.4.1."
+  },
+  {
+   "id": "H11",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Tag a release when the tests pass. Add a wind gust field in src/ingest.rs.",
+   "calls": [
+    {
+     "edit": "src/ingest.rs",
+     "content": "pub struct Reading { pub station: String, pub tenths_c: i32, pub humidity_pct: u8, pub gust_ms: f32 }\n"
+    },
+    {
+     "bash": "cargo test --all-features",
+     "out": "   Compiling kestrel v0.4.0\n    Finished test [unoptimized + debuginfo] target(s) in 3.12s\n     Running unittests src/main.rs\n\ntest result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s\n"
+    }
+   ],
+   "commit": "Wind gusts",
+   "final": "Readings carry the peak wind gust in metres per second. 30 passed; tagged v0.4.2."
+  },
+  {
+   "id": "H12",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Run the soak tests in my kestrel-soak checkout.",
+   "calls": [
+    {
+     "bash": "cd ../kestrel-soak && cargo test",
+     "out": "   Compiling kestrel v0.4.0\n    Finished test [unoptimized + debuginfo] target(s) in 3.12s\n     Running unittests src/main.rs\n\ntest result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s\n"
+    }
+   ],
+   "final": "kestrel-soak's 6 soak tests pass."
+  },
+  {
+   "id": "H13",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Why do some stations show readings an hour in the future? Fix it in src/api.rs.",
+   "calls": [
+    {
+     "edit": "src/api.rs",
+     "content": "pub fn to_utc(local_ms: i64, offset_min: i32) -> i64 { local_ms - offset_min as i64 * 60_000 }\n"
+    },
+    {
+     "bash": "cargo test --all-features",
+     "out": "   Compiling kestrel v0.4.0\n    Finished test [unoptimized + debuginfo] target(s) in 3.12s\n     Running unittests src/main.rs\n\ntest result: ok. 31 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s\n"
+    }
+   ],
+   "commit": "Convert station local time to UTC on ingest",
+   "final": "Some stations send local time without an offset, so their readings landed an hour ahead; ingest converts them to UTC with the station's zone now. 31 passed."
+  },
+  {
+   "id": "H14",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Add a Prometheus metrics endpoint in src/api.rs.",
+   "calls": [
+    {
+     "edit": "src/api.rs",
+     "content": "pub fn to_utc(local_ms: i64, offset_min: i32) -> i64 { local_ms - offset_min as i64 * 60_000 }\npub fn metrics() -> String { \"ingest_total 0\\n\".into() }\n"
+    },
+    {
+     "bash": "cargo test --all-features",
+     "out": "   Compiling kestrel v0.4.0\n    Finished test [unoptimized + debuginfo] target(s) in 3.12s\n     Running unittests src/main.rs\n\ntest result: ok. 32 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s\n"
+    }
+   ],
+   "commit": "Prometheus metrics",
+   "final": "src/api.rs serves /metrics with ingest counts and lag. 32 passed."
+  },
+  {
+   "id": "H15",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Move the database to TimescaleDB 2.17 in deploy/compose.yaml.",
+   "calls": [
+    {
+     "edit": "deploy/compose.yaml",
+     "content": "services:\n  db:\n    image: timescale/timescaledb:2.17.2-pg16\n"
+    }
+   ],
+   "commit": "TimescaleDB 2.17",
+   "final": "deploy/compose.yaml runs TimescaleDB 2.17."
+  },
+  {
+   "id": "H16",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Add station maintenance windows in src/maintenance.rs.",
+   "calls": [
+    {
+     "edit": "src/maintenance.rs",
+     "content": "pub struct Window { pub station: String, pub from_ms: i64, pub to_ms: i64 }\n"
+    },
+    {
+     "todos": [
+      {
+       "content": "Record maintenance windows per station",
+       "status": "completed"
+      },
+      {
+       "content": "Silence alerts during a window",
+       "status": "pending"
+      }
+     ]
+    }
+   ],
+   "final": "src/maintenance.rs records maintenance windows per station. Silencing alerts during a window is still to do; not committed."
+  }
+ ],
+ "facts": {
+  "T_cur": {
+   "class": "current",
+   "about": "the test command after the switch to --all-features",
+   "pattern": "cargo test --all-features"
+  },
+  "T_old": {
+   "class": "stale",
+   "about": "the plain test command, as a note, after the switch",
+   "pattern": "Run the tests with: cargo test(?! --all-features)"
+  },
+  "T_else": {
+   "class": "wrong-scope",
+   "about": "another checkout's test command, as this project's",
+   "pattern": "Run the tests with: cd "
+  },
+  "MOSQ": {
+   "class": "current",
+   "about": "mosquitto_pub is not installed",
+   "pattern": "mosquitto_pub is not installed|mosquitto_pub isn't installed|mosquitto_pub: command not found"
+  },
+  "TENTHS": {
+   "class": "current",
+   "about": "temperatures in tenths of a degree",
+   "pattern": "tenths of a degree"
+  },
+  "COLD": {
+   "class": "current",
+   "about": "readings to cold storage after 90 days",
+   "pattern": "90 days"
+  },
+  "PAGER": {
+   "class": "current",
+   "about": "alerts through PagerDuty",
+   "pattern": "PagerDuty"
+  },
+  "MAC": {
+   "class": "current",
+   "about": "station ids are MAC addresses",
+   "pattern": "MAC address"
+  },
+  "UNIXMS": {
+   "class": "current",
+   "about": "timestamps in Unix milliseconds",
+   "pattern": "Unix milliseconds"
+  },
+  "NOEMAIL": {
+   "class": "current",
+   "about": "never log owners' emails, said in two sessions",
+   "pattern": "[Nn]ever log the station owners' email addresses"
+  },
+  "TAG_BAD": {
+   "class": "unsupported",
+   "about": "a task request said in two sessions, saved as standing",
+   "pattern": "preference[^\\n]*Tag a release when the tests pass"
+  },
+  "ALERT_OLD": {
+   "class": "stale",
+   "about": "alerts after 3 missed readings, saved with src/alerts.rs, which H6 then changed",
+   "pattern": "3 missed readings in a row"
+  },
+  "ALERT_CUR": {
+   "class": "current",
+   "about": "alerts after 5 missed readings",
+   "pattern": "5 missed readings"
+  },
+  "ROSTER": {
+   "class": "current",
+   "about": "the roster refresh, from H5's last words",
+   "pattern": "roster task|every 5 minutes"
+  },
+  "INGEST": {
+   "class": "current",
+   "about": "the readings ingest endpoint",
+   "pattern": "[Rr]eadings ingest|accepts sensor readings"
+  },
+  "ALLFEAT": {
+   "class": "current",
+   "about": "the switch to testing all features",
+   "pattern": "[Tt]est all features|mqtt feature is covered"
+  },
+  "DEDUP": {
+   "class": "current",
+   "about": "deduplicated resent readings",
+   "pattern": "[Dd]eduplicate resent readings|stored once"
+  },
+  "CALIB": {
+   "class": "current",
+   "about": "per-station calibration offsets",
+   "pattern": "[Cc]alibration offset"
+  },
+  "OWNERS": {
+   "class": "current",
+   "about": "owner contacts",
+   "pattern": "[Oo]wner contacts"
+  },
+  "QUIET": {
+   "class": "current",
+   "about": "emailing owners of quiet stations",
+   "pattern": "quiet stations|hour without readings"
+  },
+  "HUMID": {
+   "class": "current",
+   "about": "humidity readings",
+   "pattern": "[Hh]umidity"
+  },
+  "GUST": {
+   "class": "current",
+   "about": "wind gusts",
+   "pattern": "[Ww]ind gust"
+  },
+  "FUTURE": {
+   "class": "current",
+   "about": "local time converted to UTC on ingest",
+   "pattern": "hour ahead|to UTC"
+  },
+  "METRICS": {
+   "class": "current",
+   "about": "the Prometheus metrics endpoint",
+   "pattern": "Prometheus metrics|/metrics"
+  },
+  "TSDB": {
+   "class": "current",
+   "about": "TimescaleDB 2.17",
+   "pattern": "TimescaleDB 2\\.17"
+  },
+  "MAINT": {
+   "class": "current",
+   "about": "the unfinished maintenance windows, last worked on in Codex",
+   "pattern": "[Mm]aintenance window"
+  }
+ }
+}

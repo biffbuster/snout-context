@@ -1,0 +1,45 @@
+diff --git a/tpl/transform/transform.go b/tpl/transform/transform.go
+index f9d0dabb0d5..f006e28e81b 100644
+--- a/tpl/transform/transform.go
++++ b/tpl/transform/transform.go
+@@ -85,13 +85,13 @@ type Namespace struct {
+ // Emojify returns a copy of s with all emoji codes replaced with actual emojis.
+ //
+ // See http://www.emoji-cheat-sheet.com/
+-func (ns *Namespace) Emojify(s any) (template.HTML, error) {
++func (ns *Namespace) Emojify(s any) (string, error) {
+ 	ss, err := cast.ToStringE(s)
+ 	if err != nil {
+ 		return "", err
+ 	}
+ 
+-	return template.HTML(helpers.Emojify([]byte(ss))), nil
++	return string(helpers.Emojify([]byte(ss))), nil
+ }
+ 
+ // Highlight returns a copy of CODE as an HTML string with syntax
+diff --git a/tpl/transform/transform_test.go b/tpl/transform/transform_test.go
+index a74f9d5b53b..e413177fa1c 100644
+--- a/tpl/transform/transform_test.go
++++ b/tpl/transform/transform_test.go
+@@ -37,8 +37,8 @@ func TestEmojify(t *testing.T) {
+ 		s      any
+ 		expect any
+ 	}{
+-		{":notamoji:", template.HTML(":notamoji:")},
+-		{"I :heart: Hugo", template.HTML("I ❤️ Hugo")},
++		{":notamoji:", ":notamoji:"},
++		{"I :heart: Hugo", "I ❤️ Hugo"},
+ 		// errors
+ 		{tstNoStringer{}, false},
+ 	} {
+@@ -203,7 +203,8 @@ And then some.
+ 	result, err := ns.Markdownify(context.Background(), text)
+ 	b.Assert(err, qt.IsNil)
+ 	b.Assert(result, qt.Equals, template.HTML(
+-		"<p>#First</p>\n<p>This is some <em>bold</em> text.</p>\n<h2 id=\"second\">Second</h2>\n<p>This is some more text.</p>\n<p>And then some.</p>\n"))
++		"<p>#First</p>\n<p>This is some <em>bold</em> text.</p>\n<h2 id=\"second\">Second</h2>\n<p>This is some more text.</p>\n<p>And then some.</p>\n",
++	))
+ }
+ 
+ func TestPlainify(t *testing.T) {
