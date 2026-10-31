@@ -8,6 +8,11 @@ Not measured yet. Nothing below is covered by [docs/claims.md](docs/claims.md).
   the sync after each turn, and the dashboard's Cloud preview and hosted pages are gone. Nothing in
   Snout sends data anywhere now. Credentials saved by an earlier `snout login` are no longer read;
   delete `cloud.json` in Snout's config folder to remove them.
+- CI logs: `gh run view --log` and `--log-failed` output is squeezed. Each step's job and name are
+  shown once and timestamps are dropped; failing tests keep their error, location and stack, and
+  each step keeps its summary and last lines. On a real failed run of this repo, the part around
+  the failures went from 29 KB to 3.4 KB with all three failures intact. A TAP `not ok` line now
+  counts as a problem in any squeezed test output.
 - Fixed: a command that ran a tree-wide search and also printed a file (`grep -rn … ; cat file`)
   had its whole output grouped as search results, which dropped the file's blank lines and
   counted its tail "by directory". Output that isn't all search results is now left whole.
