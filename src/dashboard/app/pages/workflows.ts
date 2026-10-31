@@ -38,8 +38,8 @@ const KINDS: { kind: TraceNode["kind"]; label: string; icon: string; group: Grou
   { kind: "output-trim", label: "Output shortened", icon: "compress", group: "snout" },
   { kind: "would", label: "Would keep out", icon: "flag", group: "snout" },
   { kind: "asked", label: "Asked first", icon: "hand", group: "snout" },
-  { kind: "brief", label: "Repo brief", icon: "memory", group: "snout" },
-  { kind: "recall", label: "Memory recall", icon: "memory", group: "snout" },
+  { kind: "brief", label: "Memory pointer", icon: "memory", group: "snout" },
+  { kind: "recall", label: "Memory search", icon: "memory", group: "snout" },
   { kind: "compact", label: "Compaction", icon: "compress", group: "context" },
 ];
 const KIND = new Map(KINDS.map((k) => [k.kind, k]));
@@ -152,10 +152,6 @@ function nodeEl(p: Placed, selected: boolean): HTMLElement {
 }
 
 export async function workflowsPage(ctx: Ctx, el: HTMLElement): Promise<PageHandle> {
-  if (ctx.hosted) {
-    el.append(empty("Traces stay on the developer's machine", "The hosted dashboard receives daily totals only. Open `snout dashboard` locally to see a session as a workflow."));
-    return {};
-  }
   const sessions = await ctx.get<SessionRow[]>("sessions", {}, { range: false });
   const id = ctx.route.id ?? sessions.find((x) => x.status === "working")?.id ?? sessions[0]?.id;
   if (!id) {

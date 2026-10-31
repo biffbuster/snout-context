@@ -25,9 +25,18 @@ export interface RecallRow {
   ts: string;
   session: string;
   turn: number;
-  /** "brief": what a session started with; "inject": the memory block's audit (ids, dropped, injected or only observed). */
-  kind?: "brief" | "inject";
+  /**
+   * "hint": the session-start line saying earlier sessions exist (`unfinished`: the session it named);
+   * "search" / "fetch": an agent's call to Snout's memory tools (`asked`, the records `shown`, `missed`);
+   * "inject": automatic notes' audit (shown only when they are on); "brief" and rows with `cards`: older versions.
+   */
+  kind?: "brief" | "inject" | "hint" | "search" | "fetch";
   cards?: string[];
+  unfinished?: string;
+  asked?: string;
+  shown?: string[];
+  missed?: boolean;
+  injected?: boolean;
   tokensEst: number;
 }
 
@@ -476,7 +485,7 @@ export function overview(inp: Inputs, range: RangeInfo): Overview {
       outputs: { count: t.outputTrims, tokens: t.outputTokens },
       compaction: {
         compactions: live.reduce((a, s) => a + s.compactions.filter((c) => inRange(c.ts, range)).length, 0),
-        recalls: recalls.filter((r) => !r.kind && r.cards?.length).length,
+        recalls: recalls.filter((r) => r.kind === "search" || r.kind === "fetch" || (!r.kind && r.cards?.length)).length,
       },
       mcp: slices([...sc.reads.map((x) => x.row), ...sc.tool], (r) => mcpServerOf(r.tool)).slice(0, 6),
     },
@@ -751,9 +760,11 @@ export function trace(inp: Inputs, id: string, win: { from?: number; to?: number
 
   const start = node({ ...base, kind: "start", label: s.client === "codex" ? "Codex session" : "Claude Code session", detail: [s.surface, s.version && `v${s.version}`, s.branch && `on ${s.branch}`].filter(Boolean).join(" · "), ts: s.first, status: "completed", turn: 0 });
   let prev: TraceNode = start;
-  const brief = recall.find((r) => r.kind === "brief");
+  // The session-start line that earlier sessions exist (or, from older versions, a repo brief).
+  const brief = recall.find((r) => r.kind === "hint" || r.kind === "brief");
   if (brief) {
-    const b = node({ ...base, kind: "brief", label: "Repo brief", detail: "What earlier sessions found, added at session start", ts: brief.ts, status: "completed", turn: 0, tokens: brief.tokensEst });
+    const detail = brief.kind === "hint" ? `One line: earlier sessions are on record and how to search them${brief.unfinished ? "; one left work unfinished" : ""}` : "What earlier sessions found, added at session start";
+    const b = node({ ...base, kind: "brief", label: brief.kind === "hint" ? "Memory pointer" : "Repo brief", detail, ts: brief.ts, status: "completed", turn: 0, tokens: brief.tokensEst });
     edge(prev, b);
     prev = b;
   }
@@ -782,8 +793,12 @@ export function trace(inp: Inputs, id: string, win: { from?: number; to?: number
     const p = node({ ...base, kind: "prompt", label: `Prompt ${t.n}`, detail: t.prompt, ts: t.start, status: "completed", turn: t.n });
     edge(prev, p);
     prev = p;
-    for (const r of recall.filter((r) => !r.kind && r.cards?.length && within(r.ts, t.start, t.next))) {
-      const rc = node({ ...base, kind: "recall", label: "Memory recall", detail: `${r.cards!.length} earlier session${r.cards!.length === 1 ? "" : "s"} brought back`, ts: r.ts, status: "completed", turn: t.n, tokens: r.tokensEst });
+    // The agent's searches and fetches (Snout's MCP server logs them against the session its hooks saw last), and older automatic recalls.
+    for (const r of recall.filter((r) => ((r.kind === "search" || r.kind === "fetch") || (!r.kind && r.cards?.length)) && within(r.ts, t.start, t.next))) {
+      const [label, detail] = r.kind === "search" ? ["Memory search", `"${r.asked ?? ""}": ${r.shown?.length ? `${r.shown.length} record${r.shown.length === 1 ? "" : "s"} shown` : "nothing found"}`]
+        : r.kind === "fetch" ? ["Memory fetch", r.missed ? `${r.asked ?? ""}: not found` : `Opened ${r.asked ?? ""}`]
+        : ["Memory recall", `${r.cards!.length} earlier session${r.cards!.length === 1 ? "" : "s"} brought back`];
+      const rc = node({ ...base, kind: "recall", label, detail, ts: r.ts, status: "completed", turn: t.n, tokens: r.tokensEst });
       edge(prev, rc);
       prev = rc;
     }
@@ -910,8 +925,10 @@ export function analytics(inp: Inputs, range: RangeInfo): Analytics {
     }),
     retention: {
       compactions: live.reduce((a, s) => a + s.compactions.filter((c) => inRange(c.ts, range)).length, 0),
-      recalls: recalls.filter((r) => !r.kind && r.cards?.length).length,
-      briefs: recalls.filter((r) => r.kind === "brief").length,
+      hints: recalls.filter((r) => r.kind === "hint").length,
+      searches: recalls.filter((r) => r.kind === "search").length,
+      opened: recalls.filter((r) => r.kind === "fetch" && !r.missed).length,
+      notesShown: recalls.filter((r) => r.kind === "inject" && r.injected).length,
     },
     files: slices(rows, (r) => (r.rule === "tool-output" || !r.path ? null : r.path)).slice(0, 15),
     turns: live.flatMap((s) => turnsOf(s).filter((x) => inRange(x.start, range)).map((x) => {

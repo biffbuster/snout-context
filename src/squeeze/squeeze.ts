@@ -11,10 +11,12 @@
  * what the agent most needs anyway. The command itself is never changed, so permission rules
  * apply exactly as the user wrote them.
  */
-export type SqueezeKind = "test" | "install" | "build" | "search";
+export type SqueezeKind = "ci" | "test" | "install" | "build" | "search";
 
 /** Rules for deciding what a command is. The `if` filters on the hook mirror these. */
 const KINDS: [SqueezeKind, RegExp][] = [
+  // A GitHub Actions run's log, as gh prints it. First: a log of a failed `npm test` is still a CI log.
+  ["ci", /(^|[\s;&|(])gh\s+run\s+view\b[^;&|\n]*\s--log(-failed)?\b/],
   ["test", /(^|[\s;&|(])((npm|pnpm|yarn|bun)\s+(run\s+)?test\b|npx\s+(jest|vitest|mocha|playwright\s+test)\b|(jest|vitest|mocha|pytest|rspec|phpunit)\b|python3?\s+-m\s+(pytest|unittest)\b|python3?\s+(\S*\/)?runtests\.py\b|python3?\s+(\S*\/)?manage\.py\s+test\b|go\s+test\b|cargo\s+test\b|node\s+--test\b|deno\s+test\b)/],
   ["install", /(^|[\s;&|(])((npm|pnpm)\s+(i|install|ci|add)\b|yarn(\s+(install|add))?\s*($|[;&|])|bun\s+(i|install|add)\b|pip3?\s+install\b|poetry\s+install\b|bundle(\s+install)?\s*($|[;&|])|go\s+mod\s+(download|tidy)\b|cargo\s+fetch\b|brew\s+install\b)/],
   ["build", /(^|[\s;&|(])((npm|pnpm|yarn|bun)\s+(run\s+)?build\b|npx\s+(tsc|vite|next|webpack)\b|\btsc\b|vite\s+build\b|next\s+build\b|webpack\b|cargo\s+build\b|go\s+build\b|make\b|mvn\b|\.?\/?gradlew?\b|docker\s+build\b)/],
@@ -48,7 +50,7 @@ const KEEP_TAIL = 15;
 
 const ANSI = /\u001b\[[0-9;?]*[ -/]*[@-~]|\u001b\][^\u0007]*\u0007/g;
 /** Anything that reads as trouble is always kept, whatever the kind. */
-const TROUBLE = /\b(error|errors|err!|fail(ed|ure|ing)?|fatal|panic|exception|traceback|warn(ing)?s?|deprecated|vulnerab|critical|denied|cannot|can't|unable|not found|missing|undefined|timeout|timed out|segmentation)\b|✗|✕|×|❌|⚠|^\s*\(!\)/i;
+const TROUBLE = /(^|\s)not ok \d|\b(error|errors|err!|fail(ed|ure|ing)?|fatal|panic|exception|traceback|warn(ing)?s?|deprecated|vulnerab|critical|denied|cannot|can't|unable|not found|missing|undefined|timeout|timed out|segmentation)\b|✗|✕|×|❌|⚠|^\s*\(!\)/i;
 /** Passing-test lines: the bulk of a green run. */
 const PASSING = /^\s*(✓|✔|√|ok\s+\d+\b|PASS\b|\S+::\S+.*\sPASSED(\s+\[\s*\d+%\])?$|\.{3,}$|test\s+\S+.*\.\.\.\s+ok$|\w+ \([\w.]+\)( \S+)? \.\.\. (ok|skipped\b.*|expected failure)$|--- PASS:|=== RUN\b|RUN\s|\[\s*PASSED\s*\]|\s*passed\s*$)/;
 /** Summary lines worth keeping from any run. */
@@ -86,6 +88,11 @@ function clean(text: string): string[] {
 export function squeeze(kind: SqueezeKind, output: string, savedTo: string): Squeezed | null {
   if (Buffer.byteLength(output) < MIN_BYTES || output.length > agentOutputLimit()) return null;
   if (kind === "search") return squeezeSearch(output, savedTo);
+  if (kind === "ci") {
+    const c = squeezeCiLog(output, savedTo);
+    if (c !== undefined) return c;
+    // Not gh's job/step/timestamp format (grep -n, a filter that cut the columns): squeezed like any run.
+  }
   const lines = clean(output);
   const n = lines.length;
   const keep = new Array<boolean>(n).fill(false);
@@ -140,11 +147,81 @@ export function squeeze(kind: SqueezeKind, output: string, savedTo: string): Squ
   if (dropped > 0) out.push(`  … ${dropped} line${dropped === 1 ? "" : "s"} omitted`);
 
   const body = out.join("\n");
-  const text = `${body}\n\n[Snout squeezed this ${kind} output: ${out.length} of ${n} lines kept, problems and summary included. Full output: ${savedTo}]`;
+  const text = `${body}\n\n[Snout squeezed this ${kind === "ci" ? "CI log" : kind} output: ${out.length} of ${n} lines kept, problems and summary included. Full output: ${savedTo}]`;
   const beforeBytes = Buffer.byteLength(output);
   const afterBytes = Buffer.byteLength(text);
   if (afterBytes > beforeBytes * (1 - MIN_CUT)) return null;
   return { kind, text, beforeLines: n, afterLines: out.length, beforeBytes, afterBytes };
+}
+
+/** A line of `gh run view --log`: job, step, then an ISO timestamp before the message. */
+const GH_LOG_LINE = /^([^\t]*)\t([^\t]*)\t﻿?\d{4}-\d\d-\d\dT[\d:.]+Z ?(.*)$/;
+/** What a CI failure looks like in a runner's log, beyond the words TROUBLE knows. */
+const CI_TROUBLE = /^\s*not ok\b|##\[error\]|::error\b|exit code [1-9]|\bERR!|✖|^\s*FAIL\b/;
+/** Runner and TAP bookkeeping: never worth a line of its own. */
+const CI_NOISE = /^\s*(# Subtest:|ok \d+ - |##\[(group|endgroup)\]|duration_ms:|type: 'test'|---$|\.\.\.$)/;
+/** After a failure, how many of its next lines (a TAP block's error, location and stack) are kept. */
+const CI_DETAIL = 14;
+const CI_STEP_TAIL = 8;
+
+/**
+ * A CI log, step by step: each step's job and name once, its messages without timestamps, and of
+ * those only the failures with their detail, summaries and the step's last lines. A step that
+ * went well keeps its last two lines. Undefined when the output isn't in gh's log format.
+ */
+function squeezeCiLog(output: string, savedTo: string): Squeezed | null | undefined {
+  const lines = clean(output).filter((l) => l.trim());
+  const n = lines.length;
+  const parsed = lines.map((l) => GH_LOG_LINE.exec(l));
+  if (parsed.filter(Boolean).length < n * 0.6) return undefined;
+
+  const steps: { job: string; step: string; msgs: string[] }[] = [];
+  lines.forEach((l, i) => {
+    const m = parsed[i];
+    const job = m?.[1] ?? steps.at(-1)?.job ?? "";
+    const step = m?.[2] ?? steps.at(-1)?.step ?? "";
+    const msg = m ? m[3]! : l;
+    const last = steps.at(-1);
+    if (last && last.job === job && last.step === step) last.msgs.push(msg);
+    else steps.push({ job, step, msgs: [msg] });
+  });
+
+  const out: string[] = [];
+  let kept = 0;
+  for (const s of steps) {
+    const trouble = s.msgs.map((m) => !CI_NOISE.test(m) && (CI_TROUBLE.test(m) || TROUBLE.test(m)));
+    const keep = new Array<boolean>(s.msgs.length).fill(false);
+    if (trouble.some(Boolean)) {
+      for (let i = Math.max(0, s.msgs.length - CI_STEP_TAIL); i < s.msgs.length; i++) keep[i] = true;
+      s.msgs.forEach((m, i) => {
+        if (CI_NOISE.test(m) && !trouble[i]) return;
+        if (SUMMARY.test(m) || LOCATION.test(m)) keep[i] = true;
+        if (!trouble[i]) return;
+        keep[i] = true;
+        for (let j = i + 1; j < Math.min(s.msgs.length, i + 1 + CI_DETAIL); j++) {
+          if (/^\s*(# Subtest:|ok \d+ - |not ok\b)/.test(s.msgs[j]!)) break;
+          keep[j] = true;
+        }
+      });
+    } else {
+      for (let i = Math.max(0, s.msgs.length - 2); i < s.msgs.length; i++) keep[i] = true;
+    }
+    out.push(`== ${s.job} › ${s.step}`);
+    let dropped = 0;
+    s.msgs.forEach((m, i) => {
+      if (!keep[i]) { dropped++; return; }
+      if (dropped) { out.push(`  … ${dropped} line${dropped === 1 ? "" : "s"} omitted`); dropped = 0; }
+      out.push(m);
+      kept++;
+    });
+    if (dropped) out.push(`  … ${dropped} line${dropped === 1 ? "" : "s"} omitted`);
+  }
+
+  const text = `${out.join("\n")}\n\n[Snout squeezed this CI log: ${kept} of ${n} lines kept, each step's job and name shown once and timestamps dropped; failures with their detail, summaries and the end of each step kept. Full log: ${savedTo}]`;
+  const beforeBytes = Buffer.byteLength(output);
+  const afterBytes = Buffer.byteLength(text);
+  if (afterBytes > beforeBytes * (1 - MIN_CUT)) return null;
+  return { kind: "ci", text, beforeLines: n, afterLines: kept, beforeBytes, afterBytes };
 }
 
 /** Search results: matches kept per file, files listed before collapsing the rest. */
@@ -158,6 +235,17 @@ const FILES_NAMED = 120;
 const LIST_LINES = 60;
 /** "path:line:text" or "path:text", the shape grep -rn, rg and git grep print. */
 const MATCH_LINE = /^([^\s:][^:]{0,300}?):(\d+[:-])?(.*)$/;
+/** Characters a path rarely has and code or prose often does. */
+const NOT_PATH = /[{}();=<>"'`]/;
+const asMatch = (l: string) => { const m = MATCH_LINE.exec(l); return m && !NOT_PATH.test(m[1]!) ? m : null; };
+/** A line find or ls -R prints: a path, a bare name, or a "dir:" header. */
+const isPathLine = (l: string) => l.length <= 300 && !/^\s/.test(l) && !NOT_PATH.test(l) && (!/\s/.test(l) || /[\/\\]/.test(l));
+/**
+ * Lines a search did not print, at most: past this the output is something else as well (a
+ * compound command that also printed a file), and grouping it would drop lines it never said it
+ * dropped, the blank ones included. Such output is left whole.
+ */
+const STRAY_LINES = (n: number) => Math.max(3, Math.floor(n * 0.05));
 
 /**
  * Grouped search results. Matches: each file keeps its first few hits and a count of the rest,
@@ -167,7 +255,8 @@ const MATCH_LINE = /^([^\s:][^:]{0,300}?):(\d+[:-])?(.*)$/;
 function squeezeSearch(output: string, savedTo: string): Squeezed | null {
   const lines = clean(output).filter((l) => l.trim());
   const n = lines.length;
-  const matched = lines.map((l) => MATCH_LINE.exec(l));
+  const matched = lines.map(asMatch);
+  if (lines.filter((l, i) => !matched[i] && !isPathLine(l) && l !== "--").length > STRAY_LINES(n)) return null;
   // A few files' worth of matches is what the agent asked for; grouping it only hides lines it
   // will come back for (PointFive C1: 20 matches in 3 files, long only because the paths were
   // absolute, were grouped during a security review and cost extra turns).
@@ -251,4 +340,5 @@ export const SQUEEZE_IFS = [
   "go *", "cargo *", "make *", "tsc *", "mvn *", "gradle *", "./gradlew *", "docker build *",
   "bundle *", "rspec *", "jest *", "vitest *", "deno test *", "brew install *",
   "grep *", "rg *", "ag *", "ack *", "git grep *", "find *", "ls -R*",
+  "gh run view *",
 ];

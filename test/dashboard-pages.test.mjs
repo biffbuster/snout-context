@@ -52,6 +52,12 @@ function fixture() {
   writeFileSync(join(root, ".snout/ledger.jsonl"), [
     row({ rule: "lockfile", value: 0, decision: "deny", trimmed: true, tokensAvoidedEst: 9000, tokensReadEst: 40 }),
   ].map((r) => JSON.stringify(r)).join("\n") + "\n");
+  // Memory as agents get it: the session-start line, then one search and one fetch through Snout's MCP server.
+  writeFileSync(join(root, ".snout/recall.jsonl"), [
+    { ts: at(10.5), session: SESSION, kind: "hint", unfinished: "s0", tokensEst: 90 },
+    { ts: at(9.95), session: SESSION, kind: "search", asked: "build error", shown: ["session:s0"], tokensEst: 60 },
+    { ts: at(9.9), session: SESSION, kind: "fetch", asked: "session:s0", shown: ["session:s0"], tokensEst: 120 },
+  ].map((r) => JSON.stringify(r)).join("\n") + "\n");
   writeFileSync(join(root, ".snout/config.json"), JSON.stringify({ mode: "enforce" }));
   writeFileSync(join(root, ".snout/errors.jsonl"), [
     { ts: at(60 * 24 * 10), where: "squeeze log", error: "EPERM: operation not permitted, rename" },
@@ -75,7 +81,7 @@ async function serve(t) {
 test("dashboard pages read the agent's log and Snout's ledger, and count savings once", async (t) => {
   const { port } = await serve(t);
   const boot = await api(port, "/api/boot");
-  assert.equal(boot.host, "local");
+  assert.equal(boot.host, undefined, "the dashboard is local only");
   assert.equal(boot.controls, true);
   assert.equal(boot.project.current, true);
 
@@ -114,14 +120,16 @@ test("dashboard pages read the agent's log and Snout's ledger, and count savings
 
   const integ = await api(port, "/api/integrations");
   assert.ok(!integ.some((i) => i.id === "agent:codex" && i.status === "connected"));
-  assert.equal(integ.find((i) => i.id === "service:cloud").status, "off", "hosted sync is off until you sign in");
+  assert.ok(!integ.some((i) => i.id === "service:cloud"), "there is no hosted sync");
 
   const priv = await api(port, "/api/privacy");
   assert.ok(priv.local.network.every((n) => !n.on), "nothing is sent by default");
-  assert.equal(priv.hosted.connected, false);
 
   const an = await api(port, "/api/analytics?range=24h");
   assert.equal(an.byModel.reduce((a, m) => a + m.keptOut, 0), 9000, "kept out is not counted twice across models");
+  assert.deepEqual(an.retention, { compactions: 0, hints: 1, searches: 1, opened: 1, notesShown: 0 });
+  const memory = tr.nodes.filter((n) => n.kind === "brief" || n.kind === "recall").map((n) => [n.label, n.detail]);
+  assert.deepEqual(memory, [["Memory pointer", "One line: earlier sessions are on record and how to search them; one left work unfinished"], ["Memory search", '"build error": 1 record shown'], ["Memory fetch", "Opened session:s0"]]);
 });
 
 test("Snout's corner animation is served from the dashboard itself, and the page allows only that", async (t) => {

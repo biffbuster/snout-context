@@ -2,9 +2,43 @@
   "name": "snout",
   "version": "0.3.2",
   "description": "A context gate for AI coding agents: classifies every file before it enters context, withholds low-value bulk like lockfiles and generated code, and reports the tokens saved.",
-  "author": { "name": "Snout contributors" },
+  "author": {
+    "name": "Snout contributors"
+  },
   "homepage": "https://github.com/biffbuster/snout-context",
   "repository": "https://github.com/biffbuster/snout-context",
   "license": "MIT",
-  "keywords": ["context", "tokens", "classifier", "typesafe", "snout", "permissions"]
+  "keywords": [
+    "context",
+    "tokens",
+    "classifier",
+    "typesafe",
+    "snout",
+    "permissions"
+  ],
+  "mcpServers": {
+    "snout": {
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/dist/snout.mjs",
+        "mcp",
+        "--tools",
+        "snout_memory_search,snout_memory_fetch,snout_memory_propose"
+      ]
+    }
+  },
+  "userConfig": {
+    "character": {
+      "type": "boolean",
+      "title": "Show Snout",
+      "description": "Animate Snout above the prompt until the first message of each session, and flick a tongue after the spinner word. /snout off turns it off.",
+      "default": true
+    },
+    "pinkTheme": {
+      "type": "boolean",
+      "title": "Snout Pink theme",
+      "description": "Switch to the Snout Pink theme once, keeping the theme it replaced. Turn off to put that theme back.",
+      "default": true
+    }
+  }
 }

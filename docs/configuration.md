@@ -15,8 +15,10 @@ stores only the keys you set, so upgrades can move the defaults under you.
   "longDocs": true,               // long docs: opening + section map; long logs: the tail
   "output": "normal",             // "concise" adds one short output-style instruction (opt-in)
   "repoMap": false,               // true: suggest the files linked to names in each prompt (opt-in)
-  "memory": true,                 // a card per session in .snout/memory, recalled when a prompt bears on it
-  "memoryBudget": 600             // tokens of notes a new session starts with (0.3.2, unreleased)
+  "memory": true,                 // a record per session in .snout/memory; agents search it on demand
+  "memoryHint": true,             // one line at session start saying earlier sessions are on record
+  "memoryNotes": false,           // true: add a saved note to the prompt it fits (opt-in)
+  "memoryBudget": 600             // tokens of automatic notes per prompt, when memoryNotes is on
 }
 ```
 
@@ -37,42 +39,66 @@ similar) are always read whole.
 declare or use each name in the project (hand-written files only; it reuses entries for unchanged
 files, so a rebuild after an edit takes well under a second). When a prompt names code the index
 knows, the agent gets up to 8 candidate file paths with the names that link them, about 300 tokens
-and never any file contents. Prompts that name nothing get nothing. `snout map "<request>"` shows
+and never any file contents. A file the request names by path comes first, and names that appear
+only in pasted program output (log lines, version banners) count for little. Prompts that name
+nothing get nothing. A request like "fix #123" names
+nothing, so when the agent then reads the issue through an MCP tool (GitHub, Linear, Jira and the
+like: `get_issue`, `issue_read`), the candidates for the issue's own text are added to that result,
+(0.3.2, unreleased, Claude Code only). `snout map "<request>"` shows
 what a prompt would get. Offline, on 1,788 SWE-bench issues it had never been scored on, a file the real fix edited was
 in the top 10 for 66% of issues, against 44% for full-text BM25 search and 28% for grep
 (`bench/mapeval.mjs --confirm`).
 Whether that lowers agent spend is not measured yet, which is why it is off by default.
 
 `memory` (default on; `snout memory on|off`, or `SNOUT_MEMORY=0|1`): at the end of each turn Snout
-writes one card per session to `.snout/memory/<session>.json` from the session's own transcript, with
-no model call: the task as the user first stated it, how the session ended in the agent's own last
-words (what it did and why), the files it changed, the test command that
-worked, an error left unresolved, standing instructions the user gave, and the branch. A `git
-commit` the agent runs is linked to the card with its subject and files. When a later prompt bears
-on a card (its words match, and the card touched one of the files the repo map ranks first for the prompt, or the prompt names one of its files), the agent gets
-a short brief of up to three earlier sessions, each offered once per session and at most ~600
-tokens in all; prompts that match nothing get nothing. Recall is active in enforce and advise
-mode; observe mode only writes cards. Cards older than 90 days are not recalled, and files that no
-longer exist are left out. A new session (not a resumed one) also starts with a repo brief: what two
-or more earlier sessions found, such as the test command that works, tools that aren't installed,
-commands too slow for the tool limit, the files most work touches, and instructions the user has
-given more than once. Anything CLAUDE.md, CLAUDE.local.md or AGENTS.md already says is left out,
-and the brief stays under ~400 tokens; `snout memory brief` prints it. `snout memory` lists the cards, `snout memory forget <session>` drops one,
-and `snout recall "<request>" [--as-of <date>]` shows what a prompt would get. One file per card,
-so committing `.snout/memory/` shares it with a team without merge conflicts: `snout memory share`
-changes a `.snout/` line in `.gitignore` to `.snout/*` plus `!.snout/memory/` and stages nothing. Cards hold the
-start of your prompts: read them before you commit them. Whether recall lowers spend per task is
-not measured yet.
+writes one record per session to `.snout/memory/<session>.json` from the session's own transcript,
+with no model call. The record holds:
+
+- the task as the user first stated it, and the latest request;
+- how the session ended, in the agent's own last words;
+- the files it changed, and its commits (`git commit`s it ran, with subject and files);
+- the last test command and its result, and a failure it got past before a test run passed;
+- an error left unresolved, its open to-dos, standing instructions the user gave, and the branch.
+
+Agents read the records through `snout_memory_search` and `snout_memory_fetch` (`snout mcp`), which
+leave out a claim that no longer holds and mark it as out of date. `snout memory` lists the records and how agents used them, `snout memory forget <session>`
+drops one, and `snout recall "<request>" [--as-of <date>]` shows what a search for a request finds.
+There is one file per record, so committing `.snout/memory/` shares it with a team without merge
+conflicts: `snout memory share` changes a `.snout/` line in `.gitignore` to `.snout/*` plus
+`!.snout/memory/`, and stages nothing. Records hold the start of your prompts, so read them before
+you commit them. Whether memory lowers spend per task is not measured yet ([memory](memory.md)).
+
+`memoryHint` (default on; `SNOUT_MEMORY_HINT=0|1`): in enforce mode, when this project has records
+of other sessions, a new session (not a resumed or compacted one) starts with one line. It says how
+many records there are, the latest one's date and agent, and to search them with
+`snout_memory_search` if the task may build on earlier work. When the newest session with changes
+left them unfinished here (uncommitted changes, open to-dos, a failing test or an error on this
+branch), the line gives that session's id so the agent can fetch it. Nothing from the records is in
+it. It exists because the MCP
+server's own guidance doesn't reach every model: Codex leaves server instructions out, and Claude
+Code defers MCP tools behind ToolSearch, so in a live check neither agent searched a record it was
+never told about (docs/memory-gates.md, "Cross-agent handoff check").
+
+`memoryNotes` (default off; `snout memory notes on|off`, or `SNOUT_MEMORY_NOTES=0|1`): in enforce mode,
+add the saved notes that fit a prompt to it, each with where it came from, once per session. It is off
+because choosing a note for a prompt that didn't ask for one was not accurate enough on fresh test
+sets ([memory gates](memory-gates.md)).
 
 Notes (0.3.2, unreleased, not measured): short observations, such as a convention, a gotcha or the
-test command, that a new session starts with, in Claude Code and Codex alike. `snout memory add
+test command, that agents find with `snout_memory_search`, in Claude Code and Codex alike. `snout memory add
 "<note>" [--kind gotcha] [--shared]` saves one, `snout memory list [--all]` shows the notes you may
 see, and `snout memory share <id>`, `archive`, `drop`, `supersede` and `accept` manage them. A note is
 private (your user config folder, only your sessions) unless you share it into `.snout/memory/obs/`.
 At the end of a session Snout also writes private notes by fixed rules: the test command that passed,
 missing tools (archived once the tool is on PATH), commands too slow for the tool limit, and standing
-instructions. `memoryBudget` (default 600, at most 4000) caps the tokens a new session starts with;
-observe mode records what it would inject and injects nothing. See [privacy](privacy.md#notes-032-unreleased).
+instructions. An instruction tied to the task at hand ("don't push yet", "as part of this step") is
+never saved; any other is kept once a second session repeats it. A note an agent saves on its own
+(`snout_memory_save`) is a proposal, shown to no agent until you accept it. A failed Python import is
+not recorded as a missing tool unless the command runs that module. `memoryBudget` (default 600, at
+most 4000) caps the tokens of automatic notes per prompt when `memoryNotes` is on; observe mode
+records what it would add and adds nothing. See [privacy](privacy.md#notes-032-unreleased).
+
+Paused and unchanged: the embedding model and the preference judge stay opt-in.
 
 `snout memory model install` (optional) adds a local embedding model, bge-small-en-v1.5 (q8, about
 34 MB), so recall matches by meaning as well as words. It installs `@huggingface/transformers` with
@@ -164,8 +190,8 @@ They are evaluated in this order, and the order is the policy:
 ## Compaction
 
 Compaction is the agent's own. Snout adds nothing to the context after one; Claude Code's or Codex's
-summary carries the session on. What Snout keeps across sessions is memory: a card per finished
-session, recalled when a later prompt bears on it, and the repo brief at session start.
+summary carries the session on. What Snout keeps across sessions is memory: a record per session,
+which a later session finds by searching ([memory](memory.md)).
 
 ## Ignore files
 

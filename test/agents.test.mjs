@@ -330,7 +330,21 @@ test("init registers Snout's MCP server in every client's own config, keeps othe
   assert.equal(replies[0].result.serverInfo.name, "snout");
   assert.ok(replies[1].result.tools.some((t) => t.name === "snout_memory_search"));
 
+  // Claude Code and Codex, whose reads Snout's hooks gate, get memory search, fetch and propose only; Cursor the default set.
+  const claudeArgs = json(readFileSync(join(root, ".mcp.json"), "utf8")).mcpServers.snout.args;
+  assert.deepEqual(claudeArgs.slice(-2), ["--tools", "snout_memory_search,snout_memory_fetch,snout_memory_propose"]);
+  assert.match(toml, /args = \[.*'--tools', 'snout_memory_search,snout_memory_fetch,snout_memory_propose'\]/);
+  assert.ok(!cursor.mcpServers.snout.args.includes("--tools"));
+  const listed = (a) => JSON.parse(spawnSync("node", a, { input: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" }) + "\n", encoding: "utf8", timeout: 20_000 }).stdout.trim()).result.tools.map((t) => t.name);
+  assert.deepEqual(listed(claudeArgs), ["snout_memory_search", "snout_memory_fetch", "snout_memory_propose"]);
+  // The plugin declares the same server for Claude Code.
+  const plugin = json(readFileSync(fileURLToPath(new URL("../.claude-plugin/plugin.json", import.meta.url)), "utf8"));
+  assert.deepEqual(plugin.mcpServers.snout.args, ["${CLAUDE_PLUGIN_ROOT}/dist/snout.mjs", "mcp", "--tools", "snout_memory_search,snout_memory_fetch,snout_memory_propose"]);
+
+  // Codex gets the memory skill where it reads skills; --remove takes it out again.
+  assert.equal(readFileSync(join(root, ".agents", "skills", "snout-memory", "SKILL.md"), "utf8"), readFileSync(fileURLToPath(new URL("../skills/memory/SKILL.md", import.meta.url)), "utf8"), "the same skill as the plugin's");
   for (const a of ["cursor", "gemini", "codex"]) assert.match(run(["init", a, "--remove"], undefined, root), /Removed snout from/);
+  assert.ok(!existsSync(join(root, ".agents", "skills", "snout-memory")));
   assert.match(run(["init", "vscode", "--remove"], undefined, root), /Removed snout from/);
   assert.deepEqual(Object.keys(json(readFileSync(join(root, ".cursor", "mcp.json"), "utf8")).mcpServers), ["github"]);
   const after = readFileSync(join(root, ".codex", "config.toml"), "utf8");

@@ -199,27 +199,6 @@ function branchOf(dir: string): string | null {
 
 // ---------------------------------------------------------------- boot
 
-interface CloudFile {
-  url?: string;
-  user?: string;
-  team?: string;
-}
-
-/** Snout Cloud state from the credentials file `snout login` writes. The token is never read out. */
-export function cloudState(): Boot["cloud"] {
-  try {
-    const c = JSON.parse(readFileSync(join(configDir(), "cloud.json"), "utf8")) as CloudFile & { token?: string };
-    let lastSync: string | null = null;
-    try {
-      lastSync = new Date(statSync(join(configDir(), "cloud-sync.json")).mtimeMs).toISOString();
-    } catch {
-      // never synced
-    }
-    return { connected: !!(c.url && c.token), url: c.url ?? null, team: c.team ?? null, user: c.user ?? null, lastSync };
-  } catch {
-    return { connected: false, url: null, team: null, user: null, lastSync: null };
-  }
-}
 
 // ---------------------------------------------------------------- integrations
 
@@ -408,13 +387,6 @@ export function integrations(d: ProjectData): Integration[] {
     capabilities: [{ name: "Prompt coach (snout coach jev)", on: cfg.coach === "jev" }, { name: "Memory preference judge", on: cfg.memoryJudge === "jev" }],
     telemetry: [], last: null, setup: jevOn ? null : "snout coach jev", errors: jevOn && !process.env.TYPESAFE_API_KEY ? ["TYPESAFE_API_KEY is not set in this shell"] : [],
   });
-  const cloud = cloudState();
-  out.push({
-    id: "service:cloud", name: "Snout Cloud", kind: "service", status: cloud.connected ? "connected" : "off",
-    detail: cloud.connected ? `Signed in${cloud.user ? ` as ${cloud.user}` : ""}${cloud.team ? ` · ${cloud.team}` : ""}` : "Off. Opt in to share totals with a team dashboard.", version: null,
-    capabilities: [{ name: "Daily totals synced", on: cloud.connected }, { name: "Paths or file contents synced", on: false }],
-    telemetry: cloud.lastSync ? [`Last sync ${ago(cloud.lastSync)}`] : [], last: cloud.lastSync, setup: cloud.connected ? null : "snout login", errors: [],
-  });
 
   // Repo
   const remote = remoteOf(dir);
@@ -441,7 +413,7 @@ export function ago(ts: string, now = Date.now()): string {
 const RECORDS: [string, string][] = [
   ["ledger.jsonl", "One row per read and tool result: path, rule, decision, size, estimated tokens"],
   ["turns.jsonl", "One row per turn, and a row at each compaction"],
-  ["recall.jsonl", "Which memory cards were recalled into which prompt, and their size"],
+  ["recall.jsonl", "Memory's log: session-start lines, the searches and fetches agents made with what they were shown, and automatic notes when those are on"],
   ["hooks.jsonl", "A heartbeat per hook call, so Snout can tell it is wired in"],
   ["errors.jsonl", "Anything that went wrong"],
   ["prompts.jsonl", "Prompt coach scores (not the prompt text)"],
@@ -494,13 +466,11 @@ export function environment(d: ProjectData, opts: { version: string; dashboard: 
     .slice(-12)
     .reverse()
     .map((e) => ({ ts: e.ts, where: e.where, message: String(e.error ?? e.message ?? "").slice(0, 300) }));
-  const cloud = cloudState();
   return {
     local: {
       host: hostname(), platform: `${platform()} ${release()}`, node: process.version, snout: opts.version, projectDir: d.dir, snoutDir: sd, configDir: configDir(), dashboard: opts.dashboard,
       fastServer: { on: opts.fastOn, port: opts.fastPort }, records, agents: [...agents.values()].sort((a, b) => (a.last < b.last ? 1 : -1)), errors,
     },
-    hosted: { ...cloud, environments: [] },
   };
 }
 
@@ -562,7 +532,6 @@ export function privacy(d: ProjectData): PrivacyView {
   const stored = RECORDS.filter(([f]) => existsSync(join(sd, f))).map(([f, holds]) => ({ file: `.snout/${f}`, holds, bytes: statSync(join(sd, f)).size }));
   if (existsSync(join(sd, "memory"))) stored.push({ file: ".snout/memory/", holds: "One card per session: start of first and last request, files changed, commits, test command, last error", bytes: dirBytes(join(sd, "memory")) });
   if (existsSync(join(sd, "squeeze"))) stored.push({ file: ".snout/squeeze/", holds: "Full command outputs Snout shortened, newest 30 kept", bytes: dirBytes(join(sd, "squeeze")) });
-  const cloud = cloudState();
   return {
     local: {
       stored,
@@ -570,16 +539,10 @@ export function privacy(d: ProjectData): PrivacyView {
       network: [
         { feature: "Prompt coach with Jev", on: cfg.coach === "jev", sends: "Prompts that look like tasks", to: "api.typesafe.ai" },
         { feature: "Memory preference judge", on: cfg.memoryJudge === "jev", sends: "Up to six sentences per finished session", to: "api.typesafe.ai" },
-        { feature: "Snout Cloud sync", on: cloud.connected, sends: "Daily totals per agent, model and file label; measured spend", to: cloud.url ?? "Snout Cloud" },
         { feature: "Memory model install", on: false, sends: "Nothing: downloads a model once, when you run the command", to: "npm, Hugging Face" },
       ],
     },
     redact: cfg.redact,
-    hosted: {
-      connected: cloud.connected,
-      sends: ["Per day, agent, model and label: reads, tokens in context, tokens kept out", "Measured usage and list-price cost per day, agent and model", "A hash of the git remote (or folder) and the folder name"],
-      never: ["File contents", "File paths", "Prompts or responses", "Snout's reasons", "Secrets (files matching redact are never read)"],
-    },
     audit: [],
   };
 }

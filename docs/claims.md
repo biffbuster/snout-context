@@ -19,7 +19,7 @@ The last paired agent result is from 0.3.1: 140 Claude Code sessions on Sonnet o
 These 0.3.2 changes have no measurement yet:
 
 - The context Snout added after a compaction is gone, so Snout no longer restores facts after a compaction.
-- Private and shared notes across sessions and agents, written automatically at the end of a session, and memory tools over MCP.
+- Memory as it works now: a record of each session, one line at session start saying earlier sessions exist, and search and fetch tools the agent calls when it needs them. Private and shared notes written by fixed rules, with an agent's own notes kept as proposals. A frozen pilot will measure it ([memory](memory.md)). Until then, nothing here says memory saves tokens or money, or that it improves on its own.
 - Trimmed MCP results are saved as plain text at an absolute path.
 
 Each needs its own measurement on a clean 0.3.2 bundle before it is claimed anywhere.

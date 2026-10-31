@@ -15,9 +15,15 @@ import { codexRows } from "./codex.js";
 
 const TAIL_BYTES = 16 * 1024 * 1024;
 const HEAD_BYTES = 2 * 1024 * 1024;
-const TEST = /\b(pytest|runtests\.py|bin\/test|jest|vitest|mocha|go test|cargo test|(?:npm|pnpm|yarn)(?:\.cmd)? (?:run )?test|node --test|rspec|phpunit|tox|unittest)\b/;
+// A project's own test script counts too (`node scripts/test.mjs`, `./run-tests.sh`, `make test`,
+// `manage.py test`): many projects wrap their runner, and that wrapper is how tests run there.
+const TEST = /\b(pytest|runtests\.py|bin\/test|jest|vitest|mocha|go test|cargo test|(?:npm|pnpm|yarn|bun)(?:\.cmd)? (?:run )?test|node --test|rspec|phpunit|tox|unittest|deno test|bun test|make (?:test|check)|manage\.py test)\b|(?:^|[\s/])(?:run[-_])?tests?(?:[-_]\w+)?\.(?:m?[jt]s|sh|py)\b/;
 /** A test run that actually ran: the runner printed a count or a verdict. */
-const RAN = /\b\d+ (passed|failed|errors?|skipped)\b|\bRan \d+ tests?\b|tests finished|^OK\b|\bOK \(|^FAILED\b|\bTests?:\s+\d+|^[#ℹ]?\s*pass\s+\d+\s*$/m;
+const RAN = /\b\d+ (passed|failed|errors?|skipped)\b|\bRan \d+ tests?\b|tests finished|^OK\b|\bOK \(|^FAILED\b|\bTests?:\s+\d+|^[#ℹ]?\s*pass\s+\d+\s*$|^ok\s+\S+\s+(?:\(cached\)|[\d.]+s)|^FAIL\b/m;
+/** `go test` names a failure on its own lines (`--- FAIL: TestX`, `FAIL\tpkg`), above a last line that may read `ok`. */
+/** A result line that counts tests: "14 passed in 0.52s", "Ran 12 tests", "Tests: 3", "ℹ pass 7". */
+const COUNTED = /\b\d+ (?:passed|failed|errors?|skipped)\b|\bRan \d+ tests?\b|\bTests?:\s+\d+|^[#ℹ]?\s*pass\s+\d+\s*$/;
+const GO_FAIL =/^(?:--- FAIL:|FAIL\b)/m;
 /** First words that only mention a runner (`grep pytest`, `pip install pytest`), never run one. */
 const NOT_RUNNER = new Set(["cat", "grep", "rg", "sed", "awk", "head", "tail", "echo", "printf", "ls", "find", "pip", "pip3", "conda", "apt", "apt-get", "brew", "which", "type", "man"]);
 
@@ -57,7 +63,9 @@ export function testCommand(command: string, projectDir: string): string | undef
     if (!words.length || NOT_RUNNER.has(words[0]!) || !TEST.test(s.bare)) continue;
     let run = s.text.replace(/\s*2>&1\s*$/, "").split(`${projectDir}/`).join("");
     if (cd) {
-      const abs = isAbsolute(cd) ? cd : resolve(projectDir, cd);
+      // Git Bash on Windows names the drive as a folder: /c/Users/... is C:/Users/...
+      const dir = process.platform === "win32" ? cd.replace(/^\/([A-Za-z])(?=\/|$)/, "$1:") : cd;
+      const abs = isAbsolute(dir) ? dir : resolve(projectDir, dir);
       const r = relative(projectDir, abs).split(sep).join("/");
       if (r) run = `cd ${r.startsWith("..") ? cd : r} && ${run}`;
     }
@@ -66,11 +74,14 @@ export function testCommand(command: string, projectDir: string): string | undef
   return runs.length ? runs.join(" && ") : undefined;
 }
 
-/** The environment lacks a tool or module. */
-const MISSING: [RegExp, (m: RegExpMatchArray) => string][] = [
-  [/No module named ['"]?([\w.]+)['"]?/, (m) => m[1]!],
-  [/(?:^|\s)([\w.-]+): command not found/m, (m) => m[1]!],
-  [/command not found: ([\w.-]+)/, (m) => m[1]!],
+/** The environment lacks a tool or module. The last field marks a Python module, not a program. */
+const MISSING: [RegExp, (m: RegExpMatchArray) => string, boolean][] = [
+  [/No module named ['"]?([\w.]+)['"]?/, (m) => m[1]!, true],
+  [/(?:^|\s)([\w.-]+): command not found/m, (m) => m[1]!, false],
+  [/command not found: ([\w.-]+)/, (m) => m[1]!, false],
+  // cmd.exe and PowerShell say it their own way.
+  [/'([\w.-]+)' is not recognized as an internal or external command/, (m) => m[1]!, false],
+  [/The term '([\w.-]+)' is not recognized as (?:the )?name of a cmdlet/, (m) => m[1]!, false],
 ];
 const EDITS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
 
@@ -119,6 +130,9 @@ function projectModule(name: string, projectDir: string): boolean {
   return existsSync(join(projectDir, name)) || existsSync(join(projectDir, `${name}.py`));
 }
 
+/** How many of the user's messages a Stop keeps in hand to check a lesson's quote against. */
+const SAID = 40;
+
 export interface SessionFacts {
   /** The session's first request: the task, which a summary paraphrases (arXiv 2609.20804 keeps it verbatim). */
   goal?: string;
@@ -129,11 +143,16 @@ export interface SessionFacts {
   rules: string[];
   slow: string[];
   test?: { command: string; result: string };
-  missing: { name: string; evidence: string }[];
+  /** `module`: a Python import that failed, which says the environment is wrong, not that a program is absent. */
+  missing: { name: string; evidence: string; module?: boolean }[];
   changed: string[];
   todos: string[];
   /** The agent's last message: its own account of what it did and why, verbatim. */
   outcome?: string;
+  /** The first command that failed, when a test run passed after it: the session hit a problem and got past it. */
+  recovered?: { line: string; command: string };
+  /** What the user typed this session, one line each, newest last: a lesson's quoted words are checked against it (memory/review.ts). Not kept on the card. */
+  said?: string[];
 }
 
 /**
@@ -160,8 +179,11 @@ const MAX_RULES = 12;
  * pytest, Django/unittest or a compiler reports it, or a thrown JavaScript error.
  */
 const ERROR_LINE = /^(?:[\w.]+(?:Error|Exception)\b(?::.*)?|(?:FAILED|ERROR) [\w./:\[\]-]+.*|(?:FAIL|ERROR): \w+ \(.*|error\[\w+\]: .+|[^\s:]+:\d+(?::\d+)?: error: .+|(?:\S+:\s+)?error TS\d+: .+)$/;
-/** A test verdict with nothing failing. */
-export const PASSED = (verdict: string) => RAN.test(verdict) && !/\b[1-9]\d* (failed|errors?)\b|FAILED|\b(failures|errors)=\d|\bfail [1-9]/i.test(verdict);
+/**
+ * A test verdict with nothing failing. "failed" counts unless a count of zero comes before it:
+ * cargo, Deno and Jest print "0 failed" on every passing run.
+ */
+export const PASSED = (verdict: string) => RAN.test(verdict) && !/\b[1-9]\d* (failed|errors?)\b|(?<!\b0 )\bfailed\b|\b(failures|errors)=\d|\bfail [1-9]|^FAIL\b|· FAIL\b/i.test(verdict);
 
 function errorLine(out: string): string | undefined {
   const lines = out.split("\n").map((l) => l.trim());
@@ -199,6 +221,7 @@ function factsFromClaudeRows(lines: Iterable<string>, projectDir: string, first?
     return r && !r.startsWith("..") && !isAbsolute(r) ? r.split(sep).join("/") : p;
   };
   const facts: SessionFacts = { rules: [], missing: [], slow: [], changed: [], todos: [] };
+  let problem: SessionFacts["recovered"];
   const uses = new Map<string, any>();
   if (first) facts.goal = oneLine(first, 600);
   for (const line of lines) {
@@ -214,6 +237,7 @@ function factsFromClaudeRows(lines: Iterable<string>, projectDir: string, first?
       if (request) {
         facts.goal ??= oneLine(request, 600);
         facts.request = oneLine(request, 400);
+        facts.said = [...(facts.said ?? []), oneLine(request, 2000)].slice(-SAID);
         for (const r of instructions(request)) {
           const key = r.toLowerCase();
           facts.rules = [...facts.rules.filter((x) => x.toLowerCase() !== key), r];
@@ -245,22 +269,28 @@ function factsFromClaudeRows(lines: Iterable<string>, projectDir: string, first?
       const slowTest = SLOW.test(out) ? testCommand(command, projectDir) : undefined;
       if (slowTest) { const c = oneLine(slowTest, 160); facts.slow = [c, ...facts.slow.filter((x) => x !== c)].slice(0, 3); }
       let missing = false;
-      for (const [re, name] of MISSING) {
+      for (const [re, name, module] of MISSING) {
         const m = out.match(re);
         if (!m) continue;
         const n = name(m);
         if (projectModule(n, projectDir)) continue;
         missing = true;
-        facts.missing = [{ name: n, evidence: oneLine(m[0], 80) }, ...facts.missing.filter((x) => x.name !== n)];
+        // `pytest x` failing with "No module named pytest": the program the command runs is what's missing.
+        const runs = module && new RegExp(`(?:^|[\\s;&|(])(?:-m\\s+)?${n.replace(/[.]/g, "\\.")}\\b`).test(command.replace(/"[^"]*"|'[^']*'/g, ""));
+        facts.missing = [{ name: n, evidence: oneLine(m[0], 80), ...(module && !runs ? { module } : {}) }, ...facts.missing.filter((x) => x.name !== n)];
       }
       const runner = !missing && RAN.test(out) ? testCommand(command, projectDir) : undefined;
       let verdict = "";
       if (runner) {
         const lines = out.split("\n").map((l) => l.trim()).filter(Boolean);
         verdict = [...lines].reverse().find((l) => RAN.test(l)) ?? "";
+        // tox and unittest end on a line without a count ("py312: OK", "OK"): keep the count line with it.
+        const counted = [...lines].reverse().find((l) => COUNTED.test(l));
+        if (verdict && counted && !COUNTED.test(verdict)) verdict = `${counted} · ${verdict}`;
         // node --test prints `ℹ pass N` then `ℹ fail N`; a failure count belongs in the verdict.
         const failed = out.match(/^\s*[#ℹ]?\s*fail\s+[1-9]\d*\s*$/m);
         if (failed && verdict && !verdict.includes(failed[0].trim())) verdict = `${verdict} · ${failed[0].trim()}`;
+        if (verdict && !/FAIL/.test(verdict) && GO_FAIL.test(out)) verdict = `${verdict} · FAIL`;
         facts.test = { command: oneLine(runner, 200), result: oneLine(verdict, 120) };
       }
       // A file printed or searched may contain error text; only a command that ran can fail.
@@ -269,6 +299,10 @@ function factsFromClaudeRows(lines: Iterable<string>, projectDir: string, first?
       const cmd = oneLine(command, 160);
       if (err && !(runner && PASSED(verdict))) facts.error = { line: oneLine(err, 200), command: cmd };
       else if ((runner && PASSED(verdict)) || facts.error?.command === cmd) facts.error = undefined;
+      // A failure (an error line, a missing tool, a non-zero exit) before a passing test run.
+      const passed = !!runner && PASSED(verdict);
+      if (!passed && !prints && !problem && (err || missing || b.is_error === true)) problem = { line: oneLine(err ?? out.trim().split("\n").pop() ?? "", 200), command: cmd };
+      if (passed && problem) facts.recovered = problem;
     }
   }
   // A tool the working test command uses is evidently available now.

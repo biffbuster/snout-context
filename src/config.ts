@@ -27,6 +27,26 @@ export interface Config {
   memoryJudge?: "off" | "jev";
   /** Tokens the session-start memory block may use (memory/store.ts). Default 600; 0 injects none. */
   memoryBudget?: number;
+  /**
+   * Meaning for automatic notes (memory/semantic.ts, facts.ts): when no note fits a prompt on its
+   * rules, the note closest to it in meaning, at a high similarity only. Search and recall don't use
+   * it. Opt-in, default off; it needs `snout memory model install`, and without it notes go by words.
+   */
+  memorySemantic?: boolean;
+  /** When a session got past a failure, the agent is asked once for a one-line lesson, kept privately (memory/lessons.ts). Opt-in, default off. */
+  memoryLessons?: boolean;
+  /**
+   * Notes shown on the prompts they fit, in enforce mode (cli.ts, promptNotes). Opt-in, default off:
+   * Gate 3 did not pass on fresh sets with words alone (docs/memory-gates.md, round 11). Notes are
+   * still saved and recorded as fitting, and search and recall answer when asked, either way.
+   */
+  memoryNotes?: boolean;
+  /**
+   * One line at session start, in enforce mode, when this project has records of other sessions:
+   * how many, the latest's date and agent, and how to search them; nothing from the records
+   * (cli.ts startBrief, memory/tools.ts memoryHint). On unless false.
+   */
+  memoryHint?: boolean;
   /** Blocking hooks call a long-running `snout serve` over HTTP instead of starting Node each time. Default on; false keeps command hooks. */
   fastHooks?: boolean;
   /**
@@ -197,6 +217,8 @@ export function loadConfig(paths: Paths): Config {
   if (process.env.SNOUT_DISABLE) cfg.mode = "observe";
   if (process.env.SNOUT_MEMORY === "1" || process.env.SNOUT_MEMORY === "0") cfg.memory = process.env.SNOUT_MEMORY === "1";
   if (process.env.SNOUT_REPO_MAP === "1" || process.env.SNOUT_REPO_MAP === "0") cfg.repoMap = process.env.SNOUT_REPO_MAP === "1";
+  if (process.env.SNOUT_MEMORY_NOTES === "1" || process.env.SNOUT_MEMORY_NOTES === "0") cfg.memoryNotes = process.env.SNOUT_MEMORY_NOTES === "1";
+  if (process.env.SNOUT_MEMORY_HINT === "1" || process.env.SNOUT_MEMORY_HINT === "0") cfg.memoryHint = process.env.SNOUT_MEMORY_HINT === "1";
 
   return cfg;
 }
