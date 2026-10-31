@@ -258,7 +258,8 @@ test("a server left running older code of the same version is replaced by the ne
   try {
     let h = null;
     for (let i = 0; i < 100 && !h?.build; i++) { h = await health(); if (!h?.build) await new Promise((r) => setTimeout(r, 100)); }
-    assert.equal(h.build, `${h.version}+${Math.floor(past.getTime())}`, "the old copy is the one answering");
+    // What the file system stored, which can differ from `past` by a millisecond (Node 20 on Linux).
+    assert.equal(h.build, `${h.version}+${Math.floor(statSync(old).mtimeMs)}`, "the old copy is the one answering");
     await ensureUp();
     for (let i = 0; i < 100; i++) { h = await health(); if (h?.build?.endsWith(`+${Math.floor(statSync(CLI).mtimeMs)}`)) break; await new Promise((r) => setTimeout(r, 100)); }
     assert.equal(h.build, `${h.version}+${Math.floor(statSync(CLI).mtimeMs)}`, "the newer bundle took over");
