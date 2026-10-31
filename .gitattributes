@@ -3,3 +3,14 @@
 *.png binary
 *.jpg binary
 dist/snout.mjs text eol=lf
+
+# Built or recorded, not written by hand: GitHub collapses these in diffs and leaves them out of
+# the language stats. `npm run build` writes dist/; benchmark runs and task draws write the data.
+dist/** linguist-generated=true
+bench/**/*.json linguist-generated=true
+bench/**/*.patch linguist-generated=true
+bench/memory/** linguist-generated=true
+bench/realrepo/** linguist-generated=true
+# Small projects the benchmarks give agents to work on: test fixtures, not Snout's code.
+bench/handoff/*/** linguist-vendored=true
+bench/fixtures/** linguist-vendored=true
