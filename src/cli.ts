@@ -107,7 +107,12 @@ function main(): void {
   }
   if (command === "dashboard") return cmdDashboard(process.argv.slice(3));
   if (command === "serve") {
-    if (process.argv.includes("--ensure")) void ensureServer().finally(() => process.exit(0));
+    if (process.argv.includes("--ensure")) {
+      pending = true;
+      // Ends on its own: process.exit() while fetch's sockets close trips a libuv assertion on
+      // Windows (exit 127, about 3 in 10 runs after starting a new server).
+      void ensureServer().catch((err) => recordError("ensureServer", err));
+    }
     else startServer();
     return;
   }
@@ -1544,6 +1549,8 @@ function cmdFast(paths: Paths, cfg: Config, v?: string): void {
     : "Fast hooks off. Each gated call runs its own Snout process.");
 }
 
+/** What this server reports at /health; set once at start. */
+let SERVE_BUILD = VERSION;
 const SERVE_IDLE_MS = Number(process.env.SNOUT_SERVE_IDLE_MS) || 30 * 60_000; // the override is for tests
 const healthUrl = () => `http://127.0.0.1:${HOOK_PORT}/snout/v1/health`;
 /** The running `snout serve` writes its pid here, per user like its port. */
@@ -1573,24 +1580,45 @@ function reviveServer(paths: Paths, cfg: Config): void {
   }
 }
 
+/**
+ * This bundle as the fast server reports it: the version, then when the file was built. A rebuild
+ * or an update that keeps the version still counts as new, so a server left running old code is
+ * replaced instead of answering every hook with it.
+ */
+function buildId(): string {
+  try {
+    return `${VERSION}+${Math.floor(statSync(BIN).mtimeMs)}`;
+  } catch {
+    return VERSION;
+  }
+}
+/** A running server is current when it is this version and its bundle is no older than this one; the newer of two copies wins. */
+function isCurrent(id: string | null): boolean {
+  if (!id) return false;
+  const [v, built] = id.split("+");
+  return v === VERSION && Number(built ?? 0) >= Number(buildId().split("+")[1] ?? 0);
+}
+
 async function serverVersion(): Promise<string | null> {
   try {
     const r = await fetch(healthUrl(), { signal: AbortSignal.timeout(300) });
-    return r.ok ? ((await r.json()) as { version?: string }).version ?? null : null;
+    if (!r.ok) return null;
+    const j = (await r.json()) as { version?: string; build?: string };
+    return j.build ?? j.version ?? null;
   } catch {
     return null;
   }
 }
 
-/** Starts `snout serve` unless one of this version already answers, and waits up to 2 s for it. */
+/** Starts `snout serve` unless a current one already answers (this version, a bundle no older than this one), and waits up to 2 s for it. */
 async function ensureServer(): Promise<void> {
-  if ((await serverVersion()) === VERSION) return;
+  if (isCurrent(await serverVersion())) return;
   // windowsHide: without it a detached Node opens a console window on Windows.
   const child = spawn(process.execPath, [BIN, "serve"], { detached: true, stdio: "ignore", windowsHide: true });
   child.unref();
   for (let i = 0; i < 80; i++) {
     await new Promise((r) => setTimeout(r, 50));
-    if ((await serverVersion()) === VERSION) return;
+    if (isCurrent(await serverVersion())) return;
   }
 }
 
@@ -1602,6 +1630,7 @@ async function ensureServer(): Promise<void> {
  * synchronous. An older version answering on the port is asked to step aside.
  */
 function startServer(): void {
+  SERVE_BUILD = buildId();
   const hosts = new Set([`127.0.0.1:${HOOK_PORT}`, `localhost:${HOOK_PORT}`]);
   // Projects whose hooks reached this server, starting with the one that started it. After 30
   // idle minutes it exits only if none of them still sends gated calls here: an idle exit under
@@ -1619,7 +1648,7 @@ function startServer(): void {
     if (!hosts.has(req.headers.host ?? "")) return void res.writeHead(403).end();
     if (req.method === "GET" && url === "/snout/v1/health") {
       res.writeHead(200, { "content-type": "application/json" });
-      return void res.end(JSON.stringify({ version: VERSION }));
+      return void res.end(JSON.stringify({ version: VERSION, build: SERVE_BUILD }));
     }
     if (req.method === "POST" && url === "/snout/v1/shutdown") {
       res.writeHead(200).end();
@@ -1664,7 +1693,7 @@ function startServer(): void {
     if (err.code !== "EADDRINUSE") return process.exit(0);
     // Something answers on the port: an older Snout steps aside; anything else keeps it.
     const v = await serverVersion();
-    if (v && v !== VERSION) {
+    if (v && !isCurrent(v)) {
       await fetch(`http://127.0.0.1:${HOOK_PORT}/snout/v1/shutdown`, { method: "POST" }).catch(() => {});
       setTimeout(() => server.listen(HOOK_PORT, "127.0.0.1"), 200);
     } else process.exit(0);

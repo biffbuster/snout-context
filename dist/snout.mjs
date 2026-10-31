@@ -8828,8 +8828,8 @@ var Projects = class {
       this.listedAt = Date.now();
       const seen = /* @__PURE__ */ new Map();
       const add = (dir, last) => {
-        const isCurrent = resolve13(dir) === resolve13(this.current.projectDir);
-        if (!isCurrent && (/[\\/]\.snout[\\/]/.test(dir) || resolve13(dir).toLowerCase().startsWith(resolve13(tmpdir()).toLowerCase()))) return;
+        const isCurrent2 = resolve13(dir) === resolve13(this.current.projectDir);
+        if (!isCurrent2 && (/[\\/]\.snout[\\/]/.test(dir) || resolve13(dir).toLowerCase().startsWith(resolve13(tmpdir()).toLowerCase()))) return;
         const id = projectId(dir);
         const prev = seen.get(id);
         if (prev) {
@@ -9570,7 +9570,7 @@ data: ${JSON.stringify({ v, ts: (/* @__PURE__ */ new Date()).toISOString() })}
     const pid = q.get("project") || null;
     const d = projects.get(pid);
     if (!d) return void 0;
-    const isCurrent = d.dir === paths.projectDir;
+    const isCurrent2 = d.dir === paths.projectDir;
     const range = () => rangeOf(q.get("range"), q.get("from"), q.get("to"));
     const env = q.get("env");
     const inp = () => {
@@ -9587,9 +9587,9 @@ data: ${JSON.stringify({ v, ts: (/* @__PURE__ */ new Date()).toISOString() })}
           project: projects.ref(pid),
           projects: projects.refs(),
           mode: loadConfig(d.paths).mode,
-          controls: !!opts.actions && isCurrent
+          controls: !!opts.actions && isCurrent2
         };
-        return { ...boot, coach: isCurrent ? opts.actions?.coach() ?? null : null, now: (/* @__PURE__ */ new Date()).toISOString(), v: d.version() };
+        return { ...boot, coach: isCurrent2 ? opts.actions?.coach() ?? null : null, now: (/* @__PURE__ */ new Date()).toISOString(), v: d.version() };
       }
       case "overview":
         return overview(inp(), range());
@@ -9606,7 +9606,7 @@ data: ${JSON.stringify({ v, ts: (/* @__PURE__ */ new Date()).toISOString() })}
       case "projects":
         return projectCards(range());
       case "repo":
-        return isCurrent ? repoView(summary(null)) : null;
+        return isCurrent2 ? repoView(summary(null)) : null;
       case "integrations":
         return integrations(d);
       case "environment":
@@ -10953,8 +10953,10 @@ function main() {
   }
   if (command === "dashboard") return cmdDashboard(process.argv.slice(3));
   if (command === "serve") {
-    if (process.argv.includes("--ensure")) void ensureServer().finally(() => process.exit(0));
-    else startServer();
+    if (process.argv.includes("--ensure")) {
+      pending = true;
+      void ensureServer().catch((err) => recordError("ensureServer", err));
+    } else startServer();
     return;
   }
   if (command === "audit") {
@@ -12264,6 +12266,7 @@ function cmdFast(paths, cfg, v) {
   if (cfg.mode !== "observe") installGate(paths.projectDir, BIN, v === "on");
   say(v === "on" ? `Fast hooks on. Gated calls go to a local Snout server on 127.0.0.1:${HOOK_PORT} instead of starting Node each time; it starts with the next session, stays up while a project uses it, and comes back on its own if it stops. If it is down, the agent carries on ungated.` : "Fast hooks off. Each gated call runs its own Snout process.");
 }
+var SERVE_BUILD = VERSION2;
 var SERVE_IDLE_MS = Number(process.env.SNOUT_SERVE_IDLE_MS) || 30 * 6e4;
 var healthUrl = () => `http://127.0.0.1:${HOOK_PORT}/snout/v1/health`;
 var servePidFile = () => join36(configDir(), `serve-${HOOK_PORT}.pid`);
@@ -12284,24 +12287,39 @@ function reviveServer(paths, cfg) {
     recordError("reviveServer", err);
   }
 }
+function buildId() {
+  try {
+    return `${VERSION2}+${Math.floor(statSync22(BIN).mtimeMs)}`;
+  } catch {
+    return VERSION2;
+  }
+}
+function isCurrent(id) {
+  if (!id) return false;
+  const [v, built] = id.split("+");
+  return v === VERSION2 && Number(built ?? 0) >= Number(buildId().split("+")[1] ?? 0);
+}
 async function serverVersion() {
   try {
     const r = await fetch(healthUrl(), { signal: AbortSignal.timeout(300) });
-    return r.ok ? (await r.json()).version ?? null : null;
+    if (!r.ok) return null;
+    const j = await r.json();
+    return j.build ?? j.version ?? null;
   } catch {
     return null;
   }
 }
 async function ensureServer() {
-  if (await serverVersion() === VERSION2) return;
+  if (isCurrent(await serverVersion())) return;
   const child = spawn2(process.execPath, [BIN, "serve"], { detached: true, stdio: "ignore", windowsHide: true });
   child.unref();
   for (let i = 0; i < 80; i++) {
     await new Promise((r) => setTimeout(r, 50));
-    if (await serverVersion() === VERSION2) return;
+    if (isCurrent(await serverVersion())) return;
   }
 }
 function startServer() {
+  SERVE_BUILD = buildId();
   const hosts = /* @__PURE__ */ new Set([`127.0.0.1:${HOOK_PORT}`, `localhost:${HOOK_PORT}`]);
   const served = /* @__PURE__ */ new Set([resolvePaths(process.cwd()).projectDir]);
   const onIdle = () => [...served].some(fastGateIn) ? idle = setTimeout(onIdle, SERVE_IDLE_MS) : process.exit(0);
@@ -12314,7 +12332,7 @@ function startServer() {
     if (!hosts.has(req.headers.host ?? "")) return void res.writeHead(403).end();
     if (req.method === "GET" && url === "/snout/v1/health") {
       res.writeHead(200, { "content-type": "application/json" });
-      return void res.end(JSON.stringify({ version: VERSION2 }));
+      return void res.end(JSON.stringify({ version: VERSION2, build: SERVE_BUILD }));
     }
     if (req.method === "POST" && url === "/snout/v1/shutdown") {
       res.writeHead(200).end();
@@ -12358,7 +12376,7 @@ function startServer() {
   server.on("error", async (err) => {
     if (err.code !== "EADDRINUSE") return process.exit(0);
     const v = await serverVersion();
-    if (v && v !== VERSION2) {
+    if (v && !isCurrent(v)) {
       await fetch(`http://127.0.0.1:${HOOK_PORT}/snout/v1/shutdown`, { method: "POST" }).catch(() => {
       });
       setTimeout(() => server.listen(HOOK_PORT, "127.0.0.1"), 200);
