@@ -1,5 +1,7 @@
 # Lessons you review
 
+> **Where the rows are.** The repo keeps each gate set's frozen inputs (`prompts.json`, `history.json`, `freeze.json`) and its current baseline (`results-p3b.json`). The per-round result files named below, the reranker's files (removed in 0.3.3) and the paid and dry-run rows under `bench/ab-results/` are not in the repo. A rerun of a gate rebuilds its results from the frozen inputs.
+
 The Gate 4 pilot ([result](memory-gates.md#result-2026-10-29-no-go-for-memory-as-it-shipped-for-both-agents))
 found two problems with memory as it shipped. Claude Code was told about the records and never
 searched them. Codex searched, but a session record was not what it needed. Lessons address both.

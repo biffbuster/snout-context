@@ -2,6 +2,8 @@
 
 Drafted 2026-10-24. The [memory study](benchmark-protocol.md#memory-study) and the [shipped-default evaluation](eval-shipped-default.md) are large paid runs. Before either one runs, four smaller checks must pass, in order. Each gate answers one question, and its pass criteria are fixed before it runs. When a gate fails, the failure is fixed, a regression test is added for it, and the gate runs again. Nothing advances on a failed gate, and no gate is repeated at a larger size to get a different answer.
 
+> **Where the rows are.** The repo keeps each gate set's frozen inputs (`prompts.json`, `history.json`, `freeze.json`) and its current baseline (`results-p3b.json`). The per-round result files named below, the reranker's files (removed in 0.3.3) and the paid and dry-run rows under `bench/ab-results/` are not in the repo. A rerun of a gate rebuilds its results from the frozen inputs.
+
 | Gate | Question | Cost |
 |---|---|---|
 | 1. Live accounting (passed 2026-10-24) | Do Snout's hooks run, and does the harness count tokens, cost and failures correctly? | Free checks, then 2 Claude Code sessions ($0.11) and 2 Codex sessions (plan) |
