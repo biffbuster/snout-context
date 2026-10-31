@@ -4744,6 +4744,8 @@ import { join as join14 } from "node:path";
 
 // src/squeeze/squeeze.ts
 var KINDS2 = [
+  // A GitHub Actions run's log, as gh prints it. First: a log of a failed `npm test` is still a CI log.
+  ["ci", /(^|[\s;&|(])gh\s+run\s+view\b[^;&|\n]*\s--log(-failed)?\b/],
   ["test", /(^|[\s;&|(])((npm|pnpm|yarn|bun)\s+(run\s+)?test\b|npx\s+(jest|vitest|mocha|playwright\s+test)\b|(jest|vitest|mocha|pytest|rspec|phpunit)\b|python3?\s+-m\s+(pytest|unittest)\b|python3?\s+(\S*\/)?runtests\.py\b|python3?\s+(\S*\/)?manage\.py\s+test\b|go\s+test\b|cargo\s+test\b|node\s+--test\b|deno\s+test\b)/],
   ["install", /(^|[\s;&|(])((npm|pnpm)\s+(i|install|ci|add)\b|yarn(\s+(install|add))?\s*($|[;&|])|bun\s+(i|install|add)\b|pip3?\s+install\b|poetry\s+install\b|bundle(\s+install)?\s*($|[;&|])|go\s+mod\s+(download|tidy)\b|cargo\s+fetch\b|brew\s+install\b)/],
   ["build", /(^|[\s;&|(])((npm|pnpm|yarn|bun)\s+(run\s+)?build\b|npx\s+(tsc|vite|next|webpack)\b|\btsc\b|vite\s+build\b|next\s+build\b|webpack\b|cargo\s+build\b|go\s+build\b|make\b|mvn\b|\.?\/?gradlew?\b|docker\s+build\b)/],
@@ -4762,7 +4764,7 @@ var MIN_CUT = 0.3;
 var KEEP_HEAD = 5;
 var KEEP_TAIL = 15;
 var ANSI = /\u001b\[[0-9;?]*[ -/]*[@-~]|\u001b\][^\u0007]*\u0007/g;
-var TROUBLE = /\b(error|errors|err!|fail(ed|ure|ing)?|fatal|panic|exception|traceback|warn(ing)?s?|deprecated|vulnerab|critical|denied|cannot|can't|unable|not found|missing|undefined|timeout|timed out|segmentation)\b|✗|✕|×|❌|⚠|^\s*\(!\)/i;
+var TROUBLE = /(^|\s)not ok \d|\b(error|errors|err!|fail(ed|ure|ing)?|fatal|panic|exception|traceback|warn(ing)?s?|deprecated|vulnerab|critical|denied|cannot|can't|unable|not found|missing|undefined|timeout|timed out|segmentation)\b|✗|✕|×|❌|⚠|^\s*\(!\)/i;
 var PASSING = /^\s*(✓|✔|√|ok\s+\d+\b|PASS\b|\S+::\S+.*\sPASSED(\s+\[\s*\d+%\])?$|\.{3,}$|test\s+\S+.*\.\.\.\s+ok$|\w+ \([\w.]+\)( \S+)? \.\.\. (ok|skipped\b.*|expected failure)$|--- PASS:|=== RUN\b|RUN\s|\[\s*PASSED\s*\]|\s*passed\s*$)/;
 var SUMMARY = /\b(tests?:|suites?:|passed|passing|failed|failing|skipped|pending|todo|duration|time:|elapsed|total|ran \d+|\d+ (tests?|specs?|examples?)|added \d+ packages?|removed \d+|changed \d+|audited \d+|up to date|found \d+ vulnerabilit|built in|compiled|done in|successfully|finished)\b|^#\s*(tests|pass|fail|suites|duration)/i;
 var LOCATION = /^\s*File "[^"]+", line \d+|^\s*at .+[(\s]\S+:\d+(:\d+)?\)?$|^\s*-->\s+\S+:\d+|^\s*\S+\.\w{1,6}:\d+(:\d+)?:\s/;
@@ -4773,6 +4775,10 @@ function clean2(text) {
 function squeeze(kind, output, savedTo) {
   if (Buffer.byteLength(output) < MIN_BYTES || output.length > agentOutputLimit()) return null;
   if (kind === "search") return squeezeSearch(output, savedTo);
+  if (kind === "ci") {
+    const c = squeezeCiLog(output, savedTo);
+    if (c !== void 0) return c;
+  }
   const lines = clean2(output);
   const n = lines.length;
   const keep = new Array(n).fill(false);
@@ -4823,11 +4829,75 @@ function squeeze(kind, output, savedTo) {
   const body = out.join("\n");
   const text = `${body}
 
-[Snout squeezed this ${kind} output: ${out.length} of ${n} lines kept, problems and summary included. Full output: ${savedTo}]`;
+[Snout squeezed this ${kind === "ci" ? "CI log" : kind} output: ${out.length} of ${n} lines kept, problems and summary included. Full output: ${savedTo}]`;
   const beforeBytes = Buffer.byteLength(output);
   const afterBytes = Buffer.byteLength(text);
   if (afterBytes > beforeBytes * (1 - MIN_CUT)) return null;
   return { kind, text, beforeLines: n, afterLines: out.length, beforeBytes, afterBytes };
+}
+var GH_LOG_LINE = /^([^\t]*)\t([^\t]*)\t﻿?\d{4}-\d\d-\d\dT[\d:.]+Z ?(.*)$/;
+var CI_TROUBLE = /^\s*not ok\b|##\[error\]|::error\b|exit code [1-9]|\bERR!|✖|^\s*FAIL\b/;
+var CI_NOISE = /^\s*(# Subtest:|ok \d+ - |##\[(group|endgroup)\]|duration_ms:|type: 'test'|---$|\.\.\.$)/;
+var CI_DETAIL = 14;
+var CI_STEP_TAIL = 8;
+function squeezeCiLog(output, savedTo) {
+  const lines = clean2(output).filter((l) => l.trim());
+  const n = lines.length;
+  const parsed = lines.map((l) => GH_LOG_LINE.exec(l));
+  if (parsed.filter(Boolean).length < n * 0.6) return void 0;
+  const steps = [];
+  lines.forEach((l, i) => {
+    const m = parsed[i];
+    const job = m?.[1] ?? steps.at(-1)?.job ?? "";
+    const step = m?.[2] ?? steps.at(-1)?.step ?? "";
+    const msg = m ? m[3] : l;
+    const last = steps.at(-1);
+    if (last && last.job === job && last.step === step) last.msgs.push(msg);
+    else steps.push({ job, step, msgs: [msg] });
+  });
+  const out = [];
+  let kept = 0;
+  for (const s of steps) {
+    const trouble = s.msgs.map((m) => !CI_NOISE.test(m) && (CI_TROUBLE.test(m) || TROUBLE.test(m)));
+    const keep = new Array(s.msgs.length).fill(false);
+    if (trouble.some(Boolean)) {
+      for (let i = Math.max(0, s.msgs.length - CI_STEP_TAIL); i < s.msgs.length; i++) keep[i] = true;
+      s.msgs.forEach((m, i) => {
+        if (CI_NOISE.test(m) && !trouble[i]) return;
+        if (SUMMARY.test(m) || LOCATION.test(m)) keep[i] = true;
+        if (!trouble[i]) return;
+        keep[i] = true;
+        for (let j = i + 1; j < Math.min(s.msgs.length, i + 1 + CI_DETAIL); j++) {
+          if (/^\s*(# Subtest:|ok \d+ - |not ok\b)/.test(s.msgs[j])) break;
+          keep[j] = true;
+        }
+      });
+    } else {
+      for (let i = Math.max(0, s.msgs.length - 2); i < s.msgs.length; i++) keep[i] = true;
+    }
+    out.push(`== ${s.job} \u203A ${s.step}`);
+    let dropped = 0;
+    s.msgs.forEach((m, i) => {
+      if (!keep[i]) {
+        dropped++;
+        return;
+      }
+      if (dropped) {
+        out.push(`  \u2026 ${dropped} line${dropped === 1 ? "" : "s"} omitted`);
+        dropped = 0;
+      }
+      out.push(m);
+      kept++;
+    });
+    if (dropped) out.push(`  \u2026 ${dropped} line${dropped === 1 ? "" : "s"} omitted`);
+  }
+  const text = `${out.join("\n")}
+
+[Snout squeezed this CI log: ${kept} of ${n} lines kept, each step's job and name shown once and timestamps dropped; failures with their detail, summaries and the end of each step kept. Full log: ${savedTo}]`;
+  const beforeBytes = Buffer.byteLength(output);
+  const afterBytes = Buffer.byteLength(text);
+  if (afterBytes > beforeBytes * (1 - MIN_CUT)) return null;
+  return { kind: "ci", text, beforeLines: n, afterLines: kept, beforeBytes, afterBytes };
 }
 var MATCHES_PER_FILE = 3;
 var FILES_LISTED = 40;
@@ -4953,7 +5023,8 @@ var SQUEEZE_IFS = [
   "ack *",
   "git grep *",
   "find *",
-  "ls -R*"
+  "ls -R*",
+  "gh run view *"
 ];
 
 // src/gate/install.ts
