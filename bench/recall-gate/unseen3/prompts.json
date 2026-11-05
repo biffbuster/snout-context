@@ -1,0 +1,23 @@
+{
+  "about": "Gate 3, third unseen check: prompts for unseen3/history.json, scored exactly as the main set (see ../prompts.json). V14 shares one generic word (header) with one note and must stay silent.",
+  "prompts": [
+    { "id": "V01", "prompt": "Add a test for the /healthz route and run the tests.", "query": "run tests", "delivery": ["T_cur"], "recall": "any", "search": ["T_cur"] },
+    { "id": "V02", "prompt": "What's the command for the test suite?", "query": "test command", "delivery": ["T_cur"], "recall": "any", "search": ["T_cur"] },
+    { "id": "V03", "prompt": "Deploy the preview with deployctl.", "query": "deployctl", "delivery": ["DEPLOY"], "recall": "any", "search": ["DEPLOY"] },
+    { "id": "V04", "prompt": "Format routes/users.ts with prettier.", "query": "prettier", "delivery": "any", "recall": "any", "search": "any" },
+    { "id": "V05", "prompt": "Which header carries the request id?", "query": "request id header", "delivery": ["HDR_CUR"], "recall": "any", "search": ["HDR_CUR"] },
+    { "id": "V06", "prompt": "Add a header to the /users API responses.", "query": "response header", "delivery": ["HDR_CUR"], "recall": "any", "search": ["HDR_CUR"] },
+    { "id": "V07", "prompt": "Where should database queries go?", "query": "database access", "delivery": ["DB"], "recall": "any", "search": ["DB"] },
+    { "id": "V08", "prompt": "Is the user lookup still cached in cache/users.ts?", "query": "user lookup cache", "delivery": "any", "recall": ["CACHE_CUR"], "search": ["CACHE_CUR"] },
+    { "id": "V09", "prompt": "When did the tests start running in parallel?", "query": "tests parallel", "delivery": "any", "recall": ["PARALLEL_MOVE"], "search": ["T_cur", "PARALLEL_MOVE"] },
+    { "id": "V10", "prompt": "How did we validate emails?", "query": "validate emails", "delivery": "any", "recall": ["EMAIL"], "search": ["EMAIL"] },
+    { "id": "V11", "prompt": "Continue where the last session left off.", "query": "rate limiting", "delivery": ["RATE"], "recall": "any", "search": ["RATE"] },
+    { "id": "V12", "prompt": "Add logging for failed logins.", "query": "logging", "delivery": ["BODIES"], "recall": "any", "search": ["BODIES"] },
+    { "id": "V13", "prompt": "Push when the docs are updated.", "query": "push docs", "delivery": "any", "recall": "any", "search": "any" },
+    { "id": "V14", "prompt": "Add a header image to the landing page.", "query": "header image", "delivery": "silent", "recall": "silent", "search": "silent" },
+    { "id": "V15", "prompt": "Write a Dockerfile.", "query": "dockerfile", "delivery": "silent", "recall": "silent", "search": "silent" },
+    { "id": "V16", "prompt": "Use pnpm to install dependencies.", "query": "pnpm install", "delivery": "silent", "recall": "silent", "search": "silent" },
+    { "id": "V17", "prompt": "Why is the dashboard slow on Safari?", "query": "dashboard safari", "delivery": "silent", "recall": "silent", "search": "silent" },
+    { "id": "V18", "prompt": "Translate the error messages to German.", "query": "translate german", "delivery": "silent", "recall": "silent", "search": "silent" }
+  ]
+}

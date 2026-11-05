@@ -1,0 +1,1430 @@
+{
+  "repo": "vitejs/vite",
+  "defaultBranch": "main",
+  "since": "2026-07-30",
+  "drawnAt": "2026-10-23T22:39:56.888Z",
+  "rule": "docs/benchmark-protocol.md#memory-study",
+  "tasks": [
+    {
+      "id": "vite-23134",
+      "issue": 23134,
+      "title": "`build.lib` without `entry`: a second build with a different `input` still builds the first entry",
+      "opened": "2026-08-03T00:08:08Z",
+      "closed": "2026-08-03T03:10:21Z",
+      "labels": [
+        "p2-edge-case",
+        "feat: build"
+      ],
+      "pr": 23135,
+      "merged": "2026-08-03T03:10:20Z",
+      "base": "e6b6b167afa0a80548829d1f24a0712f9194389a",
+      "mergeCommit": "b4bf59686a7ac238929e91a6e1708c739b843a2f",
+      "lines": 21,
+      "files": [
+        "packages/vite/src/node/__tests__/build.spec.ts",
+        "packages/vite/src/node/build.ts"
+      ],
+      "validated": true,
+      "prOpened": "2026-08-03T00:09:42Z",
+      "patch": "bench/memory/vite/23134.patch",
+      "issueSnapshot": "bench/memory/vite/23134.issue.md",
+      "testFiles": [
+        "packages/vite/src/node/__tests__/build.spec.ts"
+      ],
+      "specFiles": [
+        "packages/vite/src/node/__tests__/build.spec.ts"
+      ],
+      "f2p": [
+        "packages/vite/src/node/__tests__/build.spec.ts::resolving lib entry from the top-level input does not mutate the user config"
+      ],
+      "p2p": [
+        "packages/vite/src/node/__tests__/build.spec.ts::build file hash should change when css changes for dynamic entries",
+        "packages/vite/src/node/__tests__/build.spec.ts::build top-level input is used as the default build entry",
+        "packages/vite/src/node/__tests__/build.spec.ts::build top-level input can be a virtual module for build",
+        "packages/vite/src/node/__tests__/build.spec.ts::build file hash should change when pure css chunk changes",
+        "packages/vite/src/node/__tests__/build.spec.ts::build css entries with the same basename should not cross-link manifest assets",
+        "packages/vite/src/node/__tests__/build.spec.ts::build large json object files should have tree-shaking (json.stringify: true, json.namedExports: true)",
+        "packages/vite/src/node/__tests__/build.spec.ts::build large json object files should have tree-shaking (json.stringify: true, json.namedExports: false)",
+        "packages/vite/src/node/__tests__/build.spec.ts::build large json object files should have tree-shaking (json.stringify: false, json.namedExports: true)",
+        "packages/vite/src/node/__tests__/build.spec.ts::build large json object files should have tree-shaking (json.stringify: false, json.namedExports: false)",
+        "packages/vite/src/node/__tests__/build.spec.ts::build large json object files should have tree-shaking (json.stringify: auto, json.namedExports: true)",
+        "packages/vite/src/node/__tests__/build.spec.ts::build large json object files should have tree-shaking (json.stringify: auto, json.namedExports: false)",
+        "packages/vite/src/node/__tests__/build.spec.ts::build external modules should not be hoisted in library build",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs resolves outputs correctly",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs resolves outputs from lib options",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs does not change outputs when lib options are missing",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs logs a warning when outputs is an array and formats are specified",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs throws an error when lib.name is missing on iife format",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs throws an error when lib.name is missing on umd format",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs throws an error when output.name is missing on iife format",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs throws an error when output.name is missing on umd format",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs input resolution in resolveRolldownOptions build.rolldownOptions.input takes precedence over top-level input",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs input resolution in resolveRolldownOptions falls back to index.html when no input is set",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs input resolution in resolveRolldownOptions build.ssr string entry takes precedence over input",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs input resolution in resolveRolldownOptions throws when build.lib is set without entry or top-level input",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename custom filename function",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename custom filename string",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename package name as filename",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename custom filename and no package name",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename missing filename",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename commonjs package extensions",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename module package extensions",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename multiple entries with aliases",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename multiple entries with aliases: custom filename function",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename multiple entries with aliases: custom filename string",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename multiple entries as array",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename multiple entries as array: custom filename function",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename multiple entries as array: custom filename string",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs default format: one entry",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs default format: multiple entries",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs umd or iife: should not support multiple entries",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs umd or iife: should define build.lib.name",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs array outputs: should ignore build.lib.formats",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs ssrEmitAssets",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs emitAssets",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs ssr builtin",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs ssr custom",
+        "packages/vite/src/node/__tests__/build.spec.ts::default sharedConfigBuild true on build api",
+        "packages/vite/src/node/__tests__/build.spec.ts::minify per environment (builder.sharedPlugins: true)",
+        "packages/vite/src/node/__tests__/build.spec.ts::minify per environment (builder.sharedPlugins: false)",
+        "packages/vite/src/node/__tests__/build.spec.ts::sharedConfigBuild and emitAssets",
+        "packages/vite/src/node/__tests__/build.spec.ts::onRollupLog Rollup logs of info should be handled by vite",
+        "packages/vite/src/node/__tests__/build.spec.ts::onRollupLog Rollup logs of warn should be handled by vite",
+        "packages/vite/src/node/__tests__/build.spec.ts::onRollupLog onLog passed by user is called",
+        "packages/vite/src/node/__tests__/build.spec.ts::onRollupLog onwarn passed by user is called",
+        "packages/vite/src/node/__tests__/build.spec.ts::onRollupLog should throw error when warning contains UNRESOLVED_IMPORT",
+        "packages/vite/src/node/__tests__/build.spec.ts::onRollupLog should ignore dynamic import warnings (Unsupported expression)",
+        "packages/vite/src/node/__tests__/build.spec.ts::onRollupLog should ignore dynamic import warnings (statically analyzed)",
+        "packages/vite/src/node/__tests__/build.spec.ts::onRollupLog should ignore some warnings (CIRCULAR_DEPENDENCY)",
+        "packages/vite/src/node/__tests__/build.spec.ts::onRollupLog should ignore some warnings (THIS_IS_UNDEFINED)",
+        "packages/vite/src/node/__tests__/build.spec.ts::watch rebuild manifest",
+        "packages/vite/src/node/__tests__/build.spec.ts::copies public directory after building same environment with write false first"
+      ]
+    },
+    {
+      "id": "vite-23294",
+      "issue": 23294,
+      "title": "CSS minify: build.target \"esnext\" passes targets: {} to Lightning CSS, which reads it as \"nothing is supported\"",
+      "opened": "2026-08-18T18:08:26Z",
+      "closed": "2026-08-19T05:39:45Z",
+      "labels": [
+        "feat: css",
+        "p2-edge-case"
+      ],
+      "pr": 23295,
+      "merged": "2026-08-19T05:39:44Z",
+      "base": "c0f2fc607ee97ee4499337b04826420c00654065",
+      "mergeCommit": "2804636ff608d105928009d274ffba7cfbe55340",
+      "lines": 22,
+      "files": [
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts",
+        "packages/vite/src/node/plugins/css.ts"
+      ],
+      "validated": true,
+      "prOpened": "2026-08-18T18:31:22Z",
+      "patch": "bench/memory/vite/23294.patch",
+      "issueSnapshot": "bench/memory/vite/23294.issue.md",
+      "testFiles": [
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts"
+      ],
+      "specFiles": [
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts"
+      ],
+      "f2p": [
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::convertTargets returns undefined when there is no constraint"
+      ],
+      "p2p": [
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::search css url function some spaces before it",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::search css url function no space after colon",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::search css url function at the beginning of line",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::search css url function as suffix of a function name",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::search css url function after parenthesis",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::search css url function after comma",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::search css url function should capture the full url with escaped parentheses",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::css modules css module compose/from path resolutions",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::css modules custom generateScopedName",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::css modules custom generateScopedName with lightningcss",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::hoist @ rules hoist @import",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::hoist @ rules hoist @import url with semicolon",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::hoist @ rules hoist @import url data with semicolon",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::hoist @ rules hoist @import with semicolon in quotes",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::hoist @ rules hoist @charset",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::hoist @ rules hoist one @charset only",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::hoist @ rules hoist @import and @charset",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::hoist @ rules dont hoist @import in comments",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::hoist @ rules dont hoist @charset in comments",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::hoist @ rules dont hoist @import and @charset in comments",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::convertTargets basic cases",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::convertTargets supports es6 as an alias of es2015",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::getEmptyChunkReplacer replaces import call",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::getEmptyChunkReplacer replaces import call without new lines",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::getEmptyChunkReplacer replaces require call",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::getEmptyChunkReplacer replaces require call in minified code without new lines",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::getEmptyChunkReplacer replaces require call in minified code that uses comma operator",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::getEmptyChunkReplacer replaces require call in minified code that uses comma operator 2",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::getEmptyChunkReplacer replaces require call in minified code that uses comma operator followed by assignment",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::preprocessCSS works",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::preprocessCSS works with lightningcss",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::preprocessCSS lightningcss preserves $ in external @import url",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::sass package resolution resolves to index.scss at package root, ignoring main field",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::resolveLibCssFilename use name from package.json",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::resolveLibCssFilename set cssFileName",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::resolveLibCssFilename use fileName if set",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::resolveLibCssFilename use fileName if set and has array entry",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::injectInlinedCSS should inject CSS for iife without exports from esm",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::injectInlinedCSS should inject helper for iife without exports from cjs",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::injectInlinedCSS should inject helper for iife with exports",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::injectInlinedCSS should inject helper for iife with nested name",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::injectInlinedCSS should inject helper for umd without exports",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::injectInlinedCSS should inject helper for umd with exports",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::injectInlinedCSS should inject helper for umd with only default export",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::injectInlinedCSS should inject helper for umd with nested name",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::injectInlinedCSS should inject multiple helpers",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::injectInlinedCSS should inject CSS after the shebang line for es",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::injectInlinedCSS should inject CSS at the start for es without shebang",
+        "packages/vite/src/node/__tests__/plugins/css.spec.ts::injectInlinedCSS should inject CSS for es shebang without trailing newline"
+      ]
+    },
+    {
+      "id": "vite-23238",
+      "issue": 23238,
+      "title": "`bundleConfigFile` incorrectly resolves source map path under certain conditions",
+      "opened": "2026-08-12T04:39:23Z",
+      "closed": "2026-08-19T09:19:27Z",
+      "labels": [
+        "p3-minor-bug"
+      ],
+      "pr": 23239,
+      "merged": "2026-08-19T09:19:26Z",
+      "base": "b4d66fee14d970f45b8a6f3d7d6aee73ca9b88ab",
+      "mergeCommit": "05a003e6a17a84d75f907ea0f1598bc39b8dce6c",
+      "lines": 29,
+      "files": [
+        "packages/vite/src/node/__tests__/config.spec.ts",
+        "packages/vite/src/node/__tests__/fixtures/config/nested/.nested/vite.config.mts",
+        "packages/vite/src/node/config.ts"
+      ],
+      "validated": true,
+      "prOpened": "2026-08-12T05:15:50Z",
+      "patch": "bench/memory/vite/23238.patch",
+      "issueSnapshot": "bench/memory/vite/23238.issue.md",
+      "testFiles": [
+        "packages/vite/src/node/__tests__/config.spec.ts",
+        "packages/vite/src/node/__tests__/fixtures/config/nested/.nested/vite.config.mts"
+      ],
+      "specFiles": [
+        "packages/vite/src/node/__tests__/config.spec.ts"
+      ],
+      "f2p": [
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile sourcemap of a nested config file points to itself"
+      ],
+      "p2p": [
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig handles configs with different alias schemas",
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig keep object alias schema",
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig handles arrays",
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig handles assetsInclude",
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig handles input",
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig not handles input not at top level",
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig not handles alias not under `resolve`",
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig merge array correctly",
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig handles ssr.noExternal",
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig handles environments.*.resolve.noExternal",
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig merge ssr.noExternal and environments.ssr.resolve.noExternal",
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig handles server.ws.server",
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig handles server.allowedHosts",
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig throws error with functions",
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig handles `rolldownOptions`",
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig handles `build.rolldownOptions`",
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig syncs `build.rollupOptions` and `build.rolldownOptions`",
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig hasBothRollupOptionsAndRolldownOptions returns false when only rollupOptions is set",
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig hasBothRollupOptionsAndRolldownOptions returns true when both are explicitly set to different values",
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig rollupOptions/rolldownOptions.platform",
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig resolved build options keep rollupOptions as a live proxy of rolldownOptions",
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig syncs `server.hmr.*` to `server.ws.*`",
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig mergeConfig works with `server.ws` and `server.hmr`",
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig `server.hmr.overlay` is not mapped to `server.ws.overlay`",
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig resolveConfig properly syncs hmr and ws",
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig later plugin can read `rollupOptions` set via `rolldownOptions` in earlier plugin top-level config",
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig later plugin can read `rollupOptions` set via `rolldownOptions` in earlier plugin new `environments` object",
+        "packages/vite/src/node/__tests__/config.spec.ts::mergeConfig later plugin can read `rollupOptions` set via `rolldownOptions` in earlier plugin new environment on existing `environments` object",
+        "packages/vite/src/node/__tests__/config.spec.ts::resolveEnvPrefix use 'VITE_' as default value",
+        "packages/vite/src/node/__tests__/config.spec.ts::resolveEnvPrefix throw error if envPrefix contains ''",
+        "packages/vite/src/node/__tests__/config.spec.ts::resolveEnvPrefix show a warning message if envPrefix contains a whitespace",
+        "packages/vite/src/node/__tests__/config.spec.ts::resolveEnvPrefix should work correctly for valid envPrefix value",
+        "packages/vite/src/node/__tests__/config.spec.ts::preview config preview inherits server config with default port",
+        "packages/vite/src/node/__tests__/config.spec.ts::preview config preview inherits server config with port override",
+        "packages/vite/src/node/__tests__/config.spec.ts::preview config preview overrides server config",
+        "packages/vite/src/node/__tests__/config.spec.ts::resolveConfig plugin merges `clearScreen` option",
+        "packages/vite/src/node/__tests__/config.spec.ts::resolveConfig plugin overrides `clearScreen` option",
+        "packages/vite/src/node/__tests__/config.spec.ts::resolveConfig resolveConfig with root path including \"#\" and \"?\" and \"*\" should warn ",
+        "packages/vite/src/node/__tests__/config.spec.ts::resolveConfig syncs `build.rollupOptions` and `build.rolldownOptions`",
+        "packages/vite/src/node/__tests__/config.spec.ts::resolveConfig top-level input applies to the client environment only (non-inherit)",
+        "packages/vite/src/node/__tests__/config.spec.ts::resolveConfig per-environment input overrides the top-level value",
+        "packages/vite/src/node/__tests__/config.spec.ts::resolveConfig keeps array input relative to the root",
+        "packages/vite/src/node/__tests__/config.spec.ts::resolveConfig keeps record input relative to the root",
+        "packages/vite/src/node/__tests__/config.spec.ts::resolveConfig reserves glob characters in input",
+        "packages/vite/src/node/__tests__/config.spec.ts::resolveConfig support escaped input",
+        "packages/vite/src/node/__tests__/config.spec.ts::resolveConfig allows non-glob special characters in input",
+        "packages/vite/src/node/__tests__/config.spec.ts::resolveConfig is used as the default for build.lib.entry when entry is omitted",
+        "packages/vite/src/node/__tests__/config.spec.ts::resolveConfig explicit build.lib.entry overrides the top-level input",
+        "packages/vite/src/node/__tests__/config.spec.ts::config compat 1",
+        "packages/vite/src/node/__tests__/config.spec.ts::config compat 2",
+        "packages/vite/src/node/__tests__/config.spec.ts::config compat 3",
+        "packages/vite/src/node/__tests__/config.spec.ts::configEnvironment mutation does not leak between environments",
+        "packages/vite/src/node/__tests__/config.spec.ts::build and environments.client.build has the same reference",
+        "packages/vite/src/node/__tests__/config.spec.ts::preTransformRequests",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile native-incompatibility warnings warns on __dirname / __filename",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile native-incompatibility warnings warns on __dirname in a config using TypeScript syntax",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile native-incompatibility warnings warns on extension-less import",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile native-incompatibility warnings warns on directory-index import",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile native-incompatibility warnings warns on JSON import without attributes",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile native-incompatibility warnings does not warn on JSON import with attributes",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile native-incompatibility warnings warns on an extension-less import that resolves to JSON",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile native-incompatibility warnings does not warn on a native-compatible config",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile native-incompatibility warnings does not warn for a CJS config using __dirname",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile native-incompatibility warnings warns for an ESM file imported by a CJS config",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile native-incompatibility warnings warns on ESM syntax in a config under a `type: commonjs` package",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile load default files load vite.config.js",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile load default files load vite.config.js with package#type module",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile load default files load vite.config.cjs",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile load default files load vite.config.cjs with package#type module",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile load default files load vite.config.mjs",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile load default files load vite.config.mjs with package#type module",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile load default files load vite.config.ts",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile load default files load vite.config.ts with package#type module",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile load default files load vite.config.mts",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile load default files load vite.config.mts with package#type module",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile load default files load vite.config.cts",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile load default files load vite.config.cts with package#type module",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile can import values",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile loadConfigFromFile with import attributes",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile cjs module vars are supported in esm",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile import.meta properties are supported",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile shebang is preserved at the top of the file",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile injected variables follow a hashbang ending in CRLF",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile loadConfigFromFile with configLoader: native imports a basic js config",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile cacheDir resolution uses node_modules/.vite when node_modules exists without package.json",
+        "packages/vite/src/node/__tests__/config.spec.ts::loadConfigFromFile cacheDir resolution uses .vite when neither package.json nor node_modules exist",
+        "packages/vite/src/node/__tests__/config.spec.ts::resolveServerOptions adds single host from __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS",
+        "packages/vite/src/node/__tests__/config.spec.ts::resolveServerOptions adds multiple hosts from __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS",
+        "packages/vite/src/node/__tests__/config.spec.ts::resolveServerOptions trims whitespace from hosts in __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS",
+        "packages/vite/src/node/__tests__/config.spec.ts::resolveServerOptions filters empty hosts from __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS",
+        "packages/vite/src/node/__tests__/config.spec.ts::resolveServerOptions appends to existing allowedHosts",
+        "packages/vite/src/node/__tests__/config.spec.ts::resolveServerOptions does not modify allowedHosts when set to true",
+        "packages/vite/src/node/__tests__/config.spec.ts::resolveServerOptions throw an error if it contains `\"` or `'` or `\\`"
+      ]
+    },
+    {
+      "id": "vite-23197",
+      "issue": 23197,
+      "title": "Regression in 8.2: Vitest `setupFiles` fails with \"Cannot find module\" across Windows drive symlinks",
+      "opened": "2026-08-07T19:43:06Z",
+      "closed": "2026-08-19T11:50:20Z",
+      "labels": [
+        "p2-edge-case",
+        "regression"
+      ],
+      "pr": 23198,
+      "merged": "2026-08-19T11:50:19Z",
+      "base": "57fea001d154e7dd8d5d74d3082731f1dcfd31be",
+      "mergeCommit": "8413052731836d4aaf3eb94a0f25788dd35d2888",
+      "lines": 32,
+      "files": [
+        "packages/vite/src/node/__tests__/config.spec.ts",
+        "packages/vite/src/node/__tests__/fixtures/config/root-resolution/link",
+        "packages/vite/src/node/__tests__/fixtures/config/root-resolution/real/.gitkeep",
+        "packages/vite/src/node/config.ts"
+      ],
+      "validated": false,
+      "why": "1 test(s) fail with the PR on this machine"
+    },
+    {
+      "id": "vite-23232",
+      "issue": 23232,
+      "title": "SSR transform: imported binding used as a computed key in a defaulted destructured parameter is not rewritten (ReferenceError)",
+      "opened": "2026-08-11T13:35:45Z",
+      "closed": "2026-08-20T03:53:31Z",
+      "labels": [
+        "feat: ssr",
+        "p2-edge-case"
+      ],
+      "pr": 23307,
+      "merged": "2026-08-20T03:53:30Z",
+      "base": "7ec81e23008a8134a2ae326fe8f240375a799221",
+      "mergeCommit": "9db0b61d4c9c7caad7ea1d9670b637faf2bb6c93",
+      "lines": 91,
+      "files": [
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts",
+        "packages/vite/src/node/ssr/ssrTransform.ts"
+      ],
+      "validated": true,
+      "prOpened": "2026-08-19T11:06:39Z",
+      "patch": "bench/memory/vite/23232.patch",
+      "issueSnapshot": "bench/memory/vite/23232.issue.md",
+      "testFiles": [
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts"
+      ],
+      "specFiles": [
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts"
+      ],
+      "f2p": [
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::function argument destructure with a default parameter"
+      ],
+      "p2p": [
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::default import",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::named import",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::named import: arbitrary module namespace specifier",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::named import colliding with label",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::namespace import",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::export function declaration",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::export class declaration",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::export var declaration",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::export named",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::export named from",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::named exports of imported binding",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::export * from",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::export * as from",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::re-export by imported name",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::export * as from arbitrary module namespace identifier",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::export as arbitrary module namespace identifier",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::export as from arbitrary module namespace identifier",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::export default",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::export then import minified",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::hoist import to top",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::whitespace between imports does not trigger hoisting",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::import.meta",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::import.meta with imported variable named meta",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::dynamic import",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::do not rewrite method definition",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::do not rewrite when variable is in scope",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::do not rewrite when variable is in scope with object destructuring",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::do not rewrite when variable is in scope with array destructuring",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::rewrite variable in string interpolation in function nested arguments",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::rewrite variables in default value of destructuring params",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::do not rewrite when function declaration is in scope",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::do not rewrite when function expression is in scope",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::do not rewrite when function expression is in global scope",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::do not rewrite when class declaration is in scope",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::do not rewrite when class expression is in scope",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::do not rewrite when class expression is in global scope",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::do not rewrite catch clause",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::should declare variable for imported super class",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::should handle default export variants",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::sourcemap source",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::sourcemap is correct for hoisted imports",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::sourcemap call site of imported binding maps to callee start",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::sourcemap with multiple sources",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::sourcemap with multiple sources and nested paths",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::overwrite bindings",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::Empty array pattern",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::function argument destructure",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::function argument destructure with a default parameter preserves shadowing",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::object destructure alias",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::nested object destructure alias",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::object props and methods",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::class props",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::class methods",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::declare scope",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::jsx",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::continuous exports",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::export default expression",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::with hashbang",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::import hoisted after hashbang",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::import hoisted after CRLF hashbang",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::identity function helper injected after hashbang",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::track scope by class, function, condition blocks",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::track var scope by function",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::track scope by blocks",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::track scope in for loops",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::avoid binding ClassExpression",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::import assertion attribute",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::import and export ordering",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::identity function is declared before used",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::repro",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::inject semicolon for (0, ...) wrapper",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::a switch-case local shadows an import only within the case block",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::a switch-case function or class declaration is scoped to the case block",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::does not break minified code",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::combine mappings",
+        "packages/vite/src/node/ssr/__tests__/ssrTransform.spec.ts::deps"
+      ]
+    },
+    {
+      "id": "vite-23355",
+      "issue": 23355,
+      "title": "`build.license` attributes the wrong version and omits license text for packages with nested `package.json` type markers",
+      "opened": "2026-08-24T20:05:22Z",
+      "closed": "2026-09-04T10:13:12Z",
+      "labels": [],
+      "pr": 23356,
+      "merged": "2026-09-04T10:13:10Z",
+      "base": "493cc7d43269860fe499a30980d729b0adc93d2c",
+      "mergeCommit": "8492422b8f110625a90c702f42f30784e8cf19dc",
+      "lines": 211,
+      "files": [
+        "packages/vite/src/node/__tests__/packages.spec.ts",
+        "packages/vite/src/node/__tests__/plugins/__snapshots__/license.spec.ts.snap",
+        "packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/build/devtools/index.js",
+        "packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/build/devtools/package.json",
+        "packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/build/esm/index.js",
+        "packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/build/esm/package.json",
+        "packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/license",
+        "packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/package.json",
+        "packages/vite/src/node/__tests__/plugins/fixtures/license/index.html",
+        "packages/vite/src/node/__tests__/plugins/fixtures/license/package.json",
+        "packages/vite/src/node/packages.ts",
+        "pnpm-lock.yaml"
+      ],
+      "validated": true,
+      "prOpened": "2026-08-25T00:25:46Z",
+      "patch": "bench/memory/vite/23355.patch",
+      "issueSnapshot": "bench/memory/vite/23355.issue.md",
+      "testFiles": [
+        "packages/vite/src/node/__tests__/packages.spec.ts",
+        "packages/vite/src/node/__tests__/plugins/__snapshots__/license.spec.ts.snap",
+        "packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/build/devtools/index.js",
+        "packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/build/devtools/package.json",
+        "packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/build/esm/index.js",
+        "packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/build/esm/package.json",
+        "packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/license",
+        "packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/package.json",
+        "packages/vite/src/node/__tests__/plugins/fixtures/license/index.html",
+        "packages/vite/src/node/__tests__/plugins/fixtures/license/package.json"
+      ],
+      "specFiles": [
+        "packages/vite/src/node/__tests__/packages.spec.ts"
+      ],
+      "f2p": [
+        "packages/vite/src/node/__tests__/packages.spec.ts::resolves the package root for the pnpm store layout",
+        "packages/vite/src/node/__tests__/packages.spec.ts::resolves the package root for packages hoisted by pnpm",
+        "packages/vite/src/node/__tests__/packages.spec.ts::resolves the package root for scoped packages",
+        "packages/vite/src/node/__tests__/packages.spec.ts::resolves the package root for the Yarn PnP zip layout"
+      ],
+      "p2p": []
+    },
+    {
+      "id": "vite-23471",
+      "issue": 23471,
+      "title": "fix: dep-scan misses imports whose local name starts with \"type\"",
+      "opened": "2026-09-12T00:20:34Z",
+      "closed": "2026-09-22T05:31:12Z",
+      "labels": [],
+      "pr": 23540,
+      "merged": "2026-09-22T05:31:11Z",
+      "base": "e9078f865cdff6bed77cd729214a7e2868f126b5",
+      "mergeCommit": "39330f489a0ae08923557f0ce10a307d6662a3f5",
+      "lines": 48,
+      "files": [
+        "packages/vite/src/node/__tests__/scan.spec.ts",
+        "packages/vite/src/node/optimizer/scan.ts"
+      ],
+      "validated": true,
+      "prOpened": "2026-09-21T03:26:22Z",
+      "patch": "bench/memory/vite/23471.patch",
+      "issueSnapshot": "bench/memory/vite/23471.issue.md",
+      "testFiles": [
+        "packages/vite/src/node/__tests__/scan.spec.ts"
+      ],
+      "specFiles": [
+        "packages/vite/src/node/__tests__/scan.spec.ts"
+      ],
+      "f2p": [
+        "packages/vite/src/node/__tests__/scan.spec.ts::optimizer-scan:script-test imports regex should work"
+      ],
+      "p2p": [
+        "packages/vite/src/node/__tests__/scan.spec.ts::optimizer-scan:script-test component return value test",
+        "packages/vite/src/node/__tests__/scan.spec.ts::optimizer-scan:script-test include comments test",
+        "packages/vite/src/node/__tests__/scan.spec.ts::optimizer-scan:script-test components with script keyword test",
+        "packages/vite/src/node/__tests__/scan.spec.ts::optimizer-scan:script-test ordinary script tag test",
+        "packages/vite/src/node/__tests__/scan.spec.ts::optimizer-scan:script-test script comments test",
+        "packages/vite/src/node/__tests__/scan.spec.ts::scan jsx-runtime",
+        "packages/vite/src/node/__tests__/scan.spec.ts::scan import.meta.glob respects rolldown transform jsx options",
+        "packages/vite/src/node/__tests__/scan.spec.ts::top-level input is used as the entry for dep scanning",
+        "packages/vite/src/node/__tests__/scan.spec.ts::top-level input can be resolved by a plugin for dep scanning",
+        "packages/vite/src/node/__tests__/scan.spec.ts::scan resolves build.rolldownOptions.input relative to the root",
+        "packages/vite/src/node/__tests__/scan.spec.ts::scan ignores the failure when the server is closed mid-scan",
+        "packages/vite/src/node/__tests__/scan.spec.ts::scan import.meta.glob package imports patterns"
+      ]
+    },
+    {
+      "id": "vite-23143",
+      "issue": 23143,
+      "title": "`server.close()` in JavaScript API hangs forever",
+      "opened": "2026-08-03T12:08:24Z",
+      "closed": "2026-09-24T11:07:48Z",
+      "labels": [
+        "p3-minor-bug",
+        "feat: ssr"
+      ],
+      "pr": 23567,
+      "merged": "2026-09-24T09:04:05Z",
+      "base": "63567c73ac132e6384fef384e6b9f7e8d5a37fff",
+      "mergeCommit": "5f894339d27882fedc86bf6b1076fa6d92e404f3",
+      "lines": 81,
+      "files": [
+        "packages/vite/src/node/__tests__/optimizer/discoverBeforeListen.spec.ts",
+        "packages/vite/src/node/optimizer/optimizer.ts"
+      ],
+      "validated": true,
+      "prOpened": "2026-09-24T08:44:13Z",
+      "patch": "bench/memory/vite/23143.patch",
+      "issueSnapshot": "bench/memory/vite/23143.issue.md",
+      "testFiles": [
+        "packages/vite/src/node/__tests__/optimizer/discoverBeforeListen.spec.ts"
+      ],
+      "specFiles": [
+        "packages/vite/src/node/__tests__/optimizer/discoverBeforeListen.spec.ts"
+      ],
+      "f2p": [
+        "packages/vite/src/node/__tests__/optimizer/discoverBeforeListen.spec.ts::resolves discovered dep processing promise on close before init"
+      ],
+      "p2p": [
+        "packages/vite/src/node/__tests__/optimizer/discoverBeforeListen.spec.ts::does not crash when a dep is discovered before the server starts listening"
+      ]
+    },
+    {
+      "id": "vite-23518",
+      "issue": 23518,
+      "title": "False \"points to a source file outside its package\" warning for sourcemaps with a URL sourceRoot",
+      "opened": "2026-09-18T11:30:01Z",
+      "closed": "2026-09-24T10:11:37Z",
+      "labels": [
+        "p2-edge-case",
+        "feat: sourcemap"
+      ],
+      "pr": 23519,
+      "merged": "2026-09-24T10:11:36Z",
+      "base": "3c752c8932bc0599465ba4a6d8f44aaf1e934c3d",
+      "mergeCommit": "04fc30a4b91870e65a436b3420620a2e02a94a41",
+      "lines": 76,
+      "files": [
+        "packages/vite/src/node/server/__tests__/sourcemap.spec.ts",
+        "packages/vite/src/node/server/sourcemap.ts"
+      ],
+      "validated": true,
+      "prOpened": "2026-09-18T11:38:41Z",
+      "patch": "bench/memory/vite/23518.patch",
+      "issueSnapshot": "bench/memory/vite/23518.issue.md",
+      "testFiles": [
+        "packages/vite/src/node/server/__tests__/sourcemap.spec.ts"
+      ],
+      "specFiles": [
+        "packages/vite/src/node/server/__tests__/sourcemap.spec.ts"
+      ],
+      "f2p": [
+        "packages/vite/src/node/server/__tests__/sourcemap.spec.ts::injectSourcesContent leaves maps with a remote sourceRoot alone",
+        "packages/vite/src/node/server/__tests__/sourcemap.spec.ts::injectSourcesContent does not inject content for remote sources"
+      ],
+      "p2p": [
+        "packages/vite/src/node/server/__tests__/sourcemap.spec.ts::getNodeModulesPackageRoot returns undefined for path outside node_modules",
+        "packages/vite/src/node/server/__tests__/sourcemap.spec.ts::getNodeModulesPackageRoot returns undefined for plain filename",
+        "packages/vite/src/node/server/__tests__/sourcemap.spec.ts::getNodeModulesPackageRoot unscoped package",
+        "packages/vite/src/node/server/__tests__/sourcemap.spec.ts::getNodeModulesPackageRoot unscoped package in nested directory",
+        "packages/vite/src/node/server/__tests__/sourcemap.spec.ts::getNodeModulesPackageRoot scoped package",
+        "packages/vite/src/node/server/__tests__/sourcemap.spec.ts::getNodeModulesPackageRoot scoped package at root level",
+        "packages/vite/src/node/server/__tests__/sourcemap.spec.ts::getNodeModulesPackageRoot nested node_modules uses the last segment",
+        "packages/vite/src/node/server/__tests__/sourcemap.spec.ts::getNodeModulesPackageRoot Windows-style path",
+        "packages/vite/src/node/server/__tests__/sourcemap.spec.ts::getNodeModulesPackageRoot Windows-style path with scoped package",
+        "packages/vite/src/node/server/__tests__/sourcemap.spec.ts::getNodeModulesPackageRoot package name without subdirectory",
+        "packages/vite/src/node/server/__tests__/sourcemap.spec.ts::getNodeModulesPackageRoot scoped package name without subdirectory",
+        "packages/vite/src/node/server/__tests__/sourcemap.spec.ts::injectSourcesContent warns for sources that resolve outside the package"
+      ]
+    },
+    {
+      "id": "vite-23506",
+      "issue": 23506,
+      "title": "mergeConfig crashes with TypeError when server.ws is false and server.hmr is merged",
+      "opened": "2026-09-17T10:02:25Z",
+      "closed": "2026-09-24T11:30:52Z",
+      "labels": [
+        "p2-edge-case"
+      ],
+      "pr": 23511,
+      "merged": "2026-09-24T11:30:51Z",
+      "base": "bd3a3a96552a900f31c56b0d8be229dcd20618f4",
+      "mergeCommit": "f68c0d5a28c96555431413e3e2cbe644337b087f",
+      "lines": 34,
+      "files": [
+        "packages/vite/src/node/__tests__/config.spec.ts",
+        "packages/vite/src/node/utils.ts"
+      ],
+      "validated": false,
+      "why": "1 test(s) fail with the PR on this machine"
+    },
+    {
+      "id": "vite-23487",
+      "issue": 23487,
+      "title": "Pass filenames including queries to `renderBuiltUrl` like <8.3.0",
+      "opened": "2026-09-15T02:48:00Z",
+      "closed": "2026-09-29T10:19:14Z",
+      "labels": [
+        "p3-downstream-blocker"
+      ],
+      "pr": 23586,
+      "merged": "2026-09-29T10:19:13Z",
+      "base": "a2bd6fa897c35c8a691671a7d70061c1cdd5c688",
+      "mergeCommit": "744269e5b2a155074910ddd275aecf2b83938496",
+      "lines": 109,
+      "files": [
+        "packages/vite/src/node/__tests__/build.spec.ts",
+        "packages/vite/src/node/plugins/asset.ts",
+        "packages/vite/src/node/plugins/css.ts",
+        "packages/vite/src/node/plugins/html.ts"
+      ],
+      "validated": true,
+      "prOpened": "2026-09-25T10:47:42Z",
+      "patch": "bench/memory/vite/23487.patch",
+      "issueSnapshot": "bench/memory/vite/23487.issue.md",
+      "testFiles": [
+        "packages/vite/src/node/__tests__/build.spec.ts"
+      ],
+      "specFiles": [
+        "packages/vite/src/node/__tests__/build.spec.ts"
+      ],
+      "f2p": [
+        "packages/vite/src/node/__tests__/build.spec.ts::build renderBuiltUrl receives asset postfixes in JS and CSS"
+      ],
+      "p2p": [
+        "packages/vite/src/node/__tests__/build.spec.ts::build file hash should change when css changes for dynamic entries",
+        "packages/vite/src/node/__tests__/build.spec.ts::build file hash should change when renderBuiltUrl changes",
+        "packages/vite/src/node/__tests__/build.spec.ts::build top-level input is used as the default build entry",
+        "packages/vite/src/node/__tests__/build.spec.ts::build top-level input can be a virtual module for build",
+        "packages/vite/src/node/__tests__/build.spec.ts::build file hash should change when pure css chunk changes",
+        "packages/vite/src/node/__tests__/build.spec.ts::build css entries with the same basename should not cross-link manifest assets",
+        "packages/vite/src/node/__tests__/build.spec.ts::build large json object files should have tree-shaking (json.stringify: true, json.namedExports: true)",
+        "packages/vite/src/node/__tests__/build.spec.ts::build large json object files should have tree-shaking (json.stringify: true, json.namedExports: false)",
+        "packages/vite/src/node/__tests__/build.spec.ts::build large json object files should have tree-shaking (json.stringify: false, json.namedExports: true)",
+        "packages/vite/src/node/__tests__/build.spec.ts::build large json object files should have tree-shaking (json.stringify: false, json.namedExports: false)",
+        "packages/vite/src/node/__tests__/build.spec.ts::build large json object files should have tree-shaking (json.stringify: auto, json.namedExports: true)",
+        "packages/vite/src/node/__tests__/build.spec.ts::build large json object files should have tree-shaking (json.stringify: auto, json.namedExports: false)",
+        "packages/vite/src/node/__tests__/build.spec.ts::build external modules should not be hoisted in library build",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs resolves outputs correctly",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs resolves outputs from lib options",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs does not change outputs when lib options are missing",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs logs a warning when outputs is an array and formats are specified",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs throws an error when lib.name is missing on iife format",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs throws an error when lib.name is missing on umd format",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs throws an error when output.name is missing on iife format",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs throws an error when output.name is missing on umd format",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs input resolution in resolveRolldownOptions build.rolldownOptions.input takes precedence over top-level input",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs input resolution in resolveRolldownOptions top-level tsconfig applies to Rolldown options",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs input resolution in resolveRolldownOptions falls back to index.html when no input is set",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs input resolution in resolveRolldownOptions build.ssr string entry takes precedence over input",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs input resolution in resolveRolldownOptions throws when build.lib is set without entry or top-level input",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename custom filename function",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename custom filename string",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename package name as filename",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename custom filename and no package name",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename missing filename",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename commonjs package extensions",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename module package extensions",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename multiple entries with aliases",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename multiple entries with aliases: custom filename function",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename multiple entries with aliases: custom filename string",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename multiple entries as array",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename multiple entries as array: custom filename function",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename multiple entries as array: custom filename string",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs default format: one entry",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs default format: multiple entries",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs umd or iife: should not support multiple entries",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs umd or iife: should define build.lib.name",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs array outputs: should ignore build.lib.formats",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs ssrEmitAssets",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs emitAssets",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs ssr builtin",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs ssr custom",
+        "packages/vite/src/node/__tests__/build.spec.ts::default sharedConfigBuild true on build api",
+        "packages/vite/src/node/__tests__/build.spec.ts::minify per environment (builder.sharedPlugins: true)",
+        "packages/vite/src/node/__tests__/build.spec.ts::minify per environment (builder.sharedPlugins: false)",
+        "packages/vite/src/node/__tests__/build.spec.ts::chunkImportMap per environment with shared plugins",
+        "packages/vite/src/node/__tests__/build.spec.ts::chunkImportMap is emitted when emitAssets is false",
+        "packages/vite/src/node/__tests__/build.spec.ts::chunkImportMap is emitted for SSR when enabled",
+        "packages/vite/src/node/__tests__/build.spec.ts::importmap named asset is not emitted when chunkImportMap is false",
+        "packages/vite/src/node/__tests__/build.spec.ts::sharedConfigBuild and emitAssets",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolving lib entry from the top-level input does not mutate the user config",
+        "packages/vite/src/node/__tests__/build.spec.ts::onRollupLog Rollup logs of info should be handled by vite",
+        "packages/vite/src/node/__tests__/build.spec.ts::onRollupLog Rollup logs of warn should be handled by vite",
+        "packages/vite/src/node/__tests__/build.spec.ts::onRollupLog onLog passed by user is called",
+        "packages/vite/src/node/__tests__/build.spec.ts::onRollupLog onwarn passed by user is called",
+        "packages/vite/src/node/__tests__/build.spec.ts::onRollupLog should throw error when warning contains UNRESOLVED_IMPORT",
+        "packages/vite/src/node/__tests__/build.spec.ts::onRollupLog should ignore dynamic import warnings (Unsupported expression)",
+        "packages/vite/src/node/__tests__/build.spec.ts::onRollupLog should ignore dynamic import warnings (statically analyzed)",
+        "packages/vite/src/node/__tests__/build.spec.ts::onRollupLog should ignore some warnings (CIRCULAR_DEPENDENCY)",
+        "packages/vite/src/node/__tests__/build.spec.ts::onRollupLog should ignore some warnings (THIS_IS_UNDEFINED)",
+        "packages/vite/src/node/__tests__/build.spec.ts::watch rebuild manifest",
+        "packages/vite/src/node/__tests__/build.spec.ts::copies public directory after building same environment with write false first"
+      ]
+    },
+    {
+      "id": "vite-23470",
+      "issue": 23470,
+      "title": "Dev server crashes the whole process when the file watcher emits an error (uncaught 'error' event, e.g. EBUSY on Windows)",
+      "opened": "2026-09-11T10:37:02Z",
+      "closed": "2026-10-01T01:08:40Z",
+      "labels": [
+        "p2-edge-case"
+      ],
+      "pr": 23503,
+      "merged": "2026-10-01T01:08:39Z",
+      "base": "cf5c0288d526824aead1b24e977400f13c527927",
+      "mergeCommit": "6894f5cbceac589536a0efb476d881a47f5ab1c5",
+      "lines": 40,
+      "files": [
+        "packages/vite/src/node/__tests__/dev.spec.ts",
+        "packages/vite/src/node/server/index.ts"
+      ],
+      "validated": true,
+      "prOpened": "2026-09-17T08:29:08Z",
+      "patch": "bench/memory/vite/23470.patch",
+      "issueSnapshot": "bench/memory/vite/23470.issue.md",
+      "testFiles": [
+        "packages/vite/src/node/__tests__/dev.spec.ts"
+      ],
+      "specFiles": [
+        "packages/vite/src/node/__tests__/dev.spec.ts"
+      ],
+      "f2p": [
+        "packages/vite/src/node/__tests__/dev.spec.ts::the dev server logs watcher 'error' events during environment initialization"
+      ],
+      "p2p": [
+        "packages/vite/src/node/__tests__/dev.spec.ts::resolveBuildEnvironmentOptions in dev build.rolldownOptions should not have input in lib",
+        "packages/vite/src/node/__tests__/dev.spec.ts::the dev server resolves each environment input as a safe module",
+        "packages/vite/src/node/__tests__/dev.spec.ts::the dev server does not mark an external environment input as safe",
+        "packages/vite/src/node/__tests__/dev.spec.ts::the dev server silently resolves index.html as the fallback for every environment",
+        "packages/vite/src/node/__tests__/dev.spec.ts::the dev server does not ignore buildStart errors while resolving fallback inputs",
+        "packages/vite/src/node/__tests__/dev.spec.ts::the dev server resolves the server URLs before the httpServer listening events are called"
+      ]
+    },
+    {
+      "id": "vite-23493",
+      "issue": 23493,
+      "title": "Dev server restarts retain retired environments through options.previousEnvironments",
+      "opened": "2026-09-15T15:36:06Z",
+      "closed": "2026-10-01T05:51:40Z",
+      "labels": [
+        "p2-nice-to-have",
+        "performance"
+      ],
+      "pr": 23499,
+      "merged": "2026-10-01T05:51:39Z",
+      "base": "1929b4cc5f38ad53781e3b07b8bdaa32cf18da07",
+      "mergeCommit": "5a3a010eea4c9ebbdcc080819f93068d4e035bd4",
+      "lines": 36,
+      "files": [
+        "packages/vite/src/node/__tests__/dev.spec.ts",
+        "packages/vite/src/node/server/index.ts"
+      ],
+      "validated": true,
+      "prOpened": "2026-09-16T10:40:05Z",
+      "patch": "bench/memory/vite/23493.patch",
+      "issueSnapshot": "bench/memory/vite/23493.issue.md",
+      "testFiles": [
+        "packages/vite/src/node/__tests__/dev.spec.ts"
+      ],
+      "specFiles": [
+        "packages/vite/src/node/__tests__/dev.spec.ts"
+      ],
+      "f2p": [
+        "packages/vite/src/node/__tests__/dev.spec.ts::the dev server releases previous environments after initialization"
+      ],
+      "p2p": [
+        "packages/vite/src/node/__tests__/dev.spec.ts::resolveBuildEnvironmentOptions in dev build.rolldownOptions should not have input in lib",
+        "packages/vite/src/node/__tests__/dev.spec.ts::the dev server resolves each environment input as a safe module",
+        "packages/vite/src/node/__tests__/dev.spec.ts::the dev server does not mark an external environment input as safe",
+        "packages/vite/src/node/__tests__/dev.spec.ts::the dev server silently resolves index.html as the fallback for every environment",
+        "packages/vite/src/node/__tests__/dev.spec.ts::the dev server does not ignore buildStart errors while resolving fallback inputs",
+        "packages/vite/src/node/__tests__/dev.spec.ts::the dev server logs watcher 'error' events during environment initialization",
+        "packages/vite/src/node/__tests__/dev.spec.ts::the dev server resolves the server URLs before the httpServer listening events are called"
+      ]
+    },
+    {
+      "id": "vite-23628",
+      "issue": 23628,
+      "title": "Stylesheet links missing from HTML entries that share a cyclic chunk",
+      "opened": "2026-10-01T17:59:37Z",
+      "closed": "2026-10-08T04:37:22Z",
+      "labels": [
+        "feat: html",
+        "p3-minor-bug"
+      ],
+      "pr": 23636,
+      "merged": "2026-10-08T04:37:20Z",
+      "base": "10033218d239c927cdc375970b5741cce408e81b",
+      "mergeCommit": "15d82f7dc679ab9c18d5ce2c3711157c2365ddd1",
+      "lines": 37,
+      "files": [
+        "packages/vite/src/node/__tests__/html.spec.ts",
+        "packages/vite/src/node/plugins/html.ts"
+      ],
+      "validated": true,
+      "prOpened": "2026-10-02T16:26:05Z",
+      "patch": "bench/memory/vite/23628.patch",
+      "issueSnapshot": "bench/memory/vite/23628.issue.md",
+      "testFiles": [
+        "packages/vite/src/node/__tests__/html.spec.ts"
+      ],
+      "specFiles": [
+        "packages/vite/src/node/__tests__/html.spec.ts"
+      ],
+      "f2p": [
+        "packages/vite/src/node/__tests__/html.spec.ts::getCssFilesForChunk chunk reached through an import cycle is not cached with a partial list (#23628)"
+      ],
+      "p2p": [
+        "packages/vite/src/node/__tests__/html.spec.ts::getCssFilesForChunk single chunk with own CSS",
+        "packages/vite/src/node/__tests__/html.spec.ts::getCssFilesForChunk chunk with no CSS returns empty array",
+        "packages/vite/src/node/__tests__/html.spec.ts::getCssFilesForChunk imported chunk CSS comes before own CSS",
+        "packages/vite/src/node/__tests__/html.spec.ts::getCssFilesForChunk deep import chain preserves order",
+        "packages/vite/src/node/__tests__/html.spec.ts::getCssFilesForChunk cache is populated and used on second call",
+        "packages/vite/src/node/__tests__/html.spec.ts::getCssFilesForChunk shared dependency CSS is output for each entry point",
+        "packages/vite/src/node/__tests__/html.spec.ts::getCssFilesForChunk diamond dependency deduplicates CSS and preserves order",
+        "packages/vite/src/node/__tests__/html.spec.ts::getCssFilesForChunk multiple shared dependencies with different CSS",
+        "packages/vite/src/node/__tests__/html.spec.ts::getCssFilesForChunk cache from one entry does not corrupt results for another with overlapping subgraph",
+        "packages/vite/src/node/__tests__/html.spec.ts::getCssFilesForChunk cached chunk does not lose CSS that was already in seenCss during first entry (#21298)",
+        "packages/vite/src/node/__tests__/html.spec.ts::getCssFilesForChunk dirty leaf chunk CSS is not lost through cached parent (#21298 edge case)",
+        "packages/vite/src/node/__tests__/html.spec.ts::getCssFilesForChunk circular imports do not cause infinite loop"
+      ]
+    },
+    {
+      "id": "vite-23575",
+      "issue": 23575,
+      "title": "mergeConfig mutates server.hmr defaults and leaks values across merges",
+      "opened": "2026-09-24T16:34:06Z",
+      "closed": "2026-10-08T05:10:28Z",
+      "labels": [
+        "p3-minor-bug"
+      ],
+      "pr": 23576,
+      "merged": "2026-10-08T05:10:27Z",
+      "base": "10033218d239c927cdc375970b5741cce408e81b",
+      "mergeCommit": "574d5e351905fe99891364d03c2440531378f7fd",
+      "lines": 36,
+      "files": [
+        "packages/vite/src/node/__tests__/config.spec.ts",
+        "packages/vite/src/node/utils.ts"
+      ],
+      "validated": false,
+      "why": "1 test(s) fail with the PR on this machine"
+    },
+    {
+      "id": "vite-23644",
+      "issue": 23644,
+      "title": "[dev] Vue SFC with `lang=\"tsx\"` fails to compile: core `vite:oxc` parses TS as JSX-only when plugin-react is present",
+      "opened": "2026-10-04T02:54:32Z",
+      "closed": "2026-10-08T06:43:39Z",
+      "labels": [
+        "p2-edge-case"
+      ],
+      "pr": 23687,
+      "merged": "2026-10-08T06:43:38Z",
+      "base": "8a4c19cfc035f2dd203f2fa6d00ab9256a5e77c9",
+      "mergeCommit": "fcb6f1252a95857823d935f98554b938888d41a0",
+      "lines": 34,
+      "files": [
+        "packages/vite/src/node/__tests__/plugins/oxc.spec.ts",
+        "packages/vite/src/node/plugins/oxc.ts"
+      ],
+      "validated": true,
+      "prOpened": "2026-10-08T01:58:21Z",
+      "patch": "bench/memory/vite/23644.patch",
+      "issueSnapshot": "bench/memory/vite/23644.issue.md",
+      "testFiles": [
+        "packages/vite/src/node/__tests__/plugins/oxc.spec.ts"
+      ],
+      "specFiles": [
+        "packages/vite/src/node/__tests__/plugins/oxc.spec.ts"
+      ],
+      "f2p": [
+        "packages/vite/src/node/__tests__/plugins/oxc.spec.ts::oxcPlugin preserves the language of modules with extensions in queries"
+      ],
+      "p2p": [
+        "packages/vite/src/node/__tests__/plugins/oxc.spec.ts::transformWithOxc correctly overrides TS configuration and applies automatic transform",
+        "packages/vite/src/node/__tests__/plugins/oxc.spec.ts::transformWithOxc correctly overrides TS configuration and preserves code",
+        "packages/vite/src/node/__tests__/plugins/oxc.spec.ts::transformWithOxc correctly overrides TS configuration and transforms code",
+        "packages/vite/src/node/__tests__/plugins/oxc.spec.ts::transformWithOxc useDefineForClassFields target: esnext and tsconfig.target: esnext => true",
+        "packages/vite/src/node/__tests__/plugins/oxc.spec.ts::transformWithOxc useDefineForClassFields target: es2021 and tsconfig.target: esnext => true",
+        "packages/vite/src/node/__tests__/plugins/oxc.spec.ts::transformWithOxc useDefineForClassFields target: es2021 and tsconfig.target: es2021 => false",
+        "packages/vite/src/node/__tests__/plugins/oxc.spec.ts::transformWithOxc useDefineForClassFields target: esnext and tsconfig.target: es2021 => false",
+        "packages/vite/src/node/__tests__/plugins/oxc.spec.ts::transformWithOxc useDefineForClassFields target: es2022 and tsconfig.target: es2022 => true",
+        "packages/vite/src/node/__tests__/plugins/oxc.spec.ts::transformWithOxc useDefineForClassFields target: es2022 and tsconfig.target: undefined => false",
+        "packages/vite/src/node/__tests__/plugins/oxc.spec.ts::transformWithOxc supports emitDecoratorMetadata: true",
+        "packages/vite/src/node/__tests__/plugins/oxc.spec.ts::transformWithOxc uses the configured tsconfig instead of automatic discovery"
+      ]
+    },
+    {
+      "id": "vite-23392",
+      "issue": 23392,
+      "title": "vite.config change during an in-flight config restart is silently dropped, leaving the server running a config that no longer matches disk",
+      "opened": "2026-08-28T08:05:25Z",
+      "closed": "2026-10-08T07:30:50Z",
+      "labels": [
+        "p2-edge-case"
+      ],
+      "pr": 23484,
+      "merged": "2026-10-08T07:30:49Z",
+      "base": "f155b62ceabbaaf71abbf59933968787e3961c56",
+      "mergeCommit": "70d56ea1848909edab416934f3f68ce14343eb73",
+      "lines": 263,
+      "files": [
+        "packages/vite/src/node/__tests__/dev.spec.ts",
+        "packages/vite/src/node/server/index.ts"
+      ],
+      "validated": true,
+      "prOpened": "2026-09-14T21:58:16Z",
+      "patch": "bench/memory/vite/23392.patch",
+      "issueSnapshot": "bench/memory/vite/23392.issue.md",
+      "testFiles": [
+        "packages/vite/src/node/__tests__/dev.spec.ts"
+      ],
+      "specFiles": [
+        "packages/vite/src/node/__tests__/dev.spec.ts"
+      ],
+      "f2p": [
+        "packages/vite/src/node/__tests__/dev.spec.ts::the dev server restarts again for a request made while a restart is in flight",
+        "packages/vite/src/node/__tests__/dev.spec.ts::the dev server continues restarting when a request arrives during a follow-up",
+        "packages/vite/src/node/__tests__/dev.spec.ts::the dev server keeps forceOptimize from a restart requested while a restart is in flight"
+      ],
+      "p2p": [
+        "packages/vite/src/node/__tests__/dev.spec.ts::resolveBuildEnvironmentOptions in dev build.rolldownOptions should not have input in lib",
+        "packages/vite/src/node/__tests__/dev.spec.ts::the dev server resolves each environment input as a safe module",
+        "packages/vite/src/node/__tests__/dev.spec.ts::the dev server does not mark an external environment input as safe",
+        "packages/vite/src/node/__tests__/dev.spec.ts::the dev server silently resolves index.html as the fallback for every environment",
+        "packages/vite/src/node/__tests__/dev.spec.ts::the dev server does not ignore buildStart errors while resolving fallback inputs",
+        "packages/vite/src/node/__tests__/dev.spec.ts::the dev server resolves the server URLs before the httpServer listening events are called",
+        "packages/vite/src/node/__tests__/dev.spec.ts::the dev server shares restart state with the server being initialized"
+      ]
+    },
+    {
+      "id": "vite-23383",
+      "issue": 23383,
+      "title": "Dependency scan fails with incorrect file path when input contains @ in directory name on Windows",
+      "opened": "2026-08-27T06:38:20Z",
+      "closed": "2026-10-08T07:31:49Z",
+      "labels": [
+        "p3-minor-bug"
+      ],
+      "pr": 23694,
+      "merged": "2026-10-08T07:31:48Z",
+      "base": "574d5e351905fe99891364d03c2440531378f7fd",
+      "mergeCommit": "facc2fb1fffce03d9e2dd7011d0bd0eeddc7d0f6",
+      "lines": 95,
+      "files": [
+        "packages/vite/src/node/__tests__/config.spec.ts",
+        "packages/vite/src/node/config.ts"
+      ],
+      "validated": false,
+      "why": "1 test(s) fail with the PR on this machine"
+    },
+    {
+      "id": "vite-23679",
+      "issue": 23679,
+      "title": "transformIndexHtml('/?query') adds the filesystem root to the watcher since 8.3.3",
+      "opened": "2026-10-07T11:45:27Z",
+      "closed": "2026-10-08T07:31:52Z",
+      "labels": [
+        "p3-downstream-blocker"
+      ],
+      "pr": 23689,
+      "merged": "2026-10-08T07:31:51Z",
+      "base": "3d674869a50a0bca84a8cc8dc55bd35d57100e37",
+      "mergeCommit": "3a7f2aea757d59bae66ad6edf6b321d26a7e6778",
+      "lines": 42,
+      "files": [
+        "packages/vite/src/node/server/middlewares/__tests__/fixtures/outside.html",
+        "packages/vite/src/node/server/middlewares/__tests__/indexHtml.spec.ts",
+        "packages/vite/src/node/server/middlewares/indexHtml.ts"
+      ],
+      "validated": true,
+      "prOpened": "2026-10-08T03:55:06Z",
+      "patch": "bench/memory/vite/23679.patch",
+      "issueSnapshot": "bench/memory/vite/23679.issue.md",
+      "testFiles": [
+        "packages/vite/src/node/server/middlewares/__tests__/fixtures/outside.html",
+        "packages/vite/src/node/server/middlewares/__tests__/indexHtml.spec.ts"
+      ],
+      "specFiles": [
+        "packages/vite/src/node/server/middlewares/__tests__/indexHtml.spec.ts"
+      ],
+      "f2p": [
+        "packages/vite/src/node/server/middlewares/__tests__/indexHtml.spec.ts::indexHtml middleware — file watching watches an /@fs/ HTML file outside root"
+      ],
+      "p2p": [
+        "packages/vite/src/node/server/middlewares/__tests__/indexHtml.spec.ts::indexHtml middleware — inline script proxy cache inline <script type=\"module\"> in an /@fs/ HTML file is loadable via the html-proxy module",
+        "packages/vite/src/node/server/middlewares/__tests__/indexHtml.spec.ts::indexHtml middleware — inline script proxy cache inline <script type=\"module\"> in an HTML file served from root is loadable via the html-proxy module",
+        "packages/vite/src/node/server/middlewares/__tests__/indexHtml.spec.ts::indexHtml middleware — inline script proxy cache does not preserve a protocol-relative request URL (//) as the inline module proxy URL",
+        "packages/vite/src/node/server/middlewares/__tests__/indexHtml.spec.ts::indexHtml middleware — inline script proxy cache does not preserve a protocol-relative request URL (///) as the inline module proxy URL",
+        "packages/vite/src/node/server/middlewares/__tests__/indexHtml.spec.ts::indexHtml middleware — file watching does not watch a directory for a root URL with a query",
+        "packages/vite/src/node/server/middlewares/__tests__/indexHtml.spec.ts::indexHtml middleware — HMR timestamp injection with non-root base entry script URL gets the lastHMRTimestamp query when base is not root"
+      ]
+    },
+    {
+      "id": "vite-23350",
+      "issue": 23350,
+      "title": "build.chunkImportMap drops module preload dependency lists when base is not /",
+      "opened": "2026-08-24T13:46:51Z",
+      "closed": "2026-10-08T09:50:05Z",
+      "labels": [
+        "p2-edge-case"
+      ],
+      "pr": 23698,
+      "merged": "2026-10-08T09:50:03Z",
+      "base": "18f9e07e85c172252c3ec27da1b33a4d728b4e16",
+      "mergeCommit": "2a8c0f05c76e35c43ab3560984a5103c8db8dbcd",
+      "lines": 48,
+      "files": [
+        "packages/vite/src/node/__tests__/build.spec.ts",
+        "packages/vite/src/node/plugins/html.ts"
+      ],
+      "validated": true,
+      "prOpened": "2026-10-08T09:04:42Z",
+      "patch": "bench/memory/vite/23350.patch",
+      "issueSnapshot": "bench/memory/vite/23350.issue.md",
+      "testFiles": [
+        "packages/vite/src/node/__tests__/build.spec.ts"
+      ],
+      "specFiles": [
+        "packages/vite/src/node/__tests__/build.spec.ts"
+      ],
+      "f2p": [
+        "packages/vite/src/node/__tests__/build.spec.ts::chunkImportMap with a non-root base"
+      ],
+      "p2p": [
+        "packages/vite/src/node/__tests__/build.spec.ts::build file hash should change when css changes for dynamic entries",
+        "packages/vite/src/node/__tests__/build.spec.ts::build file hash should change when renderBuiltUrl changes",
+        "packages/vite/src/node/__tests__/build.spec.ts::build renderBuiltUrl receives asset postfixes in JS and CSS",
+        "packages/vite/src/node/__tests__/build.spec.ts::build top-level input is used as the default build entry",
+        "packages/vite/src/node/__tests__/build.spec.ts::build top-level input can be a virtual module for build",
+        "packages/vite/src/node/__tests__/build.spec.ts::build file hash should change when pure css chunk changes",
+        "packages/vite/src/node/__tests__/build.spec.ts::build css entries with the same basename should not cross-link manifest assets",
+        "packages/vite/src/node/__tests__/build.spec.ts::build large json object files should have tree-shaking (json.stringify: true, json.namedExports: true)",
+        "packages/vite/src/node/__tests__/build.spec.ts::build large json object files should have tree-shaking (json.stringify: true, json.namedExports: false)",
+        "packages/vite/src/node/__tests__/build.spec.ts::build large json object files should have tree-shaking (json.stringify: false, json.namedExports: true)",
+        "packages/vite/src/node/__tests__/build.spec.ts::build large json object files should have tree-shaking (json.stringify: false, json.namedExports: false)",
+        "packages/vite/src/node/__tests__/build.spec.ts::build large json object files should have tree-shaking (json.stringify: auto, json.namedExports: true)",
+        "packages/vite/src/node/__tests__/build.spec.ts::build large json object files should have tree-shaking (json.stringify: auto, json.namedExports: false)",
+        "packages/vite/src/node/__tests__/build.spec.ts::build external modules should not be hoisted in library build",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs resolves outputs correctly",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs resolves outputs from lib options",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs does not change outputs when lib options are missing",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs logs a warning when outputs is an array and formats are specified",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs throws an error when lib.name is missing on iife format",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs throws an error when lib.name is missing on umd format",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs throws an error when output.name is missing on iife format",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs throws an error when output.name is missing on umd format",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs input resolution in resolveRolldownOptions build.rolldownOptions.input takes precedence over top-level input",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs input resolution in resolveRolldownOptions top-level tsconfig applies to Rolldown options",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs input resolution in resolveRolldownOptions falls back to index.html when no input is set",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs input resolution in resolveRolldownOptions build.ssr string entry takes precedence over input",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs input resolution in resolveRolldownOptions throws when build.lib is set without entry or top-level input",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs output minify and comments resolution in resolveRolldownOptions merges a partial output.minify object with the lib defaults",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs output minify and comments resolution in resolveRolldownOptions keeps an explicit boolean output.minify untouched",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename custom filename function",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename custom filename string",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename package name as filename",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename custom filename and no package name",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename missing filename",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename commonjs package extensions",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename module package extensions",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename multiple entries with aliases",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename multiple entries with aliases: custom filename function",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename multiple entries with aliases: custom filename string",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename multiple entries as array",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename multiple entries as array: custom filename function",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveLibFilename multiple entries as array: custom filename string",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs default format: one entry",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs default format: multiple entries",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs umd or iife: should not support multiple entries",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs umd or iife: should define build.lib.name",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs array outputs: should ignore build.lib.formats",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs ssrEmitAssets",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs emitAssets",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs ssr builtin",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolveBuildOutputs ssr custom",
+        "packages/vite/src/node/__tests__/build.spec.ts::default sharedConfigBuild true on build api",
+        "packages/vite/src/node/__tests__/build.spec.ts::minify per environment (builder.sharedPlugins: true)",
+        "packages/vite/src/node/__tests__/build.spec.ts::minify per environment (builder.sharedPlugins: false)",
+        "packages/vite/src/node/__tests__/build.spec.ts::chunkImportMap per environment with shared plugins",
+        "packages/vite/src/node/__tests__/build.spec.ts::chunkImportMap is emitted when emitAssets is false",
+        "packages/vite/src/node/__tests__/build.spec.ts::chunkImportMap is emitted for SSR when enabled",
+        "packages/vite/src/node/__tests__/build.spec.ts::importmap named asset is not emitted when chunkImportMap is false",
+        "packages/vite/src/node/__tests__/build.spec.ts::sharedConfigBuild and emitAssets",
+        "packages/vite/src/node/__tests__/build.spec.ts::resolving lib entry from the top-level input does not mutate the user config",
+        "packages/vite/src/node/__tests__/build.spec.ts::onRollupLog Rollup logs of info should be handled by vite",
+        "packages/vite/src/node/__tests__/build.spec.ts::onRollupLog Rollup logs of warn should be handled by vite",
+        "packages/vite/src/node/__tests__/build.spec.ts::onRollupLog onLog passed by user is called",
+        "packages/vite/src/node/__tests__/build.spec.ts::onRollupLog onwarn passed by user is called",
+        "packages/vite/src/node/__tests__/build.spec.ts::onRollupLog should throw error when warning contains UNRESOLVED_IMPORT",
+        "packages/vite/src/node/__tests__/build.spec.ts::onRollupLog should ignore dynamic import warnings (Unsupported expression)",
+        "packages/vite/src/node/__tests__/build.spec.ts::onRollupLog should ignore dynamic import warnings (statically analyzed)",
+        "packages/vite/src/node/__tests__/build.spec.ts::onRollupLog should ignore some warnings (CIRCULAR_DEPENDENCY)",
+        "packages/vite/src/node/__tests__/build.spec.ts::onRollupLog should ignore some warnings (THIS_IS_UNDEFINED)",
+        "packages/vite/src/node/__tests__/build.spec.ts::watch rebuild manifest",
+        "packages/vite/src/node/__tests__/build.spec.ts::copies public directory after building same environment with write false first"
+      ]
+    },
+    {
+      "id": "vite-23666",
+      "issue": 23666,
+      "title": "Dependency pre-bundling cache never invalidates for Yarn with `nodeLinker: pnpm`",
+      "opened": "2026-10-06T14:47:18Z",
+      "closed": "2026-10-09T14:00:21Z",
+      "labels": [
+        "p3-minor-bug",
+        "feat: deps optimizer"
+      ],
+      "pr": 23667,
+      "merged": "2026-10-09T14:00:20Z",
+      "base": "12bb28c22379c8d2fe90088fa0eefbfa2ab3fb80",
+      "mergeCommit": "f20609630faa93026924275115d1426fdc08629e",
+      "lines": 70,
+      "files": [
+        "packages/vite/src/node/__tests__/optimizer/fixtures/lockfile-hash/yarn-lock/yarn.lock",
+        "packages/vite/src/node/__tests__/optimizer/fixtures/lockfile-hash/yarn-state/.gitignore",
+        "packages/vite/src/node/__tests__/optimizer/fixtures/lockfile-hash/yarn-state/node_modules/.yarn-state.yml",
+        "packages/vite/src/node/__tests__/optimizer/fixtures/lockfile-hash/yarn-state/yarn.lock",
+        "packages/vite/src/node/__tests__/optimizer/lockfileHash.spec.ts",
+        "packages/vite/src/node/optimizer/index.ts"
+      ],
+      "validated": true,
+      "prOpened": "2026-10-06T15:08:33Z",
+      "patch": "bench/memory/vite/23666.patch",
+      "issueSnapshot": "bench/memory/vite/23666.issue.md",
+      "testFiles": [
+        "packages/vite/src/node/__tests__/optimizer/fixtures/lockfile-hash/yarn-lock/yarn.lock",
+        "packages/vite/src/node/__tests__/optimizer/fixtures/lockfile-hash/yarn-state/.gitignore",
+        "packages/vite/src/node/__tests__/optimizer/fixtures/lockfile-hash/yarn-state/node_modules/.yarn-state.yml",
+        "packages/vite/src/node/__tests__/optimizer/fixtures/lockfile-hash/yarn-state/yarn.lock",
+        "packages/vite/src/node/__tests__/optimizer/lockfileHash.spec.ts"
+      ],
+      "specFiles": [
+        "packages/vite/src/node/__tests__/optimizer/lockfileHash.spec.ts"
+      ],
+      "f2p": [
+        "packages/vite/src/node/__tests__/optimizer/lockfileHash.spec.ts::falls back to yarn.lock when no lockfile is found in node_modules",
+        "packages/vite/src/node/__tests__/optimizer/lockfileHash.spec.ts::prefers lockfiles in node_modules over yarn.lock"
+      ],
+      "p2p": []
+    },
+    {
+      "id": "vite-23751",
+      "issue": 23751,
+      "title": "Dependency scanner ignores oxc.jsxInject imports until first serve",
+      "opened": "2026-10-13T18:05:20Z",
+      "closed": "2026-10-14T03:49:48Z",
+      "labels": [
+        "p2-edge-case",
+        "feat: deps optimizer"
+      ],
+      "pr": 23758,
+      "merged": "2026-10-14T03:49:47Z",
+      "base": "cf80aa552cac02eac0293330ccd5fde3c7ae8d29",
+      "mergeCommit": "38f3cb45b1490ed24775547ceafa677b91a57714",
+      "lines": 35,
+      "files": [
+        "packages/vite/src/node/__tests__/scan.spec.ts",
+        "packages/vite/src/node/optimizer/scan.ts"
+      ],
+      "validated": true,
+      "prOpened": "2026-10-14T02:45:48Z",
+      "patch": "bench/memory/vite/23751.patch",
+      "issueSnapshot": "bench/memory/vite/23751.issue.md",
+      "testFiles": [
+        "packages/vite/src/node/__tests__/scan.spec.ts"
+      ],
+      "specFiles": [
+        "packages/vite/src/node/__tests__/scan.spec.ts"
+      ],
+      "f2p": [
+        "packages/vite/src/node/__tests__/scan.spec.ts::scan respects oxc jsxInject"
+      ],
+      "p2p": [
+        "packages/vite/src/node/__tests__/scan.spec.ts::optimizer-scan:script-test component return value test",
+        "packages/vite/src/node/__tests__/scan.spec.ts::optimizer-scan:script-test include comments test",
+        "packages/vite/src/node/__tests__/scan.spec.ts::optimizer-scan:script-test components with script keyword test",
+        "packages/vite/src/node/__tests__/scan.spec.ts::optimizer-scan:script-test ordinary script tag test",
+        "packages/vite/src/node/__tests__/scan.spec.ts::optimizer-scan:script-test imports regex should work",
+        "packages/vite/src/node/__tests__/scan.spec.ts::optimizer-scan:script-test script comments test",
+        "packages/vite/src/node/__tests__/scan.spec.ts::scan jsx-runtime",
+        "packages/vite/src/node/__tests__/scan.spec.ts::scan import.meta.glob respects rolldown transform jsx options",
+        "packages/vite/src/node/__tests__/scan.spec.ts::top-level input is used as the entry for dep scanning",
+        "packages/vite/src/node/__tests__/scan.spec.ts::top-level input can be resolved by a plugin for dep scanning",
+        "packages/vite/src/node/__tests__/scan.spec.ts::scan resolves build.rolldownOptions.input relative to the root",
+        "packages/vite/src/node/__tests__/scan.spec.ts::scan ignores the failure when the server is closed mid-scan",
+        "packages/vite/src/node/__tests__/scan.spec.ts::scan import.meta.glob package imports patterns"
+      ]
+    }
+  ],
+  "rejected": [
+    {
+      "issue": 23809,
+      "why": [
+        "#23879: no test file"
+      ]
+    },
+    {
+      "issue": 23669,
+      "why": [
+        "#23678: 5 source files"
+      ]
+    },
+    {
+      "issue": 23622,
+      "why": [
+        "#23631: 6 source files"
+      ]
+    },
+    {
+      "issue": 23526,
+      "why": [
+        "#23541: no test file"
+      ]
+    },
+    {
+      "issue": 23504,
+      "why": [
+        "#23505: no test file"
+      ]
+    },
+    {
+      "issue": 23451,
+      "why": [
+        "#23469: no test file"
+      ]
+    },
+    {
+      "issue": 23348,
+      "why": [
+        "no PR merged into the default branch in the window"
+      ]
+    },
+    {
+      "issue": 23314,
+      "why": [
+        "no PR merged into the default branch in the window"
+      ]
+    },
+    {
+      "issue": 23267,
+      "why": [
+        "no PR merged into the default branch in the window"
+      ]
+    },
+    {
+      "issue": 23227,
+      "why": [
+        "no PR merged into the default branch in the window"
+      ]
+    },
+    {
+      "issue": 23225,
+      "why": [
+        "#23793: 625 lines"
+      ]
+    },
+    {
+      "issue": 23220,
+      "why": [
+        "#23223: no test file"
+      ]
+    },
+    {
+      "issue": 23160,
+      "why": [
+        "#23161: no test file"
+      ]
+    },
+    {
+      "issue": 23124,
+      "why": [
+        "#10580: 0 source files"
+      ]
+    },
+    {
+      "issue": 23122,
+      "why": [
+        "no PR merged into the default branch in the window"
+      ]
+    },
+    {
+      "issue": 23119,
+      "why": [
+        "#23184: 6 source files"
+      ]
+    }
+  ],
+  "status": "validated on this machine (win32, node v24.12.0); 18 pass so far",
+  "excluded": [
+    {
+      "id": "vite-23146",
+      "issue": 23146,
+      "pr": 23147,
+      "why": "grading tests need a browser (playground/ or e2e/)"
+    },
+    {
+      "id": "vite-23182",
+      "issue": 23182,
+      "pr": 23185,
+      "why": "grading tests need a browser (playground/ or e2e/)"
+    },
+    {
+      "id": "vite-23545",
+      "issue": 23545,
+      "pr": 23565,
+      "why": "grading tests need a browser (playground/ or e2e/)"
+    },
+    {
+      "id": "vite-23547",
+      "issue": 23547,
+      "pr": 23568,
+      "why": "grading tests need a browser (playground/ or e2e/)"
+    },
+    {
+      "id": "vite-23178",
+      "issue": 23178,
+      "pr": 23611,
+      "why": "grading tests need a browser (playground/ or e2e/)"
+    },
+    {
+      "id": "vite-23512",
+      "issue": 23512,
+      "pr": 23590,
+      "why": "grading tests need a browser (playground/ or e2e/)"
+    },
+    {
+      "id": "vite-23652",
+      "issue": 23652,
+      "pr": 23662,
+      "why": "grading tests need a browser (playground/ or e2e/)"
+    },
+    {
+      "id": "vite-23508",
+      "issue": 23508,
+      "pr": 23688,
+      "why": "grading tests need a browser (playground/ or e2e/)"
+    },
+    {
+      "id": "vite-23696",
+      "issue": 23696,
+      "pr": 23697,
+      "why": "grading tests need a browser (playground/ or e2e/)"
+    },
+    {
+      "id": "vite-23637",
+      "issue": 23637,
+      "pr": 23739,
+      "why": "grading tests need a browser (playground/ or e2e/)"
+    },
+    {
+      "id": "vite-23727",
+      "issue": 23727,
+      "pr": 23728,
+      "why": "grading tests need a browser (playground/ or e2e/)"
+    },
+    {
+      "id": "vite-23485",
+      "issue": 23485,
+      "pr": 23486,
+      "why": "grading tests need a browser (playground/ or e2e/)"
+    }
+  ],
+  "validatedAt": "2026-10-24T02:45:04.617Z"
+}

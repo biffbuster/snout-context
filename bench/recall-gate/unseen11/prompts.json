@@ -1,0 +1,539 @@
+{
+ "about": "Gate 3, eleventh unseen check (larger): prompts for unseen11/history.json, scored exactly as the main set (see ../prompts.json). D16 names a file with the last session's uncommitted work while a note fits. ALERT_OLD must reach no path; H5's other fact (ROSTER) stays findable. TAG_BAD, a request said in two sessions, must never be shown as standing. S11 shares no fact with any record and must stay silent.",
+ "prompts": [
+  {
+   "id": "D01",
+   "prompt": "Add a test for the ingest endpoint and run the tests.",
+   "query": "run tests",
+   "delivery": [
+    "T_cur"
+   ],
+   "recall": [
+    "INGEST"
+   ],
+   "search": [
+    "T_cur"
+   ]
+  },
+  {
+   "id": "D02",
+   "prompt": "What command runs the test suite?",
+   "query": "test command",
+   "delivery": [
+    "T_cur"
+   ],
+   "recall": "any",
+   "search": [
+    "T_cur"
+   ]
+  },
+  {
+   "id": "D03",
+   "prompt": "Run the tests.",
+   "query": "tests",
+   "delivery": [
+    "T_cur"
+   ],
+   "recall": "any",
+   "search": [
+    "T_cur"
+   ]
+  },
+  {
+   "id": "D04",
+   "prompt": "Send a test message to the broker with mosquitto_pub.",
+   "query": "mosquitto_pub",
+   "delivery": [
+    "MOSQ"
+   ],
+   "recall": [
+    "MOSQ"
+   ],
+   "search": [
+    "MOSQ"
+   ]
+  },
+  {
+   "id": "D05",
+   "prompt": "How are temperatures stored?",
+   "query": "temperature storage",
+   "delivery": [
+    "TENTHS"
+   ],
+   "recall": "any",
+   "search": [
+    "TENTHS"
+   ]
+  },
+  {
+   "id": "D06",
+   "prompt": "Convert the temperature to Fahrenheit in the API response.",
+   "query": "temperature api",
+   "delivery": [
+    "TENTHS"
+   ],
+   "recall": "any",
+   "search": [
+    "TENTHS",
+    "UNIXMS"
+   ]
+  },
+  {
+   "id": "D07",
+   "prompt": "When do readings go to cold storage?",
+   "query": "cold storage",
+   "delivery": [
+    "COLD"
+   ],
+   "recall": "any",
+   "search": [
+    "COLD"
+   ]
+  },
+  {
+   "id": "D08",
+   "prompt": "Delete readings older than a year.",
+   "query": "old readings",
+   "delivery": [
+    "COLD"
+   ],
+   "recall": "any",
+   "search": [
+    "COLD"
+   ]
+  },
+  {
+   "id": "D09",
+   "prompt": "How do alerts reach the on-call engineer?",
+   "query": "alerts",
+   "delivery": [
+    "PAGER"
+   ],
+   "recall": "any",
+   "search": [
+    "PAGER"
+   ]
+  },
+  {
+   "id": "D10",
+   "prompt": "Send a test page through PagerDuty.",
+   "query": "pagerduty",
+   "delivery": [
+    "PAGER"
+   ],
+   "recall": "any",
+   "search": [
+    "PAGER"
+   ]
+  },
+  {
+   "id": "D11",
+   "prompt": "What format are station ids in?",
+   "query": "station id format",
+   "delivery": [
+    "MAC"
+   ],
+   "recall": "any",
+   "search": [
+    "MAC"
+   ]
+  },
+  {
+   "id": "D12",
+   "prompt": "Register a new station by its MAC address.",
+   "query": "mac address",
+   "delivery": [
+    "MAC"
+   ],
+   "recall": "any",
+   "search": [
+    "MAC"
+   ]
+  },
+  {
+   "id": "D13",
+   "prompt": "Is it fine to log the owner's email when a notification bounces?",
+   "query": "log owner email",
+   "delivery": [
+    "NOEMAIL"
+   ],
+   "recall": "any",
+   "search": [
+    "NOEMAIL"
+   ]
+  },
+  {
+   "id": "D14",
+   "prompt": "Tag a release when the tests pass.",
+   "query": "tag release",
+   "delivery": "any",
+   "recall": "any",
+   "search": "any"
+  },
+  {
+   "id": "D15",
+   "prompt": "Pick up where the last session stopped.",
+   "query": "maintenance windows",
+   "delivery": [
+    "MAINT"
+   ],
+   "recall": "any",
+   "search": [
+    "MAINT"
+   ]
+  },
+  {
+   "id": "D16",
+   "prompt": "Never log the station owners' email addresses; check that src/maintenance.rs follows that.",
+   "query": "owner email logs",
+   "delivery": [
+    "NOEMAIL"
+   ],
+   "recall": "any",
+   "search": [
+    "NOEMAIL"
+   ]
+  },
+  {
+   "id": "D17",
+   "prompt": "Add a battery voltage field in src/ingest.rs.",
+   "query": "ingest fields",
+   "delivery": "any",
+   "recall": [
+    "HUMID",
+    "GUST",
+    "INGEST"
+   ],
+   "search": "any"
+  },
+  {
+   "id": "D18",
+   "prompt": "Run the tests with cargo test --all-features.",
+   "query": "cargo test all-features",
+   "delivery": [
+    "T_cur"
+   ],
+   "recall": "any",
+   "search": [
+    "T_cur",
+    "ALLFEAT"
+   ]
+  },
+  {
+   "id": "D19",
+   "prompt": "Fire alerts after 2 missed readings, in src/alerts.rs.",
+   "query": "missed readings alerts",
+   "delivery": "any",
+   "recall": [
+    "ALERT_CUR"
+   ],
+   "search": [
+    "ALERT_CUR"
+   ]
+  },
+  {
+   "id": "D20",
+   "prompt": "Return timestamps from the readings endpoint.",
+   "query": "timestamps",
+   "delivery": [
+    "UNIXMS"
+   ],
+   "recall": "any",
+   "search": [
+    "UNIXMS"
+   ]
+  },
+  {
+   "id": "D21",
+   "prompt": "Page the on-call engineer when a station goes offline.",
+   "query": "page on-call",
+   "delivery": [
+    "PAGER"
+   ],
+   "recall": "any",
+   "search": [
+    "PAGER"
+   ]
+  },
+  {
+   "id": "Q01",
+   "prompt": "When did the tests start covering all features?",
+   "query": "all features",
+   "delivery": "any",
+   "recall": [
+    "ALLFEAT"
+   ],
+   "search": [
+    "ALLFEAT"
+   ]
+  },
+  {
+   "id": "Q02",
+   "prompt": "How did we stop duplicate readings?",
+   "query": "duplicate readings",
+   "delivery": "any",
+   "recall": [
+    "DEDUP"
+   ],
+   "search": [
+    "DEDUP"
+   ]
+  },
+  {
+   "id": "Q03",
+   "prompt": "When did alerts change to 5 missed readings?",
+   "query": "missed readings",
+   "delivery": "any",
+   "recall": [
+    "ALERT_CUR"
+   ],
+   "search": [
+    "ALERT_CUR"
+   ]
+  },
+  {
+   "id": "Q04",
+   "prompt": "How often is the station list refreshed?",
+   "query": "station list refresh",
+   "delivery": "any",
+   "recall": [
+    "ROSTER"
+   ],
+   "search": [
+    "ROSTER"
+   ]
+  },
+  {
+   "id": "Q05",
+   "prompt": "Which change added calibration offsets?",
+   "query": "calibration",
+   "delivery": "any",
+   "recall": [
+    "CALIB"
+   ],
+   "search": [
+    "CALIB"
+   ]
+  },
+  {
+   "id": "Q06",
+   "prompt": "Where are owner contacts kept?",
+   "query": "owner contacts",
+   "delivery": "any",
+   "recall": [
+    "OWNERS"
+   ],
+   "search": [
+    "OWNERS"
+   ]
+  },
+  {
+   "id": "Q07",
+   "prompt": "When did we start emailing owners of quiet stations?",
+   "query": "quiet stations",
+   "delivery": "any",
+   "recall": [
+    "QUIET"
+   ],
+   "search": [
+    "QUIET"
+   ]
+  },
+  {
+   "id": "Q08",
+   "prompt": "Which session added humidity?",
+   "query": "humidity",
+   "delivery": "any",
+   "recall": [
+    "HUMID"
+   ],
+   "search": [
+    "HUMID"
+   ]
+  },
+  {
+   "id": "Q09",
+   "prompt": "When were wind gusts added?",
+   "query": "wind gust",
+   "delivery": "any",
+   "recall": [
+    "GUST"
+   ],
+   "search": [
+    "GUST"
+   ]
+  },
+  {
+   "id": "Q10",
+   "prompt": "Why were some readings an hour in the future?",
+   "query": "readings future hour",
+   "delivery": "any",
+   "recall": [
+    "FUTURE"
+   ],
+   "search": [
+    "FUTURE"
+   ]
+  },
+  {
+   "id": "Q11",
+   "prompt": "Which session added the metrics endpoint?",
+   "query": "metrics",
+   "delivery": "any",
+   "recall": [
+    "METRICS"
+   ],
+   "search": [
+    "METRICS"
+   ]
+  },
+  {
+   "id": "Q12",
+   "prompt": "Which TimescaleDB version do we run?",
+   "query": "timescaledb version",
+   "delivery": "any",
+   "recall": [
+    "TSDB"
+   ],
+   "search": [
+    "TSDB"
+   ]
+  },
+  {
+   "id": "Q13",
+   "prompt": "Why wasn't the test reading published?",
+   "query": "test reading publish",
+   "delivery": "any",
+   "recall": [
+    "MOSQ"
+   ],
+   "search": [
+    "MOSQ"
+   ]
+  },
+  {
+   "id": "Q14",
+   "prompt": "Where did the maintenance window work stop?",
+   "query": "maintenance windows",
+   "delivery": "any",
+   "recall": [
+    "MAINT"
+   ],
+   "search": [
+    "MAINT"
+   ]
+  },
+  {
+   "id": "Q15",
+   "prompt": "What changed about alert thresholds?",
+   "query": "alert threshold",
+   "delivery": "any",
+   "recall": [
+    "ALERT_CUR"
+   ],
+   "search": [
+    "ALERT_CUR"
+   ]
+  },
+  {
+   "id": "Q16",
+   "prompt": "Which session added the ingest endpoint?",
+   "query": "ingest endpoint",
+   "delivery": "any",
+   "recall": [
+    "INGEST"
+   ],
+   "search": [
+    "INGEST"
+   ]
+  },
+  {
+   "id": "S01",
+   "prompt": "Add a dark theme to the dashboard.",
+   "query": "dark theme",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S02",
+   "prompt": "Translate the docs into Japanese.",
+   "query": "japanese",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S03",
+   "prompt": "Set up Renovate for the Cargo dependencies.",
+   "query": "renovate",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S04",
+   "prompt": "Why is the PNG export of the chart blurry?",
+   "query": "png export",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S05",
+   "prompt": "Write a sonnet about thunderstorms.",
+   "query": "sonnet",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S06",
+   "prompt": "Explain Rust lifetimes.",
+   "query": "lifetimes",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S07",
+   "prompt": "Switch the CLI to clap's derive macros.",
+   "query": "clap derive",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S08",
+   "prompt": "Rename the favicon.",
+   "query": "favicon",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S09",
+   "prompt": "Sort the contributors list.",
+   "query": "contributors",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S10",
+   "prompt": "Add a banner to the landing page.",
+   "query": "banner",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S11",
+   "prompt": "Handle the case where the discount code is empty.",
+   "query": "discount code",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  }
+ ]
+}

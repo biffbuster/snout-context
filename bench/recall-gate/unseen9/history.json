@@ -1,0 +1,205 @@
+{
+  "about": "Gate 3, ninth unseen check (larger): written and frozen on 2026-10-26 before round 10 (test-command replacement cycle, search lines showing the relevant outcome, short exact tokens such as c8 and k6, a fitting note ahead of left-off text), and run once after it. A Python farm-marketplace API tested with pytest.",
+  "project": {
+    "name": "harvest",
+    "files": {
+      ".gitignore": ".snout/\n__pycache__/\n",
+      "pyproject.toml": "[project]\nname = \"harvest\"\nversion = \"0.5.0\"\ndependencies = [\"fastapi\", \"stripe\", \"pillow\"]\n\n[project.optional-dependencies]\ndev = [\"pytest>=8\"]\n",
+      "app/__init__.py": "",
+      "app/listings.py": "def listings():\n    return []\n",
+      "app/payouts.py": "def fee(amount):\n    return amount * 0.05\n",
+      "app/media.py": "def resize(img):\n    return img\n",
+      "app/search.py": "def search(q):\n    return []\n",
+      "app/orders.py": "def order(id):\n    return {'id': id}\n",
+      "app/cache.py": "def key(listing):\n    return f'listing:{listing}'\n",
+      "infra/s3.tf": "resource \"aws_s3_bucket\" \"media\" { bucket = \"harvest-media\" }\n",
+      "tests/test_listings.py": "def test_listings():\n    assert True\n"
+    }
+  },
+  "steps": [
+    {
+      "id": "H1", "type": "session", "agent": "claude",
+      "prompt": "Add a produce listing endpoint in app/listings.py and make sure the tests pass.",
+      "calls": [
+        { "edit": "app/listings.py", "content": "def listings():\n    return []\n\ndef create(item):\n    return {'item': item, 'status': 'listed'}\n" },
+        { "bash": "pytest -q", "out": ".............................                                            [100%]\n29 passed in 0.91s\n" }
+      ],
+      "commit": "Add produce listing endpoint",
+      "final": "app/listings.py has a create endpoint for produce listings. pytest -q: 29 passed."
+    },
+    {
+      "id": "H2", "type": "session", "agent": "codex",
+      "prompt": "Speed up the test run with pytest -x -q from now on.",
+      "calls": [
+        { "edit": "pyproject.toml", "content": "[project]\nname = \"harvest\"\nversion = \"0.5.0\"\ndependencies = [\"fastapi\", \"stripe\", \"pillow\"]\n\n[project.optional-dependencies]\ndev = [\"pytest>=8\"]\n\n[tool.pytest.ini_options]\naddopts = \"-x\"\n" },
+        { "bash": "pytest -x -q", "out": ".............................                                            [100%]\n29 passed in 0.88s\n" }
+      ],
+      "commit": "Stop at first failure",
+      "final": "pytest stops at the first failure now (-x). 29 passed."
+    },
+    {
+      "id": "H3", "type": "session", "agent": "claude",
+      "prompt": "Load-test the listings endpoint with k6.",
+      "calls": [
+        { "bash": "k6 run load/listings.js", "out": "bash: k6: command not found\n" }
+      ],
+      "final": "k6 isn't installed here, so the load test didn't run."
+    },
+    { "id": "M1", "type": "cli", "args": ["memory", "add", "Product photos go to the S3 bucket harvest-media, never the app server.", "--kind", "convention"] },
+    { "id": "M2", "type": "cli", "args": ["memory", "add", "Prices are stored in cents as integers.", "--kind", "decision"] },
+    { "id": "M3", "type": "cli", "args": ["memory", "add", "Farmer payouts run through Stripe Connect in app/payouts.py.", "--kind", "convention"] },
+    { "id": "M4", "type": "cli", "args": ["memory", "add", "Listings expire after 14 days unless renewed.", "--kind", "decision"] },
+    { "id": "M5", "type": "cli", "args": ["memory", "add", "Dates in API responses use ISO 8601 with a timezone offset.", "--kind", "convention"] },
+    {
+      "id": "H4", "type": "session", "agent": "codex",
+      "prompt": "Fix the rounding of payout fees in app/payouts.py.",
+      "calls": [
+        { "edit": "app/payouts.py", "content": "from decimal import Decimal, ROUND_HALF_UP\n\ndef fee(amount):\n    return (Decimal(amount) * Decimal('0.05')).quantize(Decimal('1'), ROUND_HALF_UP)\n" },
+        { "bash": "pytest -q", "out": "...............................                                          [100%]\n31 passed in 0.95s\n" }
+      ],
+      "commit": "Round payout fees half up",
+      "final": "Payout fees in app/payouts.py round half up to the cent now. 31 passed."
+    },
+    {
+      "id": "H5", "type": "session", "agent": "claude",
+      "prompt": "Remember that listing photos are resized on upload in app/media.py.",
+      "mcp": [
+        { "tool": "snout_memory_save", "args": { "text": "Listing photos are resized to 1200 pixels on upload in app/media.py.", "kind": "fact", "user_asked": true, "files": ["app/media.py"] } }
+      ],
+      "calls": [],
+      "final": "Saved: listing photos are resized to 1200 pixels on upload in app/media.py. Also, the CDN cache for photos is purged nightly by the purge_cdn job."
+    },
+    {
+      "id": "H6", "type": "session", "agent": "codex",
+      "prompt": "Resize listing photos in a background job instead of on upload, in app/media.py.",
+      "calls": [
+        { "edit": "app/media.py", "content": "def resize(img):\n    jobs.enqueue('resize', img)\n    return img\n" },
+        { "bash": "pytest -q", "out": "32 passed in 0.97s\n" }
+      ],
+      "commit": "Resize photos in a background job",
+      "final": "app/media.py enqueues a resize job; uploads return before resizing. 32 passed."
+    },
+    {
+      "id": "H7", "type": "session", "agent": "claude",
+      "prompt": "Add search by farm name in app/search.py.",
+      "calls": [
+        { "edit": "app/search.py", "content": "def search(q, farm=None):\n    return [] if farm is None else [farm]\n" },
+        { "bash": "pytest -q", "out": "33 passed in 0.99s\n" }
+      ],
+      "commit": "Search by farm name",
+      "final": "app/search.py filters by farm name. 33 passed."
+    },
+    {
+      "id": "H8", "type": "session", "agent": "codex",
+      "prompt": "Run the tests with pytest -x -q again; plain runs take too long.",
+      "calls": [
+        { "bash": "pytest -x -q", "out": ".................................                                        [100%]\n33 passed in 0.90s\n" }
+      ],
+      "final": "Back to pytest -x -q: 33 passed in 0.9 s."
+    },
+    {
+      "id": "H9", "type": "session", "agent": "claude",
+      "prompt": "Push when the tests pass. Never log buyer addresses. Add order tracking in app/orders.py.",
+      "calls": [
+        { "edit": "app/orders.py", "content": "def order(id):\n    return {'id': id}\n\ndef track(id):\n    return {'id': id, 'status': 'in transit'}\n" },
+        { "bash": "pytest -x -q", "out": "34 passed in 0.92s\n" }
+      ],
+      "commit": "Order tracking",
+      "final": "app/orders.py tracks orders. 34 passed; pushed."
+    },
+    {
+      "id": "H10", "type": "session", "agent": "codex",
+      "prompt": "Push when the tests pass. Never log buyer addresses. Add a farmer rating in app/ratings.py.",
+      "calls": [
+        { "edit": "app/ratings.py", "content": "def rate(farmer, stars):\n    return {'farmer': farmer, 'stars': max(1, min(5, stars))}\n" },
+        { "bash": "pytest -x -q", "out": "35 passed in 0.93s\n" }
+      ],
+      "commit": "Farmer ratings",
+      "final": "Buyers can rate farmers from 1 to 5 stars (app/ratings.py). 35 passed; pushed."
+    },
+    {
+      "id": "H11", "type": "session", "agent": "claude",
+      "prompt": "Run the smoke checks in my harvest-load checkout.",
+      "calls": [
+        { "bash": "cd ../harvest-load && pytest -q", "out": "7 passed in 0.40s\n" }
+      ],
+      "final": "harvest-load's 7 smoke checks pass."
+    },
+    {
+      "id": "H12", "type": "session", "agent": "codex",
+      "prompt": "Do not release this yet. Fix duplicate payouts when the webhook fires twice, in app/payouts.py.",
+      "calls": [
+        { "edit": "app/payouts.py", "content": "from decimal import Decimal, ROUND_HALF_UP\npaid = set()\n\ndef fee(amount):\n    return (Decimal(amount) * Decimal('0.05')).quantize(Decimal('1'), ROUND_HALF_UP)\n\ndef pay(event_id, amount):\n    if event_id in paid:\n        return 'duplicate'\n    paid.add(event_id)\n    return 'paid'\n" },
+        { "bash": "pytest -x -q", "out": "36 passed in 0.95s\n" }
+      ],
+      "commit": "Idempotent payouts",
+      "final": "Payouts are keyed by the webhook event id, so a repeated webhook pays once. 36 passed; not released."
+    },
+    {
+      "id": "H13", "type": "session", "agent": "claude",
+      "prompt": "Why do some listings show yesterday's price? Fix the cache key in app/cache.py.",
+      "calls": [
+        { "edit": "app/cache.py", "content": "def key(listing, price_version):\n    return f'listing:{listing}:v{price_version}'\n" },
+        { "bash": "pytest -x -q", "out": "37 passed in 0.96s\n" }
+      ],
+      "commit": "Include price version in cache key",
+      "final": "The cache key ignored price changes, so listings served the old price until expiry; it includes the price version now. 37 passed."
+    },
+    {
+      "id": "H14", "type": "session", "agent": "codex",
+      "prompt": "Add a /healthz endpoint in app/health.py.",
+      "calls": [
+        { "edit": "app/health.py", "content": "def healthz():\n    return {'ok': True}\n" },
+        { "bash": "pytest -x -q", "out": "38 passed in 0.97s\n" }
+      ],
+      "commit": "Add /healthz",
+      "final": "app/health.py serves /healthz. 38 passed."
+    },
+    {
+      "id": "H15", "type": "session", "agent": "claude",
+      "prompt": "Move the photos bucket to S3 Intelligent-Tiering in infra/s3.tf.",
+      "calls": [
+        { "edit": "infra/s3.tf", "content": "resource \"aws_s3_bucket\" \"media\" { bucket = \"harvest-media\" }\nresource \"aws_s3_bucket_intelligent_tiering_configuration\" \"media\" { bucket = \"harvest-media\" name = \"all\" }\n" }
+      ],
+      "commit": "Intelligent-Tiering for the photos bucket",
+      "final": "infra/s3.tf puts the harvest-media bucket on S3 Intelligent-Tiering."
+    },
+    {
+      "id": "H16", "type": "session", "agent": "codex",
+      "prompt": "Add buyer messaging in app/messages.py.",
+      "calls": [
+        { "edit": "app/messages.py", "content": "def send(buyer, farmer, text):\n    return {'from': buyer, 'to': farmer, 'text': text}\n" },
+        { "todos": [{ "content": "Send messages", "status": "completed" }, { "content": "Add tests for blocked buyers", "status": "pending" }] }
+      ],
+      "final": "app/messages.py sends buyer-to-farmer messages. Tests for blocked buyers are still to do; not committed."
+    }
+  ],
+  "facts": {
+    "T_cur": { "class": "current", "about": "the test command after A, B, A, B", "pattern": "pytest -x -q" },
+    "T_old": { "class": "stale", "about": "the plain test command, as a note, after the switch back", "pattern": "Run the tests with: pytest -q" },
+    "T_else": { "class": "wrong-scope", "about": "another checkout's test command, as this project's", "pattern": "Run the tests with: cd " },
+    "K6": { "class": "current", "about": "k6 is not installed", "pattern": "k6 is not installed|k6 isn't installed|k6: command not found" },
+    "S3": { "class": "current", "about": "photos in the S3 bucket", "pattern": "S3 bucket harvest-media" },
+    "CENTS": { "class": "current", "about": "prices in cents", "pattern": "stored in cents" },
+    "PAYOUT": { "class": "current", "about": "payouts through Stripe Connect", "pattern": "Stripe Connect" },
+    "EXPIRE": { "class": "current", "about": "listings expire after 14 days", "pattern": "14 days" },
+    "ISO": { "class": "current", "about": "ISO 8601 dates", "pattern": "ISO 8601" },
+    "NOADDR": { "class": "current", "about": "never log buyer addresses, said in two sessions", "pattern": "[Nn]ever log buyer addresses" },
+    "PUSH_BAD": { "class": "unsupported", "about": "a task request said in two sessions, saved as standing", "pattern": "preference[^\\n]*Push when the tests pass" },
+    "MEDIA_OLD": { "class": "stale", "about": "resizing on upload, saved with app/media.py, which H6 then changed", "pattern": "resized to 1200 pixels on upload" },
+    "MEDIA_CUR": { "class": "current", "about": "resizing in a background job", "pattern": "[Rr]esize (?:listing )?photos in a background job|enqueues a resize job" },
+    "CDN": { "class": "current", "about": "the nightly CDN purge, from H5's last words", "pattern": "purged nightly|purge_cdn" },
+    "LISTING": { "class": "current", "about": "the produce listing endpoint", "pattern": "[Pp]roduce listing" },
+    "XMOVE": { "class": "current", "about": "the switch to stopping at the first failure", "pattern": "[Ss]top at first failure|first failure" },
+    "XBACK": { "class": "current", "about": "the switch back to pytest -x -q", "pattern": "pytest -x -q again|Back to pytest -x -q" },
+    "FEES": { "class": "current", "about": "payout fee rounding", "pattern": "[Rr]ound payout fees|round half up" },
+    "FARMSEARCH": { "class": "current", "about": "search by farm name", "pattern": "[Ss]earch by farm name|filters by farm name" },
+    "TRACK": { "class": "current", "about": "order tracking", "pattern": "[Oo]rder tracking|tracks orders" },
+    "RATING": { "class": "current", "about": "farmer ratings", "pattern": "[Ff]armer rating" },
+    "DUPPAY": { "class": "current", "about": "idempotent payouts", "pattern": "[Ii]dempotent payouts|pays once" },
+    "CACHEKEY": { "class": "current", "about": "price version in the cache key", "pattern": "price version" },
+    "HEALTH": { "class": "current", "about": "the healthz endpoint", "pattern": "healthz" },
+    "TIERING": { "class": "current", "about": "S3 Intelligent-Tiering", "pattern": "Intelligent-Tiering" },
+    "MSG": { "class": "current", "about": "the unfinished buyer messaging, last worked on in Codex", "pattern": "[Bb]uyer messaging|blocked buyers" }
+  }
+}

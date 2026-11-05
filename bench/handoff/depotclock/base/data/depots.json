@@ -1,0 +1,5 @@
+[
+  { "id": "OSL", "name": "Oslo", "tz": "Europe/Oslo" },
+  { "id": "YYZ", "name": "Toronto", "tz": "America/Toronto" },
+  { "id": "SYD", "name": "Sydney", "tz": "Australia/Sydney" }
+]

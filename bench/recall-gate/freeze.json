@@ -1,0 +1,27 @@
+{
+  "frozenAt": "2026-10-26T16:03:05.810Z",
+  "files": {
+    "bench/recall-gate/history.json": "2f1b4554770fc8074831cf8f44a7dfedfd8f11518ac1ffcd16e744ecd73c3dbb",
+    "bench/recall-gate/prompts.json": "40115b1c5ab352d30720e8bfc0f759b88073e84517d6d917bf36b223dba59ed2",
+    "bench/recall-gate.mjs": "ec0980eb2840b5d1319dae19ea1922af570e9a2a6af0f4b9d78a81df6806b89a"
+  },
+  "refrozen": [
+    "Refrozen 2026-10-26 after the first round: bench/recall-gate.mjs gained --set (which input folder to read, and its scratch folder) for the unseen check. Inputs and scoring are unchanged; the history and prompts hashes are the same as at the first freeze.",
+    "Refrozen 2026-10-26 before round 4: bench/recall-gate.mjs pins PATH to git alone (so a tool the history scripts as missing is missing on any machine) and refuses to run otherwise. Inputs and scoring are unchanged.",
+    "Refrozen 2026-10-26 before round 6: bench/recall-gate.mjs gained --semantic (the optional local model, served on a port of the run's own) and records each path's time per call. Inputs and scoring are unchanged."
+  ],
+  "previous": [
+    {
+      "frozenAt": "2026-10-26T13:19:11.586Z",
+      "bench/recall-gate.mjs": "ceae3e30668322b3c4766a2c6c4c96576e5001a11b52dab8078d7a82f9e88aea"
+    },
+    {
+      "frozenAt": "2026-10-26T13:44:45.507Z",
+      "bench/recall-gate.mjs": "3c3c11c9b3375634a2f3a207a187b0a0cf67850a1f71c8091eb5724fa6069c5b"
+    },
+    {
+      "frozenAt": "2026-10-26T14:26:27.731Z",
+      "bench/recall-gate.mjs": "dd46aab0440954c0670d17b5efe72b4bc627fe51f193e1012251e20985424881"
+    }
+  ]
+}

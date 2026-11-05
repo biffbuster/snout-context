@@ -1,0 +1,23 @@
+{
+  "about": "Gate 3, fifth unseen check: prompts for unseen5/history.json, scored exactly as the main set (see ../prompts.json). X06 shares no word with its note (credentials / passwords). X12 shares one (model). X14 shares one generic word (week) with a note and must stay silent.",
+  "prompts": [
+    { "id": "X01", "prompt": "Add a test for the /signup endpoint and run the tests.", "query": "run tests", "delivery": ["T_cur"], "recall": "any", "search": ["T_cur"] },
+    { "id": "X02", "prompt": "How do I run the test suite?", "query": "test command", "delivery": ["T_cur"], "recall": "any", "search": ["T_cur"] },
+    { "id": "X03", "prompt": "Build the docs with sphinx-build.", "query": "sphinx-build", "delivery": ["SPHINX"], "recall": "any", "search": ["SPHINX"] },
+    { "id": "X04", "prompt": "Lint the code with ruff.", "query": "ruff", "delivery": "any", "recall": "any", "search": "any" },
+    { "id": "X05", "prompt": "How should passwords be stored?", "query": "password storage", "delivery": ["PW"], "recall": "any", "search": ["PW"] },
+    { "id": "X06", "prompt": "Add a signup form that saves the user's credentials.", "query": "credentials", "delivery": ["PW"], "recall": "any", "search": ["PW"] },
+    { "id": "X07", "prompt": "How often do background jobs run?", "query": "background jobs", "delivery": ["JOBS_CUR"], "recall": "any", "search": ["JOBS_CUR"] },
+    { "id": "X08", "prompt": "Are signup emails still queued in app/mailer.py?", "query": "signup emails queue", "delivery": "any", "recall": ["MAIL_CUR"], "search": ["MAIL_CUR"] },
+    { "id": "X09", "prompt": "When did we start measuring coverage?", "query": "coverage", "delivery": "any", "recall": ["COV_MOVE"], "search": ["COV_MOVE", "T_cur"] },
+    { "id": "X10", "prompt": "How did we add the created_at column?", "query": "created_at column", "delivery": "any", "recall": ["CREATED"], "search": ["CREATED"] },
+    { "id": "X11", "prompt": "Continue where the last session left off.", "query": "csv export", "delivery": ["CSV"], "recall": "any", "search": ["CSV"] },
+    { "id": "X12", "prompt": "Add a nickname field to the user model.", "query": "model field", "delivery": ["MIGR"], "recall": "any", "search": ["MIGR"] },
+    { "id": "X13", "prompt": "Push the branch when the tests pass.", "query": "push branch", "delivery": "any", "recall": "any", "search": "any" },
+    { "id": "X14", "prompt": "Draw a chart of signups per week on the admin dashboard.", "query": "signups chart", "delivery": "silent", "recall": "silent", "search": "silent" },
+    { "id": "X15", "prompt": "Write a Dockerfile.", "query": "dockerfile", "delivery": "silent", "recall": "silent", "search": "silent" },
+    { "id": "X16", "prompt": "Use poetry to add a dependency.", "query": "poetry dependency", "delivery": "silent", "recall": "silent", "search": "silent" },
+    { "id": "X17", "prompt": "Why does the PDF report crash on Safari?", "query": "pdf safari crash", "delivery": "silent", "recall": "silent", "search": "silent" },
+    { "id": "X18", "prompt": "Translate the help text to Japanese.", "query": "translate japanese", "delivery": "silent", "recall": "silent", "search": "silent" }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "frozenAt": "2026-10-26T16:14:02.549Z",
+  "files": {
+    "bench/recall-gate/unseen5/history.json": "6d65d1c5eb864433fbb74afe5b1bb2bf574bcf20960f0ef6f7db669fcb957ebe",
+    "bench/recall-gate/unseen5/prompts.json": "b287c524d8809e9f156201bf5948fb2b3cc00bceb791345feff7cc35d704a7e7",
+    "bench/recall-gate.mjs": "ec0980eb2840b5d1319dae19ea1922af570e9a2a6af0f4b9d78a81df6806b89a"
+  },
+  "refrozen": [
+    "Refrozen 2026-10-26 before round 6: bench/recall-gate.mjs gained --semantic (the optional local model, served on a port of the run's own) and records each path's time per call. Inputs and scoring are unchanged.",
+    "Refrozen 2026-10-26 before any scored run of this set: session K4 committed without changing a file, so git refused and the replay stopped. K4 now edits pyproject.toml (the pytest --cov option), the file that change touches. Prompts and expectations are unchanged; no result of this set had been produced."
+  ],
+  "previous": [
+    {
+      "frozenAt": "2026-10-26T15:57:26.156Z",
+      "bench/recall-gate.mjs": "dd46aab0440954c0670d17b5efe72b4bc627fe51f193e1012251e20985424881"
+    },
+    {
+      "frozenAt": "2026-10-26T16:03:06.063Z",
+      "bench/recall-gate/unseen5/history.json": "d039ef79d45c3d185665917edaa6c85071556a7011f89d972098a998b2fa1a78"
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+diff --git a/tpl/resources/resources.go b/tpl/resources/resources.go
+index 62a0b6c517b..2512b5ce9a0 100644
+--- a/tpl/resources/resources.go
++++ b/tpl/resources/resources.go
+@@ -20,6 +20,7 @@ import (
+ 	"fmt"
+ 
+ 	"github.com/gohugoio/hugo/common/hmaps"
++	"github.com/gohugoio/hugo/common/hugo"
+ 
+ 	"github.com/gohugoio/hugo/resources/postpub"
+ 
+@@ -293,6 +294,9 @@ func (ns *Namespace) Minify(r resources.ResourceTransformer) (resource.Resource,
+ }
+ 
+ // PostProcess processes r after the build.
++//
++// Deprecated: Use templates.Defer instead.
+ func (ns *Namespace) PostProcess(r resource.Resource) (postpub.PostPublishedResource, error) {
++	hugo.DeprecateWithLogger("resources.PostProcess", "Use templates.Defer instead. See https://gohugo.io/functions/templates/defer/", "v0.164.0", ns.deps.Log.Logger())
+ 	return ns.deps.ResourceSpec.PostProcess(r)
+ }
+diff --git a/tpl/resources/resources_integration_test.go b/tpl/resources/resources_integration_test.go
+index faca7af3ac8..b7f86111cb7 100644
+--- a/tpl/resources/resources_integration_test.go
++++ b/tpl/resources/resources_integration_test.go
+@@ -277,3 +277,22 @@ disableKinds = ['page','section','rss','sitemap','taxonomy','term']
+ 	)
+ 	b.AssertLogContains("! WARN  Dart Sass: hugo:vars")
+ }
++
++// See issue 15086.
++func TestPostProcessDeprecated(t *testing.T) {
++	t.Parallel()
++
++	files := `
++-- hugo.toml --
++disableKinds = ["taxonomy", "term", "section", "RSS", "sitemap", "robotsTXT", "404"]
++-- assets/css/main.css --
++body { color: red; }
++-- layouts/home.html --
++{{ $r := resources.Get "css/main.css" | minify | resources.PostProcess }}
++{{ $r.RelPermalink }}
++`
++
++	b := hugolib.Test(t, files, hugolib.TestOptInfo())
++
++	b.AssertLogContains("resources.PostProcess was deprecated in Hugo v0.164.0")
++}

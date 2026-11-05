@@ -1,0 +1,71 @@
+diff --git a/packages/vite/src/node/__tests__/config.spec.ts b/packages/vite/src/node/__tests__/config.spec.ts
+index 5cf98adaf2d835..259a2b341df978 100644
+--- a/packages/vite/src/node/__tests__/config.spec.ts
++++ b/packages/vite/src/node/__tests__/config.spec.ts
+@@ -6,7 +6,12 @@ import { stripVTControlCharacters } from 'node:util'
+ import { afterEach, assert, describe, expect, test, vi } from 'vitest'
+ import type { InlineConfig, PluginOption } from '..'
+ import type { UserConfig, UserConfigExport } from '../config'
+-import { defineConfig, loadConfigFromFile, resolveConfig } from '../config'
++import {
++  bundleConfigFile,
++  defineConfig,
++  loadConfigFromFile,
++  resolveConfig,
++} from '../config'
+ import { resolveServerOptions } from '../server'
+ import { resolveEnvPrefix } from '../env'
+ import {
+@@ -1959,6 +1964,21 @@ describe('loadConfigFromFile', () => {
+     expect(c.dirname).toContain('shebang-crlf')
+   })
+ 
++  test('sourcemap of a nested config file points to itself', async () => {
++    const configPath = path.resolve(
++      fixtures,
++      './nested/.nested/vite.config.mts',
++    )
++    const { code } = await bundleConfigFile(configPath, true)
++    const [, base64Map] = code.match(
++      /\/\/# sourceMappingURL=data:application\/json;charset=utf-8;base64,(.+)/,
++    )!
++    const map = JSON.parse(Buffer.from(base64Map, 'base64').toString())
++    expect(map.sources.map(normalizePath)).toStrictEqual([
++      normalizePath(configPath),
++    ])
++  })
++
+   describe('loadConfigFromFile with configLoader: native', () => {
+     const fixtureRoot = path.resolve(fixtures, './native-import')
+ 
+diff --git a/packages/vite/src/node/__tests__/fixtures/config/nested/.nested/vite.config.mts b/packages/vite/src/node/__tests__/fixtures/config/nested/.nested/vite.config.mts
+new file mode 100644
+index 00000000000000..b1c6ea436a5400
+--- /dev/null
++++ b/packages/vite/src/node/__tests__/fixtures/config/nested/.nested/vite.config.mts
+@@ -0,0 +1 @@
++export default {}
+diff --git a/packages/vite/src/node/config.ts b/packages/vite/src/node/config.ts
+index 9fee3e59a93c77..5509736184bf09 100644
+--- a/packages/vite/src/node/config.ts
++++ b/packages/vite/src/node/config.ts
+@@ -2504,7 +2504,7 @@ async function bundleAndLoadConfigFile(
+   }
+ }
+ 
+-async function bundleConfigFile(
++export async function bundleConfigFile(
+   fileName: string,
+   isESM: boolean,
+ ): Promise<{
+@@ -2652,8 +2652,8 @@ async function bundleConfigFile(
+   const result = await bundle.generate({
+     format: isESM ? 'esm' : 'cjs',
+     sourcemap: 'inline',
+-    sourcemapPathTransform(relative) {
+-      return path.resolve(fileName, relative)
++    sourcemapPathTransform(relative, sourcemapPath) {
++      return path.resolve(path.dirname(sourcemapPath), relative)
+     },
+     // we want to generate a single chunk like esbuild does with `splitting: false`
+     codeSplitting: false,

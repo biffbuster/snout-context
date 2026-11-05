@@ -1,0 +1,135 @@
+{
+  "about": "Gate 3 unseen check (docs/memory-gates.md): a second, smaller history, written and frozen on 2026-10-26 before the second round of fixes and never run before them. A Python project, so the commands, tools and wording differ from the main set. It exists to catch fixes that fit the main set's prompts and nothing else.",
+  "project": {
+    "name": "inkwell",
+    "files": {
+      ".gitignore": ".snout/\n__pycache__/\n.tox/\n",
+      "pyproject.toml": "[project]\nname = \"inkwell\"\nversion = \"0.4.0\"\n\n[project.optional-dependencies]\ndev = [\"pytest>=8\", \"flake8\"]\n",
+      "inkwell/__init__.py": "",
+      "inkwell/cli.py": "import os\nimport argparse\n\ndef main():\n    p = argparse.ArgumentParser()\n    p.add_argument('command')\n    return p.parse_args()\n",
+      "inkwell/store.py": "def save(path, text):\n    with open(path, 'w') as f:\n        f.write(text)\n",
+      "inkwell/parser.py": "def parse(line):\n    return line.split(':', 1)\n",
+      "inkwell/export.py": "def export(notes, path):\n    with open(path, 'w', encoding='utf-8-sig') as f:\n        f.write('\\n'.join(notes))\n",
+      "inkwell/ids.py": "import ulid\n\ndef new_id():\n    return str(ulid.new())\n",
+      "tests/test_cli.py": "from inkwell.parser import parse\n\ndef test_parse():\n    assert parse('a: b') == ['a', ' b']\n"
+    }
+  },
+  "steps": [
+    {
+      "id": "U1", "type": "session", "agent": "claude",
+      "prompt": "Add a --json flag to the export command in inkwell/cli.py and make sure the tests pass.",
+      "calls": [
+        { "edit": "inkwell/cli.py", "content": "import os\nimport argparse\n\ndef main():\n    p = argparse.ArgumentParser()\n    p.add_argument('command')\n    p.add_argument('--json', action='store_true')\n    return p.parse_args()\n" },
+        { "bash": "python -m pytest -q", "out": "............                                                             [100%]\n12 passed in 0.41s\n" }
+      ],
+      "commit": "Add --json to export",
+      "final": "The export command in inkwell/cli.py takes --json. python -m pytest -q: 12 passed."
+    },
+    {
+      "id": "U2", "type": "session", "agent": "codex",
+      "prompt": "Check the package with the linter before touching inkwell/store.py, then make saves atomic.",
+      "calls": [
+        { "bash": "ruff check .", "out": "bash: ruff: command not found\n" },
+        { "bash": "python -m flake8 inkwell", "out": "" },
+        { "edit": "inkwell/store.py", "content": "import os, tempfile\n\ndef save(path, text):\n    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path) or '.')\n    with os.fdopen(fd, 'w') as f:\n        f.write(text)\n    os.replace(tmp, path)\n" }
+      ],
+      "commit": "Atomic saves in store",
+      "final": "ruff isn't installed here, so I linted with python -m flake8. save() in inkwell/store.py now writes a temp file and renames it, so a crash never leaves half a note."
+    },
+    {
+      "id": "U3", "type": "session", "agent": "claude",
+      "prompt": "Write docstrings for the parser and run the tests.",
+      "calls": [
+        { "edit": "inkwell/parser.py", "content": "def parse(line):\n    \"\"\"Split a 'key: value' line into its two parts.\"\"\"\n    return line.split(':', 1)\n" },
+        { "bash": "python -m pytest -q", "out": "..............                                                           [100%]\n14 passed in 0.44s\n" }
+      ],
+      "commit": "Docstrings for parser",
+      "final": "parse() in inkwell/parser.py has a docstring. 14 tests pass."
+    },
+    { "id": "M1", "type": "cli", "args": ["memory", "add", "Config lives in ~/.inkwell/config.toml; never read environment variables for settings.", "--kind", "decision"] },
+    { "id": "M2", "type": "cli", "args": ["memory", "add", "Note IDs are ULIDs, generated in inkwell/ids.py.", "--kind", "convention"] },
+    {
+      "id": "U4", "type": "session", "agent": "codex",
+      "prompt": "Switch the tests to tox and run them through tox.",
+      "calls": [
+        { "edit": "tox.ini", "content": "[tox]\nenv_list = py312\n\n[testenv]\ndeps = pytest\ncommands = pytest -q\n" },
+        { "bash": "pytest -q", "out": "bash: line 1: pytest: command not found\n" },
+        { "bash": "tox -q", "out": "..............                                                           [100%]\n14 passed in 0.52s\n  py312: OK (3.21 seconds)\n  congratulations :) (3.30 seconds)\n" }
+      ],
+      "commit": "Run tests through tox",
+      "final": "Tests run through tox now (tox.ini); bare pytest isn't on PATH outside the env. tox -q: 14 passed."
+    },
+    {
+      "id": "U5", "type": "session", "agent": "claude",
+      "prompt": "Remember that export files are UTF-8 with a BOM so Excel opens them correctly.",
+      "mcp": [
+        { "tool": "snout_memory_save", "args": { "text": "Export files are UTF-8 with a BOM for Excel (inkwell/export.py).", "kind": "convention", "user_asked": true, "files": ["inkwell/export.py"] } }
+      ],
+      "calls": [],
+      "final": "Saved: exports are UTF-8 with a BOM, written in inkwell/export.py."
+    },
+    {
+      "id": "U6", "type": "session", "agent": "codex",
+      "prompt": "Drop the BOM from exports in inkwell/export.py; current Excel reads plain UTF-8.",
+      "calls": [
+        { "edit": "inkwell/export.py", "content": "def export(notes, path):\n    with open(path, 'w', encoding='utf-8') as f:\n        f.write('\\n'.join(notes))\n" },
+        { "bash": "tox -q", "out": "..............                                                           [100%]\n14 passed in 0.50s\n  py312: OK (3.10 seconds)\n" }
+      ],
+      "commit": "Exports without BOM",
+      "final": "inkwell/export.py writes plain UTF-8 now, without BOM. tox -q: 14 passed."
+    },
+    { "id": "M3", "type": "cli", "args": ["memory", "add", "Config now lives in inkwell.toml in the project root, no longer ~/.inkwell/config.toml; never read environment variables for settings.", "--kind", "decision"] },
+    {
+      "id": "U7", "type": "session", "agent": "claude",
+      "prompt": "Please run the linter and fix what it finds. Never print secrets in logs.",
+      "calls": [
+        { "bash": "python -m flake8 inkwell", "out": "inkwell/cli.py:1:1: F401 'os' imported but unused\n" },
+        { "edit": "inkwell/cli.py", "content": "import argparse\n\ndef main():\n    p = argparse.ArgumentParser()\n    p.add_argument('command')\n    p.add_argument('--json', action='store_true')\n    return p.parse_args()\n" }
+      ],
+      "commit": "Remove unused import",
+      "final": "flake8 found one unused import in inkwell/cli.py; removed. It's clean now."
+    },
+    {
+      "id": "U8", "type": "session", "agent": "codex",
+      "prompt": "Please run the linter and fix what it finds. Never print secrets in logs.",
+      "calls": [
+        { "bash": "python -m flake8 inkwell", "out": "" }
+      ],
+      "final": "flake8 reports nothing; there was nothing to fix."
+    },
+    {
+      "id": "U9", "type": "session", "agent": "claude",
+      "prompt": "Run the plugin examples in my inkwell-plugins checkout to see if they still work.",
+      "calls": [
+        { "bash": "cd ~/inkwell-plugins && python -m pytest -q", "out": ".....                                                                    [100%]\n5 passed in 0.20s\n" }
+      ],
+      "final": "The five plugin examples pass against this inkwell."
+    },
+    {
+      "id": "U10", "type": "session", "agent": "claude",
+      "prompt": "Add tagging to notes in inkwell/tags.py.",
+      "calls": [
+        { "edit": "inkwell/tags.py", "content": "def add_tag(note, tag):\n    note.setdefault('tags', []).append(tag)\n    return note\n" },
+        { "todos": [{ "content": "Add add_tag", "status": "completed" }, { "content": "Add tests for tag search", "status": "pending" }] }
+      ],
+      "final": "inkwell/tags.py has add_tag. Tag search and its tests are still to do; nothing committed."
+    }
+  ],
+  "facts": {
+    "T_cur": { "class": "current", "about": "the test command", "pattern": "tox -q" },
+    "T_old": { "class": "stale", "about": "the test command before tox, as a note", "pattern": "Run the tests with: python -m pytest" },
+    "T_else": { "class": "wrong-scope", "about": "another checkout's test command, as this project's", "pattern": "Run the tests with: cd " },
+    "RUFF": { "class": "current", "about": "ruff is not installed", "pattern": "ruff is not installed|ruff isn't installed|ruff: command not found" },
+    "PYTEST_BAD": { "class": "unsupported", "about": "pytest reported missing, though the project's dev dependencies and tox provide it", "pattern": "pytest is not installed" },
+    "CFG_OLD": { "class": "stale", "about": "the old config location, replaced by M3", "pattern": "Config lives in ~/\\.inkwell" },
+    "CFG_CUR": { "class": "current", "about": "the config location", "pattern": "inkwell\\.toml in the project root" },
+    "IDS": { "class": "current", "about": "note IDs", "pattern": "ULIDs" },
+    "BOM_NOTE": { "class": "stale", "about": "exports with a BOM, saved with inkwell/export.py, which U6 then changed", "pattern": "with a BOM for Excel \\(inkwell" },
+    "BOM_CUR": { "class": "current", "about": "exports without a BOM", "pattern": "without BOM|Drop the BOM" },
+    "LINT_BAD": { "class": "unsupported", "about": "a task request repeated in two sessions, saved as a standing preference", "pattern": "preference[^\\n]*run the linter and fix" },
+    "SECRETS": { "class": "current", "about": "never print secrets, said in two sessions", "pattern": "[Nn]ever print secrets" },
+    "TOX_MOVE": { "class": "current", "about": "when the tests moved to tox", "pattern": "Switch the tests to tox|Run tests through tox" },
+    "ATOMIC": { "class": "current", "about": "the atomic save change", "pattern": "[Aa]tomic saves|saves atomic" },
+    "TAGS": { "class": "current", "about": "the unfinished tagging work", "pattern": "[Tt]agging|tag search" }
+  }
+}

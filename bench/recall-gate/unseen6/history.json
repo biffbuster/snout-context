@@ -1,0 +1,227 @@
+{
+  "about": "Gate 3, sixth unseen check (docs/memory-gates.md): the larger fresh set the owner chose on 2026-10-26, so the 90% answer bar allows about two misses per path. Written and frozen before the round-7 fix (hyphenated tool names in search) and run once after it. A TypeScript API with a job worker, tested with vitest.",
+  "project": {
+    "name": "tidewater",
+    "files": {
+      ".gitignore": ".snout/\nnode_modules/\n.env\n",
+      "package.json": "{\n  \"name\": \"tidewater\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"scripts\": { \"test\": \"vitest run\", \"lint\": \"eslint .\" },\n  \"devDependencies\": { \"vitest\": \"^3.2.0\", \"typescript\": \"^5.6.0\", \"eslint\": \"^9.0.0\", \"tsx\": \"^4.19.0\" }\n}\n",
+      "src/api/server.ts": "export const routes: string[] = [];\n",
+      "src/api/routes/orders.ts": "export const createOrder = (items: { price: number }[]) => ({ total: items.reduce((a, i) => a + i.price, 0) });\n",
+      "src/api/routes/users.ts": "export const listUsers = (all: unknown[]) => all;\n",
+      "src/api/errors.ts": "export const apiError = (code: string, message: string) => ({ error: { code, message } });\n",
+      "src/api/webhooks.ts": "export const deliver = (url: string, body: unknown) => fetch(url, { method: 'POST', body: JSON.stringify(body) });\n",
+      "src/worker/queue.ts": "export const enqueue = (job: unknown) => redis.lpush('jobs', JSON.stringify(job));\ndeclare const redis: { lpush(k: string, v: string): void };\n",
+      "src/worker/retry.ts": "export const retry = async <T>(fn: () => Promise<T>) => fn();\n",
+      "src/lib/money.ts": "export const toCents = (n: number) => Math.round(n * 100);\n",
+      "src/lib/dates.ts": "export const formatDay = (d: Date) => d.toISOString().slice(0, 10);\n",
+      "src/lib/ids.ts": "export const newId = () => crypto.randomUUID();\n",
+      "src/lib/logger.ts": "export const log = (msg: string) => console.log(JSON.stringify({ msg }));\n",
+      "src/db/migrations/001_init.sql": "create table orders (id text primary key, total integer);\n",
+      "scripts/seed.ts": "console.log('seed');\n",
+      "test/orders.test.ts": "import { test } from 'vitest';\ntest('ok', () => {});\n"
+    }
+  },
+  "steps": [
+    {
+      "id": "T1", "type": "session", "agent": "claude",
+      "prompt": "Add an order cancellation endpoint in src/api/routes/orders.ts and make sure the tests pass.",
+      "calls": [
+        { "edit": "src/api/routes/orders.ts", "content": "export const createOrder = (items: { price: number }[]) => ({ total: items.reduce((a, i) => a + i.price, 0) });\nexport const cancelOrder = (id: string) => ({ id, status: 'cancelled' });\n" },
+        { "install": "node_modules/.bin/vitest", "content": "#!/bin/sh\n" },
+        { "install": "node_modules/.bin/tsx", "content": "#!/bin/sh\n" },
+        { "install": "node_modules/.bin/eslint", "content": "#!/bin/sh\n" },
+        { "bash": "npx vitest run", "out": " ✓ test/orders.test.ts (41 tests) 12ms\n\n Test Files  5 passed (5)\n      Tests  41 passed (41)\n" }
+      ],
+      "commit": "Add order cancellation",
+      "final": "cancelOrder in src/api/routes/orders.ts marks an order cancelled. npx vitest run: 41 passed."
+    },
+    {
+      "id": "T2", "type": "session", "agent": "codex",
+      "prompt": "Dates in order emails show the previous day for customers east of UTC; fix the formatting in src/lib/dates.ts.",
+      "calls": [
+        { "edit": "src/lib/dates.ts", "content": "export const formatDay = (d: Date, tz = 'UTC') => new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(d);\n" },
+        { "bash": "npx vitest run", "out": "      Tests  42 passed (42)\n" }
+      ],
+      "commit": "Fix off-by-one day in date formatting",
+      "final": "formatDay sliced the UTC ISO string, so days shifted for other zones; it formats in the customer's zone now. 42 passed."
+    },
+    {
+      "id": "T3", "type": "session", "agent": "claude",
+      "prompt": "Bring up the local stack with docker compose.",
+      "calls": [
+        { "bash": "docker compose up -d", "out": "bash: docker: command not found\n" }
+      ],
+      "final": "docker isn't installed on this machine, so the local stack wasn't started."
+    },
+    {
+      "id": "T4", "type": "session", "agent": "codex",
+      "prompt": "Write a seed script for local users in scripts/seed.ts and run it.",
+      "calls": [
+        { "bash": "tsx scripts/seed.ts", "out": "bash: tsx: command not found\n" },
+        { "edit": "scripts/seed.ts", "content": "for (let i = 0; i < 20; i++) console.log(`user${i}@example.test`);\n" },
+        { "bash": "npx tsx scripts/seed.ts", "out": "Seeded 20 users\n" }
+      ],
+      "commit": "Seed script for local users",
+      "final": "scripts/seed.ts seeds 20 local users. Bare tsx isn't on PATH; npx tsx works."
+    },
+    { "id": "M1", "type": "cli", "args": ["memory", "add", "Money is stored as integer cents in src/lib/money.ts; never use floats.", "--kind", "convention"] },
+    { "id": "M2", "type": "cli", "args": ["memory", "add", "All timestamps are stored in UTC and formatted only at the API edge.", "--kind", "convention"] },
+    { "id": "M3", "type": "cli", "args": ["memory", "add", "Order ids are ULIDs generated in src/lib/ids.ts.", "--kind", "decision"] },
+    { "id": "M4", "type": "cli", "args": ["memory", "add", "Background work goes through the Redis queue in src/worker/queue.ts.", "--kind", "decision"] },
+    { "id": "M5", "type": "cli", "args": ["memory", "add", "Logs are JSON lines written by src/lib/logger.ts; never log request bodies.", "--kind", "convention"] },
+    { "id": "M6", "type": "cli", "args": ["memory", "add", "API errors are returned as {error: {code, message}} from src/api/errors.ts.", "--kind", "convention"] },
+    { "id": "M7", "type": "cli", "args": ["memory", "add", "Sessions expire after 30 minutes of inactivity.", "--kind", "decision"] },
+    { "id": "M8", "type": "cli", "args": ["memory", "add", "Database migrations are plain SQL files in src/db/migrations, numbered in order.", "--kind", "convention"] },
+    {
+      "id": "T5", "type": "session", "agent": "claude",
+      "prompt": "Retry failed jobs with exponential backoff in src/worker/retry.ts.",
+      "calls": [
+        { "edit": "src/worker/retry.ts", "content": "export const retry = async <T>(fn: () => Promise<T>, tries = 5): Promise<T> => {\n  for (let i = 0; ; i++) { try { return await fn(); } catch (e) { if (i >= tries) throw e; await new Promise((r) => setTimeout(r, 2 ** i * 100)); } }\n};\n" },
+        { "bash": "npx vitest run", "out": "      Tests  44 passed (44)\n" }
+      ],
+      "commit": "Retry failed jobs with backoff",
+      "final": "retry() in src/worker/retry.ts retries up to five times with exponential backoff. 44 passed."
+    },
+    {
+      "id": "T6", "type": "session", "agent": "claude",
+      "prompt": "Remember how order totals are computed.",
+      "mcp": [
+        { "tool": "snout_memory_save", "args": { "text": "Order totals are the sum of item prices, with tax added once on the total (src/api/routes/orders.ts).", "kind": "fact", "user_asked": true, "files": ["src/api/routes/orders.ts"] } }
+      ],
+      "calls": [],
+      "final": "Saved: order totals sum the items and add tax once on the total, in src/api/routes/orders.ts."
+    },
+    {
+      "id": "T7", "type": "session", "agent": "codex",
+      "prompt": "Apply tax per line item instead of on the order total in src/api/routes/orders.ts.",
+      "calls": [
+        { "edit": "src/api/routes/orders.ts", "content": "const TAX = 0.2;\nexport const createOrder = (items: { price: number }[]) => ({ total: items.reduce((a, i) => a + Math.round(i.price * (1 + TAX)), 0) });\nexport const cancelOrder = (id: string) => ({ id, status: 'cancelled' });\n" },
+        { "bash": "npx vitest run", "out": "      Tests  44 passed (44)\n" }
+      ],
+      "commit": "Tax per line item",
+      "final": "Tax is applied to each line item and rounded there; the total sums the taxed items. 44 passed."
+    },
+    {
+      "id": "T8", "type": "session", "agent": "claude",
+      "prompt": "Use vitest's forks pool from now on; the threads pool crashes on CI.",
+      "calls": [
+        { "edit": "package.json", "content": "{\n  \"name\": \"tidewater\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"scripts\": { \"test\": \"vitest run --pool=forks\", \"lint\": \"eslint .\" },\n  \"devDependencies\": { \"vitest\": \"^3.2.0\", \"typescript\": \"^5.6.0\", \"eslint\": \"^9.0.0\", \"tsx\": \"^4.19.0\" }\n}\n" },
+        { "bash": "npx vitest run --pool=forks", "out": " Test Files  5 passed (5)\n      Tests  46 passed (46)\n" }
+      ],
+      "commit": "Run vitest with forks pool",
+      "final": "The test script uses --pool=forks now. 46 passed."
+    },
+    {
+      "id": "T9", "type": "session", "agent": "codex",
+      "prompt": "Check the orders table in the local database with psql.",
+      "calls": [
+        { "bash": "psql -c 'select count(*) from orders'", "out": "bash: psql: command not found\n" }
+      ],
+      "final": "psql isn't installed here, so I couldn't query the local database."
+    },
+    {
+      "id": "T10", "type": "session", "agent": "claude",
+      "prompt": "Always use conventional commit messages like fix: or feat:. Never commit .env files. Run the linter and fix the warnings. Then add pagination to GET /users in src/api/routes/users.ts.",
+      "calls": [
+        { "bash": "npx eslint .", "out": "\n/src/api/routes/users.ts\n  1:27  warning  'all' is never reassigned  prefer-const\n\n✖ 1 problem (0 errors, 1 warning)\n" },
+        { "edit": "src/api/routes/users.ts", "content": "export const listUsers = (all: unknown[], page = 1, size = 20) => all.slice((page - 1) * size, page * size);\n" },
+        { "bash": "npx vitest run --pool=forks", "out": "      Tests  47 passed (47)\n" }
+      ],
+      "commit": "feat: paginate users",
+      "final": "GET /users takes page and size (src/api/routes/users.ts). eslint is clean; 47 passed."
+    },
+    {
+      "id": "T11", "type": "session", "agent": "codex",
+      "prompt": "Always use conventional commit messages like fix: or feat:. Never commit .env files. Run the linter and fix the warnings. Then add a rate limit to POST /orders in src/api/routes/orders.ts.",
+      "calls": [
+        { "bash": "npx eslint .", "out": "" },
+        { "edit": "src/api/routes/orders.ts", "content": "const TAX = 0.2;\nconst recent = new Map<string, number>();\nexport const createOrder = (items: { price: number }[]) => ({ total: items.reduce((a, i) => a + Math.round(i.price * (1 + TAX)), 0) });\nexport const cancelOrder = (id: string) => ({ id, status: 'cancelled' });\nexport const limited = (ip: string) => (recent.set(ip, (recent.get(ip) ?? 0) + 1).get(ip)! > 10);\n" },
+        { "bash": "npx vitest run --pool=forks", "out": "      Tests  48 passed (48)\n" }
+      ],
+      "commit": "feat: rate limit order creation",
+      "final": "POST /orders allows ten orders per IP per window (src/api/routes/orders.ts). 48 passed."
+    },
+    {
+      "id": "T12", "type": "session", "agent": "claude",
+      "prompt": "Move background work from the Redis queue to a Postgres job table in src/worker/queue.ts.",
+      "calls": [
+        { "edit": "src/worker/queue.ts", "content": "export const enqueue = (job: unknown) => db.query('insert into jobs (payload) values ($1)', [JSON.stringify(job)]);\ndeclare const db: { query(sql: string, args: unknown[]): void };\n" },
+        { "edit": "src/db/migrations/002_jobs.sql", "content": "create table jobs (id bigserial primary key, payload jsonb, run_at timestamptz default now());\n" },
+        { "bash": "npx vitest run --pool=forks", "out": "      Tests  49 passed (49)\n" }
+      ],
+      "commit": "Postgres job table for background work",
+      "final": "Background jobs are rows in a Postgres jobs table now (migration 002); the Redis queue is gone. 49 passed."
+    },
+    { "id": "M9", "type": "cli", "args": ["memory", "add", "Background work now goes through the Postgres job table instead of the Redis queue (src/worker/queue.ts).", "--kind", "decision"] },
+    {
+      "id": "T13", "type": "session", "agent": "claude",
+      "prompt": "Run the infra checks in my tidewater-infra checkout.",
+      "calls": [
+        { "bash": "cd ../tidewater-infra && npx vitest run", "out": "      Tests  12 passed (12)\n" }
+      ],
+      "final": "tidewater-infra's 12 checks pass."
+    },
+    {
+      "id": "T14", "type": "session", "agent": "codex",
+      "prompt": "Do not deploy as part of this change. Include the request id in every log line from src/lib/logger.ts.",
+      "calls": [
+        { "edit": "src/lib/logger.ts", "content": "export const log = (msg: string, requestId?: string) => console.log(JSON.stringify({ msg, requestId }));\n" },
+        { "bash": "npx vitest run --pool=forks", "out": "      Tests  49 passed (49)\n" }
+      ],
+      "commit": "Include request ids in logs",
+      "final": "Every log line from src/lib/logger.ts carries the request id. Not deployed. 49 passed."
+    },
+    {
+      "id": "T15", "type": "session", "agent": "claude",
+      "prompt": "Why are webhook deliveries duplicated? Fix it in src/api/webhooks.ts.",
+      "calls": [
+        { "edit": "src/api/webhooks.ts", "content": "export const deliver = (url: string, body: unknown, key: string) => fetch(url, { method: 'POST', headers: { 'Idempotency-Key': key }, body: JSON.stringify(body) });\n" },
+        { "bash": "npx vitest run --pool=forks", "out": "      Tests  50 passed (50)\n" }
+      ],
+      "commit": "Idempotency keys for webhooks",
+      "final": "Retries re-sent webhooks without a key, so receivers saw duplicates. Each delivery now carries an Idempotency-Key. 50 passed."
+    },
+    {
+      "id": "T16", "type": "session", "agent": "claude",
+      "prompt": "Add a CSV export of orders in src/api/routes/export.ts.",
+      "calls": [
+        { "edit": "src/api/routes/export.ts", "content": "export const toCsv = (rows: string[][]) => rows.map((r) => r.join(',')).join('\\n');\n" },
+        { "todos": [{ "content": "Write rows", "status": "completed" }, { "content": "Add tests for the CSV escaping", "status": "pending" }] }
+      ],
+      "final": "src/api/routes/export.ts writes orders as CSV. Escaping and its tests are still to do; not committed."
+    }
+  ],
+  "facts": {
+    "T_cur": { "class": "current", "about": "the test command", "pattern": "npx vitest run --pool=forks" },
+    "T_old": { "class": "stale", "about": "the test command before the forks pool, as a note", "pattern": "Run the tests with: npx vitest run(?! --pool)" },
+    "T_else": { "class": "wrong-scope", "about": "another checkout's test command, as this project's", "pattern": "Run the tests with: cd " },
+    "DOCKER": { "class": "current", "about": "docker is not installed", "pattern": "docker is not installed|docker isn't installed|docker: command not found" },
+    "PSQL": { "class": "current", "about": "psql is not installed", "pattern": "psql is not installed|psql isn't installed|psql: command not found" },
+    "TSX_BAD": { "class": "unsupported", "about": "tsx reported missing, though the project installs it and npx tsx works", "pattern": "tsx is not installed" },
+    "MONEY": { "class": "current", "about": "money as integer cents", "pattern": "integer cents" },
+    "UTC": { "class": "current", "about": "timestamps in UTC", "pattern": "stored in UTC" },
+    "ULID": { "class": "current", "about": "order ids are ULIDs", "pattern": "ULIDs" },
+    "QUEUE_OLD": { "class": "stale", "about": "background work in Redis, replaced by M9", "pattern": "Background work goes through the Redis queue" },
+    "QUEUE_CUR": { "class": "current", "about": "background work in a Postgres job table", "pattern": "now goes through the Postgres job table" },
+    "LOGGER": { "class": "current", "about": "JSON logs, never request bodies", "pattern": "never log request bodies" },
+    "ERRFMT": { "class": "current", "about": "API error shape", "pattern": "\\{error: \\{code, message\\}\\}" },
+    "SESSION": { "class": "current", "about": "session expiry", "pattern": "30 minutes of inactivity" },
+    "MIGR": { "class": "current", "about": "SQL migrations convention", "pattern": "plain SQL files in src/db/migrations" },
+    "CC": { "class": "current", "about": "conventional commits, said in two sessions", "pattern": "conventional commit messages" },
+    "ENV": { "class": "current", "about": "never commit .env, said in two sessions", "pattern": "Never commit \\.env files" },
+    "LINT_BAD": { "class": "unsupported", "about": "a task request said in two sessions, saved as standing", "pattern": "preference[^\\n]*Run the linter and fix the warnings" },
+    "TOTALS_NOTE": { "class": "stale", "about": "tax once on the total, saved with orders.ts, which T7 then changed", "pattern": "tax added once on the total" },
+    "TAX": { "class": "current", "about": "tax per line item", "pattern": "[Tt]ax per line item|[Aa]pply tax per line item" },
+    "CANCEL": { "class": "current", "about": "the order cancellation endpoint", "pattern": "[Oo]rder cancellation" },
+    "DATEFIX": { "class": "current", "about": "the date formatting fix", "pattern": "off-by-one day|previous day for customers" },
+    "SEED": { "class": "current", "about": "the seed script", "pattern": "[Ss]eed script for local users" },
+    "RETRY": { "class": "current", "about": "retrying failed jobs", "pattern": "[Rr]etry failed jobs" },
+    "POOL_MOVE": { "class": "current", "about": "when vitest moved to the forks pool", "pattern": "forks pool" },
+    "PAGE": { "class": "current", "about": "users pagination", "pattern": "paginat" },
+    "RATE": { "class": "current", "about": "rate limit on order creation", "pattern": "rate limit" },
+    "QUEUE_MOVE": { "class": "current", "about": "the move to a Postgres job table", "pattern": "Postgres job table for background work|Move background work from the Redis queue" },
+    "REQID": { "class": "current", "about": "request ids in logs", "pattern": "request ids? in (?:logs|every log line)" },
+    "WEBHOOK": { "class": "current", "about": "the webhook duplicate fix", "pattern": "[Ii]dempotency" },
+    "EXPORT": { "class": "current", "about": "the unfinished CSV export", "pattern": "CSV export|CSV escaping" }
+  }
+}

@@ -1,0 +1,339 @@
+diff --git a/packages/vite/src/node/__tests__/packages.spec.ts b/packages/vite/src/node/__tests__/packages.spec.ts
+new file mode 100644
+index 00000000000000..159c7fa4110252
+--- /dev/null
++++ b/packages/vite/src/node/__tests__/packages.spec.ts
+@@ -0,0 +1,112 @@
++import fs from 'node:fs'
++import os from 'node:os'
++import path from 'node:path'
++import { afterEach, expect, test } from 'vitest'
++import { findNearestMainPackageData } from '../packages'
++
++let tempDir: string | undefined
++
++afterEach(() => {
++  if (tempDir) fs.rmSync(tempDir, { recursive: true, force: true })
++  tempDir = undefined
++})
++
++function createFixtures(files: Record<string, object | string>): string {
++  tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vite-packages-'))
++  for (const [file, content] of Object.entries(files)) {
++    const target = path.join(tempDir, file)
++    fs.mkdirSync(path.dirname(target), { recursive: true })
++    fs.writeFileSync(
++      target,
++      typeof content === 'string' ? content : JSON.stringify(content),
++    )
++  }
++  return tempDir
++}
++
++const projectManifest = { name: 'project' }
++
++// paths after realpath resolution under pnpm:
++// `<root>/node_modules/.pnpm/dep@1.0.0/node_modules/dep/...`
++test('resolves the package root for the pnpm store layout', () => {
++  const root = createFixtures({
++    'package.json': projectManifest,
++    'node_modules/.pnpm/dep@1.0.0/node_modules/dep/package.json': {
++      name: 'dep',
++      version: '1.0.0',
++      license: 'MIT',
++    },
++    // nested type-marker manifest with a `name` but no `version`
++    'node_modules/.pnpm/dep@1.0.0/node_modules/dep/build/esm/package.json': {
++      name: 'dep',
++      type: 'module',
++    },
++  })
++  const pkg = findNearestMainPackageData(
++    path.join(root, 'node_modules/.pnpm/dep@1.0.0/node_modules/dep/build/esm'),
++  )
++  expect(pkg?.data).toMatchObject({ name: 'dep', version: '1.0.0' })
++})
++
++// packages hoisted by pnpm to `node_modules/.pnpm/node_modules/<pkg>`
++test('resolves the package root for packages hoisted by pnpm', () => {
++  const root = createFixtures({
++    'package.json': projectManifest,
++    'node_modules/.pnpm/node_modules/hoisted/package.json': {
++      name: 'hoisted',
++      version: '1.0.0',
++    },
++    'node_modules/.pnpm/node_modules/hoisted/build/esm/package.json': {
++      name: 'hoisted',
++      type: 'module',
++    },
++  })
++  const pkg = findNearestMainPackageData(
++    path.join(root, 'node_modules/.pnpm/node_modules/hoisted/build/esm'),
++  )
++  expect(pkg?.data).toMatchObject({ name: 'hoisted', version: '1.0.0' })
++})
++
++test('resolves the package root for scoped packages', () => {
++  const root = createFixtures({
++    'package.json': projectManifest,
++    'node_modules/@scope/dep/package.json': {
++      name: '@scope/dep',
++      version: '2.0.0',
++    },
++    'node_modules/@scope/dep/dist/esm/package.json': {
++      name: '@scope/dep',
++      type: 'module',
++    },
++  })
++  const pkg = findNearestMainPackageData(
++    path.join(root, 'node_modules/@scope/dep/dist/esm'),
++  )
++  expect(pkg?.data).toMatchObject({ name: '@scope/dep', version: '2.0.0' })
++})
++
++// under Yarn PnP, packages are hosted inside zip archives at
++// `.../cache/<pkg>-npm-<ver>-<hash>.zip/node_modules/<pkg>/...` (the cache
++// may live outside the project, e.g. in `~/.yarn/berry/cache`). The path
++// contains a synthesized `node_modules/<pkg>` segment, so the layout-based
++// resolution covers PnP without any PnP-specific handling
++test('resolves the package root for the Yarn PnP zip layout', () => {
++  const root = createFixtures({
++    'package.json': projectManifest,
++    'cache/engine.io-client-npm-6.6.6-fd14f4b531-10c0.zip/node_modules/engine.io-client/package.json':
++      { name: 'engine.io-client', version: '6.6.6', license: 'MIT' },
++    // nested type-marker manifest with a `name` but no `version`
++    'cache/engine.io-client-npm-6.6.6-fd14f4b531-10c0.zip/node_modules/engine.io-client/build/esm/package.json':
++      { name: 'engine.io-client', type: 'module' },
++  })
++  const pkg = findNearestMainPackageData(
++    path.join(
++      root,
++      'cache/engine.io-client-npm-6.6.6-fd14f4b531-10c0.zip/node_modules/engine.io-client/build/esm',
++    ),
++  )
++  expect(pkg?.data).toMatchObject({
++    name: 'engine.io-client',
++    version: '6.6.6',
++  })
++})
+diff --git a/packages/vite/src/node/__tests__/plugins/__snapshots__/license.spec.ts.snap b/packages/vite/src/node/__tests__/plugins/__snapshots__/license.spec.ts.snap
+index d93b6c9515daa3..1546143e444a75 100644
+--- a/packages/vite/src/node/__tests__/plugins/__snapshots__/license.spec.ts.snap
++++ b/packages/vite/src/node/__tests__/plugins/__snapshots__/license.spec.ts.snap
+@@ -14,6 +14,12 @@ exports[`json 1`] = `
+     "identifier": "MIT",
+     "text": "MIT License\\n\\nCopyright (c) ..."
+   },
++  {
++    "name": "@vitejs/test-dep-license-type-marker",
++    "version": "1.0.0",
++    "identifier": "MIT",
++    "text": "MIT License\\n\\nCopyright (c) ..."
++  },
+   {
+     "name": "@vitejs/test-dep-nested-license-isc",
+     "version": "0.0.0",
+@@ -40,6 +46,12 @@ MIT License
+ 
+ Copyright (c) ...
+ 
++## @vitejs/test-dep-license-type-marker - 1.0.0 (MIT)
++
++MIT License
++
++Copyright (c) ...
++
+ ## @vitejs/test-dep-nested-license-isc - 0.0.0 (ISC)
+ 
+ Copyright (c) ...
+diff --git a/packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/build/devtools/index.js b/packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/build/devtools/index.js
+new file mode 100644
+index 00000000000000..e11c75b1f19d50
+--- /dev/null
++++ b/packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/build/devtools/index.js
+@@ -0,0 +1,4 @@
++// Avoid to be inlined completely: https://github.com/rolldown/rolldown/issues/8100
++console.log()
++
++export default 'devtools'
+diff --git a/packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/build/devtools/package.json b/packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/build/devtools/package.json
+new file mode 100644
+index 00000000000000..2bbae143ba4199
+--- /dev/null
++++ b/packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/build/devtools/package.json
+@@ -0,0 +1,6 @@
++{
++  "name": "@vitejs/test-dep-license-type-marker-devtools",
++  "version": "1.0.0",
++  "private": true,
++  "main": "index.js"
++}
+diff --git a/packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/build/esm/index.js b/packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/build/esm/index.js
+new file mode 100644
+index 00000000000000..053d82cc7498eb
+--- /dev/null
++++ b/packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/build/esm/index.js
+@@ -0,0 +1,5 @@
++// Avoid to be inlined completely: https://github.com/rolldown/rolldown/issues/8100
++console.log()
++
++export { default as devtools } from '../devtools/index.js'
++export default 'ok'
+diff --git a/packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/build/esm/package.json b/packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/build/esm/package.json
+new file mode 100644
+index 00000000000000..8b9091d41e41b5
+--- /dev/null
++++ b/packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/build/esm/package.json
+@@ -0,0 +1,4 @@
++{
++  "name": "@vitejs/test-dep-license-type-marker",
++  "type": "module"
++}
+diff --git a/packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/license b/packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/license
+new file mode 100644
+index 00000000000000..1732da241e5252
+--- /dev/null
++++ b/packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/license
+@@ -0,0 +1,3 @@
++MIT License
++
++Copyright (c) ...
+diff --git a/packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/package.json b/packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/package.json
+new file mode 100644
+index 00000000000000..5db5607a1f9c68
+--- /dev/null
++++ b/packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/package.json
+@@ -0,0 +1,9 @@
++{
++  "name": "@vitejs/test-dep-license-type-marker",
++  "private": true,
++  "version": "1.0.0",
++  "license": "MIT",
++  "exports": {
++    ".": "./build/esm/index.js"
++  }
++}
+diff --git a/packages/vite/src/node/__tests__/plugins/fixtures/license/index.html b/packages/vite/src/node/__tests__/plugins/fixtures/license/index.html
+index b0825ecb300d5b..cf1dd5f1e85b1e 100644
+--- a/packages/vite/src/node/__tests__/plugins/fixtures/license/index.html
++++ b/packages/vite/src/node/__tests__/plugins/fixtures/license/index.html
+@@ -1,5 +1,6 @@
+ <script type="module">
+   import dep1 from '@vitejs/test-dep-licence-cc0'
+   import dep2 from '@vitejs/test-dep-license-mit'
+-  console.log(dep1, dep2)
++  import dep3 from '@vitejs/test-dep-license-type-marker'
++  console.log(dep1, dep2, dep3)
+ </script>
+diff --git a/packages/vite/src/node/__tests__/plugins/fixtures/license/package.json b/packages/vite/src/node/__tests__/plugins/fixtures/license/package.json
+index 4e06638e94f0cc..1f2a8eaa73484f 100644
+--- a/packages/vite/src/node/__tests__/plugins/fixtures/license/package.json
++++ b/packages/vite/src/node/__tests__/plugins/fixtures/license/package.json
+@@ -5,6 +5,7 @@
+   "type": "module",
+   "dependencies": {
+     "@vitejs/test-dep-license-mit": "file:./dep-license-mit",
++    "@vitejs/test-dep-license-type-marker": "file:./dep-license-type-marker",
+     "@vitejs/test-dep-licence-cc0": "file:./dep-licence-cc0"
+   }
+ }
+diff --git a/packages/vite/src/node/packages.ts b/packages/vite/src/node/packages.ts
+index 2021af272c77ab..457aea0a07b544 100644
+--- a/packages/vite/src/node/packages.ts
++++ b/packages/vite/src/node/packages.ts
+@@ -158,20 +158,40 @@ export function findNearestPackageData(
+   return null
+ }
+ 
+-// Finds the nearest package.json with a `name` field
++function isNodeModulesPackageRoot(pkgDir: string): boolean {
++  const parent = path.dirname(pkgDir)
++  if (path.basename(parent) === 'node_modules') {
++    return !path.basename(pkgDir).startsWith('@')
++  }
++  // scoped package root: `node_modules/@scope/pkg`
++  return (
++    path.basename(parent).startsWith('@') &&
++    path.basename(path.dirname(parent)) === 'node_modules'
++  )
++}
++
++// Finds the nearest package.json with a `name` field. For paths inside
++// `node_modules`, the manifest at the package root is returned instead, which
++// may be further up than the nearest manifest.
+ export function findNearestMainPackageData(
+   basedir: string,
+   packageCache?: PackageCache,
+ ): PackageData | null {
+   const nearestPackage = findNearestPackageData(basedir, packageCache)
+-  return (
+-    nearestPackage &&
+-    (nearestPackage.data.name
+-      ? nearestPackage
+-      : findNearestMainPackageData(
+-          path.dirname(nearestPackage.dir),
+-          packageCache,
+-        ))
++  if (!nearestPackage) return null
++  if (
++    isInNodeModules(nearestPackage.dir) &&
++    !isNodeModulesPackageRoot(nearestPackage.dir)
++  ) {
++    return findNearestMainPackageData(
++      path.dirname(nearestPackage.dir),
++      packageCache,
++    )
++  }
++  if (nearestPackage.data.name) return nearestPackage
++  return findNearestMainPackageData(
++    path.dirname(nearestPackage.dir),
++    packageCache,
+   )
+ }
+ 
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index f7891f1b8b62fb..c1797c1bef9a3c 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -506,6 +506,9 @@ importers:
+       '@vitejs/test-dep-license-mit':
+         specifier: file:./dep-license-mit
+         version: file:packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-mit
++      '@vitejs/test-dep-license-type-marker':
++        specifier: file:./dep-license-type-marker
++        version: file:packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker
+ 
+   packages/vite/src/node/__tests__/plugins/fixtures/license/dep-licence-cc0: {}
+ 
+@@ -515,6 +518,12 @@ importers:
+         specifier: file:../dep-nested-license-isc
+         version: file:packages/vite/src/node/__tests__/plugins/fixtures/license/dep-nested-license-isc
+ 
++  packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker: {}
++
++  packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/build/devtools: {}
++
++  packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker/build/esm: {}
++
+   packages/vite/src/node/__tests__/plugins/fixtures/license/dep-nested-license-isc: {}
+ 
+   packages/vite/src/node/server/__tests__/fixtures/deno/nested: {}
+@@ -4396,6 +4405,9 @@ packages:
+   '@vitejs/test-dep-license-mit@file:packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-mit':
+     resolution: {directory: packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-mit, type: directory}
+ 
++  '@vitejs/test-dep-license-type-marker@file:packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker':
++    resolution: {directory: packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker, type: directory}
++
+   '@vitejs/test-dep-lodash-es@file:playground/optimize-deps/dep-lodash-es':
+     resolution: {directory: playground/optimize-deps/dep-lodash-es, type: directory}
+ 
+@@ -10299,6 +10311,8 @@ snapshots:
+     dependencies:
+       '@vitejs/test-dep-nested-license-isc': file:packages/vite/src/node/__tests__/plugins/fixtures/license/dep-nested-license-isc
+ 
++  '@vitejs/test-dep-license-type-marker@file:packages/vite/src/node/__tests__/plugins/fixtures/license/dep-license-type-marker': {}
++
+   '@vitejs/test-dep-lodash-es@file:playground/optimize-deps/dep-lodash-es': {}
+ 
+   '@vitejs/test-dep-lodash.clonedeep@file:playground/optimize-deps/dep-lodash-clonedeep': {}

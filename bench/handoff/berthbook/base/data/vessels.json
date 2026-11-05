@@ -1,0 +1,6 @@
+[
+  {"id": "v1", "name": "Marlin", "length_m": 14.2},
+  {"id": "v2", "name": "Osprey", "length_m": 9.8},
+  {"id": "v3", "name": "Kittiwake", "length_m": 11.5},
+  {"id": "v4", "name": "Bluefin", "length_m": 22.0}
+]

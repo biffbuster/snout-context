@@ -1,0 +1,8 @@
+[
+  { "driver": "ingrid", "depot": "OSL", "start": "2026-10-19T06:00:00Z", "end": "2026-10-19T14:00:00Z" },
+  { "driver": "marc", "depot": "YYZ", "start": "2026-10-19T13:00:00Z", "end": "2026-10-19T21:30:00Z" },
+  { "driver": "marc", "depot": "YYZ", "start": "2026-10-26T01:00:00Z", "end": "2026-10-26T05:00:00Z" },
+  { "driver": "tash", "depot": "SYD", "start": "2026-10-19T21:00:00Z", "end": "2026-10-20T05:00:00Z" },
+  { "driver": "tash", "depot": "SYD", "start": "2026-10-25T19:00:00Z", "end": "2026-10-26T03:00:00Z" },
+  { "driver": "per", "depot": "OSL", "start": "2026-10-20T07:00:00Z", "end": "2026-10-20T15:00:00Z" }
+]

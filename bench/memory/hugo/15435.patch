@@ -1,0 +1,148 @@
+diff --git a/internal/js/esbuild/options.go b/internal/js/esbuild/options.go
+index 9248701f7e9..8d82e1134f9 100644
+--- a/internal/js/esbuild/options.go
++++ b/internal/js/esbuild/options.go
+@@ -160,6 +160,11 @@ type ExternalOptions struct {
+ 	// See https://esbuild.github.io/api/#platform
+ 	Platform string
+ 
++	// One of ascii, utf8.
++	// Default is ascii, which escapes non-ASCII characters.
++	// See https://esbuild.github.io/api/#charset
++	Charset string
++
+ 	// When you import a package in node, the main field in that package's package.json file
+ 	// determines which file is imported (along with a lot of other rules).
+ 	// The default main fields is controlled by ESBuild and depend on the current platform setting.
+@@ -385,6 +390,17 @@ OUTER:
+ 		return
+ 	}
+ 
++	var charset api.Charset
++	switch opts.Charset {
++	case "", "ascii":
++		charset = api.CharsetASCII
++	case "utf8":
++		charset = api.CharsetUTF8
++	default:
++		err = fmt.Errorf("unsupported charset: %q", opts.Charset)
++		return
++	}
++
+ 	var defines map[string]string
+ 	if opts.Defines != nil {
+ 		defines = hmaps.ToStringMapString(opts.Defines)
+@@ -441,6 +457,7 @@ OUTER:
+ 		Format:         format,
+ 		MainFields:     opts.MainFields,
+ 		Platform:       platform,
++		Charset:        charset,
+ 		Sourcemap:      sourceMap,
+ 		SourcesContent: sourcesContent,
+ 
+diff --git a/internal/js/esbuild/options_test.go b/internal/js/esbuild/options_test.go
+index 683a32db082..619f196a2db 100644
+--- a/internal/js/esbuild/options_test.go
++++ b/internal/js/esbuild/options_test.go
+@@ -37,6 +37,7 @@ func TestToBuildOptions(t *testing.T) {
+ 		Target:         api.ESNext,
+ 		Format:         api.FormatIIFE,
+ 		Platform:       api.PlatformBrowser,
++		Charset:        api.CharsetASCII,
+ 		SourcesContent: 1,
+ 		Stdin: &api.StdinOptions{
+ 			Loader: api.LoaderJS,
+@@ -58,6 +59,7 @@ func TestToBuildOptions(t *testing.T) {
+ 		Target:            api.ES2018,
+ 		Format:            api.FormatCommonJS,
+ 		Platform:          api.PlatformBrowser,
++		Charset:           api.CharsetASCII,
+ 		SourcesContent:    1,
+ 		MinifyIdentifiers: true,
+ 		MinifySyntax:      true,
+@@ -80,6 +82,7 @@ func TestToBuildOptions(t *testing.T) {
+ 		Target:            api.ES2018,
+ 		Format:            api.FormatCommonJS,
+ 		Platform:          api.PlatformBrowser,
++		Charset:           api.CharsetASCII,
+ 		MinifyIdentifiers: true,
+ 		MinifySyntax:      true,
+ 		MinifyWhitespace:  true,
+@@ -103,6 +106,7 @@ func TestToBuildOptions(t *testing.T) {
+ 		Target:            api.ES2018,
+ 		Format:            api.FormatCommonJS,
+ 		Platform:          api.PlatformBrowser,
++		Charset:           api.CharsetASCII,
+ 		MinifyIdentifiers: true,
+ 		MinifySyntax:      true,
+ 		MinifyWhitespace:  true,
+@@ -126,6 +130,7 @@ func TestToBuildOptions(t *testing.T) {
+ 		Target:            api.ES2018,
+ 		Format:            api.FormatCommonJS,
+ 		Platform:          api.PlatformBrowser,
++		Charset:           api.CharsetASCII,
+ 		MinifyIdentifiers: true,
+ 		MinifySyntax:      true,
+ 		MinifyWhitespace:  true,
+@@ -148,6 +153,7 @@ func TestToBuildOptions(t *testing.T) {
+ 		Target:         api.ESNext,
+ 		Format:         api.FormatIIFE,
+ 		Platform:       api.PlatformBrowser,
++		Charset:        api.CharsetASCII,
+ 		SourcesContent: 1,
+ 		Stdin: &api.StdinOptions{
+ 			Loader: api.LoaderJS,
+@@ -227,6 +233,7 @@ func TestDecodeExternalOptions(t *testing.T) {
+ 		Target:         api.ESNext,
+ 		Format:         api.FormatIIFE,
+ 		Platform:       api.PlatformNode,
++		Charset:        api.CharsetASCII,
+ 		SourcesContent: api.SourcesContentInclude,
+ 	})
+ }
+diff --git a/resources/resource_transformers/js/js_integration_test.go b/resources/resource_transformers/js/js_integration_test.go
+index d916f4884ef..5f13f41e7df 100644
+--- a/resources/resource_transformers/js/js_integration_test.go
++++ b/resources/resource_transformers/js/js_integration_test.go
+@@ -107,7 +107,8 @@ COUNT2: {{ len .Data.Artifacts }}
+ `
+ 
+ 	b := hugolib.Test(t, files, hugolib.TestOptOsFs())
+-	b.AssertFileContent("public/index.html",
++	b.AssertFileContent(
++		"public/index.html",
+ 		"COUNT: 1",
+ 		"ARTIFACT: /js/main.js.map|https://example.org/js/main.js.map|application/source-map",
+ 		"COUNT2: 0",
+@@ -517,3 +518,31 @@ allowRead = [".", ".."]
+ 		b.AssertFileContent("public/index.html", "PWN-SECRET", "LOCAL-HELPER-OK")
+ 	})
+ }
++
++// See issue 15435.
++func TestBuildCharset(t *testing.T) {
++	t.Parallel()
++
++	files := `
++-- assets/js/main.js --
++console.log("日本語");
++-- assets/css/main.css --
++p::before { content: "日本語"; }
++-- layouts/home.html --
++{{ resources.Get "js/main.js" | js.Build (dict "targetPath" "js/ascii.js") | resources.Publish }}
++{{ resources.Get "js/main.js" | js.Build (dict "targetPath" "js/utf8.js" "charset" "utf8") | resources.Publish }}
++{{ resources.Get "css/main.css" | css.Build (dict "targetPath" "css/ascii.css") | resources.Publish }}
++{{ resources.Get "css/main.css" | css.Build (dict "targetPath" "css/utf8.css" "charset" "utf8") | resources.Publish }}
++`
++
++	b := hugolib.Test(t, files, hugolib.TestOptOsFs())
++
++	b.AssertFileContent("public/js/ascii.js", "! 日本語")
++	b.AssertFileContent("public/js/utf8.js", `"日本語"`)
++	b.AssertFileContent("public/css/ascii.css", "! 日本語")
++	b.AssertFileContent("public/css/utf8.css", `"日本語"`)
++
++	files = strings.Replace(files, `"charset" "utf8"`, `"charset" "foo"`, 1)
++	_, err := hugolib.TestE(t, files, hugolib.TestOptOsFs())
++	b.Assert(err, qt.ErrorMatches, `.*unsupported charset: "foo".*`)
++}

@@ -1,0 +1,23 @@
+{
+  "about": "Gate 3, fourth unseen check: prompts for unseen4/history.json, scored exactly as the main set (see ../prompts.json). W08 names packages/api/src/index.ts while a newer session changed packages/web/src/index.ts. W15 shares one word (API) with one note and must stay silent.",
+  "prompts": [
+    { "id": "W01", "prompt": "Add a test for the /status endpoint and run the tests.", "query": "run tests", "delivery": ["T_cur"], "recall": "any", "search": ["T_cur"] },
+    { "id": "W02", "prompt": "How do I run the test suite?", "query": "test command", "delivery": ["T_cur"], "recall": "any", "search": ["T_cur"] },
+    { "id": "W03", "prompt": "Publish the docs with mkdocs.", "query": "mkdocs", "delivery": ["MKDOCS"], "recall": "any", "search": ["MKDOCS"] },
+    { "id": "W04", "prompt": "Type-check the web package with tsc.", "query": "tsc", "delivery": "any", "recall": "any", "search": "any" },
+    { "id": "W05", "prompt": "How should the API report errors?", "query": "api errors", "delivery": ["ERR"], "recall": "any", "search": ["ERR"] },
+    { "id": "W06", "prompt": "Where are sessions stored?", "query": "session storage", "delivery": ["SESS_CUR"], "recall": "any", "search": ["SESS_CUR"] },
+    { "id": "W07", "prompt": "Is the profile cache still in packages/api/src/cache.ts?", "query": "profile cache", "delivery": "any", "recall": ["CACHE_CUR"], "search": ["CACHE_CUR"] },
+    { "id": "W08", "prompt": "Which endpoints are in packages/api/src/index.ts?", "query": "status endpoint", "delivery": "any", "recall": ["STATUS"], "search": ["STATUS"] },
+    { "id": "W09", "prompt": "How was the profile cache removed?", "query": "profile cache removed", "delivery": "any", "recall": ["CACHE_CUR"], "search": ["CACHE_CUR"] },
+    { "id": "W10", "prompt": "When did jest start running in band?", "query": "jest band", "delivery": "any", "recall": ["INBAND_MOVE"], "search": ["T_cur", "INBAND_MOVE"] },
+    { "id": "W11", "prompt": "Continue where the last session left off.", "query": "rate limiting", "delivery": ["RATE"], "recall": "any", "search": ["RATE"] },
+    { "id": "W12", "prompt": "Should I commit the built files in packages/web/dist?", "query": "commit dist", "delivery": ["DIST"], "recall": "any", "search": ["DIST"] },
+    { "id": "W13", "prompt": "Run the linter before you finish.", "query": "linter", "delivery": "any", "recall": "any", "search": "any" },
+    { "id": "W14", "prompt": "Generate a sitemap for the marketing site.", "query": "sitemap", "delivery": "silent", "recall": "silent", "search": "silent" },
+    { "id": "W15", "prompt": "Write a Dockerfile for the API.", "query": "dockerfile", "delivery": "silent", "recall": "silent", "search": "silent" },
+    { "id": "W16", "prompt": "Use pnpm to install dependencies.", "query": "pnpm install", "delivery": "silent", "recall": "silent", "search": "silent" },
+    { "id": "W17", "prompt": "Why is the chart slow on Safari?", "query": "chart safari", "delivery": "silent", "recall": "silent", "search": "silent" },
+    { "id": "W18", "prompt": "Translate the UI strings to Spanish.", "query": "translate spanish", "delivery": "silent", "recall": "silent", "search": "silent" }
+  ]
+}
