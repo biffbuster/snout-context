@@ -1,0 +1,463 @@
+{
+ "about": "Gate 3, fifteenth unseen check: written and frozen on 2026-10-28 after the on-demand fixes of this round (word forms, the successor of an out-of-date note, the task tie-break) and the scorer's equivalent-answer rule were locked, and run once. A Go ferry-ticketing service tested with go test.",
+ "project": {
+  "name": "ferrylog",
+  "files": {
+   ".gitignore": "/bin/\n.env\n",
+   "go.mod": "module ferrylog\n\ngo 1.23\n",
+   "internal/tickets/book.go": "package tickets\n\nfunc Book(sailing, seat string) bool { return sailing != \"\" && seat != \"\" }\n",
+   "internal/fares/fares.go": "package fares\n\nconst AdultFareCents = 1800\n",
+   "internal/schedule/sailings.go": "package schedule\n\ntype Sailing struct{ Departs string }\n",
+   "internal/notify/sms.go": "package notify\n\nfunc Send(to, body string) error { return nil }\n",
+   "docker-compose.yml": "services:\n  db:\n    image: postgres:15\n",
+   "internal/tickets/book_test.go": "package tickets\n\nimport \"testing\"\n\nfunc TestPlaceholder(t *testing.T) {}\n"
+  }
+ },
+ "steps": [
+  {
+   "id": "H1",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Add seat booking in internal/tickets/book.go and make sure the tests pass.",
+   "calls": [
+    {
+     "edit": "internal/tickets/book.go",
+     "content": "package tickets\n\nvar taken = map[string]bool{}\n\nfunc Book(sailing, seat string) bool {\n\tif taken[sailing+seat] {\n\t\treturn false\n\t}\n\ttaken[sailing+seat] = true\n\treturn true\n}\n"
+    },
+    {
+     "bash": "go test ./...",
+     "out": "ok  \tferrylog/internal/tickets\t0.412s\nok  \tferrylog/internal/fares\t0.103s\n14 tests passed\n"
+    }
+   ],
+   "commit": "Add seat booking",
+   "final": "internal/tickets/book.go books a seat on a sailing and refuses one already taken. go test: 14 passed."
+  },
+  {
+   "id": "H2",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Run the tests with go test -race ./... from now on; the hold sweeper has a data race.",
+   "calls": [
+    {
+     "edit": "Makefile",
+     "content": "test:\n\tgo test -race ./...\n"
+    },
+    {
+     "bash": "go test -race ./...",
+     "out": "ok  \tferrylog/internal/tickets\t0.412s\nok  \tferrylog/internal/fares\t0.103s\n15 tests passed\n"
+    }
+   ],
+   "commit": "Run tests with the race detector",
+   "final": "Tests run with go test -race ./... now, so the race detector catches the hold sweeper's data race. 15 passed."
+  },
+  {
+   "id": "H3",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Generate the query code with sqlc.",
+   "calls": [
+    {
+     "bash": "sqlc generate",
+     "out": "bash: sqlc: command not found\n"
+    }
+   ],
+   "final": "sqlc isn't installed here, so the query code was not generated."
+  },
+  {
+   "id": "M1",
+   "type": "cli",
+   "args": [
+    "memory",
+    "add",
+    "Fares are stored in cents as int64, never as floats.",
+    "--kind",
+    "decision"
+   ]
+  },
+  {
+   "id": "M2",
+   "type": "cli",
+   "args": [
+    "memory",
+    "add",
+    "A booking holds a seat for 15 minutes before payment.",
+    "--kind",
+    "convention"
+   ]
+  },
+  {
+   "id": "M3",
+   "type": "cli",
+   "args": [
+    "memory",
+    "add",
+    "Boarding-pass SMS messages go through Twilio from internal/notify/sms.go.",
+    "--kind",
+    "convention"
+   ]
+  },
+  {
+   "id": "M4",
+   "type": "cli",
+   "args": [
+    "memory",
+    "add",
+    "Sailing times are stored in UTC and shown in the harbour's local time.",
+    "--kind",
+    "decision"
+   ]
+  },
+  {
+   "id": "M5",
+   "type": "cli",
+   "args": [
+    "memory",
+    "add",
+    "Vehicle tickets need the vehicle's registration plate.",
+    "--kind",
+    "convention"
+   ]
+  },
+  {
+   "id": "H4",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Fix two passengers getting the same seat when they book at once, in internal/tickets/book.go.",
+   "calls": [
+    {
+     "edit": "internal/tickets/book.go",
+     "content": "package tickets\n\n// unique index on (sailing, seat)\nvar taken = map[string]bool{}\n\nfunc Book(sailing, seat string) bool {\n\tif taken[sailing+seat] {\n\t\treturn false\n\t}\n\ttaken[sailing+seat] = true\n\treturn true\n}\n"
+    },
+    {
+     "bash": "go test -race ./...",
+     "out": "ok  \tferrylog/internal/tickets\t0.412s\nok  \tferrylog/internal/fares\t0.103s\n16 tests passed\n"
+    }
+   ],
+   "commit": "Unique seat per sailing",
+   "final": "Seat booking uses a unique index on sailing and seat, so two passengers can no longer get the same seat. 16 passed."
+  },
+  {
+   "id": "H5",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Remember that the adult fare is 18 euros, set in internal/fares/fares.go.",
+   "mcp": [
+    {
+     "tool": "snout_memory_save",
+     "args": {
+      "text": "The adult fare is 18 euros, set in internal/fares/fares.go.",
+      "kind": "fact",
+      "user_asked": true,
+      "files": [
+       "internal/fares/fares.go"
+      ]
+     }
+    }
+   ],
+   "calls": [],
+   "final": "Saved: the adult fare is 18 euros, set in internal/fares/fares.go. Also, unpaid holds are released by the sweeper every 5 minutes."
+  },
+  {
+   "id": "H6",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Raise the adult fare to 21 euros, in internal/fares/fares.go.",
+   "calls": [
+    {
+     "edit": "internal/fares/fares.go",
+     "content": "package fares\n\nconst AdultFareCents = 2100\n"
+    },
+    {
+     "bash": "go test -race ./...",
+     "out": "ok  \tferrylog/internal/tickets\t0.412s\nok  \tferrylog/internal/fares\t0.103s\n17 tests passed\n"
+    }
+   ],
+   "commit": "Adult fare 21 euros",
+   "final": "internal/fares/fares.go charges 21 euros for an adult now. 17 passed."
+  },
+  {
+   "id": "H7",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Add a waitlist for full sailings in internal/tickets/waitlist.go.",
+   "calls": [
+    {
+     "edit": "internal/tickets/waitlist.go",
+     "content": "package tickets\n\nvar waitlist = map[string][]string{}\n"
+    },
+    {
+     "bash": "go test -race ./...",
+     "out": "ok  \tferrylog/internal/tickets\t0.412s\nok  \tferrylog/internal/fares\t0.103s\n19 tests passed\n"
+    }
+   ],
+   "commit": "Waitlist for full sailings",
+   "final": "internal/tickets/waitlist.go keeps a waitlist per full sailing and offers a freed seat to the first in line. 19 passed."
+  },
+  {
+   "id": "H8",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Never log a passenger's passport number. Add passenger profiles in internal/passengers/profile.go.",
+   "calls": [
+    {
+     "edit": "internal/passengers/profile.go",
+     "content": "package passengers\n\ntype Profile struct{ ID, Passport string }\n"
+    },
+    {
+     "bash": "go test -race ./...",
+     "out": "ok  \tferrylog/internal/tickets\t0.412s\nok  \tferrylog/internal/fares\t0.103s\n20 tests passed\n"
+    }
+   ],
+   "commit": "Passenger profiles",
+   "final": "internal/passengers/profile.go holds passenger profiles; logs carry the passenger id only. 20 passed."
+  },
+  {
+   "id": "H9",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Never log a passenger's passport number. Send a delay alert when a sailing is late, in internal/notify/delay.go.",
+   "calls": [
+    {
+     "edit": "internal/notify/delay.go",
+     "content": "package notify\n\nfunc Late(minutes int) bool { return minutes >= 15 }\n"
+    },
+    {
+     "bash": "go test -race ./...",
+     "out": "ok  \tferrylog/internal/tickets\t0.412s\nok  \tferrylog/internal/fares\t0.103s\n21 tests passed\n"
+    }
+   ],
+   "commit": "Delay alerts",
+   "final": "internal/notify/delay.go texts a delay alert to every passenger when a sailing is 15 minutes late or more. 21 passed."
+  },
+  {
+   "id": "H10",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Tag a release after merging. Add a cabin upgrade option in internal/tickets/cabin.go.",
+   "calls": [
+    {
+     "edit": "internal/tickets/cabin.go",
+     "content": "package tickets\n\nfunc Upgrade(ticket string) string { return ticket + \"+cabin\" }\n"
+    },
+    {
+     "bash": "go test -race ./...",
+     "out": "ok  \tferrylog/internal/tickets\t0.412s\nok  \tferrylog/internal/fares\t0.103s\n22 tests passed\n"
+    }
+   ],
+   "commit": "Cabin upgrades",
+   "final": "internal/tickets/cabin.go lets a passenger add a cabin upgrade to a ticket. 22 passed; tagged v1.6.0."
+  },
+  {
+   "id": "H11",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Tag a release after merging. Add a pet fee in internal/fares/pets.go.",
+   "calls": [
+    {
+     "edit": "internal/fares/pets.go",
+     "content": "package fares\n\nconst PetFeeCents = 500\n"
+    },
+    {
+     "bash": "go test -race ./...",
+     "out": "ok  \tferrylog/internal/tickets\t0.412s\nok  \tferrylog/internal/fares\t0.103s\n23 tests passed\n"
+    }
+   ],
+   "commit": "Pet fee",
+   "final": "internal/fares/pets.go adds a 5 euro pet fee per animal. 23 passed; tagged v1.6.1."
+  },
+  {
+   "id": "H12",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Run the integration tests in my ferrylog-e2e checkout.",
+   "calls": [
+    {
+     "bash": "cd ../ferrylog-e2e && go test ./...",
+     "out": "ok  \tferrylog-e2e/flows\t2.104s\n6 tests passed\n"
+    }
+   ],
+   "final": "ferrylog-e2e's 6 integration tests pass."
+  },
+  {
+   "id": "H13",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Why are some sailings shown a day early? Fix it in internal/schedule/sailings.go.",
+   "calls": [
+    {
+     "edit": "internal/schedule/sailings.go",
+     "content": "package schedule\n\ntype Sailing struct{ Departs string; Harbour string }\n"
+    },
+    {
+     "bash": "go test -race ./...",
+     "out": "ok  \tferrylog/internal/tickets\t0.412s\nok  \tferrylog/internal/fares\t0.103s\n24 tests passed\n"
+    }
+   ],
+   "commit": "Departure dates in harbour time",
+   "final": "Departure dates were cut to the UTC day, so a late-evening sailing showed a day early; dates are taken in the harbour's local time now. 24 passed."
+  },
+  {
+   "id": "H14",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Add a lost-property log in internal/lost/items.go.",
+   "calls": [
+    {
+     "edit": "internal/lost/items.go",
+     "content": "package lost\n\ntype Item struct{ Sailing, What string }\n"
+    },
+    {
+     "bash": "go test -race ./...",
+     "out": "ok  \tferrylog/internal/tickets\t0.412s\nok  \tferrylog/internal/fares\t0.103s\n25 tests passed\n"
+    }
+   ],
+   "commit": "Lost-property log",
+   "final": "internal/lost/items.go records lost-property items found on each sailing. 25 passed."
+  },
+  {
+   "id": "H15",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Move the database to Postgres 16 in docker-compose.yml.",
+   "calls": [
+    {
+     "edit": "docker-compose.yml",
+     "content": "services:\n  db:\n    image: postgres:16\n"
+    }
+   ],
+   "commit": "Postgres 16",
+   "final": "docker-compose.yml runs Postgres 16."
+  },
+  {
+   "id": "H16",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Add a group booking discount in internal/fares/groups.go.",
+   "calls": [
+    {
+     "edit": "internal/fares/groups.go",
+     "content": "package fares\n\nfunc GroupDiscount(n int) int { if n >= 10 { return 10 }; return 0 }\n"
+    },
+    {
+     "todos": [
+      {
+       "content": "Apply 10% off for groups of 10 or more",
+       "status": "completed"
+      },
+      {
+       "content": "Show the discount on the receipt",
+       "status": "pending"
+      }
+     ]
+    }
+   ],
+   "final": "internal/fares/groups.go applies 10% off for groups of 10 or more. Showing the discount on the receipt is still to do; not committed."
+  }
+ ],
+ "facts": {
+  "T_cur": {
+   "class": "current",
+   "pattern": "go test -race \\./\\.\\.\\."
+  },
+  "T_old": {
+   "class": "stale",
+   "pattern": "Run the tests with: go test \\./\\.\\.\\."
+  },
+  "T_else": {
+   "class": "wrong-scope",
+   "pattern": "Run the tests with: cd "
+  },
+  "SQLC": {
+   "class": "current",
+   "pattern": "sqlc is not installed|sqlc isn't installed|sqlc: command not found"
+  },
+  "CENTS": {
+   "class": "current",
+   "pattern": "in cents as int64"
+  },
+  "HOLD15": {
+   "class": "current",
+   "pattern": "for 15 minutes before payment"
+  },
+  "TWILIO": {
+   "class": "current",
+   "pattern": "Twilio"
+  },
+  "UTC": {
+   "class": "current",
+   "pattern": "stored in UTC"
+  },
+  "PLATE": {
+   "class": "current",
+   "pattern": "registration plate"
+  },
+  "TAG_BAD": {
+   "class": "unsupported",
+   "pattern": "preference[^\\n]*Tag a release after merging"
+  },
+  "FARE_OLD": {
+   "class": "stale",
+   "pattern": "adult fare is 18 euros"
+  },
+  "FARE_CUR": {
+   "class": "current",
+   "pattern": "21 euros"
+  },
+  "SWEEP": {
+   "class": "current",
+   "pattern": "every 5 minutes"
+  },
+  "BOOKING": {
+   "class": "current",
+   "pattern": "[Ss]eat booking|books a seat"
+  },
+  "RACE": {
+   "class": "current",
+   "pattern": "data race|race detector"
+  },
+  "DOUBLESEAT": {
+   "class": "current",
+   "pattern": "unique index on sailing and seat|same seat"
+  },
+  "WAITLIST": {
+   "class": "current",
+   "pattern": "[Ww]aitlist"
+  },
+  "PROFILES": {
+   "class": "current",
+   "pattern": "[Pp]assenger profiles"
+  },
+  "NOPASS": {
+   "class": "current",
+   "pattern": "[Nn]ever log a passenger's passport number"
+  },
+  "DELAY": {
+   "class": "current",
+   "pattern": "[Dd]elay alert"
+  },
+  "CABIN": {
+   "class": "current",
+   "pattern": "[Cc]abin upgrade"
+  },
+  "PETS": {
+   "class": "current",
+   "pattern": "[Pp]et fee"
+  },
+  "LOCALDAY": {
+   "class": "current",
+   "pattern": "UTC day|harbour's local time now"
+  },
+  "LOST": {
+   "class": "current",
+   "pattern": "[Ll]ost-property"
+  },
+  "PG16": {
+   "class": "current",
+   "pattern": "Postgres 16"
+  },
+  "GROUP": {
+   "class": "current",
+   "pattern": "[Gg]roup booking discount|10% off for groups"
+  }
+ }
+}

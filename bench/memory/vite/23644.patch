@@ -1,0 +1,56 @@
+diff --git a/packages/vite/src/node/__tests__/plugins/oxc.spec.ts b/packages/vite/src/node/__tests__/plugins/oxc.spec.ts
+index 48c91c9f7b979f..be8665f8240c98 100644
+--- a/packages/vite/src/node/__tests__/plugins/oxc.spec.ts
++++ b/packages/vite/src/node/__tests__/plugins/oxc.spec.ts
+@@ -1,7 +1,33 @@
+ import path from 'node:path'
+ import { describe, expect, test } from 'vitest'
++import { PartialEnvironment } from '../../baseEnvironment'
+ import { resolveConfig } from '../../config'
+-import { transformWithOxc } from '../../plugins/oxc'
++import { oxcPlugin, transformWithOxc } from '../../plugins/oxc'
++
++describe('oxcPlugin', () => {
++  test('preserves the language of modules with extensions in queries', async () => {
++    const config = await resolveConfig(
++      {
++        configFile: false,
++        oxc: { jsxRefreshInclude: /\.tsx$/ },
++      },
++      'serve',
++    )
++    const plugin = oxcPlugin(config)
++    const environment = new PartialEnvironment('client', config)
++    const transform = plugin.transform as any
++    const result = await transform.call(
++      { environment },
++      'const value: string = "hello"',
++      '/project/App.vue?vue&type=script&setup=true&lang.tsx',
++    )
++
++    expect(result.code).toMatchInlineSnapshot(`
++      "const value = "hello";
++      "
++    `)
++  })
++})
+ 
+ describe('transformWithOxc', () => {
+   test('correctly overrides TS configuration and applies automatic transform', async () => {
+diff --git a/packages/vite/src/node/plugins/oxc.ts b/packages/vite/src/node/plugins/oxc.ts
+index 7626a69cbaa164..d42c60029e505d 100644
+--- a/packages/vite/src/node/plugins/oxc.ts
++++ b/packages/vite/src/node/plugins/oxc.ts
+@@ -265,7 +265,11 @@ export function oxcPlugin(config: ResolvedConfig): Plugin {
+     ) {
+       result.jsx = { ...jsxOptions, refresh: false }
+     }
+-    if (jsxRefreshFilter?.(id) && !JS_TYPES_RE.test(cleanUrl(id))) {
++    if (
++      jsxRefreshFilter?.(id) &&
++      !JS_TYPES_RE.test(id) &&
++      !JS_TYPES_RE.test(cleanUrl(id))
++    ) {
+       result.lang = 'js'
+     }
+ 

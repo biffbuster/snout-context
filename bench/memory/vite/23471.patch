@@ -1,0 +1,75 @@
+diff --git a/packages/vite/src/node/__tests__/scan.spec.ts b/packages/vite/src/node/__tests__/scan.spec.ts
+index 3df1634fa52fe2..4e877bd9d9e92f 100644
+--- a/packages/vite/src/node/__tests__/scan.spec.ts
++++ b/packages/vite/src/node/__tests__/scan.spec.ts
+@@ -85,28 +85,40 @@ describe('optimizer-scan:script-test', () => {
+   })
+ 
+   test('imports regex should work', () => {
+-    const shouldMatchArray = [
+-      `import 'vue'`,
+-      `import { foo } from 'vue'`,
+-      `import foo from 'vue'`,
+-      `;import foo from 'vue'`,
+-      `   import foo from 'vue'`,
+-      `import { foo
++    const shouldMatchArray: [code: string, expected: string][] = [
++      [`import 'vue'`, `'vue'`],
++      [`import { foo } from 'vue'`, `'vue'`],
++      [`import foo from 'vue'`, `'vue'`],
++      [`;import foo from 'vue'`, `'vue'`],
++      [`   import foo from 'vue'`, `'vue'`],
++      [
++        `import { foo
+       } from 'vue'`,
+-      `import bar, { foo } from 'vue'`,
+-      `import foo from 'vue';`,
+-      `*/ import foo from 'vue';`,
+-      `import foo from 'vue';//comment`,
+-      `import foo from 'vue';/*comment
++        `'vue'`,
++      ],
++      [`import bar, { foo } from 'vue'`, `'vue'`],
++      [`import foo from 'vue';`, `'vue'`],
++      [`*/ import foo from 'vue';`, `'vue'`],
++      [`import foo from 'vue';//comment`, `'vue'`],
++      [
++        `import foo from 'vue';/*comment
+       */`,
+-      // Skipped, false negatives with current regex
+-      // `import typescript from 'typescript'`,
+-      // import type, {foo} from 'vue'
++        `'vue'`,
++      ],
++      // https://github.com/vitejs/vite/issues/23471
++      // bindings starting with "type" should not be treated as type-only imports
++      [`import typescript from 'typescript'`, `'typescript'`],
++      [`import typeorm from 'typeorm'`, `'typeorm'`],
++      [`import types from 'types'`, `'types'`],
++      // still a known false negative: a default binding literally named `type`
++      // (`import type, {foo} from 'vue'`, `import type from 'vue'`) is a valid
++      // value import, but the word boundary cannot tell it apart from the
++      // `import type` modifier. Missed deps are discovered again at runtime.
+     ]
+ 
+-    shouldMatchArray.forEach((str) => {
++    shouldMatchArray.forEach(([str, expected]) => {
+       importsRE.lastIndex = 0
+-      expect(importsRE.exec(str)![1]).toEqual("'vue'")
++      expect(importsRE.exec(str)![1]).toEqual(expected)
+     })
+ 
+     const shouldFailArray = [
+diff --git a/packages/vite/src/node/optimizer/scan.ts b/packages/vite/src/node/optimizer/scan.ts
+index f0075125c5b490..ca3f5fe58eb8bb 100644
+--- a/packages/vite/src/node/optimizer/scan.ts
++++ b/packages/vite/src/node/optimizer/scan.ts
+@@ -111,7 +111,7 @@ const htmlTypesRE = /\.(?:html|vue|svelte|astro|imba)$/
+ // since even missed imports can be caught at runtime, and false positives will
+ // simply be ignored.
+ export const importsRE: RegExp =
+-  /(?<!\/\/.*)(?<=^|;|\*\/)\s*import(?!\s+type)(?:[\w*{}\n\r\t, ]+from)?\s*("[^"]+"|'[^']+')\s*(?=$|;|\/\/|\/\*)/gm
++  /(?<!\/\/.*)(?<=^|;|\*\/)\s*import(?!\s+type\b)(?:[\w*{}\n\r\t, ]+from)?\s*("[^"]+"|'[^']+')\s*(?=$|;|\/\/|\/\*)/gm
+ 
+ export function scanImports(environment: ScanEnvironment): {
+   cancel: () => Promise<void>

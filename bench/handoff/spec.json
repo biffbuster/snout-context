@@ -1,0 +1,83 @@
+{
+  "name": "Cross-agent handoff check",
+  "written": "2026-10-28",
+  "purpose": "Before the paid plain-vs-search pilot is frozen: does a record one agent leaves reach the other agent in a fresh session through Snout's search and fetch, and what does that do to the receiver's work and cost? Two small projects written for this check, not taken from the pilot's held-out Hugo or vite tasks.",
+  "settings": {
+    "claudeCode": "2.1.306",
+    "codex": "0.163.0",
+    "claudeModel": "claude-sonnet-5-5",
+    "codexModel": "gpt-6.1-sol",
+    "codexEffort": "low",
+    "budgetUsd": "2.00",
+    "limitMinutes": 30
+  },
+  "arms": {
+    "giver": "search: Snout's hooks in enforce (trimming), memory on so the session is recorded, automatic notes off, and Snout's MCP server with snout_memory_search and snout_memory_fetch only (the pilot's search arm). The store starts empty.",
+    "on": "search, as the giver, on a copy of the giver's store.",
+    "off": "plain: Claude Code with no Snout at all; Codex with Snout's hooks in observe on an empty store, memory off, no MCP server (the pilot's plain arm)."
+  },
+  "order": "Per direction: giver, then the receiver with Snout on, then the receiver with Snout off. Claude Code to Codex first, then Codex to Claude Code.",
+  "directions": [
+    {
+      "id": "claude-to-codex",
+      "project": "berthbook",
+      "language": "python",
+      "giver": "claude",
+      "receiver": "codex",
+      "remote": "https://git.example.com/harbour/berthbook.git",
+      "giverPrompt": "Finance wants each month's berth invoices as a CSV for their spreadsheet, which uses a German locale: semicolon-separated, a comma as the decimal separator, two decimals and no thousands separator. Add a `berthbook export-invoices <YYYY-MM>` command that writes it to standard output, with the header row invoice;vessel;amount and then one row per invoice (invoice number, vessel name, amount). Add tests and run the test suite before you finish.",
+      "receiverPrompt": "Finance also wants the fuel dock's monthly sales as a CSV file for their spreadsheet. Add a `berthbook export-fuel <YYYY-MM>` command that writes it to standard output: a header row, then one row per vessel that bought fuel that month, sorted by vessel name, with the columns vessel, litres and amount (the vessel's total litres and total amount for the month). Run the tests before you finish.",
+      "expectedFact": "Finance's spreadsheet format, given by the user in the giver's session: semicolon-separated, decimal comma, two decimals, no thousands separator. The receiver's prompt does not say it; the giver's export code in the project shows it.",
+      "recordPattern": "semicolon|german locale",
+      "codePattern": "delimiter\\s*=\\s*[\"'];[\"']|[\"'];[\"']\\s*\\.join|sep\\s*=\\s*[\"'];[\"']",
+      "grade": {
+        "runner": "pytest",
+        "baseTests": ["tests/conftest.py", "tests/test_billing.py", "tests/test_report.py", "tests/test_cli.py"],
+        "giverTests": ["hidden/test_handoff_giver.py"],
+        "receiverTests": ["hidden/test_handoff_receiver.py"],
+        "testDir": "tests"
+      }
+    },
+    {
+      "id": "codex-to-claude",
+      "project": "depotclock",
+      "language": "javascript",
+      "giver": "codex",
+      "receiver": "claude",
+      "remote": "https://git.example.com/depots/depotclock.git",
+      "giverPrompt": "Depot managers in Toronto say deliveries finished late in the evening show up under the next day in the daily delivery report. Find the cause and fix it. Run the tests before you finish.",
+      "receiverPrompt": "Drivers at the Sydney depot say their Monday early-morning shifts are counted in the previous week in the weekly hours report. Find the cause and fix it. Run the tests before you finish.",
+      "expectedFact": "The cause the giver found: reports grouped timestamps by their UTC date instead of the depot's local date (each depot has a time zone). The same cause is behind the receiver's bug. The giver's record must say so in its own words; the giver's fix in the project shows it.",
+      "recordPattern": "time ?zone|\\btz\\b|local (?:date|day|time|calendar)|\\butc\\b",
+      "codePattern": "timeZone|\\.tz\\b",
+      "grade": {
+        "runner": "node",
+        "baseTests": ["test/time.test.js", "test/reports.test.js"],
+        "giverTests": ["hidden/handoff-giver.test.js"],
+        "receiverTests": ["hidden/handoff-receiver.test.js"],
+        "testDir": "test"
+      }
+    }
+  ],
+  "scoring": {
+    "giverGate": "A direction's receivers run only if the giver solved its task (its hidden tests and the project's own tests pass) and the shared store holds the giver's session record, from the giver's agent, whose task, request or outcome matches recordPattern. Otherwise the direction is reported as having no record to hand off, and its receivers do not run.",
+    "solved": "The session's work, with the project's original test files restored, passes the project's own tests and the hidden tests for its task; a receiver's work must also still pass the giver's hidden tests. A session cut by its time or budget limit counts as not solved.",
+    "searched": "The receiver called snout_memory_search or snout_memory_fetch at least once (from the MCP server's own log, checked against the agent's transcript or events).",
+    "found": "A search or fetch result the receiver got shows the giver's record (session:<giver session>) and that record's text there matches recordPattern.",
+    "current": "Where the receiver got it, the giver's record is not marked out of date (no '[an out-of-date claim' in its line, no 'Out of date:' in its fetch), and the giver's work is in the snapshot (the giver's hidden tests pass on it).",
+    "cited": "The giver's record, where the receiver got it, names its session, its agent and its date.",
+    "handoff": "In a direction: the receiver with Snout on searched, found the giver's record, current and cited, and solved its task. A successful handoff is reported apart from cost.",
+    "cost": "Per receiver session: total tokens (input including cache reads and writes, plus output), tool calls, minutes, and dollars (Claude Code: priced from its transcript at list prices and billed to the API; Codex: the list-price equivalent of its tokens, billed to the ChatGPT plan). On against off, in one pair per direction: an anecdote, not a result.",
+    "codeVisible": "Reported, not scored: whether the snapshot's code shows the expected fact (codePattern), so a receiver could learn it without memory."
+  },
+  "validity": [
+    "Off arm: no Snout MCP server, no memory call, and for Claude Code no Snout process; its store starts empty.",
+    "No arm gets automatic notes: no injected row in Snout's recall log.",
+    "Claude Code runs on the bench's isolated config folder (none of the operator's settings, memory or history) with its own memory off (CLAUDE_CODE_DISABLE_AUTO_MEMORY=1), and its memory folder for the workspace holds no file before or after a session; each session has its own workspace path.",
+    "Codex's own memories (the memories folder and its database's rows) are unchanged by a session.",
+    "Instruction files: Claude Code workspaces are outside this repository; Codex runs with project_doc_max_bytes=0.",
+    "History: each workspace is the snapshot as one commit (Claude Code) or a folder with no repository of its own (Codex), so no commit message or diff of the giver's work is there.",
+    "A session that reads this repository's handoff files, the bench store folders or another workspace is invalid; any other path outside its workspace is listed for review.",
+    "No network command; no Snout call to Jev, Snout Cloud, the embedding model or the network."
+  ]
+}

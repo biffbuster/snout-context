@@ -1,0 +1,69 @@
+diff --git a/packages/vite/src/node/__tests__/dev.spec.ts b/packages/vite/src/node/__tests__/dev.spec.ts
+index 66f1b76e6f7f47..9411c004b951b3 100644
+--- a/packages/vite/src/node/__tests__/dev.spec.ts
++++ b/packages/vite/src/node/__tests__/dev.spec.ts
+@@ -5,6 +5,7 @@ import { createServer, resolveConfig } from '..'
+ import type { ViteDevServer } from '..'
+ import { promiseWithResolvers } from '../../shared/utils'
+ import { createLogger } from '../logger'
++import { DevEnvironment } from '../server/environment'
+ import { normalizePath } from '../utils'
+ 
+ describe('resolveBuildEnvironmentOptions in dev', () => {
+@@ -154,6 +155,41 @@ describe('the dev server', () => {
+     ).rejects.toThrow('buildStart failed')
+   })
+ 
++  test("logs watcher 'error' events during environment initialization", async () => {
++    const error = new Error('watch failed')
++    const logger = createLogger('error')
++    logger.error = vi.fn()
++
++    class WatcherErrorEnvironment extends DevEnvironment {
++      override async init(
++        options?: Parameters<DevEnvironment['init']>[0],
++      ): Promise<void> {
++        options?.watcher?.emit('error', error)
++        await super.init(options)
++      }
++    }
++
++    server = await createServer({
++      configFile: false,
++      root: import.meta.dirname,
++      customLogger: logger,
++      optimizeDeps: { noDiscovery: true },
++      environments: {
++        ssr: {
++          dev: {
++            createEnvironment: (name, config) =>
++              new WatcherErrorEnvironment(name, config, { hot: false }),
++          },
++        },
++      },
++      server: { middlewareMode: true, ws: false },
++    })
++
++    expect(logger.error).toHaveBeenCalledWith(
++      expect.stringContaining('file watcher error: watch failed'),
++    )
++  })
++
+   test('resolves the server URLs before the httpServer listening events are called', async () => {
+     expect.assertions(1)
+ 
+diff --git a/packages/vite/src/node/server/index.ts b/packages/vite/src/node/server/index.ts
+index 2779716cbc5899..9cad2cf24f6145 100644
+--- a/packages/vite/src/node/server/index.ts
++++ b/packages/vite/src/node/server/index.ts
+@@ -600,6 +600,10 @@ export async function _createServer(
+       )
+     : createNoopWatcher(resolvedWatchOptions)
+ 
++  watcher.on('error', (error: Error) => {
++    config.logger.error(colors.red(`file watcher error: ${error.message}`))
++  })
++
+   const environments: Record<string, DevEnvironment> = {}
+ 
+   await Promise.all(

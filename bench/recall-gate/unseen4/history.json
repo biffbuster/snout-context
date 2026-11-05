@@ -1,0 +1,136 @@
+{
+  "about": "Gate 3, fourth unseen check (docs/memory-gates.md): written and frozen on 2026-10-26 before the fifth round of fixes (the shared retrieval scorer), and run once after them. A TypeScript monorepo tested with Jest, with two files named index.ts in different packages.",
+  "project": {
+    "name": "orbit",
+    "files": {
+      ".gitignore": ".snout/\nnode_modules/\npackages/web/dist/\n",
+      "package.json": "{\n  \"private\": true,\n  \"workspaces\": [\"packages/*\"],\n  \"scripts\": { \"test\": \"jest\" },\n  \"devDependencies\": { \"jest\": \"^29.7.0\", \"ts-jest\": \"^29.2.0\", \"typescript\": \"^5.6.0\", \"eslint\": \"^9.0.0\" }\n}\n",
+      "packages/api/src/index.ts": "export const routes = ['/users'];\n",
+      "packages/api/src/cache.ts": "const profiles = new Map<string, { at: number; v: unknown }>();\nexport const getProfile = (id: string) => profiles.get(id);\n",
+      "packages/api/src/auth.ts": "export const login = (user: string) => ({ user });\n",
+      "packages/api/src/errors.ts": "export class ApiError extends Error { constructor(public code: string, msg: string) { super(msg); } }\n",
+      "packages/web/src/index.ts": "export const mount = () => document.body;\n",
+      "packages/web/src/theme.ts": "export const theme = { mode: 'light' };\n",
+      "packages/api/test/index.test.ts": "test('ok', () => expect(1).toBe(1));\n"
+    }
+  },
+  "steps": [
+    {
+      "id": "O1", "type": "session", "agent": "claude",
+      "prompt": "Add a /status endpoint in packages/api/src/index.ts and make sure the tests pass.",
+      "calls": [
+        { "edit": "packages/api/src/index.ts", "content": "export const routes = ['/users', '/status'];\nexport const status = () => ({ ok: true });\n" },
+        { "install": "node_modules/.bin/jest", "content": "#!/bin/sh\n" },
+        { "install": "node_modules/.bin/tsc", "content": "#!/bin/sh\n" },
+        { "bash": "npx jest", "out": "PASS packages/api/test/index.test.ts\n\nTest Suites: 6 passed, 6 total\nTests:       41 passed, 41 total\nTime:        2.3 s\n" }
+      ],
+      "commit": "Add /status endpoint",
+      "final": "packages/api/src/index.ts serves a /status endpoint. npx jest: 41 passed."
+    },
+    {
+      "id": "O2", "type": "session", "agent": "codex",
+      "prompt": "Type-check before touching packages/web/src/index.ts, then add a loading spinner there.",
+      "calls": [
+        { "bash": "tsc --noEmit", "out": "bash: tsc: command not found\n" },
+        { "bash": "npx tsc --noEmit", "out": "" },
+        { "edit": "packages/web/src/index.ts", "content": "export const mount = () => document.body;\nexport const spinner = () => '<div class=\"spinner\"></div>';\n" }
+      ],
+      "commit": "Add loading spinner",
+      "final": "Bare tsc isn't on PATH, but npx tsc --noEmit is clean. packages/web/src/index.ts has a loading spinner."
+    },
+    {
+      "id": "O3", "type": "session", "agent": "claude",
+      "prompt": "Publish the docs site with mkdocs.",
+      "calls": [
+        { "bash": "mkdocs gh-deploy", "out": "bash: mkdocs: command not found\n" }
+      ],
+      "final": "mkdocs isn't installed on this machine, so the docs site wasn't published."
+    },
+    { "id": "M1", "type": "cli", "args": ["memory", "add", "API errors use the ApiError class from packages/api/src/errors.ts.", "--kind", "convention"] },
+    { "id": "M2", "type": "cli", "args": ["memory", "add", "Sessions are stored in Redis, keyed by user id.", "--kind", "decision"] },
+    {
+      "id": "O4", "type": "session", "agent": "codex",
+      "prompt": "Make jest run in band from now on; the parallel workers flake on CI.",
+      "calls": [
+        { "edit": "package.json", "content": "{\n  \"private\": true,\n  \"workspaces\": [\"packages/*\"],\n  \"scripts\": { \"test\": \"jest --runInBand\" },\n  \"devDependencies\": { \"jest\": \"^29.7.0\", \"ts-jest\": \"^29.2.0\", \"typescript\": \"^5.6.0\", \"eslint\": \"^9.0.0\" }\n}\n" },
+        { "bash": "npx jest --runInBand", "out": "Test Suites: 6 passed, 6 total\nTests:       43 passed, 43 total\nTime:        4.1 s\n" }
+      ],
+      "commit": "Run jest in band",
+      "final": "The test script runs jest --runInBand now. 43 passed."
+    },
+    {
+      "id": "O5", "type": "session", "agent": "claude",
+      "prompt": "Remember that the API caches user profiles for five minutes.",
+      "mcp": [
+        { "tool": "snout_memory_save", "args": { "text": "User profiles are cached for five minutes (packages/api/src/cache.ts).", "kind": "convention", "user_asked": true, "files": ["packages/api/src/cache.ts"] } }
+      ],
+      "calls": [],
+      "final": "Saved: user profiles are cached for five minutes, in packages/api/src/cache.ts."
+    },
+    {
+      "id": "O6", "type": "session", "agent": "codex",
+      "prompt": "Stop caching user profiles in packages/api/src/cache.ts; stale avatars keep showing.",
+      "calls": [
+        { "edit": "packages/api/src/cache.ts", "content": "export const getProfile = (_id: string) => undefined;\n" },
+        { "bash": "npx jest --runInBand", "out": "Tests:       43 passed, 43 total\n" }
+      ],
+      "commit": "Stop caching profiles",
+      "final": "packages/api/src/cache.ts no longer caches profiles; avatars are read fresh. 43 passed."
+    },
+    { "id": "M3", "type": "cli", "args": ["memory", "add", "Sessions are now stored in Postgres instead of Redis, keyed by user id.", "--kind", "decision"] },
+    {
+      "id": "O7", "type": "session", "agent": "claude",
+      "prompt": "Run the linter before you finish. Never commit generated files under packages/web/dist. Add dark mode to packages/web/src/theme.ts.",
+      "calls": [
+        { "edit": "packages/web/src/theme.ts", "content": "export const theme = { mode: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' };\n" },
+        { "bash": "npx eslint .", "out": "" }
+      ],
+      "commit": "Add dark mode",
+      "final": "packages/web/src/theme.ts follows the system dark mode. eslint is clean."
+    },
+    {
+      "id": "O8", "type": "session", "agent": "codex",
+      "prompt": "Run the linter before you finish. Never commit generated files under packages/web/dist. Fix the login redirect in packages/web/src/index.ts.",
+      "calls": [
+        { "edit": "packages/web/src/index.ts", "content": "export const mount = () => document.body;\nexport const spinner = () => '<div class=\"spinner\"></div>';\nexport const afterLogin = (next: string) => (next.startsWith('/') ? next : '/');\n" },
+        { "bash": "npx eslint .", "out": "" }
+      ],
+      "commit": "Fix login redirect",
+      "final": "The login redirect in packages/web/src/index.ts only follows paths on this site. eslint is clean."
+    },
+    {
+      "id": "O9", "type": "session", "agent": "claude",
+      "prompt": "Run the e2e suite in my orbit-e2e checkout.",
+      "calls": [
+        { "bash": "cd ../orbit-e2e && npx jest", "out": "Tests:       9 passed, 9 total\n" }
+      ],
+      "final": "orbit-e2e's 9 tests pass against this build."
+    },
+    {
+      "id": "O10", "type": "session", "agent": "claude",
+      "prompt": "Add rate limiting to the login handler in packages/api/src/auth.ts.",
+      "calls": [
+        { "edit": "packages/api/src/auth.ts", "content": "const tries = new Map<string, number>();\nexport const login = (user: string) => ({ user, limited: (tries.set(user, (tries.get(user) ?? 0) + 1).get(user)! > 5) });\n" },
+        { "todos": [{ "content": "Count login tries", "status": "completed" }, { "content": "Add tests for the 429 path", "status": "pending" }] }
+      ],
+      "final": "packages/api/src/auth.ts counts login tries per user. The 429 response and its tests are still to do; not committed."
+    }
+  ],
+  "facts": {
+    "T_cur": { "class": "current", "about": "the test command", "pattern": "npx jest --runInBand" },
+    "T_old": { "class": "stale", "about": "the test command before --runInBand, as a note", "pattern": "Run the tests with: npx jest(?! --runInBand)" },
+    "T_else": { "class": "wrong-scope", "about": "another checkout's test command, as this project's", "pattern": "Run the tests with: cd " },
+    "MKDOCS": { "class": "current", "about": "mkdocs is not installed", "pattern": "mkdocs is not installed|mkdocs isn't installed|mkdocs: command not found" },
+    "TSC_BAD": { "class": "unsupported", "about": "tsc reported missing, though the project installs typescript and npx tsc works", "pattern": "tsc is not installed" },
+    "ERR": { "class": "current", "about": "the ApiError convention", "pattern": "ApiError" },
+    "SESS_OLD": { "class": "stale", "about": "sessions in Redis, replaced by M3", "pattern": "Sessions are stored in Redis" },
+    "SESS_CUR": { "class": "current", "about": "sessions in Postgres", "pattern": "stored in Postgres" },
+    "CACHE_NOTE": { "class": "stale", "about": "the profile cache, saved with packages/api/src/cache.ts, which O6 then changed", "pattern": "cached for five minutes \\(packages" },
+    "CACHE_CUR": { "class": "current", "about": "the profile cache was removed", "pattern": "Stop caching (?:user )?profiles" },
+    "LINT_BAD": { "class": "unsupported", "about": "a task request said in two sessions, saved as standing", "pattern": "preference[^\\n]*Run the linter before you finish" },
+    "DIST": { "class": "current", "about": "never commit generated files, said in two sessions", "pattern": "[Nn]ever commit generated files" },
+    "STATUS": { "class": "current", "about": "the /status endpoint in the api package", "pattern": "/status endpoint" },
+    "INBAND_MOVE": { "class": "current", "about": "when jest started running in band", "pattern": "[Rr]un jest in band|jest run in band" },
+    "RATE": { "class": "current", "about": "the unfinished rate limiting", "pattern": "[Rr]ate limiting|429" }
+  }
+}

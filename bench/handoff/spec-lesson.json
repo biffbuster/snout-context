@@ -1,0 +1,84 @@
+{
+  "name": "Cross-agent handoff check: a verified billing rule, as a reviewed lesson",
+  "written": "2026-10-30",
+  "purpose": "Snout's promise: carry verified coding decisions across sessions and agents. Monday, one agent fixes duplicate charges in a billing service, and the rule its passing tests verified is that a retry reuses the original idempotency key. Thursday, the other agent is asked for scheduled retries, and the prompt does not mention keys. Does the rule reach it as a lesson the user approved, with its source, and does it use the rule? Run in both directions with search-only and off receivers from the same snapshot. Automatic lesson delivery failed frozen safety checks and is excluded from live runs.",
+  "lessons": true,
+  "settings": {
+    "claudeCode": "2.1.306",
+    "codex": "0.163.0",
+    "claudeModel": "claude-sonnet-5-5",
+    "codexModel": "gpt-6.1-sol",
+    "codexEffort": "low",
+    "budgetUsd": "2.00",
+    "limitMinutes": 30
+  },
+  "arms": {
+    "giver": "on: Snout's hooks in enforce (trimming), memory on, automatic notes off, the session-start line on, Snout's MCP server with snout_memory_search, snout_memory_fetch and snout_memory_propose, and the memory skill (.claude/skills or .agents/skills). The store starts empty.",
+    "review": "After the giver, the run stops. The user reviews what the giver proposed (--review) and approves, edits or rejects it. Nothing is approved for them. Then --resume runs the receivers.",
+    "on": "As the giver, on a copy of the giver's store after review.",
+    "notes": "Stand-in diagnostic only, enabled with --experimental-notes: opt-in automatic prompt notes. Live paid runs reject this arm until a new frozen delivery safety check passes.",
+    "off": "Claude Code with no Snout at all; Codex with Snout's hooks in observe on an empty store, memory off, no MCP server, no skill, no session-start line."
+  },
+  "order": "Per direction: giver, review, search-only receiver, then off. The optional notes-on arm runs only with stand-in agents. Claude Code to Codex first, then Codex to Claude Code.",
+  "directions": [
+    {
+      "id": "lesson-claude-to-codex",
+      "project": "chargeline",
+      "language": "javascript",
+      "giver": "claude",
+      "receiver": "codex",
+      "remote": "https://git.example.com/payments/chargeline.git",
+      "giverPrompt": "Support says several Pro customers were charged twice for their October invoice, and the provider's dashboard shows two successful charges a few seconds apart for each of them. Find the cause and fix it. Run the tests before you finish.",
+      "receiverPrompt": "Finance wants failed charges retried on a schedule instead of being written off. Add `retryFailedInvoices(invoices, gateway, now)` in a new src/retries.js: for each invoice with status `failed`, retry its charge 1 hour after its last attempt, then 6 hours after the last attempt, then 24 hours after the last attempt, one scheduled retry per invoice per run, and only when it is due. If the third scheduled retry also fails, mark the invoice `uncollectible`. Leave paid and declined invoices alone. Add tests and run the suite before you finish.",
+      "expectedFact": "The rule the giver's passing tests verified: every retry of a charge reuses the invoice's original idempotency key, because a try that timed out may have been charged at the provider. The receiver's prompt does not say it. A scheduled retry with a new key charges a customer twice when the first charge's last try timed out after going through.",
+      "recordPattern": "idempoten|same key|reuse[sd]? (?:the )?(?:original |same )?key|new key",
+      "codePattern": "attempts\\s*\\[\\s*0\\s*\\]\\s*\\.key|attempts\\.at\\(\\s*-1\\s*\\)\\.key|lastAttempt\\([^)]*\\)\\??\\.key|idempotencyKey\\s*(?:\\?\\?|\\|\\|)=|invoice\\.(?:idempotencyKey|chargeKey)",
+      "dryRunSay": "Fixed the duplicate charges: each retry inside chargeInvoice made a new idempotency key, so a try that timed out after the provider charged the card was charged again. All tries now reuse one key. Tests pass.",
+      "dryRunLesson": { "text": "A retry of a charge reuses the invoice's original idempotency key; a new key per try charged customers twice when a timed-out try had gone through at the provider.", "applies_when": "retrying a charge in chargeline (src/billing.js chargeInvoice, or any later retry of a failed invoice)", "basis": "test", "evidence": "node --test" },
+      "dryRunQuery": "retry failed invoice charge",
+      "grade": {
+        "runner": "node",
+        "baseTests": ["test/billing.test.js", "test/gateway.test.js"],
+        "giverTests": ["hidden/handoff-giver.test.js"],
+        "receiverTests": ["hidden/handoff-receiver.test.js"],
+        "testDir": "test"
+      }
+    },
+    {
+      "id": "lesson-codex-to-claude",
+      "project": "chargeline",
+      "language": "javascript",
+      "giver": "codex",
+      "receiver": "claude",
+      "remote": "https://git.example.com/payments/chargeline.git",
+      "giverPrompt": "Support says several Pro customers were charged twice for their October invoice, and the provider's dashboard shows two successful charges a few seconds apart for each of them. Find the cause and fix it. Run the tests before you finish.",
+      "receiverPrompt": "Finance wants failed charges retried on a schedule instead of being written off. Add `retryFailedInvoices(invoices, gateway, now)` in a new src/retries.js: for each invoice with status `failed`, retry its charge 1 hour after its last attempt, then 6 hours after the last attempt, then 24 hours after the last attempt, one scheduled retry per invoice per run, and only when it is due. If the third scheduled retry also fails, mark the invoice `uncollectible`. Leave paid and declined invoices alone. Add tests and run the suite before you finish.",
+      "expectedFact": "As the first direction.",
+      "recordPattern": "idempoten|same key|reuse[sd]? (?:the )?(?:original |same )?key|new key",
+      "codePattern": "attempts\\s*\\[\\s*0\\s*\\]\\s*\\.key|attempts\\.at\\(\\s*-1\\s*\\)\\.key|lastAttempt\\([^)]*\\)\\??\\.key|idempotencyKey\\s*(?:\\?\\?|\\|\\|)=|invoice\\.(?:idempotencyKey|chargeKey)",
+      "dryRunSay": "Fixed the duplicate charges: each retry inside chargeInvoice made a new idempotency key, so a try that timed out after the provider charged the card was charged again. All tries now reuse one key. Tests pass.",
+      "dryRunLesson": { "text": "A retry of a charge reuses the invoice's original idempotency key; a new key per try charged customers twice when a timed-out try had gone through at the provider.", "applies_when": "retrying a charge in chargeline (src/billing.js chargeInvoice, or any later retry of a failed invoice)", "basis": "test", "evidence": "node --test" },
+      "dryRunQuery": "retry failed invoice charge",
+      "grade": {
+        "runner": "node",
+        "baseTests": ["test/billing.test.js", "test/gateway.test.js"],
+        "giverTests": ["hidden/handoff-giver.test.js"],
+        "receiverTests": ["hidden/handoff-receiver.test.js"],
+        "testDir": "test"
+      }
+    }
+  ],
+  "scoring": {
+    "giverGate": "As spec.json: receivers run only if the giver solved its task (the hidden giver tests and the project's own pass), its session record is in the store from the giver's agent, and the record or one of its lessons states the rule (recordPattern).",
+    "proposed": "Reported: lessons the giver proposed in its session, and whether its record backed each one (Snout's check at Stop). The giver's prompt does not ask for a lesson; the skill says when one may be proposed.",
+    "review": "The user's verdict on each proposal. A direction whose giver proposed nothing, or whose proposal was rejected, still runs its receivers; its handoff then rests on the session record alone, and is reported so.",
+    "lessonHandoff": "The receiver with Snout on was shown or opened the approved lesson (from the MCP server's own traffic) and solved its task: the hidden receiver tests (one encodes the rule), the giver's hidden tests and the project's own.",
+    "recordHandoff": "As spec.json: the giver's session record found, current and cited, and the task solved.",
+    "codeVisible": "Reported, not scored: whether the snapshot's code already reuses a stored key across calls (codePattern), so a receiver could get the rule from the code.",
+    "cost": "As spec.json: total tokens, tool calls, minutes and dollars per receiver session, on against off. One pair per direction: an anecdote, not a result."
+  },
+  "validity": [
+    "As spec-record.json, and: the off arm has no skill file and no propose tool.",
+    "Snapshots and grading copies never hold .claude, .codex, .agents, .snout or .mcp.json."
+  ]
+}

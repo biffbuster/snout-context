@@ -24,6 +24,9 @@
  * set the map was first checked on). Each repository is cloned once into CLONES (default: the
  * system temp dir) and checked out at each task's base commit; tasks run in repository and date
  * order, so each rebuild reuses the entries of files the checkout left unchanged.
+ *
+ * MAP_LIB_B=<path to a lib.mjs> also scores a second build's ranking on the same maps (built once,
+ * by the first build) and prints the paired difference: Acc@k, and the hook's firing and hit rate.
  */
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
@@ -36,6 +39,7 @@ const { buildMap, candidates, renderCandidates, requestNames, decide, DEFAULTS, 
 /** The hook's firing rule; builds before it moved into the library used this copy. */
 const shouldSuggest = libShouldSuggest ?? ((cs, prompt) => cs.some((c) => c.defines.some((name) => new RegExp(`(^|[^A-Za-z0-9_])${name.replace(/[$]/g, "\\$")}($|[^A-Za-z0-9_])`).test(prompt) && (/[A-Z_0-9]/.test(name.slice(1)) || name.length >= 8 || (/^[A-Z]/.test(name) && name.length >= 6)))));
 const SUGGESTED = 4; // what the hook shows the agent
+const B = process.env.MAP_LIB_B ? await import(process.env.MAP_LIB_B) : null;
 
 const REPO = fileURLToPath(new URL("..", import.meta.url)).replace(/\/$/, "");
 const WIN = process.platform === "win32";
@@ -204,6 +208,12 @@ for (const t of tasks) {
   for (const [name, r] of Object.entries(ranks)) {
     row[name] = { first: g.length ? firstRank(r, g) : null, ...Object.fromEntries(KS.map((k) => [`r${k}`, g.length ? recall(r, g, k) : null])), ...Object.fromEntries(KS.map((k) => [`acc${k}`, g.length ? Number(recall(r, g, k) === 1) : null])) };
   }
+  if (B) {
+    const bC = B.candidates(map, t.problem_statement, 50).map((c) => c.path);
+    const bShown = B.candidates(map, t.problem_statement, SUGGESTED);
+    const bFired = B.shouldSuggest(bShown, t.problem_statement);
+    row.b = { first: g.length ? firstRank(bC, g) : null, ...Object.fromEntries(KS.map((k) => [`acc${k}`, g.length ? Number(recall(bC, g, k) === 1) : null])), fired: bFired, shownHit: bFired && bShown.some((c) => gold[t.instance_id].includes(c.path)) };
+  }
   rows.push(row);
   console.error(`${t.instance_id.padEnd(30)} ${String(read + reused).padStart(5)} files (${read} read)  build ${String(buildMs).padStart(5)} ms  gold ${g.length}/${row.gold.length}  first hit: map ${row.map.first ?? "-"} · bm25 ${row.bm25.first ?? "-"} · grep ${row.grep.first ?? "-"}`);
   if (!keep && !HELDOUT) rmSync(dir, { recursive: true, force: true });
@@ -264,6 +274,22 @@ for (const ratio of [1, 1.25, 1.5, 2, 3]) {
   const pass = usable.filter((r) => r.top?.length && (r.top.length < 2 || r.top[0] >= ratio * r.top[1]));
   const good = pass.filter((r) => r.top1Gold).length;
   console.log(`  >= ${String(ratio).padEnd(32)} ${`${pass.length}/${usable.length}`.padStart(8)}   ${pass.length ? ((100 * good) / pass.length).toFixed(0) : "-"}%`);
+}
+if (B) {
+  console.log(`
+  same maps, two rankings: A = ${process.env.MAP_LIB || "dist/lib.mjs"}, B = ${process.env.MAP_LIB_B}
+  ranking   Acc@1   Acc@3   Acc@5   Acc@10   hook fires   fix file among shown`);
+  for (const [name, get] of [["A", (r) => ({ ...r.map, fired: r.fired, shownHit: r.shownHit })], ["B", (r) => r.b]]) {
+    const a = (k) => `${((usable.reduce((s, r) => s + get(r)[`acc${k}`], 0) / usable.length) * 100).toFixed(1)}%`;
+    const f = usable.filter((r) => get(r).fired), h = f.filter((r) => get(r).shownHit).length;
+    console.log(`  ${name.padEnd(8)} ${a(1).padStart(6)} ${a(3).padStart(7)} ${a(5).padStart(7)} ${a(10).padStart(8)}   ${`${(100 * f.length / usable.length).toFixed(1)}%`.padStart(10)}   ${`${h}/${f.length} (${f.length ? (100 * h / f.length).toFixed(1) : 0}%)`.padStart(20)}`);
+  }
+  for (const k of [1, 5]) {
+    const w = usable.filter((r) => r.b[`acc${k}`] && !r.map[`acc${k}`]).length, l = usable.filter((r) => !r.b[`acc${k}`] && r.map[`acc${k}`]).length;
+    console.log(`  Acc@${k}: B only ${w} tasks, A only ${l}; sign test p = ${signTest(w, l).toExponential(1)}`);
+  }
+  const hw = usable.filter((r) => r.b.shownHit && !r.shownHit).length, hl = usable.filter((r) => !r.b.shownHit && r.shownHit).length;
+  console.log(`  hook shows a fix file: B only ${hw} tasks, A only ${hl}; sign test p = ${signTest(hw, hl).toExponential(1)}`);
 }
 const med = (xs) => xs.sort((a, b) => a - b)[Math.floor(xs.length / 2)];
 console.log(`\n  map build: median ${med(rows.map((r) => r.buildMs))} ms over a median ${med(rows.map((r) => r.files))} files, rereading a median ${med(rows.map((r) => r.reread))} · query ${med(rows.map((r) => r.queryMs))} ms · candidate line ~${med(rows.map((r) => r.lineTokens))} tokens`);

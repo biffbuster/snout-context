@@ -1,0 +1,537 @@
+{
+ "about": "Gate 3, thirteenth unseen check: prompts for unseen13/history.json, scored exactly as the main set (see ../prompts.json). Written and frozen before the answerability-judge test. CANCEL_OLD must reach no path; H5's other fact (ROSTER) stays findable. STAGING_BAD, a request said in two sessions, must never be shown as standing. S04 and S11 share a word with session records that do not answer them, and must stay silent.",
+ "prompts": [
+  {
+   "id": "D01",
+   "prompt": "Add a test for the booking endpoint and run the tests.",
+   "query": "run tests",
+   "delivery": [
+    "T_cur"
+   ],
+   "recall": [
+    "BOOK"
+   ],
+   "search": [
+    "T_cur"
+   ]
+  },
+  {
+   "id": "D02",
+   "prompt": "What's the command for the test suite?",
+   "query": "test command",
+   "delivery": [
+    "T_cur"
+   ],
+   "recall": "any",
+   "search": [
+    "T_cur"
+   ]
+  },
+  {
+   "id": "D03",
+   "prompt": "Run the tests.",
+   "query": "tests",
+   "delivery": [
+    "T_cur"
+   ],
+   "recall": "any",
+   "search": [
+    "T_cur"
+   ]
+  },
+  {
+   "id": "D04",
+   "prompt": "Make a local HTTPS certificate with mkcert.",
+   "query": "mkcert",
+   "delivery": [
+    "MKCERT"
+   ],
+   "recall": [
+    "MKCERT"
+   ],
+   "search": [
+    "MKCERT"
+   ]
+  },
+  {
+   "id": "D05",
+   "prompt": "How are appointment times stored?",
+   "query": "appointment times",
+   "delivery": [
+    "TZ"
+   ],
+   "recall": "any",
+   "search": [
+    "TZ"
+   ]
+  },
+  {
+   "id": "D06",
+   "prompt": "Show the appointment time in the owner's time zone on the confirmation page.",
+   "query": "appointment time zone",
+   "delivery": [
+    "TZ"
+   ],
+   "recall": "any",
+   "search": [
+    "TZ",
+    "DST"
+   ]
+  },
+  {
+   "id": "D07",
+   "prompt": "How many patients can one vet see in a day?",
+   "query": "vet daily limit",
+   "delivery": [
+    "CAP12"
+   ],
+   "recall": "any",
+   "search": [
+    "CAP12"
+   ]
+  },
+  {
+   "id": "D08",
+   "prompt": "Let Dr. Okafor take 15 appointments on Saturdays.",
+   "query": "vet appointment limit",
+   "delivery": [
+    "CAP12"
+   ],
+   "recall": "any",
+   "search": [
+    "CAP12"
+   ]
+  },
+  {
+   "id": "D09",
+   "prompt": "How do reminder emails get sent?",
+   "query": "reminder emails",
+   "delivery": [
+    "POSTMARK"
+   ],
+   "recall": "any",
+   "search": [
+    "POSTMARK"
+   ]
+  },
+  {
+   "id": "D10",
+   "prompt": "Send a test email through Postmark.",
+   "query": "postmark",
+   "delivery": [
+    "POSTMARK"
+   ],
+   "recall": "any",
+   "search": [
+    "POSTMARK"
+   ]
+  },
+  {
+   "id": "D11",
+   "prompt": "What unit are pet weights in?",
+   "query": "pet weight unit",
+   "delivery": [
+    "GRAMS"
+   ],
+   "recall": "any",
+   "search": [
+    "GRAMS"
+   ]
+  },
+  {
+   "id": "D12",
+   "prompt": "Chart a puppy's growth over its first year.",
+   "query": "weight chart",
+   "delivery": [
+    "GRAMS"
+   ],
+   "recall": "any",
+   "search": [
+    "GRAMS"
+   ]
+  },
+  {
+   "id": "D13",
+   "prompt": "Can I include the owner's phone number in the error report when an SMS fails?",
+   "query": "phone number error report",
+   "delivery": [
+    "NOPHONE"
+   ],
+   "recall": "any",
+   "search": [
+    "NOPHONE"
+   ]
+  },
+  {
+   "id": "D14",
+   "prompt": "Deploy to staging after the tests pass.",
+   "query": "staging",
+   "delivery": "any",
+   "recall": "any",
+   "search": "any"
+  },
+  {
+   "id": "D15",
+   "prompt": "Pick up where the last session stopped.",
+   "query": "waiting room queue",
+   "delivery": [
+    "QUEUE"
+   ],
+   "recall": "any",
+   "search": [
+    "QUEUE"
+   ]
+  },
+  {
+   "id": "D16",
+   "prompt": "Never put a pet owner's phone number in error reports; check that src/clinic/queue.ts follows that.",
+   "query": "phone error reports",
+   "delivery": [
+    "NOPHONE"
+   ],
+   "recall": "any",
+   "search": [
+    "NOPHONE"
+   ]
+  },
+  {
+   "id": "D17",
+   "prompt": "Add a breed field in src/patients/list.ts.",
+   "query": "patient list",
+   "delivery": "any",
+   "recall": [
+    "SPECIES"
+   ],
+   "search": "any"
+  },
+  {
+   "id": "D18",
+   "prompt": "Run the tests with pnpm vitest run --pool=forks.",
+   "query": "vitest forks",
+   "delivery": [
+    "T_cur"
+   ],
+   "recall": "any",
+   "search": [
+    "T_cur",
+    "FORKS"
+   ]
+  },
+  {
+   "id": "D19",
+   "prompt": "Make cancellations free up to 72 hours before, in src/billing/cancel.ts.",
+   "query": "cancellation window",
+   "delivery": "any",
+   "recall": [
+    "CANCEL_CUR"
+   ],
+   "search": [
+    "CANCEL_CUR"
+   ]
+  },
+  {
+   "id": "D20",
+   "prompt": "Print a prescription label for Biscuit's antibiotics.",
+   "query": "prescription printing",
+   "delivery": [
+    "SIGNED"
+   ],
+   "recall": "any",
+   "search": [
+    "SIGNED"
+   ]
+  },
+  {
+   "id": "D21",
+   "prompt": "Email the owner a reminder the day before the visit.",
+   "query": "reminder email",
+   "delivery": [
+    "POSTMARK"
+   ],
+   "recall": "any",
+   "search": [
+    "POSTMARK"
+   ]
+  },
+  {
+   "id": "Q01",
+   "prompt": "When did the tests move to the forks pool?",
+   "query": "forks pool",
+   "delivery": "any",
+   "recall": [
+    "FORKS"
+   ],
+   "search": [
+    "FORKS"
+   ]
+  },
+  {
+   "id": "Q02",
+   "prompt": "How did we stop a vet being double-booked?",
+   "query": "double booking vet",
+   "delivery": "any",
+   "recall": [
+    "OVERLAP"
+   ],
+   "search": [
+    "OVERLAP"
+   ]
+  },
+  {
+   "id": "Q03",
+   "prompt": "When did free cancellation change to 48 hours?",
+   "query": "cancellation 48 hours",
+   "delivery": "any",
+   "recall": [
+    "CANCEL_CUR"
+   ],
+   "search": [
+    "CANCEL_CUR"
+   ]
+  },
+  {
+   "id": "Q04",
+   "prompt": "How often is the vet roster imported?",
+   "query": "roster import",
+   "delivery": "any",
+   "recall": [
+    "ROSTER"
+   ],
+   "search": [
+    "ROSTER"
+   ]
+  },
+  {
+   "id": "Q05",
+   "prompt": "Which change added vaccination reminders?",
+   "query": "vaccination reminders",
+   "delivery": "any",
+   "recall": [
+    "VACC"
+   ],
+   "search": [
+    "VACC"
+   ]
+  },
+  {
+   "id": "Q06",
+   "prompt": "Where are pet owners stored?",
+   "query": "owners table",
+   "delivery": "any",
+   "recall": [
+    "OWNERS"
+   ],
+   "search": [
+    "OWNERS"
+   ]
+  },
+  {
+   "id": "Q07",
+   "prompt": "When did we start texting owners before appointments?",
+   "query": "sms reminders",
+   "delivery": "any",
+   "recall": [
+    "SMS"
+   ],
+   "search": [
+    "SMS"
+   ]
+  },
+  {
+   "id": "Q08",
+   "prompt": "Which session added the species filter?",
+   "query": "species filter",
+   "delivery": "any",
+   "recall": [
+    "SPECIES"
+   ],
+   "search": [
+    "SPECIES"
+   ]
+  },
+  {
+   "id": "Q09",
+   "prompt": "When was microchip lookup added?",
+   "query": "microchip",
+   "delivery": "any",
+   "recall": [
+    "CHIP"
+   ],
+   "search": [
+    "CHIP"
+   ]
+  },
+  {
+   "id": "Q10",
+   "prompt": "Why did appointments show an hour late after the clock change?",
+   "query": "hour late clock change",
+   "delivery": "any",
+   "recall": [
+    "DST"
+   ],
+   "search": [
+    "DST"
+   ]
+  },
+  {
+   "id": "Q11",
+   "prompt": "Which session added invoice PDFs?",
+   "query": "invoice pdf",
+   "delivery": "any",
+   "recall": [
+    "INVOICE"
+   ],
+   "search": [
+    "INVOICE"
+   ]
+  },
+  {
+   "id": "Q12",
+   "prompt": "Which Redis version do we run?",
+   "query": "redis version",
+   "delivery": "any",
+   "recall": [
+    "REDIS"
+   ],
+   "search": [
+    "REDIS"
+   ]
+  },
+  {
+   "id": "Q13",
+   "prompt": "Why couldn't we create the local certificate?",
+   "query": "local certificate",
+   "delivery": "any",
+   "recall": [
+    "MKCERT"
+   ],
+   "search": [
+    "MKCERT"
+   ]
+  },
+  {
+   "id": "Q14",
+   "prompt": "Where did the waiting-room queue work stop?",
+   "query": "waiting room queue",
+   "delivery": "any",
+   "recall": [
+    "QUEUE"
+   ],
+   "search": [
+    "QUEUE"
+   ]
+  },
+  {
+   "id": "Q15",
+   "prompt": "What changed about the cancellation policy?",
+   "query": "cancellation policy",
+   "delivery": "any",
+   "recall": [
+    "CANCEL_CUR"
+   ],
+   "search": [
+    "CANCEL_CUR"
+   ]
+  },
+  {
+   "id": "Q16",
+   "prompt": "Which session added the booking endpoint?",
+   "query": "booking endpoint",
+   "delivery": "any",
+   "recall": [
+    "BOOK"
+   ],
+   "search": [
+    "BOOK"
+   ]
+  },
+  {
+   "id": "S01",
+   "prompt": "Add a high-contrast theme to the reception screen.",
+   "query": "high contrast",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S02",
+   "prompt": "Translate the intake form into Welsh.",
+   "query": "welsh",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S03",
+   "prompt": "Configure Prettier to use single quotes.",
+   "query": "prettier",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S04",
+   "prompt": "Why is the CSV export of vaccinations missing a header row?",
+   "query": "csv export header",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S05",
+   "prompt": "Write a haiku about cats.",
+   "query": "haiku",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S06",
+   "prompt": "Explain TypeScript generics.",
+   "query": "generics",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S07",
+   "prompt": "Switch the CLI argument parser to commander.",
+   "query": "commander",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S08",
+   "prompt": "Replace the favicon.",
+   "query": "favicon",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S09",
+   "prompt": "Sort the sponsors on the about page.",
+   "query": "sponsors",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S10",
+   "prompt": "Add a cookie consent banner.",
+   "query": "cookie consent",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S11",
+   "prompt": "Handle an empty discount code when an owner pays an invoice.",
+   "query": "discount code",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  }
+ ]
+}

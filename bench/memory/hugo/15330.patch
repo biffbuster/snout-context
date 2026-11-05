@@ -1,0 +1,95 @@
+diff --git a/hugolib/pages_capture.go b/hugolib/pages_capture.go
+index 7de458a6ffe..97032208512 100644
+--- a/hugolib/pages_capture.go
++++ b/hugolib/pages_capture.go
+@@ -54,7 +54,7 @@ func newPagesCollector(
+ 		infoLogger:  infoLogger,
+ 		buildConfig: buildConfig,
+ 		ids:         ids,
+-		seenDirs:    make(map[string]bool),
++		seen:        make(map[string]bool),
+ 	}
+ }
+ 
+@@ -72,8 +72,8 @@ type pagesCollector struct {
+ 	buildConfig *BuildCfg
+ 
+ 	// List of paths that have changed. Used in partial builds.
+-	ids      []pathChange
+-	seenDirs map[string]bool
++	ids  []pathChange
++	seen map[string]bool
+ 
+ 	g rungroup.Group[hugofs.FileMetaInfo]
+ }
+@@ -223,8 +223,11 @@ func (c *pagesCollector) Collect() (collectErr error) {
+ }
+ 
+ func (c *pagesCollector) collectDir(dirPath *paths.Path, isDir bool, inFilter func(fim hugofs.FileMetaInfo) bool) error {
+-	var dpath string
++	var dpath, key string
+ 	if dirPath != nil {
++		// Several changed files may live in the same directory, each collected
++		// with its own filter, so dedupe on the path, not the directory.
++		key = dirPath.Path()
+ 		if isDir {
+ 			dpath = filepath.FromSlash(dirPath.Unnormalized().Path())
+ 		} else {
+@@ -232,10 +235,10 @@ func (c *pagesCollector) collectDir(dirPath *paths.Path, isDir bool, inFilter fu
+ 		}
+ 	}
+ 
+-	if c.seenDirs[dpath] {
++	if c.seen[key] {
+ 		return nil
+ 	}
+-	c.seenDirs[dpath] = true
++	c.seen[key] = true
+ 
+ 	root, err := c.fs.Stat(dpath)
+ 	if err != nil {
+diff --git a/hugolib/rebuild_test.go b/hugolib/rebuild_test.go
+index 941f5bc29bf..17eec5bc082 100644
+--- a/hugolib/rebuild_test.go
++++ b/hugolib/rebuild_test.go
+@@ -2338,3 +2338,40 @@ Single: {{ .Title }}|
+ 	b.EditFileReplaceAll("out/data.json", "v1", "v2").Build()
+ 	b.AssertFileContent("public/out/data.min.json", `{"version":"v2"}`)
+ }
++
++// See issue 15330.
++func TestRebuildEditTwoContentFilesInSameDirSameBatch(t *testing.T) {
++	t.Parallel()
++
++	files := `
++-- hugo.toml --
++disableKinds = ["taxonomy", "term", "rss", "sitemap", "home", "section"]
++disableLiveReload = true
++-- content/a.md --
++---
++title: a
++---
++page a
++-- content/c.md --
++---
++title: c
++---
++page c
++-- layouts/page.html --
++{{ .Content }}|Summary: {{ .Summary }}|
++`
++	b := TestRunning(t, files)
++	b.AssertFileContent("public/c/index.html", "<p>page c</p>")
++
++	// a.md rewritten with identical content, c.md grows, same batch.
++	b.EditFiles("content/a.md", "---\ntitle: a\n---\npage a\n")
++	b.EditFiles("content/c.md", "---\ntitle: c\n---\npage c\nappended line\n")
++	b.Build()
++	b.AssertFileContent("public/c/index.html", "<p>page c\nappended line</p>")
++
++	// c.md shrinks.
++	b.EditFiles("content/a.md", "---\ntitle: a\n---\npage a\n")
++	b.EditFiles("content/c.md", "---\ntitle: c\n---\nc\n")
++	b.Build()
++	b.AssertFileContent("public/c/index.html", "<p>c</p>", "|Summary: <p>c</p>|")
++}

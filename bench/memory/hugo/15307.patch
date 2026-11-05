@@ -1,0 +1,25 @@
+diff --git a/internal/js/esbuild/options.go b/internal/js/esbuild/options.go
+index 4176438e847..9248701f7e9 100644
+--- a/internal/js/esbuild/options.go
++++ b/internal/js/esbuild/options.go
+@@ -49,6 +49,7 @@ var (
+ 		"es2022": api.ES2022,
+ 		"es2023": api.ES2023,
+ 		"es2024": api.ES2024,
++		"es2025": api.ES2025,
+ 	}
+ 
+ 	engineName = map[string]api.EngineName{
+diff --git a/internal/js/esbuild/options_test.go b/internal/js/esbuild/options_test.go
+index b60dcbc4ab4..683a32db082 100644
+--- a/internal/js/esbuild/options_test.go
++++ b/internal/js/esbuild/options_test.go
+@@ -189,6 +189,8 @@ func TestToBuildOptionsTarget(t *testing.T) {
+ 		{"es2021", api.ES2021},
+ 		{"es2022", api.ES2022},
+ 		{"es2023", api.ES2023},
++		{"es2024", api.ES2024},
++		{"es2025", api.ES2025},
+ 		{"", api.ESNext},
+ 		{"esnext", api.ESNext},
+ 	} {

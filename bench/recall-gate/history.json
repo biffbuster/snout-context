@@ -1,0 +1,186 @@
+{
+  "about": "Gate 3 (docs/memory-gates.md): a scripted history for one small Node project, replayed through Snout's real hooks, CLI and MCP server. Built from the shapes real sessions left, including the failures Gate 2 found in real notes. Frozen before any fix: see freeze.json.",
+  "project": {
+    "name": "tally",
+    "files": {
+      ".gitignore": "node_modules/\n.snout/\n",
+      "package.json": "{\n  \"name\": \"tally\",\n  \"version\": \"1.0.0\",\n  \"type\": \"module\",\n  \"scripts\": { \"test\": \"node --test\", \"lint\": \"eslint src\" },\n  \"devDependencies\": { \"eslint\": \"^9.0.0\" }\n}\n",
+      "README.md": "# Tally\n\nA small ledger: amounts, dates, CSV export and an HTTP API.\n",
+      "src/money.js": "export function parseAmount(s) {\n  return Number(s);\n}\n\nexport function toCents(n) {\n  return Math.floor(n * 100);\n}\n",
+      "src/dates.js": "export const toStored = (d) => d.toISOString();\n",
+      "src/csv.js": "export const row = (cells) => cells.join(',');\n",
+      "src/routes.js": "export function getItem(store, id) {\n  return store.get(id);\n}\n",
+      "test/money.test.js": "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { parseAmount } from '../src/money.js';\n\ntest('parses an amount', () => assert.equal(parseAmount('1.50'), 1.5));\n"
+    }
+  },
+  "steps": [
+    {
+      "id": "S1", "type": "session", "agent": "claude",
+      "prompt": "Add a test for parsing negative amounts in src/money.js and make sure the suite passes.",
+      "calls": [
+        { "edit": "src/money.js", "content": "export function parseAmount(s) {\n  const t = String(s).trim();\n  return t.startsWith('-') ? -Number(t.slice(1)) : Number(t);\n}\n\nexport function toCents(n) {\n  return Math.floor(n * 100);\n}\n" },
+        { "edit": "test/money.test.js", "content": "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { parseAmount } from '../src/money.js';\n\ntest('parses an amount', () => assert.equal(parseAmount('1.50'), 1.5));\ntest('parses a negative amount', () => assert.equal(parseAmount('-2.25'), -2.25));\n" },
+        { "bash": "npm test", "out": "\n> tally@1.0.0 test\n> node --test\n\n✔ parses an amount (0.6ms)\n✔ parses a negative amount (0.1ms)\nℹ tests 14\nℹ suites 3\nℹ pass 14\nℹ fail 0\nℹ duration_ms 212.4\n" }
+      ],
+      "commit": "Parse negative amounts",
+      "final": "parseAmount in src/money.js now handles a leading minus sign, with a test for it. npm test passes: 14 tests."
+    },
+    {
+      "id": "S2", "type": "session", "agent": "codex",
+      "prompt": "Run the format check before you change src/csv.js, then fix the CSV export so cells with commas are quoted.",
+      "calls": [
+        { "bash": "just fmt-check", "out": "bash: line 1: just: command not found\n" },
+        { "bash": "npm run lint", "out": "\n> tally@1.0.0 lint\n> eslint src\n\n" },
+        { "edit": "src/csv.js", "content": "const cell = (c) => (/[\",\\n]/.test(String(c)) ? `\"${String(c).replace(/\"/g, '\"\"')}\"` : String(c));\nexport const row = (cells) => cells.map(cell).join(',');\n" }
+      ],
+      "commit": "Quote commas in CSV export",
+      "final": "just isn't installed here, so I ran npm run lint instead. Fixed the quoting of commas in the CSV export in src/csv.js."
+    },
+    {
+      "id": "S3", "type": "session", "agent": "claude",
+      "prompt": "Do not publish to npm as part of this step. Fix the rounding of half cents in src/money.js; toCents rounds 0.005 down.",
+      "calls": [
+        { "edit": "src/money.js", "content": "export function parseAmount(s) {\n  const t = String(s).trim();\n  return t.startsWith('-') ? -Number(t.slice(1)) : Number(t);\n}\n\nexport function toCents(n) {\n  return Math.round(n * 100 + Number.EPSILON);\n}\n" },
+        { "bash": "npm test", "out": "\n> tally@1.0.0 test\n> node --test\n\nℹ tests 15\nℹ suites 3\nℹ pass 15\nℹ fail 0\nℹ duration_ms 220.1\n" }
+      ],
+      "commit": "Round half cents up",
+      "final": "toCents in src/money.js now rounds half cents up (0.005 becomes 1 cent), with a test for it. npm test passes: 15 tests. Nothing was published."
+    },
+    { "id": "M1", "type": "cli", "args": ["memory", "add", "API errors are returned as {error: {code, message}}; route handlers never throw.", "--kind", "decision"] },
+    { "id": "M2", "type": "cli", "args": ["memory", "add", "Dates are stored as UTC ISO 8601 strings.", "--kind", "decision"] },
+    {
+      "id": "S4", "type": "session", "agent": "codex",
+      "prompt": "Switch the test runner to vitest and update package.json; run the tests with vitest.",
+      "calls": [
+        { "edit": "package.json", "content": "{\n  \"name\": \"tally\",\n  \"version\": \"1.0.0\",\n  \"type\": \"module\",\n  \"scripts\": { \"test\": \"vitest run\", \"lint\": \"eslint src\" },\n  \"devDependencies\": { \"eslint\": \"^9.0.0\", \"vitest\": \"^3.2.0\" }\n}\n" },
+        { "edit": "vitest.config.js", "content": "export default { test: { coverage: { include: ['lib/**'] } } };\n" },
+        { "install": "node_modules/.bin/vitest", "content": "#!/bin/sh\n# stand-in for the vitest binary npm installs\n" },
+        { "bash": "vitest run", "out": "bash: line 1: vitest: command not found\n" },
+        { "bash": "npx vitest run", "out": "\n RUN  v3.2.4 /work/tally\n\n ✓ test/money.test.js (16 tests) 4ms\n ✓ test/csv.test.js (9 tests) 3ms\n\n Test Files  4 passed (4)\n      Tests  31 passed (31)\n   Duration  412ms\n" }
+      ],
+      "commit": "Move tests to vitest",
+      "final": "The test script is now vitest run. Bare vitest isn't on PATH, but npx vitest run works: 31 tests pass."
+    },
+    {
+      "id": "S5", "type": "session", "agent": "claude",
+      "prompt": "Why is the coverage report empty?",
+      "calls": [
+        { "bash": "vitest run --coverage", "out": "/usr/bin/bash: line 1: vitest: command not found\n" },
+        { "bash": "cat vitest.config.js", "out": "export default { test: { coverage: { include: ['lib/**'] } } };\n" },
+        { "edit": "vitest.config.js", "content": "export default { test: { coverage: { include: ['src/**'] } } };\n" }
+      ],
+      "commit": "Coverage includes src",
+      "final": "coverage.include pointed at lib/ but the code is in src/, so the report was empty. vitest.config.js now includes src/**."
+    },
+    { "id": "M3", "type": "cli", "args": ["memory", "add", "Dates are now stored as Unix epoch milliseconds, no longer ISO strings.", "--kind", "decision"] },
+    {
+      "id": "S6", "type": "session", "agent": "claude",
+      "prompt": "Remember that we keep money as integer cents. Never use floats for money in this project.",
+      "mcp": [
+        { "tool": "snout_memory_save", "args": { "text": "Money is kept as integer cents (toCents) in src/money.js.", "kind": "convention", "user_asked": true, "files": ["src/money.js"] } },
+        { "tool": "snout_memory_save", "args": { "text": "The CSV export is slow for large files.", "kind": "fact" } }
+      ],
+      "calls": [],
+      "final": "Saved: money is kept as integer cents in src/money.js. I also noted that the CSV export looked slow on large files, as a proposal."
+    },
+    {
+      "id": "S7", "type": "session", "agent": "codex",
+      "prompt": "Store money as decimal strings with big.js instead of integer cents in src/money.js.",
+      "calls": [
+        { "edit": "src/money.js", "content": "import Big from 'big.js';\n\nexport function parseAmount(s) {\n  return new Big(String(s).trim()).toString();\n}\n\nexport const add = (a, b) => new Big(a).plus(b).toString();\n" },
+        { "bash": "npx vitest run", "out": "\n Test Files  4 passed (4)\n      Tests  33 passed (33)\n   Duration  430ms\n" }
+      ],
+      "commit": "Money as decimal strings",
+      "final": "src/money.js now keeps amounts as decimal strings through big.js; toCents is gone. npx vitest run: 33 tests pass."
+    },
+    {
+      "id": "S8", "type": "session", "agent": "claude",
+      "prompt": "Always write commit messages in the conventional style, like fix: or feat:. Add the item date as a column in the CSV export in src/csv.js.",
+      "calls": [
+        { "edit": "src/csv.js", "content": "const cell = (c) => (/[\",\\n]/.test(String(c)) ? `\"${String(c).replace(/\"/g, '\"\"')}\"` : String(c));\nexport const row = (cells) => cells.map(cell).join(',');\nexport const itemRow = (item) => row([item.id, item.amount, new Date(item.date).toISOString()]);\n" },
+        { "bash": "npx vitest run", "out": "\n Test Files  4 passed (4)\n      Tests  34 passed (34)\n" }
+      ],
+      "commit": "feat: export item dates in CSV",
+      "final": "The CSV export in src/csv.js now has a date column. 34 tests pass; committed as feat: export item dates in CSV."
+    },
+    {
+      "id": "S9", "type": "session", "agent": "codex",
+      "prompt": "Always write commit messages in the conventional style, like fix: or feat:. Make getItem in src/routes.js return a 404 error for unknown ids.",
+      "calls": [
+        { "edit": "src/routes.js", "content": "export function getItem(store, id) {\n  const item = store.get(id);\n  return item ? { status: 200, body: item } : { status: 404, body: { error: { code: 'not_found', message: `No item ${id}` } } };\n}\n" },
+        { "bash": "npx vitest run", "out": "\n Test Files  4 passed (4)\n      Tests  34 passed (34)\n" }
+      ],
+      "commit": "fix: return 404 for unknown ids",
+      "final": "getItem in src/routes.js returns 404 with {error: {code, message}} for unknown ids. 34 tests pass."
+    },
+    {
+      "id": "S10", "type": "session", "agent": "claude",
+      "prompt": "Run the tests and fix it.",
+      "calls": [
+        { "bash": "npx vitest run", "out": "\n FAIL  test/dates.test.js > parses epoch milliseconds\nAssertionError: expected '2026-10-01T00:00:00.000Z' to equal 1790812800000\n\n Test Files  1 failed | 3 passed (4)\n      Tests  1 failed | 33 passed (34)\n" },
+        { "edit": "src/dates.js", "content": "export const toStored = (d) => d.getTime();\n" },
+        { "bash": "npx vitest run", "out": "\n Test Files  4 passed (4)\n      Tests  34 passed (34)\n" }
+      ],
+      "commit": "fix: store dates as epoch milliseconds",
+      "final": "toStored in src/dates.js returned ISO strings, but dates are stored as epoch milliseconds now; it returns getTime(). 34 tests pass."
+    },
+    {
+      "id": "S11", "type": "session", "agent": "codex",
+      "prompt": "Run the tests and fix it.",
+      "calls": [
+        { "bash": "npx vitest run", "out": "\n Test Files  4 passed (4)\n      Tests  34 passed (34)\n" }
+      ],
+      "final": "All 34 tests pass; there was nothing to fix."
+    },
+    {
+      "id": "S12", "type": "session", "agent": "claude",
+      "prompt": "Try the amount parser on the sample files in my scratch folder.",
+      "calls": [
+        { "bash": "cd \"$SCRATCH\" && npm test", "out": "\n> samples@0.0.0 test\n> node --test\n\nℹ tests 3\nℹ pass 3\nℹ fail 0\n" }
+      ],
+      "final": "The three sample files in the scratch folder parse cleanly; their tests pass."
+    },
+    {
+      "id": "S13", "type": "session", "agent": "claude",
+      "prompt": "Check that the field-test harness next door still passes with this build.",
+      "calls": [
+        { "bash": "cd ../field-test && npm run test:smoke", "out": "\n> field-test@1.0.0 test:smoke\n> node --test smoke/\n\nℹ tests 5\nℹ pass 5\nℹ fail 0\n" }
+      ],
+      "final": "The field-test harness passes its smoke tests (5) with this build."
+    },
+    {
+      "id": "S14", "type": "session", "agent": "claude",
+      "prompt": "Add pagination to the list route in src/routes.js with page and limit parameters.",
+      "calls": [
+        { "edit": "src/routes.js", "content": "export function getItem(store, id) {\n  const item = store.get(id);\n  return item ? { status: 200, body: item } : { status: 404, body: { error: { code: 'not_found', message: `No item ${id}` } } };\n}\n\nexport function listItems(store, { page = 1, limit = 20 } = {}) {\n  const all = [...store.values()];\n  return { status: 200, body: all.slice((page - 1) * limit, page * limit) };\n}\n" },
+        { "todos": [{ "content": "Add pagination to listItems", "status": "completed" }, { "content": "Add a test for page=0", "status": "pending" }] }
+      ],
+      "final": "listItems in src/routes.js takes page and limit. Still to do: a test for page=0, which should be rejected. Not committed yet."
+    }
+  ],
+  "facts": {
+    "T_cur": { "class": "current", "about": "the project's test command", "pattern": "npx vitest run" },
+    "T_old": { "class": "stale", "about": "the test command before vitest, as a note", "pattern": "Run the tests with: npm test\\b" },
+    "T_scratch": { "class": "wrong-scope", "about": "a test command run in the user's scratch folder, as this project's", "pattern": "Run the tests with: cd " },
+    "T_smoke": { "class": "wrong-scope", "about": "another repository's test command, as this project's", "pattern": "Run the tests with: [^\\n]*test:smoke" },
+    "J": { "class": "current", "about": "just is not installed", "pattern": "just is not installed|just isn't installed|just: command not found" },
+    "V_bad": { "class": "unsupported", "about": "vitest reported missing, though the project installs it and npx vitest works", "pattern": "vitest is not installed" },
+    "D1": { "class": "current", "about": "API error shape", "pattern": "route handlers never throw|\\{error: \\{code, message\\}\\}" },
+    "D2": { "class": "stale", "about": "dates as ISO strings, reversed by M3", "pattern": "UTC ISO 8601" },
+    "D3": { "class": "current", "about": "dates as epoch milliseconds", "pattern": "epoch milliseconds" },
+    "M_note": { "class": "stale", "about": "money as integer cents, saved with src/money.js, which S7 then rewrote", "pattern": "integer cents \\(toCents\\)" },
+    "M_cur": { "class": "current", "about": "money as decimal strings", "pattern": "decimal strings|big\\.js" },
+    "C": { "class": "current", "about": "conventional commit messages, said in two sessions", "pattern": "conventional style" },
+    "R_bad": { "class": "unsupported", "about": "a task-bound request saved as a standing preference", "pattern": "preference[^\\n]*Run the tests and fix it" },
+    "P_bad": { "class": "unsupported", "about": "a one-off instruction saved as standing", "pattern": "preference[^\\n]*Do not publish to npm" },
+    "F_once": { "class": "unsupported", "about": "an instruction said once, kept as a proposal", "pattern": "preference[^\\n]*[Nn]ever use floats" },
+    "U_bad": { "class": "unsupported", "about": "an agent's own conclusion, saved as a proposal", "pattern": "CSV export is slow" },
+    "ROUND": { "class": "current", "about": "the half-cent rounding fix", "pattern": "half cents" },
+    "CSVQ": { "class": "current", "about": "the CSV comma quoting fix", "pattern": "[Qq]uot(?:e|ing of) commas" },
+    "COV": { "class": "current", "about": "the empty coverage report", "pattern": "coverage\\.include|Coverage includes src|coverage report empty" },
+    "VITEST_MOVE": { "class": "current", "about": "when tests moved to vitest", "pattern": "Move tests to vitest|Switch the test runner to vitest" },
+    "E404": { "class": "current", "about": "404 for unknown ids", "pattern": "404" },
+    "PAGE": { "class": "current", "about": "the unfinished pagination work", "pattern": "[Pp]agination|page=0" },
+    "EPOCH_FIX": { "class": "current", "about": "the dates fix", "pattern": "epoch milliseconds" }
+  }
+}

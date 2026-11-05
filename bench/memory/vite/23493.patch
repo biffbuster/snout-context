@@ -1,0 +1,65 @@
+diff --git a/packages/vite/src/node/__tests__/dev.spec.ts b/packages/vite/src/node/__tests__/dev.spec.ts
+index 9411c004b951b3..e0809e1c8cc7e7 100644
+--- a/packages/vite/src/node/__tests__/dev.spec.ts
++++ b/packages/vite/src/node/__tests__/dev.spec.ts
+@@ -5,6 +5,7 @@ import { createServer, resolveConfig } from '..'
+ import type { ViteDevServer } from '..'
+ import { promiseWithResolvers } from '../../shared/utils'
+ import { createLogger } from '../logger'
++import { _createServer } from '../server'
+ import { DevEnvironment } from '../server/environment'
+ import { normalizePath } from '../utils'
+ 
+@@ -32,6 +33,37 @@ describe('the dev server', () => {
+     await server?.close()
+   })
+ 
++  test('releases previous environments after initialization', async () => {
++    const previousServer = await createServer({
++      configFile: false,
++      root: import.meta.dirname,
++      optimizeDeps: { noDiscovery: true },
++      server: { middlewareMode: true, ws: false },
++    })
++    const options = {
++      listen: false,
++      previousEnvironments: previousServer.environments,
++    }
++
++    try {
++      const config = await resolveConfig(
++        {
++          configFile: false,
++          root: import.meta.dirname,
++          optimizeDeps: { noDiscovery: true },
++          server: { middlewareMode: true, ws: false },
++        },
++        'serve',
++      )
++      const nextServer = await _createServer(config, options)
++
++      expect(options.previousEnvironments).toBeUndefined()
++      await nextServer.close()
++    } finally {
++      await previousServer.close()
++    }
++  })
++
+   test('resolves each environment input as a safe module', async () => {
+     const root = path.join(import.meta.dirname, 'fixtures', 'input-option')
+     const clientEntry = normalizePath(path.join(root, 'client-entry.js'))
+diff --git a/packages/vite/src/node/server/index.ts b/packages/vite/src/node/server/index.ts
+index 9cad2cf24f6145..39c777dad2b73e 100644
+--- a/packages/vite/src/node/server/index.ts
++++ b/packages/vite/src/node/server/index.ts
+@@ -625,6 +625,10 @@ export async function _createServer(
+     ),
+   )
+ 
++  // Release previous environments after initialization to prevent memory leaks
++  // from retaining old server graphs across restarts.
++  options.previousEnvironments = undefined
++
+   // Backward compatibility
+ 
+   let moduleGraph = new ModuleGraph({

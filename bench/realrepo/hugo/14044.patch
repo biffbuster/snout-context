@@ -1,0 +1,279 @@
+diff --git a/hugolib/page_test.go b/hugolib/page_test.go
+index 1d34df54c15..005a89a2935 100644
+--- a/hugolib/page_test.go
++++ b/hugolib/page_test.go
+@@ -784,6 +784,36 @@ Content: {{ .Content }}|
+ 		"Content: <p>This is <strong>summary</strong>.")
+ }
+ 
++// See issue 14044.
++func TestSummaryAutoBalancesContainerTags(t *testing.T) {
++	t.Parallel()
++
++	files := `
++-- hugo.toml --
++disableKinds = ['home','rss','section','sitemap','taxonomy','term']
++summaryLength = 1
++-- content/p1.md --
++---
++title: p1
++---
++> foo
++-- content/p2.md --
++---
++title: p2
++---
++- item 1 line 1
++
++  item 1 line 2
++-- layouts/page.html --
++|{{ .Summary }}|
++`
++
++	b := Test(t, files)
++
++	b.AssertFileContent("public/p1/index.html", "|<blockquote>\n<p>foo</p>\n</blockquote>|")
++	b.AssertFileContent("public/p2/index.html", "|<ul>\n<li>\n<p>item 1 line 1</p>\n<p>item 1 line 2</p>\n</li>\n</ul>|")
++}
++
+ // #2973
+ func TestSummaryWithHTMLTagsOnNextLine(t *testing.T) {
+ 	htesting.SkipSlowTestUnlessCI(t)
+diff --git a/resources/page/page_markup.go b/resources/page/page_markup.go
+index 8f58fc2abba..572822b0bcf 100644
+--- a/resources/page/page_markup.go
++++ b/resources/page/page_markup.go
+@@ -234,9 +234,11 @@ func ExtractSummaryFromHTML(mt media.Type, input string, numWords int, isCJK boo
+ 		}
+ 
+ 		if count >= numWords {
++			summaryHigh := j + closingIndex + len(ptag.tagName) + 3
++			summaryHigh = expandSummaryHighToBalancedHTML(input, result.WrapperStart.High, summaryHigh, high)
+ 			result.SummaryLowHigh = types.LowHigh[string]{
+ 				Low:  result.WrapperStart.High,
+-				High: j + closingIndex + len(ptag.tagName) + 3,
++				High: summaryHigh,
+ 			}
+ 			return
+ 		}
+@@ -253,6 +255,167 @@ func ExtractSummaryFromHTML(mt media.Type, input string, numWords int, isCJK boo
+ 	return
+ }
+ 
++// expandSummaryHighToBalancedHTML moves high forward until every element
++// opened in input[low:high] is closed, so the summary does not end inside
++// e.g. a blockquote or list item.
++func expandSummaryHighToBalancedHTML(input string, low, high, maxHigh int) int {
++	if low >= high || high >= maxHigh {
++		return high
++	}
++
++	var buf [16]string
++	stack := buf[:0]
++	sc := htmlTagScanner{s: input, pos: low}
++
++	for {
++		name, end, ok := sc.next(high)
++		if !ok {
++			break
++		}
++		stack = pushOrPopHTMLStack(stack, name, end)
++	}
++
++	if len(stack) == 0 {
++		return high
++	}
++
++	for {
++		name, end, ok := sc.next(maxHigh)
++		if !ok {
++			return high
++		}
++		stack = pushOrPopHTMLStack(stack, name, end)
++		if len(stack) == 0 {
++			return sc.pos
++		}
++	}
++}
++
++func pushOrPopHTMLStack(stack []string, name string, end bool) []string {
++	if end {
++		for i := len(stack) - 1; i >= 0; i-- {
++			if stack[i] == name {
++				return stack[:i]
++			}
++		}
++		return stack
++	}
++	if isVoidHTMLElement(name) {
++		return stack
++	}
++	return append(stack, name)
++}
++
++// htmlTagScanner is a minimal, allocation-free scanner for start and end tags.
++// It skips comments, quoted attribute values and raw text elements.
++type htmlTagScanner struct {
++	s   string
++	pos int
++}
++
++// next returns the lowercased name of the next tag before limit and
++// whether it is an end tag. ok is false when no more tags are found.
++func (sc *htmlTagScanner) next(limit int) (name string, end, ok bool) {
++	for {
++		i := strings.IndexByte(sc.s[sc.pos:limit], '<')
++		if i == -1 {
++			sc.pos = limit
++			return "", false, false
++		}
++		sc.pos += i + 1
++		if sc.pos >= limit {
++			return "", false, false
++		}
++
++		end = false
++		switch c := sc.s[sc.pos]; c {
++		case '!', '?':
++			if strings.HasPrefix(sc.s[sc.pos:limit], "!--") {
++				sc.skipPast(limit, "-->")
++			} else {
++				sc.skipPast(limit, ">")
++			}
++			continue
++		case '/':
++			end = true
++			sc.pos++
++		}
++
++		start := sc.pos
++		for sc.pos < limit && isHTMLTagNameByte(sc.s[sc.pos]) {
++			sc.pos++
++		}
++		if sc.pos == start {
++			continue
++		}
++		name = strings.ToLower(sc.s[start:sc.pos])
++
++		selfClosing := false
++		for sc.pos < limit {
++			c := sc.s[sc.pos]
++			sc.pos++
++			switch c {
++			case '"', '\'':
++				sc.skipPast(limit, string(c))
++			case '/':
++				selfClosing = true
++			case '>':
++				if selfClosing {
++					continue
++				}
++				if !end && isRawTextHTMLElement(name) {
++					sc.skipPastEndTag(limit, name)
++				}
++				return name, end, true
++			default:
++				selfClosing = false
++			}
++		}
++		return name, end, true
++	}
++}
++
++func (sc *htmlTagScanner) skipPast(limit int, sep string) {
++	if i := strings.Index(sc.s[sc.pos:limit], sep); i == -1 {
++		sc.pos = limit
++	} else {
++		sc.pos += i + len(sep)
++	}
++}
++
++func (sc *htmlTagScanner) skipPastEndTag(limit int, name string) {
++	for {
++		sc.skipPast(limit, "</")
++		if sc.pos >= limit {
++			return
++		}
++		if rest := sc.s[sc.pos:limit]; len(rest) > len(name) && strings.EqualFold(rest[:len(name)], name) && !isHTMLTagNameByte(rest[len(name)]) {
++			sc.pos -= 2
++			return
++		}
++	}
++}
++
++func isHTMLTagNameByte(c byte) bool {
++	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-'
++}
++
++func isRawTextHTMLElement(name string) bool {
++	switch name {
++	case "script", "style", "textarea", "title", "iframe", "xmp", "noembed", "noframes":
++		return true
++	}
++	return false
++}
++
++func isVoidHTMLElement(name string) bool {
++	switch name {
++	case "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr":
++		return true
++	}
++	return false
++}
++
+ // ExtractSummaryFromHTMLWithDivider extracts a summary from the given HTML content with
+ // a manual summary divider.
+ func ExtractSummaryFromHTMLWithDivider(mt media.Type, input, divider string) (result HtmlSummary) {
+diff --git a/resources/page/page_markup_test.go b/resources/page/page_markup_test.go
+index fc110243451..ee9fb1bbe6b 100644
+--- a/resources/page/page_markup_test.go
++++ b/resources/page/page_markup_test.go
+@@ -38,6 +38,14 @@ func TestExtractSummaryFromHTML(t *testing.T) {
+ 		{media.Builtin.MarkdownType, "<p>First paragraph</p>", false, 10, "<p>First paragraph</p>", ""},
+ 		{media.Builtin.MarkdownType, "<p>First paragraph</p><p>Second paragraph</p>", false, 2, "<p>First paragraph</p>", "<p>Second paragraph</p>"},
+ 		{media.Builtin.MarkdownType, "<p>First paragraph</p><p>Second paragraph</p><p>Third paragraph</p>", false, 3, "<p>First paragraph</p><p>Second paragraph</p>", "<p>Third paragraph</p>"},
++		{media.Builtin.MarkdownType, "<blockquote>\n<p>foo</p>\n</blockquote>\n<p>bar</p>", false, 1, "<blockquote>\n<p>foo</p>\n</blockquote>", "<p>bar</p>"},
++		{media.Builtin.MarkdownType, "<ul>\n<li>\n<p>item 1 line 1</p>\n<p>item 1 line 2</p>\n</li>\n</ul>\n<p>bar</p>", false, 1, "<ul>\n<li>\n<p>item 1 line 1</p>\n<p>item 1 line 2</p>\n</li>\n</ul>", "<p>bar</p>"},
++		{media.Builtin.HTMLType, "<div><p>foo</p></div><p>bar</p>", false, 1, "<div><p>foo</p></div>", "<p>bar</p>"},
++		{media.Builtin.HTMLType, "<DIV><p>foo</p></DIV><p>bar</p>", false, 1, "<DIV><p>foo</p></DIV>", "<p>bar</p>"},
++		{media.Builtin.HTMLType, "<div><!-- <span> --><p>foo</p></div><p>bar</p>", false, 1, "<div><!-- <span> --><p>foo</p></div>", "<p>bar</p>"},
++		{media.Builtin.HTMLType, `<div><p title="a>b"><img src="x"/>foo</p></div><p>bar</p>`, false, 1, `<div><p title="a>b"><img src="x"/>foo</p></div>`, "<p>bar</p>"},
++		{media.Builtin.HTMLType, "<div><script>var a = '<div>';</script><p>foo</p></div><p>bar</p>", false, 1, "<div><script>var a = '<div>';</script><p>foo</p></div>", "<p>bar</p>"},
++		{media.Builtin.HTMLType, "<div><p>foo</p><p>bar</p>", false, 1, "<div><p>foo</p>", "<p>bar</p>"},
+ 		{media.Builtin.AsciiDocType, "<div><p>First paragraph</p></div><div><p>Second paragraph</p></div>", false, 2, "<div><p>First paragraph</p></div>", "<div><p>Second paragraph</p></div>"},
+ 		{media.Builtin.MarkdownType, "<p>这是中文，全中文</p><p>a这是中文，全中文</p>", true, 5, "<p>这是中文，全中文</p>", "<p>a这是中文，全中文</p>"},
+ 	}
+@@ -172,25 +180,18 @@ func TestIsProbablyHTMLToken(t *testing.T) {
+ }
+ 
+ func BenchmarkSummaryFromHTML(b *testing.B) {
+-
+-	input := "<p>First paragraph</p><p>Second paragraph</p>"
+-
+-	for b.Loop() {
+-		summary := ExtractSummaryFromHTML(media.Builtin.MarkdownType, input, 2, false)
+-		if s := summary.Content(); s != input {
+-			b.Fatalf("unexpected content: %q", s)
+-		}
+-		if s := summary.ContentWithoutSummary(); s != "<p>Second paragraph</p>" {
+-			b.Fatalf("unexpected content without summary: %q", s)
+-		}
+-		if s := summary.Summary(); s != "<p>First paragraph</p>" {
+-			b.Fatalf("unexpected summary: %q", s)
+-		}
++	run := func(name, input string) {
++		b.Run(name, func(b *testing.B) {
++			for i := 0; i < b.N; i++ {
++				_ = ExtractSummaryFromHTML(media.Builtin.MarkdownType, input, 2, false)
++			}
++		})
+ 	}
++	run("basic", "<p>First paragraph</p><p>Second paragraph</p>")
++	run("list", "<ul>\n<li>\n<p>item 1 line 1</p>\n<p>item 1 line 2</p>\n</li>\n</ul>\n<p>bar</p>")
+ }
+ 
+ func BenchmarkSummaryFromHTMLWithDivider(b *testing.B) {
+-
+ 	input := "<p>First paragraph</p><p>FOOO</p><p>Second paragraph</p>"
+ 
+ 	for b.Loop() {

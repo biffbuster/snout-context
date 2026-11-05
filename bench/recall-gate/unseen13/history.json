@@ -1,0 +1,464 @@
+{
+ "about": "Gate 3, thirteenth unseen check: written and frozen on 2026-10-27 before the answerability-judge test (fill rule removed, all eligible notes judged; docs/memory-gates.md), and run once after a design is locked on the older sets, only if it meets the preset safety and latency criteria. A TypeScript veterinary-clinic scheduler tested with vitest through pnpm.",
+ "project": {
+  "name": "pawprint",
+  "files": {
+   ".gitignore": "node_modules/\ndist/\n",
+   "package.json": "{\n  \"name\": \"pawprint\",\n  \"version\": \"0.9.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"scripts\": {\n    \"test\": \"vitest run\"\n  },\n  \"devDependencies\": {\n    \"vitest\": \"^2.1.8\"\n  }\n}\n",
+   "src/appointments/book.ts": "export function book(vet: string, at: string): boolean {\n  return !!vet && !!at;\n}\n",
+   "src/appointments/slots.ts": "export const SLOT_MINUTES = 20;\n",
+   "src/billing/cancel.ts": "export const FREE_CANCEL_HOURS = 24;\n",
+   "src/mail/postmark.ts": "export async function send(to: string, body: string): Promise<void> {}\n",
+   "src/patients/list.ts": "export const patients: { name: string }[] = [];\n",
+   "docker-compose.yml": "services:\n  redis:\n    image: redis:7.2\n",
+   "tests/book.test.ts": "import { test, expect } from 'vitest';\ntest('placeholder', () => expect(true).toBe(true));\n"
+  }
+ },
+ "steps": [
+  {
+   "id": "H1",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Add a booking endpoint in src/appointments/book.ts and make sure the tests pass.",
+   "calls": [
+    {
+     "edit": "src/appointments/book.ts",
+     "content": "const taken = new Set<string>();\nexport function book(vet: string, at: string): boolean {\n  const key = `${vet}@${at}`;\n  if (taken.has(key)) return false;\n  taken.add(key);\n  return true;\n}\n"
+    },
+    {
+     "bash": "pnpm vitest run",
+     "out": " RUN  v2.1.8 /work/pawprint\n\n ✓ tests/book.test.ts (14 tests) 41ms\n\n Test Files  1 passed (1)\n      Tests  14 passed (14)\n   Start at  10:00:00\n   Duration  412ms\n"
+    }
+   ],
+   "commit": "Add appointment booking",
+   "final": "src/appointments/book.ts books an appointment with a vet and refuses a slot already taken. vitest: 14 passed."
+  },
+  {
+   "id": "H2",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Run the tests with pnpm vitest run --pool=forks from now on; the threads pool crashes on the canvas module.",
+   "calls": [
+    {
+     "edit": "package.json",
+     "content": "{\n  \"name\": \"pawprint\",\n  \"version\": \"0.9.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"scripts\": {\n    \"test\": \"vitest run --pool=forks\"\n  },\n  \"devDependencies\": {\n    \"vitest\": \"^2.1.8\"\n  }\n}\n"
+    },
+    {
+     "bash": "pnpm vitest run --pool=forks",
+     "out": " RUN  v2.1.8 /work/pawprint\n\n ✓ tests/book.test.ts (15 tests) 41ms\n\n Test Files  1 passed (1)\n      Tests  15 passed (15)\n   Start at  10:00:00\n   Duration  412ms\n"
+    }
+   ],
+   "commit": "Run tests in the forks pool",
+   "final": "Tests run with pnpm vitest run --pool=forks now, so the canvas module no longer crashes the run. 15 passed."
+  },
+  {
+   "id": "H3",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Make a local HTTPS certificate for the dev server with mkcert.",
+   "calls": [
+    {
+     "bash": "mkcert localhost",
+     "out": "bash: mkcert: command not found\n"
+    }
+   ],
+   "final": "mkcert isn't installed here, so no local certificate was made."
+  },
+  {
+   "id": "M1",
+   "type": "cli",
+   "args": [
+    "memory",
+    "add",
+    "Appointment times are stored in UTC and shown in the clinic's time zone.",
+    "--kind",
+    "decision"
+   ]
+  },
+  {
+   "id": "M2",
+   "type": "cli",
+   "args": [
+    "memory",
+    "add",
+    "Each vet sees at most 12 patients a day.",
+    "--kind",
+    "convention"
+   ]
+  },
+  {
+   "id": "M3",
+   "type": "cli",
+   "args": [
+    "memory",
+    "add",
+    "Reminder emails are sent through Postmark from src/mail/postmark.ts.",
+    "--kind",
+    "convention"
+   ]
+  },
+  {
+   "id": "M4",
+   "type": "cli",
+   "args": [
+    "memory",
+    "add",
+    "Pet weights are stored in grams as integers.",
+    "--kind",
+    "decision"
+   ]
+  },
+  {
+   "id": "M5",
+   "type": "cli",
+   "args": [
+    "memory",
+    "add",
+    "Prescriptions must be signed by the vet who wrote them before they print.",
+    "--kind",
+    "convention"
+   ]
+  },
+  {
+   "id": "H4",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Fix overlapping bookings when two receptionists book the same vet at once, in src/appointments/book.ts.",
+   "calls": [
+    {
+     "edit": "src/appointments/book.ts",
+     "content": "const taken = new Set<string>();\n// one transaction per vet and slot\nexport function book(vet: string, at: string): boolean {\n  const key = `${vet}@${at}`;\n  if (taken.has(key)) return false;\n  taken.add(key);\n  return true;\n}\n"
+    },
+    {
+     "bash": "pnpm vitest run --pool=forks",
+     "out": " RUN  v2.1.8 /work/pawprint\n\n ✓ tests/book.test.ts (16 tests) 41ms\n\n Test Files  1 passed (1)\n      Tests  16 passed (16)\n   Start at  10:00:00\n   Duration  412ms\n"
+    }
+   ],
+   "commit": "Refuse overlapping bookings",
+   "final": "Bookings for the same vet and slot run in one transaction, so overlapping bookings are refused. 16 passed."
+  },
+  {
+   "id": "H5",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Remember that appointments can be cancelled free of charge up to 24 hours before, set in src/billing/cancel.ts.",
+   "mcp": [
+    {
+     "tool": "snout_memory_save",
+     "args": {
+      "text": "Appointments can be cancelled free of charge up to 24 hours before, set in src/billing/cancel.ts.",
+      "kind": "fact",
+      "user_asked": true,
+      "files": [
+       "src/billing/cancel.ts"
+      ]
+     }
+    }
+   ],
+   "calls": [],
+   "final": "Saved: appointments can be cancelled free of charge up to 24 hours before, set in src/billing/cancel.ts. Also, the vet roster is imported every Monday at 06:00 by the roster job."
+  },
+  {
+   "id": "H6",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Allow free cancellation up to 48 hours before instead of 24, in src/billing/cancel.ts.",
+   "calls": [
+    {
+     "edit": "src/billing/cancel.ts",
+     "content": "export const FREE_CANCEL_HOURS = 48;\n"
+    },
+    {
+     "bash": "pnpm vitest run --pool=forks",
+     "out": " RUN  v2.1.8 /work/pawprint\n\n ✓ tests/book.test.ts (17 tests) 41ms\n\n Test Files  1 passed (1)\n      Tests  17 passed (17)\n   Start at  10:00:00\n   Duration  412ms\n"
+    }
+   ],
+   "commit": "Free cancellation up to 48 hours",
+   "final": "src/billing/cancel.ts lets owners cancel free of charge up to 48 hours before now. 17 passed."
+  },
+  {
+   "id": "H7",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Add vaccination reminders in src/reminders/vaccines.ts.",
+   "calls": [
+    {
+     "edit": "src/reminders/vaccines.ts",
+     "content": "export function due(lastShot: Date, months: number): Date {\n  const d = new Date(lastShot);\n  d.setMonth(d.getMonth() + months);\n  return d;\n}\n"
+    },
+    {
+     "bash": "pnpm vitest run --pool=forks",
+     "out": " RUN  v2.1.8 /work/pawprint\n\n ✓ tests/book.test.ts (19 tests) 41ms\n\n Test Files  1 passed (1)\n      Tests  19 passed (19)\n   Start at  10:00:00\n   Duration  412ms\n"
+    }
+   ],
+   "commit": "Vaccination reminders",
+   "final": "src/reminders/vaccines.ts schedules a vaccination reminder when a booster is due. 19 passed."
+  },
+  {
+   "id": "H8",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Never put a pet owner's phone number in error reports. Add an owners table in src/owners/owners.ts.",
+   "calls": [
+    {
+     "edit": "src/owners/owners.ts",
+     "content": "export interface Owner { id: string; phone: string }\n"
+    },
+    {
+     "bash": "pnpm vitest run --pool=forks",
+     "out": " RUN  v2.1.8 /work/pawprint\n\n ✓ tests/book.test.ts (20 tests) 41ms\n\n Test Files  1 passed (1)\n      Tests  20 passed (20)\n   Start at  10:00:00\n   Duration  412ms\n"
+    }
+   ],
+   "commit": "Owners table",
+   "final": "src/owners/owners.ts holds the owners table; error reports carry the owner id only. 20 passed."
+  },
+  {
+   "id": "H9",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Never put a pet owner's phone number in error reports. Text owners the day before an appointment, in src/reminders/sms.ts.",
+   "calls": [
+    {
+     "edit": "src/reminders/sms.ts",
+     "content": "export function dayBefore(at: Date): Date {\n  return new Date(at.getTime() - 86_400_000);\n}\n"
+    },
+    {
+     "bash": "pnpm vitest run --pool=forks",
+     "out": " RUN  v2.1.8 /work/pawprint\n\n ✓ tests/book.test.ts (21 tests) 41ms\n\n Test Files  1 passed (1)\n      Tests  21 passed (21)\n   Start at  10:00:00\n   Duration  412ms\n"
+    }
+   ],
+   "commit": "SMS reminders the day before",
+   "final": "src/reminders/sms.ts sends an SMS reminder the day before an appointment. 21 passed."
+  },
+  {
+   "id": "H10",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Deploy to staging after the tests pass. Add a species filter to the patient list in src/patients/list.ts.",
+   "calls": [
+    {
+     "edit": "src/patients/list.ts",
+     "content": "export const patients: { name: string; species: string }[] = [];\nexport const bySpecies = (s: string) => patients.filter((p) => p.species === s);\n"
+    },
+    {
+     "bash": "pnpm vitest run --pool=forks",
+     "out": " RUN  v2.1.8 /work/pawprint\n\n ✓ tests/book.test.ts (22 tests) 41ms\n\n Test Files  1 passed (1)\n      Tests  22 passed (22)\n   Start at  10:00:00\n   Duration  412ms\n"
+    }
+   ],
+   "commit": "Species filter",
+   "final": "src/patients/list.ts filters patients by species (dog, cat, rabbit, other). 22 passed; deployed to staging."
+  },
+  {
+   "id": "H11",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Deploy to staging after the tests pass. Add microchip lookup in src/patients/chip.ts.",
+   "calls": [
+    {
+     "edit": "src/patients/chip.ts",
+     "content": "export const byChip = (chip: string) => chip.length === 15;\n"
+    },
+    {
+     "bash": "pnpm vitest run --pool=forks",
+     "out": " RUN  v2.1.8 /work/pawprint\n\n ✓ tests/book.test.ts (23 tests) 41ms\n\n Test Files  1 passed (1)\n      Tests  23 passed (23)\n   Start at  10:00:00\n   Duration  412ms\n"
+    }
+   ],
+   "commit": "Microchip lookup",
+   "final": "src/patients/chip.ts finds a patient by its 15-digit microchip number. 23 passed; deployed to staging."
+  },
+  {
+   "id": "H12",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Run the load tests in my pawprint-load checkout.",
+   "calls": [
+    {
+     "bash": "cd ../pawprint-load && pnpm vitest run",
+     "out": " RUN  v2.1.8 /work/pawprint\n\n ✓ tests/book.test.ts (6 tests) 41ms\n\n Test Files  1 passed (1)\n      Tests  6 passed (6)\n   Start at  10:00:00\n   Duration  412ms\n"
+    }
+   ],
+   "final": "pawprint-load's 6 load tests pass."
+  },
+  {
+   "id": "H13",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Why do some appointments show an hour late after the clocks change? Fix it in src/appointments/slots.ts.",
+   "calls": [
+    {
+     "edit": "src/appointments/slots.ts",
+     "content": "export const SLOT_MINUTES = 20;\nexport const local = (utc: Date, zone: string) => utc.toLocaleString('en-GB', { timeZone: zone });\n"
+    },
+    {
+     "bash": "pnpm vitest run --pool=forks",
+     "out": " RUN  v2.1.8 /work/pawprint\n\n ✓ tests/book.test.ts (24 tests) 41ms\n\n Test Files  1 passed (1)\n      Tests  24 passed (24)\n   Start at  10:00:00\n   Duration  412ms\n"
+    }
+   ],
+   "commit": "Convert slots with zone rules",
+   "final": "Slots were shifted with a fixed offset, so after the clocks change for daylight saving they showed an hour late; they convert with the clinic's zone rules now. 24 passed."
+  },
+  {
+   "id": "H14",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Add an invoice PDF export in src/billing/invoice.ts.",
+   "calls": [
+    {
+     "edit": "src/billing/invoice.ts",
+     "content": "export function invoicePdf(id: string): Uint8Array {\n  return new Uint8Array();\n}\n"
+    },
+    {
+     "bash": "pnpm vitest run --pool=forks",
+     "out": " RUN  v2.1.8 /work/pawprint\n\n ✓ tests/book.test.ts (25 tests) 41ms\n\n Test Files  1 passed (1)\n      Tests  25 passed (25)\n   Start at  10:00:00\n   Duration  412ms\n"
+    }
+   ],
+   "commit": "Invoice PDF export",
+   "final": "src/billing/invoice.ts exports an invoice PDF with the clinic's letterhead. 25 passed."
+  },
+  {
+   "id": "H15",
+   "type": "session",
+   "agent": "claude",
+   "prompt": "Move Redis to 7.4 in docker-compose.yml.",
+   "calls": [
+    {
+     "edit": "docker-compose.yml",
+     "content": "services:\n  redis:\n    image: redis:7.4\n"
+    }
+   ],
+   "commit": "Redis 7.4",
+   "final": "docker-compose.yml runs Redis 7.4."
+  },
+  {
+   "id": "H16",
+   "type": "session",
+   "agent": "codex",
+   "prompt": "Add a waiting-room queue in src/clinic/queue.ts.",
+   "calls": [
+    {
+     "edit": "src/clinic/queue.ts",
+     "content": "export const queue: string[] = [];\nexport const arrive = (patient: string) => queue.push(patient);\n"
+    },
+    {
+     "todos": [
+      {
+       "content": "Keep a waiting-room queue per clinic",
+       "status": "completed"
+      },
+      {
+       "content": "Call the next patient to a room",
+       "status": "pending"
+      }
+     ]
+    }
+   ],
+   "final": "src/clinic/queue.ts keeps a waiting-room queue per clinic. Calling the next patient to a room is still to do; not committed."
+  }
+ ],
+ "facts": {
+  "T_cur": {
+   "class": "current",
+   "pattern": "pnpm vitest run --pool=forks"
+  },
+  "T_old": {
+   "class": "stale",
+   "pattern": "Run the tests with: pnpm vitest run(?! --pool=forks)"
+  },
+  "T_else": {
+   "class": "wrong-scope",
+   "pattern": "Run the tests with: cd "
+  },
+  "MKCERT": {
+   "class": "current",
+   "pattern": "mkcert is not installed|mkcert isn't installed|mkcert: command not found"
+  },
+  "TZ": {
+   "class": "current",
+   "pattern": "stored in UTC"
+  },
+  "CAP12": {
+   "class": "current",
+   "pattern": "at most 12 patients"
+  },
+  "POSTMARK": {
+   "class": "current",
+   "pattern": "Postmark"
+  },
+  "GRAMS": {
+   "class": "current",
+   "pattern": "in grams"
+  },
+  "SIGNED": {
+   "class": "current",
+   "pattern": "signed by the vet"
+  },
+  "NOPHONE": {
+   "class": "current",
+   "pattern": "[Nn]ever put a pet owner's phone number in error reports"
+  },
+  "STAGING_BAD": {
+   "class": "unsupported",
+   "pattern": "preference[^\\n]*Deploy to staging after the tests pass"
+  },
+  "CANCEL_OLD": {
+   "class": "stale",
+   "pattern": "24 hours before"
+  },
+  "CANCEL_CUR": {
+   "class": "current",
+   "pattern": "48 hours"
+  },
+  "ROSTER": {
+   "class": "current",
+   "pattern": "roster job|every Monday at 06:00"
+  },
+  "BOOK": {
+   "class": "current",
+   "pattern": "[Bb]ooking endpoint|books an appointment"
+  },
+  "FORKS": {
+   "class": "current",
+   "pattern": "[Ff]orks pool|canvas module"
+  },
+  "OVERLAP": {
+   "class": "current",
+   "pattern": "[Oo]verlapping bookings|same vet"
+  },
+  "VACC": {
+   "class": "current",
+   "pattern": "[Vv]accination reminders?"
+  },
+  "OWNERS": {
+   "class": "current",
+   "pattern": "[Oo]wners table"
+  },
+  "SMS": {
+   "class": "current",
+   "pattern": "SMS reminder|day before an appointment"
+  },
+  "SPECIES": {
+   "class": "current",
+   "pattern": "[Ss]pecies filter|filters patients by species"
+  },
+  "CHIP": {
+   "class": "current",
+   "pattern": "[Mm]icrochip"
+  },
+  "DST": {
+   "class": "current",
+   "pattern": "daylight saving|clocks change"
+  },
+  "INVOICE": {
+   "class": "current",
+   "pattern": "[Ii]nvoice PDF"
+  },
+  "REDIS": {
+   "class": "current",
+   "pattern": "Redis 7\\.4"
+  },
+  "QUEUE": {
+   "class": "current",
+   "pattern": "[Ww]aiting-room queue"
+  }
+ }
+}

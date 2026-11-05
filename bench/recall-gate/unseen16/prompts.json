@@ -1,0 +1,537 @@
+{
+ "about": "Gate 3, sixteenth unseen check (mixed-language): prompts for unseen16/history.json. Written and frozen before the run, after the citation rule and per-folder test commands were locked; scored by bench/recall-gate.mjs as every set, and by bench/ondemand-gate.mjs for the on-demand gate. Three test commands are current at once, one per folder; the API's first command (T_API_old) must reach no path. FEE_OLD must reach no path; H5's other fact (LONGRIDE) stays findable. SQUASH_BAD, a request said in two sessions, must never be shown as standing. S08 shares a word with a session record that does not answer it.",
+ "prompts": [
+  {
+   "id": "D01",
+   "prompt": "Add a test for reservations and run the API tests.",
+   "query": "api tests",
+   "delivery": [
+    "T_API"
+   ],
+   "recall": [
+    "RESERVE"
+   ],
+   "search": [
+    "T_API"
+   ]
+  },
+  {
+   "id": "D02",
+   "prompt": "How do I run the web tests?",
+   "query": "web tests",
+   "delivery": [
+    "T_WEB"
+   ],
+   "recall": "any",
+   "search": [
+    "T_WEB"
+   ]
+  },
+  {
+   "id": "D03",
+   "prompt": "Run the dispatcher tests.",
+   "query": "dispatch tests",
+   "delivery": [
+    "T_GO"
+   ],
+   "recall": "any",
+   "search": [
+    "T_GO"
+   ]
+  },
+  {
+   "id": "D04",
+   "prompt": "Generate the API client with openapi-generator.",
+   "query": "openapi-generator",
+   "delivery": [
+    "MISSING"
+   ],
+   "recall": [
+    "MISSING"
+   ],
+   "search": [
+    "MISSING"
+   ]
+  },
+  {
+   "id": "D05",
+   "prompt": "How are bike positions stored?",
+   "query": "bike position storage",
+   "delivery": [
+    "WGS84"
+   ],
+   "recall": "any",
+   "search": [
+    "WGS84"
+   ]
+  },
+  {
+   "id": "D06",
+   "prompt": "Show bike positions on the map with a 10 m accuracy circle.",
+   "query": "bike coordinates",
+   "delivery": [
+    "WGS84"
+   ],
+   "recall": "any",
+   "search": [
+    "WGS84"
+   ]
+  },
+  {
+   "id": "D07",
+   "prompt": "How many bikes can a rider hold at once?",
+   "query": "bikes per rider",
+   "delivery": [
+    "ONEBIKE"
+   ],
+   "recall": "any",
+   "search": [
+    "ONEBIKE"
+   ]
+  },
+  {
+   "id": "D08",
+   "prompt": "Let a family check out three bikes on one account.",
+   "query": "multiple bikes per account",
+   "delivery": [
+    "ONEBIKE"
+   ],
+   "recall": "any",
+   "search": [
+    "ONEBIKE"
+   ]
+  },
+  {
+   "id": "D09",
+   "prompt": "How are unlock codes sent?",
+   "query": "unlock codes",
+   "delivery": [
+    "VONAGE"
+   ],
+   "recall": "any",
+   "search": [
+    "VONAGE"
+   ]
+  },
+  {
+   "id": "D10",
+   "prompt": "Send a test SMS through Vonage.",
+   "query": "vonage",
+   "delivery": [
+    "VONAGE"
+   ],
+   "recall": "any",
+   "search": [
+    "VONAGE"
+   ]
+  },
+  {
+   "id": "D11",
+   "prompt": "Where are ride prices computed?",
+   "query": "ride price calculation",
+   "delivery": [
+    "CENTS"
+   ],
+   "recall": "any",
+   "search": [
+    "CENTS"
+   ]
+  },
+  {
+   "id": "D12",
+   "prompt": "Show the price of a ride in the web app.",
+   "query": "ride price display",
+   "delivery": [
+    "CENTS"
+   ],
+   "recall": "any",
+   "search": [
+    "CENTS"
+   ]
+  },
+  {
+   "id": "D13",
+   "prompt": "Can I log the rider's phone number when an unlock fails?",
+   "query": "log phone number",
+   "delivery": [
+    "NOPHONE"
+   ],
+   "recall": "any",
+   "search": [
+    "NOPHONE"
+   ]
+  },
+  {
+   "id": "D14",
+   "prompt": "Squash commits before merging.",
+   "query": "squash commits",
+   "delivery": "any",
+   "recall": "any",
+   "search": "any"
+  },
+  {
+   "id": "D15",
+   "prompt": "Pick up where the last session stopped.",
+   "query": "monthly pass",
+   "delivery": [
+    "PASS"
+   ],
+   "recall": "any",
+   "search": [
+    "PASS"
+   ]
+  },
+  {
+   "id": "D16",
+   "prompt": "Never log a rider's phone number; check that api/overdue.py follows that.",
+   "query": "phone number in logs",
+   "delivery": [
+    "NOPHONE"
+   ],
+   "recall": "any",
+   "search": [
+    "NOPHONE"
+   ]
+  },
+  {
+   "id": "D17",
+   "prompt": "Add a cargo-bike filter in web/src/map.tsx.",
+   "query": "map bikes",
+   "delivery": "any",
+   "recall": [
+    "NEAREST"
+   ],
+   "search": "any"
+  },
+  {
+   "id": "D18",
+   "prompt": "Run the API tests with uv.",
+   "query": "uv pytest",
+   "delivery": [
+    "T_API"
+   ],
+   "recall": "any",
+   "search": [
+    "T_API",
+    "UVWHY"
+   ]
+  },
+  {
+   "id": "D19",
+   "prompt": "Raise the unlock fee to 2 euros, in api/pricing.py.",
+   "query": "unlock fee",
+   "delivery": "any",
+   "recall": [
+    "FEE_CUR"
+   ],
+   "search": [
+    "FEE_CUR"
+   ]
+  },
+  {
+   "id": "D20",
+   "prompt": "How often do docking stations report?",
+   "query": "station status interval",
+   "delivery": [
+    "STATUS30"
+   ],
+   "recall": "any",
+   "search": [
+    "STATUS30"
+   ]
+  },
+  {
+   "id": "D21",
+   "prompt": "Text the rider when their bike is overdue.",
+   "query": "overdue sms",
+   "delivery": [
+    "VONAGE"
+   ],
+   "recall": "any",
+   "search": [
+    "VONAGE",
+    "OVERDUE"
+   ]
+  },
+  {
+   "id": "Q01",
+   "prompt": "Why do the API tests run through uv?",
+   "query": "api tests uv",
+   "delivery": "any",
+   "recall": [
+    "UVWHY"
+   ],
+   "search": [
+    "UVWHY"
+   ]
+  },
+  {
+   "id": "Q02",
+   "prompt": "How did we stop two vans going to the same station?",
+   "query": "two vans same station",
+   "delivery": "any",
+   "recall": [
+    "ONEVAN"
+   ],
+   "search": [
+    "ONEVAN"
+   ]
+  },
+  {
+   "id": "Q03",
+   "prompt": "When did the unlock fee go up?",
+   "query": "unlock fee increase",
+   "delivery": "any",
+   "recall": [
+    "FEE_CUR"
+   ],
+   "search": [
+    "FEE_CUR"
+   ]
+  },
+  {
+   "id": "Q04",
+   "prompt": "What happens to rides over 45 minutes?",
+   "query": "long rides",
+   "delivery": "any",
+   "recall": [
+    "LONGRIDE"
+   ],
+   "search": [
+    "LONGRIDE"
+   ]
+  },
+  {
+   "id": "Q05",
+   "prompt": "Which change added the station search box?",
+   "query": "station search",
+   "delivery": "any",
+   "recall": [
+    "SEARCHBOX"
+   ],
+   "search": [
+    "SEARCHBOX"
+   ]
+  },
+  {
+   "id": "Q06",
+   "prompt": "Where are rider accounts kept?",
+   "query": "rider accounts",
+   "delivery": "any",
+   "recall": [
+    "RIDERS"
+   ],
+   "search": [
+    "RIDERS"
+   ]
+  },
+  {
+   "id": "Q07",
+   "prompt": "When did we start texting riders about overdue bikes?",
+   "query": "overdue texts",
+   "delivery": "any",
+   "recall": [
+    "OVERDUE"
+   ],
+   "search": [
+    "OVERDUE"
+   ]
+  },
+  {
+   "id": "Q08",
+   "prompt": "Which session added van route planning?",
+   "query": "route planning",
+   "delivery": "any",
+   "recall": [
+    "ROUTES"
+   ],
+   "search": [
+    "ROUTES"
+   ]
+  },
+  {
+   "id": "Q09",
+   "prompt": "When was the battery badge added?",
+   "query": "battery badge",
+   "delivery": "any",
+   "recall": [
+    "BATTERY"
+   ],
+   "search": [
+    "BATTERY"
+   ]
+  },
+  {
+   "id": "Q10",
+   "prompt": "Why did some rides show a negative duration?",
+   "query": "negative ride duration",
+   "delivery": "any",
+   "recall": [
+    "NEGDUR"
+   ],
+   "search": [
+    "NEGDUR"
+   ]
+  },
+  {
+   "id": "Q11",
+   "prompt": "Which session added the nearest free bikes view?",
+   "query": "nearest free bikes",
+   "delivery": "any",
+   "recall": [
+    "NEAREST"
+   ],
+   "search": [
+    "NEAREST"
+   ]
+  },
+  {
+   "id": "Q12",
+   "prompt": "Which Redis version do we run?",
+   "query": "redis version",
+   "delivery": "any",
+   "recall": [
+    "REDIS"
+   ],
+   "search": [
+    "REDIS"
+   ]
+  },
+  {
+   "id": "Q13",
+   "prompt": "Why wasn't the API client generated?",
+   "query": "api client generation",
+   "delivery": "any",
+   "recall": [
+    "MISSING"
+   ],
+   "search": [
+    "MISSING"
+   ]
+  },
+  {
+   "id": "Q14",
+   "prompt": "Where did the monthly pass work stop?",
+   "query": "monthly pass",
+   "delivery": "any",
+   "recall": [
+    "PASS"
+   ],
+   "search": [
+    "PASS"
+   ]
+  },
+  {
+   "id": "Q15",
+   "prompt": "What changed about the unlock fee?",
+   "query": "unlock fee change",
+   "delivery": "any",
+   "recall": [
+    "FEE_CUR"
+   ],
+   "search": [
+    "FEE_CUR"
+   ]
+  },
+  {
+   "id": "Q16",
+   "prompt": "Which session added bike reservations?",
+   "query": "bike reservations",
+   "delivery": "any",
+   "recall": [
+    "RESERVE"
+   ],
+   "search": [
+    "RESERVE"
+   ]
+  },
+  {
+   "id": "S01",
+   "prompt": "Add a dark mode to the rider app.",
+   "query": "dark mode",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S02",
+   "prompt": "Translate the help page into Finnish.",
+   "query": "finnish translation",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S03",
+   "prompt": "Set up ruff with the default rules.",
+   "query": "ruff",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S04",
+   "prompt": "Why does the CSV export of rides drop the station names?",
+   "query": "csv export",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S05",
+   "prompt": "Write a limerick about bicycles.",
+   "query": "limerick",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S06",
+   "prompt": "Explain Python decorators.",
+   "query": "decorators",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S07",
+   "prompt": "Switch the web app to SvelteKit.",
+   "query": "sveltekit",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S08",
+   "prompt": "Replace the logo on the pass receipt.",
+   "query": "receipt logo",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S09",
+   "prompt": "Sort the mechanics' rota.",
+   "query": "mechanics rota",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S10",
+   "prompt": "Add a newsletter signup form.",
+   "query": "newsletter signup",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  },
+  {
+   "id": "S11",
+   "prompt": "Handle an expired coupon when a rider buys a pass.",
+   "query": "expired coupon",
+   "delivery": "silent",
+   "recall": "silent",
+   "search": "silent"
+  }
+ ]
+}

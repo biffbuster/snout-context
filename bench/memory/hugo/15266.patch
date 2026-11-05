@@ -1,0 +1,347 @@
+diff --git a/hugolib/hugo_sites_multihost_test.go b/hugolib/hugo_sites_multihost_test.go
+index 3ecfa7e9dbd..5769fc64e86 100644
+--- a/hugolib/hugo_sites_multihost_test.go
++++ b/hugolib/hugo_sites_multihost_test.go
+@@ -154,11 +154,13 @@ title: "Mybundle fr"
+ `
+ 	b := Test(t, files)
+ 
+-	b.AssertFileContent("public/fr/section/mybundle/index.html",
++	b.AssertFileContent(
++		"public/fr/section/mybundle/index.html",
+ 		"fr: .body{color:french}|/section/mybundle/styles.min.css|",
+ 	)
+ 
+-	b.AssertFileContent("public/en/section/mybundle/index.html",
++	b.AssertFileContent(
++		"public/en/section/mybundle/index.html",
+ 		"en: .body{color:english}|/section/mybundle/styles.min.css|",
+ 	)
+ 
+@@ -207,9 +209,9 @@ title: mybundle-en
+ 	b.AssertFileExists("public/de/mybundle/pixel.png", true)
+ 	b.AssertFileExists("public/en/mybundle/pixel.png", true)
+ 
+-	b.AssertFileExists("public/de/mybundle/pixel_hu_c8522c65d73a0421.png", true)
++	b.AssertFileExists("public/de/mybundle/pixel_hu_a25c5b589ae00856.png", true)
+ 	// failing test below
+-	b.AssertFileExists("public/en/mybundle/pixel_hu_c8522c65d73a0421.png", true)
++	b.AssertFileExists("public/en/mybundle/pixel_hu_a25c5b589ae00856.png", true)
+ }
+ 
+ func TestMultihostResourceOneBaseURLWithSubPath(t *testing.T) {
+diff --git a/hugolib/pagesfromdata/pagesfromgotmpl_integration_test.go b/hugolib/pagesfromdata/pagesfromgotmpl_integration_test.go
+index 4ed81c48033..ee3569f29e9 100644
+--- a/hugolib/pagesfromdata/pagesfromgotmpl_integration_test.go
++++ b/hugolib/pagesfromdata/pagesfromgotmpl_integration_test.go
+@@ -112,7 +112,8 @@ docs/p1/sub/mymixcasetext2.txt
+ 	// Page from markdown file.
+ 	b.AssertFileContent("public/docs/pfile/index.html", "Dates: Date: 2023-03-01|Lastmod: 2023-03-01|PublishDate: 2023-03-01|ExpiryDate: 0001-01-01|")
+ 	// Pages from gotmpl.
+-	b.AssertFileContent("public/docs/p1/index.html",
++	b.AssertFileContent(
++		"public/docs/p1/index.html",
+ 		"Single: p1:p1|",
+ 		"Path: /docs/p1|",
+ 		"<strong>Hello World</strong>",
+@@ -125,7 +126,7 @@ docs/p1/sub/mymixcasetext2.txt
+ 		"RelPermalink: /docs/p1/sub/mymixcasetext2.txt|Name: sub/mymixcasetext2.txt|",
+ 		"RelPermalink: /mydata.yaml|Name: sub/data1.yaml|Title: Sub data|Params: map[]|",
+ 		"Featured Image: /a/pixel.png|featured.png|",
+-		"Resized Featured Image: /a/pixel_hu_a354833fd576551d.png|10|",
++		"Resized Featured Image: /a/pixel_hu_51638841a22bb583.png|10|",
+ 		// Resource from string
+ 		"RelPermalink: /docs/p1/mytext.txt|Name: textresource|Title: My Text Resource|Params: map[param1:param1v]|",
+ 		// Dates
+@@ -174,25 +175,29 @@ allow = [%s]
+ 	b := hugolib.Test(t, files)
+ 
+ 	if supportsAsciiDoc {
+-		b.AssertFileContent("public/docs/asciidoc/index.html",
++		b.AssertFileContent(
++			"public/docs/asciidoc/index.html",
+ 			"Mark my words, <mark>automation is essential</mark>",
+ 			"Path: /docs/asciidoc|",
+ 		)
+ 	}
+ 	if supportsPandoc {
+-		b.AssertFileContent("public/docs/pandoc/index.html",
++		b.AssertFileContent(
++			"public/docs/pandoc/index.html",
+ 			"This <del>is deleted text.</del>",
+ 			"Path: /docs/pandoc|",
+ 		)
+ 	}
+ 	if supportsRst {
+-		b.AssertFileContent("public/docs/rst/index.html",
++		b.AssertFileContent(
++			"public/docs/rst/index.html",
+ 			"This is <em>bold</em>",
+ 			"Path: /docs/rst|",
+ 		)
+ 	}
+ 
+-	b.AssertFileContent("public/docs/org/index.html",
++	b.AssertFileContent(
++		"public/docs/org/index.html",
+ 		"the ability to use <del>strikethrough</del> is a plus",
+ 		"Path: /docs/org|",
+ 	)
+@@ -305,14 +310,16 @@ func TestPagesFromGoTmplMovePage(t *testing.T) {
+ func TestPagesFromGoTmplRemoveGoTmpl(t *testing.T) {
+ 	t.Parallel()
+ 	b := hugolib.TestRunning(t, filesPagesFromDataTempleBasic)
+-	b.AssertFileContent("public/index.html",
++	b.AssertFileContent(
++		"public/index.html",
+ 		"RegularPagesRecursive: p1:p1:/docs/p1|p2title:/docs/p2|p3title:/docs/p3|p4title:/docs/p4|pfile:/docs/pfile|$",
+ 		"Sections: Docs:/docs|",
+ 	)
+ 	b.AssertFileContent("public/docs/index.html", "RegularPagesRecursive: p1:p1:/docs/p1|p2title:/docs/p2|p3title:/docs/p3|p4title:/docs/p4|pfile:/docs/pfile|$")
+ 	b.RemoveFiles("content/docs/_content.gotmpl").Build()
+ 	// One regular page left.
+-	b.AssertFileContent("public/index.html",
++	b.AssertFileContent(
++		"public/index.html",
+ 		"RegularPagesRecursive: pfile:/docs/pfile|$",
+ 		"Sections: Docs:/docs|",
+ 	)
+@@ -596,7 +603,8 @@ disableKinds = ['home','section','rss','sitemap','taxonomy','term']
+ 
+ 	b := hugolib.Test(t, files)
+ 
+-	b.AssertFileContent("public/p1/index.html",
++	b.AssertFileContent(
++		"public/p1/index.html",
+ 		"p1|param1v",
+ 		"data1.yaml|param1v",
+ 	)
+@@ -651,7 +659,8 @@ Footer: {{ range index site.Menus.footer }}{{ .Name }}|{{ end }}|
+ `
+ 	b := hugolib.Test(t, files)
+ 
+-	b.AssertFileContent("public/index.html",
++	b.AssertFileContent(
++		"public/index.html",
+ 		"Main: Main|p1|p2||",
+ 		"Footer: Footer|p2||",
+ 	)
+@@ -706,7 +715,8 @@ summary: {{ .Summary }}|content: {{ .Content}}
+ 
+ 	b := hugolib.Test(t, files)
+ 
+-	b.AssertFileContent("public/s1/p1/index.html",
++	b.AssertFileContent(
++		"public/s1/p1/index.html",
+ 		"<p>aaa</p>|content: <p>aaa</p>\n<p>bbb</p>",
+ 	)
+ }
+diff --git a/resources/image.go b/resources/image.go
+index 10df3edda72..7058eebb8fd 100644
+--- a/resources/image.go
++++ b/resources/image.go
+@@ -322,7 +322,14 @@ func (i *imageResource) Filter(filters ...any) (images.ImageResource, error) {
+ 	}
+ 
+ 	confMain.Action = images.ActionFilter
+-	confMain.Key = hashing.HashString(gfilters)
++	opts := []any{gfilters}
++	if images.MainImageVersionNumber > 0 {
++		opts = append(opts, images.MainImageVersionNumber)
++	}
++	if v := images.FormatVersionNumbers[confMain.TargetFormat]; v > 0 {
++		opts = append(opts, v)
++	}
++	confMain.Key = hashing.HashString(opts...)
+ 
+ 	// Geometric filters cannot introduce colors outside the source palette.
+ 	for _, f := range gfilters {
+diff --git a/resources/image_test.go b/resources/image_test.go
+index befb18cf2a1..c01d8ad35ae 100644
+--- a/resources/image_test.go
++++ b/resources/image_test.go
+@@ -216,7 +216,7 @@ func TestImageTransformFormat(t *testing.T) {
+ 
+ 	imagePng, err := image.Resize("450x png")
+ 	c.Assert(err, qt.IsNil)
+-	c.Assert(imagePng.RelPermalink(), qt.Equals, "/a/sunset_hu_63ccccb11ff4e285.png")
++	c.Assert(imagePng.RelPermalink(), qt.Equals, "/a/sunset_hu_ae7e4a663628f945.png")
+ 	c.Assert(imagePng.ResourceType(), qt.Equals, "image")
+ 	assertExtWidthHeight(imagePng, ".png", 450, 281)
+ 	c.Assert(imagePng.Name(), qt.Equals, "sunset.jpg")
+@@ -391,7 +391,7 @@ func TestImageResize8BitPNG(t *testing.T) {
+ 	resized, err := image.Resize("800x")
+ 	c.Assert(err, qt.IsNil)
+ 	c.Assert(resized.MediaType().Type, qt.Equals, "image/png")
+-	c.Assert(resized.RelPermalink(), qt.Equals, "/a/gohugoio_hu_626cfc4db4222bfe.png")
++	c.Assert(resized.RelPermalink(), qt.Equals, "/a/gohugoio_hu_3ddd57bfb01f7376.png")
+ 	c.Assert(resized.Width(), qt.Equals, 800)
+ }
+ 
+diff --git a/resources/images/config.go b/resources/images/config.go
+index f7d5fc72726..4dd859036bf 100644
+--- a/resources/images/config.go
++++ b/resources/images/config.go
+@@ -84,13 +84,14 @@ var (
+ 
+ 	// Increment to mark all processed images as stale. Only use when absolutely needed.
+ 	// See the finer grained smartCropVersionNumber.
+-	mainImageVersionNumber = 1
++	MainImageVersionNumber = 1
+ 
+ 	// Increment a format's version number to mark all processed images targeting
+ 	// that format as stale, e.g. after a change to its encoder. This is finer
+ 	// grained than mainImageVersionNumber, which invalidates every format.
+-	formatVersionNumbers = map[Format]int{
++	FormatVersionNumbers = map[Format]int{
+ 		AVIF: 1,
++		PNG:  1, // See issue 12543, 12536
+ 	}
+ )
+ 
+@@ -335,11 +336,11 @@ func DecodeImageConfig(options []string, defaults *config.ConfigNamespace[Imagin
+ 		return c, err
+ 	}
+ 
+-	if mainImageVersionNumber > 0 {
+-		options = append(options, strconv.Itoa(mainImageVersionNumber))
++	if MainImageVersionNumber > 0 {
++		options = append(options, strconv.Itoa(MainImageVersionNumber))
+ 	}
+ 
+-	if v := formatVersionNumbers[c.TargetFormat]; v > 0 {
++	if v := FormatVersionNumbers[c.TargetFormat]; v > 0 {
+ 		options = append(options, "tfv"+strconv.Itoa(v))
+ 	}
+ 
+diff --git a/resources/resources_integration_test.go b/resources/resources_integration_test.go
+index 71216e3041b..69863eaf26c 100644
+--- a/resources/resources_integration_test.go
++++ b/resources/resources_integration_test.go
+@@ -143,9 +143,9 @@ resize 2|RelPermalink: {{ $image.RelPermalink }}|MediaType: {{ $image.MediaType
+ 	b := hugolib.Test(t, files)
+ 
+ 	b.AssertFileContent("public/index.html",
+-		"jpg|RelPermalink: /images/pixel_hu_38c3f257174fc757.jpg|MediaType: image/jpeg|Width: 1|Height: 1|",
+-		"resize 1|RelPermalink: /images/pixel_hu_b5c2a3d88991f65a.jpg|MediaType: image/jpeg|Width: 20|Height: 30|",
+-		"resize 2|RelPermalink: /images/pixel_hu_b5c2a3d88991f65a.jpg|MediaType: image/jpeg|Width: 20|Height: 30|",
++		"jpg|RelPermalink: /images/pixel_hu_43e529ee1951bebf.jpg|MediaType: image/jpeg|Width: 1|Height: 1|",
++		"resize 1|RelPermalink: /images/pixel_hu_81fc53effe4c3cf6.jpg|MediaType: image/jpeg|Width: 20|Height: 30|",
++		"resize 2|RelPermalink: /images/pixel_hu_81fc53effe4c3cf6.jpg|MediaType: image/jpeg|Width: 20|Height: 30|",
+ 	)
+ }
+ 
+diff --git a/resources/transform_test.go b/resources/transform_test.go
+index feae43e4140..7f5869ab03c 100644
+--- a/resources/transform_test.go
++++ b/resources/transform_test.go
+@@ -386,15 +386,15 @@ func TestTransform(t *testing.T) {
+ 		resizedPublished1, err := img.Resize("40x40")
+ 		c.Assert(err, qt.IsNil)
+ 		c.Assert(resizedPublished1.Height(), qt.Equals, 40)
+-		c.Assert(resizedPublished1.RelPermalink(), qt.Equals, "/gopher.changed_hu_6347c67500afc377.png")
+-		assertShouldExist(c, spec, "public/gopher.changed_hu_6347c67500afc377.png", true)
++		c.Assert(resizedPublished1.RelPermalink(), qt.Equals, "/gopher.changed_hu_dbaf8010a3fe3487.png")
++		assertShouldExist(c, spec, "public/gopher.changed_hu_dbaf8010a3fe3487.png", true)
+ 
+ 		// Permalink called.
+ 		resizedPublished2, err := img.Resize("30x30")
+ 		c.Assert(err, qt.IsNil)
+ 		c.Assert(resizedPublished2.Height(), qt.Equals, 30)
+-		c.Assert(resizedPublished2.Permalink(), qt.Equals, "https://example.com/gopher.changed_hu_2d293650135f63d6.png")
+-		assertShouldExist(c, spec, "public/gopher.changed_hu_2d293650135f63d6.png", true)
++		c.Assert(resizedPublished2.Permalink(), qt.Equals, "https://example.com/gopher.changed_hu_83657b4754113fc4.png")
++		assertShouldExist(c, spec, "public/gopher.changed_hu_83657b4754113fc4.png", true)
+ 
+ 		assertNoDuplicateWrites(c, spec)
+ 	})
+diff --git a/testscripts/commands/hugo_gc_mixed_case_cache_dir.txt b/testscripts/commands/hugo_gc_mixed_case_cache_dir.txt
+index 7c7af1373ef..b548cceddba 100644
+--- a/testscripts/commands/hugo_gc_mixed_case_cache_dir.txt
++++ b/testscripts/commands/hugo_gc_mixed_case_cache_dir.txt
+@@ -11,7 +11,7 @@ hugo
+ 
+ stdout 'Processed images │  1 '
+ tree resources/_gen
+-stdout 'pix_hu_a354833fd576551d.png'
++stdout 'pix_hu_51638841a22bb583.png'
+ 
+ # Simulate a cache created by an older Hugo version.
+ mv resources/_gen/images/mybundle resources/_gen/images/MyBundle
+@@ -20,7 +20,7 @@ hugo --gc
+ stdout 'Cleaned          │  0 '
+ 
+ tree resources/_gen
+-stdout 'pix_hu_a354833fd576551d.png'
++stdout 'pix_hu_51638841a22bb583.png'
+ 
+ -- hugo.toml --
+ disableKinds = ["term", "taxonomy", "home"]
+diff --git a/tpl/images/images_integration_test.go b/tpl/images/images_integration_test.go
+index 55b541ff12a..0969d597232 100644
+--- a/tpl/images/images_integration_test.go
++++ b/tpl/images/images_integration_test.go
+@@ -79,7 +79,8 @@ disableKinds = ['page','rss','section','sitemap','taxonomy','term']
+ `
+ 
+ 	b := hugolib.Test(t, files)
+-	b.AssertFileContent("public/index.html",
++	b.AssertFileContent(
++		"public/index.html",
+ 		`<img data-id="0" data-img-hash="6ccacf8056c41475" data-level="" data-scale="" data-targetDir="" src="/qr_924bf7d80a564b23.png">`,
+ 		`<img data-id="1" data-img-hash="6ccacf8056c41475" data-level="medium" data-scale="" data-targetDir="" src="/qr_924bf7d80a564b23.png">`,
+ 		`<img data-id="2" data-img-hash="6ccacf8056c41475" data-level="medium" data-scale="4" data-targetDir="" src="/qr_924bf7d80a564b23.png">`,
+@@ -161,8 +162,8 @@ Brightnes func: {{ ($img | images.Filter (images.Brightness 12) ).RelPermalink }
+ 	b.AssertFileContent("public/index.html", `
+ images.Config: 222
+ Resize to 100x100: 100
+-Brightnes method: /qr_hu_d5f06fd7594d0594.png
+-Brightnes func: /qr_hu_d5f06fd7594d0594.png
++Brightnes method: /qr_hu_e82a6802e23c740e.png
++Brightnes func: /qr_hu_e82a6802e23c740e.png
+ `)
+ }
+ 
+@@ -184,8 +185,8 @@ Brightnes func: {{ ($img | images.Filter (images.Brightness 12) ).RelPermalink }
+ 	b.AssertFileContent("public/index.html", `
+ images.Config: 222
+ Resize to 100x100: 100
+-Brightnes method: /qr_hu_d5f06fd7594d0594.webp
+-Brightnes func: /qr_hu_d5f06fd7594d0594.webp
++Brightnes method: /qr_hu_61e637d0f762ec78.webp
++Brightnes func: /qr_hu_61e637d0f762ec78.webp
+ `)
+ }
+ 
+@@ -214,7 +215,7 @@ Image: {{ $img.RelPermalink }}
+ 			cfg.NeedsOsFS = true
+ 			cfg.WorkingDir = tempDir
+ 		}))
+-		b.AssertFileContent("public/index.html", `Image: /qr_hu_6b5f59be9c4d3b3a.webp`)
++		b.AssertFileContent("public/index.html", `Image: /qr_hu_7178b50f0d0a9def.webp`)
+ 
+ 	}
+ }
+diff --git a/tpl/resources/resources_integration_test.go b/tpl/resources/resources_integration_test.go
+index b5c611d5230..736aee337ae 100644
+--- a/tpl/resources/resources_integration_test.go
++++ b/tpl/resources/resources_integration_test.go
+@@ -60,7 +60,7 @@ Copy3: {{ $copy3.RelPermalink}}|{{ $copy3.MediaType }}|{{ $copy3.Content | safeJ
+ 
+ 	b.AssertFileContent("public/index.html", `
+ Image Orig:  /blog/images/pixel.png|image/png|1|1|
+-Image Copy1:  /blog/images/copy_hu_ef85c36d9b9eff0.png|image/png|3|4|
++Image Copy1:  /blog/images/copy_hu_e592d810de530dee.png|image/png|3|4|
+ Image Copy2:  /blog/images/copy2.png|image/png|3|4|
+ Image Copy3:  image/png|3|4|
+ Orig: /blog/js/foo.js|text/javascript|let foo;|
+@@ -271,7 +271,8 @@ disableKinds = ['page','section','rss','sitemap','taxonomy','term']
+ 
+ 	b := hugolib.Test(t, files, hugolib.TestOptWarn())
+ 
+-	b.AssertFileContent("public/index.html",
++	b.AssertFileContent(
++		"public/index.html",
+ 		".dartsass{color:red}",
+ 		".libsass{color:blue}",
+ 	)

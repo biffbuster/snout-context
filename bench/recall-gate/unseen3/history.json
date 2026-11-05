@@ -1,0 +1,135 @@
+{
+  "about": "Gate 3, third unseen check (docs/memory-gates.md): written and frozen on 2026-10-26 before the fourth round of fixes, and run once after them. A Deno API project, whose passing test runs print \"0 failed\".",
+  "project": {
+    "name": "lantern",
+    "files": {
+      ".gitignore": ".snout/\nnode_modules/\n",
+      "deno.json": "{ \"tasks\": { \"dev\": \"deno run -A main.ts\" } }\n",
+      "package.json": "{ \"private\": true, \"devDependencies\": { \"prettier\": \"^3.3.0\" } }\n",
+      "main.ts": "import { router } from './routes/mod.ts';\nDeno.serve(router);\n",
+      "routes/mod.ts": "export const router = (_req: Request) => new Response('ok');\n",
+      "routes/users.ts": "export const getUser = (id: string) => ({ id });\n",
+      "cache/users.ts": "const cache = new Map<string, { at: number; v: unknown }>();\nexport const cached = (k: string) => cache.get(k);\n",
+      "db/pool.ts": "export const pool = { query: (_sql: string) => [] };\n",
+      "docs/api.md": "# API\n",
+      "tests/routes_test.ts": "Deno.test('ok', () => {});\n"
+    }
+  },
+  "steps": [
+    {
+      "id": "L1", "type": "session", "agent": "claude",
+      "prompt": "Add a /healthz route in routes/health.ts and make sure the tests pass.",
+      "calls": [
+        { "edit": "routes/health.ts", "content": "export const health = () => new Response('ok', { status: 200 });\n" },
+        { "bash": "deno test -A", "out": "running 12 tests from ./tests/routes_test.ts\nhealthz returns 200 ... ok (2ms)\n\nok | 12 passed | 0 failed (45ms)\n" }
+      ],
+      "commit": "Add /healthz",
+      "final": "routes/health.ts serves /healthz. deno test -A: 12 passed, 0 failed."
+    },
+    {
+      "id": "L2", "type": "session", "agent": "codex",
+      "prompt": "Check formatting with prettier before you edit routes/users.ts, then validate emails there.",
+      "calls": [
+        { "bash": "prettier --check .", "out": "bash: prettier: command not found\n" },
+        { "bash": "npx prettier --check .", "out": "Checking formatting...\nAll matched files use Prettier code style!\n" },
+        { "edit": "routes/users.ts", "content": "const EMAIL = /^[^@\\s]+@[^@\\s]+$/;\nexport const getUser = (id: string) => ({ id });\nexport const validEmail = (e: string) => EMAIL.test(e);\n" }
+      ],
+      "commit": "Validate emails in users route",
+      "final": "Bare prettier isn't on PATH, but npx prettier works and the code is formatted. routes/users.ts validates emails with validEmail()."
+    },
+    {
+      "id": "L3", "type": "session", "agent": "claude",
+      "prompt": "Deploy the preview with deployctl.",
+      "calls": [
+        { "bash": "deployctl deploy --project=lantern main.ts", "out": "bash: deployctl: command not found\n" }
+      ],
+      "final": "deployctl isn't installed on this machine, so nothing was deployed."
+    },
+    { "id": "M1", "type": "cli", "args": ["memory", "add", "Every API response includes an X-Request-Id header.", "--kind", "decision"] },
+    { "id": "M2", "type": "cli", "args": ["memory", "add", "Database access goes through db/pool.ts; never open connections in route handlers.", "--kind", "convention"] },
+    {
+      "id": "L4", "type": "session", "agent": "codex",
+      "prompt": "Make the tests run in parallel and use that from now on.",
+      "calls": [
+        { "edit": "deno.json", "content": "{ \"tasks\": { \"dev\": \"deno run -A main.ts\", \"test\": \"deno test -A --parallel\" } }\n" },
+        { "bash": "deno test -A --parallel", "out": "running 14 tests from ./tests/routes_test.ts\n\nok | 14 passed | 0 failed (30ms)\n" }
+      ],
+      "commit": "Run tests in parallel",
+      "final": "deno.json has a test task with --parallel. deno test -A --parallel: 14 passed, 0 failed."
+    },
+    {
+      "id": "L5", "type": "session", "agent": "claude",
+      "prompt": "Remember that we cache user lookups for 60 seconds.",
+      "mcp": [
+        { "tool": "snout_memory_save", "args": { "text": "User lookups are cached for 60 seconds (cache/users.ts).", "kind": "convention", "user_asked": true, "files": ["cache/users.ts"] } }
+      ],
+      "calls": [],
+      "final": "Saved: user lookups are cached for 60 seconds, in cache/users.ts."
+    },
+    {
+      "id": "L6", "type": "session", "agent": "codex",
+      "prompt": "Drop the user lookup cache in cache/users.ts; it served stale roles.",
+      "calls": [
+        { "edit": "cache/users.ts", "content": "export const cached = (_k: string) => undefined;\n" },
+        { "bash": "deno test -A --parallel", "out": "ok | 14 passed | 0 failed (29ms)\n" }
+      ],
+      "commit": "Remove user lookup cache",
+      "final": "cache/users.ts no longer caches; roles are read fresh. 14 passed, 0 failed."
+    },
+    { "id": "M3", "type": "cli", "args": ["memory", "add", "Every API response now includes an X-Trace-Id header instead of X-Request-Id.", "--kind", "decision"] },
+    {
+      "id": "L7", "type": "session", "agent": "claude",
+      "prompt": "Push when the docs are updated. Never log request bodies; they can hold passwords. Document the /users endpoints in docs/api.md.",
+      "calls": [
+        { "edit": "docs/api.md", "content": "# API\n\n## GET /users/:id\n\nReturns the user, or 404.\n" }
+      ],
+      "commit": "Document users endpoints",
+      "final": "docs/api.md documents GET /users/:id. Committed and pushed."
+    },
+    {
+      "id": "L8", "type": "session", "agent": "codex",
+      "prompt": "Push when the docs are updated. Never log request bodies; they can hold passwords. Add request logging middleware in middleware/log.ts.",
+      "calls": [
+        { "edit": "middleware/log.ts", "content": "export const log = (req: Request) => console.log(req.method, new URL(req.url).pathname);\n" },
+        { "bash": "deno test -A --parallel", "out": "ok | 15 passed | 0 failed (31ms)\n" }
+      ],
+      "commit": "Add request logging",
+      "final": "middleware/log.ts logs the method and path only, never bodies. 15 passed, 0 failed."
+    },
+    {
+      "id": "L9", "type": "session", "agent": "claude",
+      "prompt": "Run the load test in my lantern-load checkout.",
+      "calls": [
+        { "bash": "cd ~/lantern-load && deno test -A", "out": "ok | 4 passed | 0 failed (2s)\n" }
+      ],
+      "final": "lantern-load's 4 tests pass against this build."
+    },
+    {
+      "id": "L10", "type": "session", "agent": "claude",
+      "prompt": "Add rate limiting to routes/users.ts.",
+      "calls": [
+        { "edit": "routes/users.ts", "content": "const EMAIL = /^[^@\\s]+@[^@\\s]+$/;\nconst hits = new Map<string, number>();\nexport const getUser = (id: string) => ({ id });\nexport const validEmail = (e: string) => EMAIL.test(e);\nexport const limited = (ip: string) => (hits.set(ip, (hits.get(ip) ?? 0) + 1).get(ip)! > 100);\n" },
+        { "todos": [{ "content": "Count requests per IP", "status": "completed" }, { "content": "Add tests for the 429 response", "status": "pending" }] }
+      ],
+      "final": "routes/users.ts counts requests per IP. The 429 response and its tests are still to do; not committed."
+    }
+  ],
+  "facts": {
+    "T_cur": { "class": "current", "about": "the test command", "pattern": "deno test -A --parallel" },
+    "T_old": { "class": "stale", "about": "the test command before --parallel, as a note", "pattern": "Run the tests with: deno test -A(?! --parallel)" },
+    "T_else": { "class": "wrong-scope", "about": "another checkout's test command, as this project's", "pattern": "Run the tests with: cd " },
+    "DEPLOY": { "class": "current", "about": "deployctl is not installed", "pattern": "deployctl is not installed|deployctl isn't installed|deployctl: command not found" },
+    "PRETTIER_BAD": { "class": "unsupported", "about": "prettier reported missing, though package.json installs it and npx prettier works", "pattern": "prettier is not installed" },
+    "HDR_OLD": { "class": "stale", "about": "the X-Request-Id header, replaced by M3", "pattern": "Every API response includes an X-Request-Id" },
+    "HDR_CUR": { "class": "current", "about": "the X-Trace-Id header", "pattern": "X-Trace-Id" },
+    "DB": { "class": "current", "about": "database access convention", "pattern": "db/pool\\.ts" },
+    "CACHE_NOTE": { "class": "stale", "about": "the user lookup cache, saved with cache/users.ts, which L6 then changed", "pattern": "cached for 60 seconds \\(cache" },
+    "CACHE_CUR": { "class": "current", "about": "the cache was removed", "pattern": "Remove user lookup cache|Drop the user lookup cache" },
+    "PUSH_BAD": { "class": "unsupported", "about": "a task request said in two sessions, saved as standing", "pattern": "preference[^\\n]*Push when the docs are updated" },
+    "BODIES": { "class": "current", "about": "never log request bodies, said in two sessions", "pattern": "[Nn]ever log request bodies" },
+    "HEALTH": { "class": "current", "about": "the healthz route", "pattern": "healthz" },
+    "EMAIL": { "class": "current", "about": "email validation", "pattern": "[Vv]alidate emails" },
+    "PARALLEL_MOVE": { "class": "current", "about": "when tests started running in parallel", "pattern": "[Rr]un tests in parallel|tests run in parallel" },
+    "RATE": { "class": "current", "about": "the unfinished rate limiting", "pattern": "[Rr]ate limiting|429" }
+  }
+}

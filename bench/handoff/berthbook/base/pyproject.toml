@@ -1,0 +1,11 @@
+[project]
+name = "berthbook"
+version = "0.6.0"
+description = "Berth bookings, invoices and fuel dock sales for a small harbour"
+requires-python = ">=3.10"
+
+[project.scripts]
+berthbook = "berthbook.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
