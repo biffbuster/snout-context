@@ -241,3 +241,29 @@ test("the starter follows a plugin update: a gate naming an old plugin folder st
     await fetch(`${base}/shutdown`, { method: "POST" }).catch(() => {});
   }
 });
+
+test("a server left running older code of the same version is replaced by the newer bundle's ensure", async () => {
+  // 2026-10-30: after a rebuild the running server kept answering hooks with the old code, since it
+  // reported the same version. It now reports when its bundle was built, and the newer one wins.
+  const { copyFileSync, statSync, utimesSync } = await import("node:fs");
+  const old = join(mkdtempSync(join(tmpdir(), "snout-old-bundle-")), "snout.mjs");
+  copyFileSync(CLI, old);
+  const past = new Date(statSync(CLI).mtimeMs - 3_600_000);
+  utimesSync(old, past, past);
+  const health = async () => { try { return await (await fetch(`${base}/health`)).json(); } catch { return null; } };
+  await fetch(`${base}/shutdown`, { method: "POST" }).catch(() => {});
+  await new Promise((r) => setTimeout(r, 300));
+  const child = spawn(process.execPath, [old, "serve"], { env, detached: true, stdio: "ignore" });
+  child.unref();
+  try {
+    let h = null;
+    for (let i = 0; i < 100 && !h?.build; i++) { h = await health(); if (!h?.build) await new Promise((r) => setTimeout(r, 100)); }
+    // What the file system stored, which can differ from `past` by a millisecond (Node 20 on Linux).
+    assert.equal(h.build, `${h.version}+${Math.floor(statSync(old).mtimeMs)}`, "the old copy is the one answering");
+    await ensureUp();
+    for (let i = 0; i < 100; i++) { h = await health(); if (h?.build?.endsWith(`+${Math.floor(statSync(CLI).mtimeMs)}`)) break; await new Promise((r) => setTimeout(r, 100)); }
+    assert.equal(h.build, `${h.version}+${Math.floor(statSync(CLI).mtimeMs)}`, "the newer bundle took over");
+  } finally {
+    await fetch(`${base}/shutdown`, { method: "POST" }).catch(() => {});
+  }
+});

@@ -107,6 +107,18 @@ test("observe mode, other commands and interrupted runs pass through untouched",
   assert.equal(hook(root, { tool_input: { command: "npm test" }, tool_response: { ...resp, interrupted: true } }), null);
 });
 
+test("output Claude Code saved to a file passes through untouched, though the hook sees only its first 30,000 characters", () => {
+  const root = mkdtempSync(join(tmpdir(), "snout-sq-"));
+  const cut = jestPass().repeat(4).slice(0, 29_998);
+  const resp = { stdout: cut, stderr: "", interrupted: false, isImage: false, noOutputExpected: false };
+  assert.ok(hook(root, { tool_input: { command: "npm test" }, tool_response: resp }), "the same text is squeezed when it is the whole output");
+  const logs = () => readdirSync(join(root, ".snout/squeeze")).length;
+  const before = logs();
+  const saved = { ...resp, persistedOutputPath: join(root, "b9rx55phz.txt"), persistedOutputSize: 374_994 };
+  assert.equal(hook(root, { tool_input: { command: "npm test" }, tool_response: saved }), null);
+  assert.equal(logs(), before, "no squeeze log for the saved output");
+});
+
 test("Python's other test runners are recognised", () => {
   for (const c of ["python tests/runtests.py admin_views", "python3 -m unittest discover -v", "python manage.py test shop", "cd repo && python3 tests/runtests.py -v 2 forms"]) assert.equal(kindOf(c), "test", c);
   for (const c of ["python script.py", "python -c 'print(1)'", "python3 manage.py migrate"]) assert.equal(kindOf(c), null, c);

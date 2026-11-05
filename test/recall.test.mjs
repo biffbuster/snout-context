@@ -84,7 +84,8 @@ function hook(root, event, payload, env = {}) {
   const r = spawnSync(process.execPath, [CLI, event], {
     input: JSON.stringify({ cwd: root, ...payload }),
     encoding: "utf8",
-    env: { ...process.env, SNOUT_MODE: "enforce", SNOUT_MEMORY_NOTES: "1", ...env },
+    // A CI runner sets CI, and Snout then knows no user and keeps no private notes: these tests are a person's session.
+    env: { ...process.env, CI: undefined, SNOUT_TOKEN: undefined, SNOUT_MODE: "enforce", SNOUT_MEMORY_NOTES: "1", ...env },
   });
   assert.equal(r.status, 0, r.stderr);
   return r.stdout.trim() ? JSON.parse(r.stdout) : null;
