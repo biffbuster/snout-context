@@ -1,7 +1,7 @@
 {
   "name": "usesnout",
   "version": "0.3.3",
-  "description": "Context gating and token optimization for AI coding agents: trims bulky files, logs, docs, command and MCP output before they enter context, and reports what it saved.",
+  "description": "Better context for coding agents, carried across sessions: keeps bulky reads and output out of Claude Code's and Codex's context, keeps a local, searchable record of past work, and shows what each session spent.",
   "license": "MIT",
   "type": "module",
   "private": false,
@@ -25,7 +25,8 @@
     "llm",
     "mcp",
     "token-optimization",
-    "context-engineering"
+    "context-engineering",
+    "memory"
   ],
   "engines": {
     "node": ">=20"
