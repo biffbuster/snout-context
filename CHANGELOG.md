@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.3 (2026-11-09)
 
 Not measured yet. Nothing below is covered by [docs/claims.md](docs/claims.md).
 

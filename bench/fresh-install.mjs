@@ -18,12 +18,15 @@
  * config folder, never the project. No model and no network: npm installs the packed file offline.
  *
  *   node bench/fresh-install.mjs [--label NAME]     results in bench/fresh-install/results-NAME.json
+ *   node bench/fresh-install.mjs --record           also bench/ab-results/fresh-install-<ms>.json, stamped
+ *                                                   with the build, for docs/claims.md to cite
  */
 import { spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { stamp } from "./stamp.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const LABEL = process.argv.includes("--label") ? process.argv[process.argv.indexOf("--label") + 1] : "run";
@@ -133,7 +136,7 @@ const agentText = (rows) => rows.flatMap((r) => [r.out?.hookSpecificOutput?.addi
 const userText = (rows) => rows.flatMap((r) => [r.out?.systemMessage].filter(Boolean)).join("\n");
 
 const FIX = "The add tests fail after my change. Run the tests and fix it.";
-const result = { label: LABEL, ranAt: new Date().toISOString(), node: process.version, agents: {} };
+const result = { label: LABEL, ranAt: new Date().toISOString(), measuredAt: new Date().toISOString(), ...stamp(), node: process.version, agents: {} };
 for (const agent of ["claude", "codex"]) {
   project = PROJECTS[agent];
   snout("mode", "observe");
@@ -186,5 +189,11 @@ mkdirSync(outDir, { recursive: true });
 writeFileSync(join(outDir, `results-${LABEL}.json`), `${JSON.stringify(result, null, 1)}\n`);
 for (const c of checks) console.log(`${c.ok ? "ok  " : "FAIL"} ${c.name}`);
 console.log(`${result.pass ? "PASS" : "FAIL"}: bench/fresh-install/results-${LABEL}.json`);
+if (process.argv.includes("--record")) {
+  const recorded = `fresh-install-${Date.now()}.json`;
+  writeFileSync(join(ROOT, "bench", "ab-results", recorded), `${JSON.stringify(result, null, 1)}
+`);
+  console.log(`Recorded for docs/claims.md: bench/ab-results/${recorded}${result.dirty ? " (src or dist uncommitted: stale for claims)" : ""}`);
+}
 try { rmSync(work, { recursive: true, force: true }); } catch { console.error(`left ${work} behind`); }
 process.exitCode = result.pass ? 0 : 1;

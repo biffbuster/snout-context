@@ -44,7 +44,7 @@ only in pasted program output (log lines, version banners) count for little. Pro
 nothing get nothing. A request like "fix #123" names
 nothing, so when the agent then reads the issue through an MCP tool (GitHub, Linear, Jira and the
 like: `get_issue`, `issue_read`), the candidates for the issue's own text are added to that result,
-(0.3.2, unreleased, Claude Code only). `snout map "<request>"` shows
+(0.3.2, Claude Code only). `snout map "<request>"` shows
 what a prompt would get. Offline, on 1,788 SWE-bench issues it had never been scored on, a file the real fix edited was
 in the top 10 for 66% of issues, against 44% for full-text BM25 search and 28% for grep
 (`bench/mapeval.mjs --confirm`).
@@ -99,7 +99,7 @@ add the saved notes that fit a prompt to it, each with where it came from, once 
 because choosing a note for a prompt that didn't ask for one was not accurate enough on fresh test
 sets ([memory gates](memory-gates.md)).
 
-Notes (0.3.2, unreleased, not measured): short observations, such as a convention, a gotcha or the
+Notes (since 0.3.2, not measured): short observations, such as a convention, a gotcha or the
 test command, that agents find with `snout_memory_search`, in Claude Code and Codex alike. `snout memory add
 "<note>" [--kind gotcha] [--shared]` saves one, `snout memory list [--all]` shows the notes you may
 see, and `snout memory share <id>`, `archive`, `drop`, `supersede` and `accept` manage them. A note is
