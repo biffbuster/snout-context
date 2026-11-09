@@ -9,9 +9,8 @@ long logs, bulky MCP results and repeat reads out of Claude Code's and Codex's c
 what each session did, so the next session, in either agent, can look it up. It also shows what
 each session spent.
 
-Runs locally, no account. On our 14-task benchmark, Snout 0.3.1 cut Claude Code's cost per solved
-task by 25.5% ([details](docs/archive/0.3.1/claims.md)). That result is for trimming. Memory and the other
-changes since 0.3.1 are not measured yet.
+Runs locally, no account. On our 14-task benchmark, Snout 0.3.3 cut Claude Code's cost per solved
+task by 25.0% ([details](docs/claims.md)). That result is for trimming. Memory is not measured yet.
 
 ## Install
 
