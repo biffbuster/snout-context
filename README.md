@@ -28,14 +28,18 @@ npm install -g usesnout
 snout init codex        # or cursor, gemini
 ```
 
-Snout starts in observe mode: it records what it would do and changes nothing. Turn it on with
-`snout mode enforce`, or `/snout:mode enforce` in Claude Code.
+Snout starts in observe mode: it records what it would do and changes nothing, apart from a short
+tip when a prompt doesn't say which file or what should happen (`snout coach off` stops it). Turn it
+on with `snout mode enforce`, or `/snout:mode enforce` in Claude Code.
 
 **Memory is something the agent asks for.** On this machine, Snout records each session: what was
 asked (decisions included), what changed, the test command and its result, a failure it got past,
-and what it left unfinished. It also keeps the notes you save. An agent can propose a one-line
-lesson after a test passed, or from a decision or correction you gave. It is shown to no session
-until you approve it with `snout memory review` ([lessons](docs/memory-lessons.md)).
+and what it left unfinished. It also keeps the notes you save. `snout import` adds the project's
+history from before Snout was installed: six months of commits and earlier Claude Code and Codex
+sessions, plus PRs and failed CI runs once you run `snout import github on`. Each record keeps its
+date and a link to its source. An agent can propose a one-line lesson after a test passed, or from
+a decision or correction you gave. It is shown to no session until you approve it with
+`snout memory review` ([lessons](docs/memory-lessons.md)).
 
 In enforce mode, a new session starts with one line saying that earlier sessions are on record and
 how to search them. The agent then has `snout_memory_search`, `snout_memory_fetch` and
@@ -46,9 +50,8 @@ helps.
 
 Nothing from memory is added to a prompt on its own. `snout memory notes on` does that, and it stays
 off by default because choosing a note for a prompt that didn't ask for one wasn't reliable enough.
-In a 10-task pilot per agent, memory as it shipped did not lower cost per solved task. The lessons
-above are the change made in response, and they are not measured yet ([memory](docs/memory.md)). The one thing you see in observe
-is a short tip when a prompt doesn't say which file or what should happen; `snout coach off` stops it.
+Whether memory lowers cost per task is not measured yet: in a 10-task pilot per agent, an earlier
+version did not ([memory](docs/memory.md)).
 
 Add `.snout/` to your `.gitignore`. It holds this project's session records, including the start of
 your requests ([what is stored](docs/privacy.md)).
@@ -78,6 +81,7 @@ npx usesnout scan       # what in this repo would crowd an agent's context (no i
 snout report            # what each session read, kept out and spent
 snout audit             # MCP servers: which are used and what their results cost
 snout audit context     # instructions, skills and docs loaded every session but never used
+snout import            # past commits and sessions into memory (PRs and CI runs with gh)
 snout memory            # session records, and whether agents searched them
 snout explain <file>    # why a file was trimmed; `snout allow <file>` keeps it whole
 snout dashboard         # the same numbers, live in your browser
@@ -103,6 +107,6 @@ Records live in `.snout/` in each project; delete the folder to remove them. In 
 [Quickstart](docs/quickstart.md) · [Memory](docs/memory.md) · [Integrations](docs/integrations.md) ·
 [Configuration](docs/configuration.md) · [Benchmark](docs/claims.md) ·
 [Privacy](docs/privacy.md) · [Troubleshooting](docs/troubleshooting.md) ·
-[Development](docs/development.md)
+[Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
 
 MIT licensed.

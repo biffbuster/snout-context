@@ -111,7 +111,7 @@ never saved; any other is kept once a second session repeats it. A note an agent
 (`snout_memory_save`) is a proposal, shown to no agent until you accept it. A failed Python import is
 not recorded as a missing tool unless the command runs that module. `memoryBudget` (default 600, at
 most 4000) caps the tokens of automatic notes per prompt when `memoryNotes` is on; observe mode
-records what it would add and adds nothing. See [privacy](privacy.md#notes-032-unreleased).
+records what it would add and adds nothing. See [privacy](privacy.md#notes-since-032).
 
 Paused and unchanged: the embedding model and the preference judge stay opt-in.
 

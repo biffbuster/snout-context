@@ -53,6 +53,15 @@ and quotes your words. Snout checks the session's record for that evidence befor
 - `snout memory list` and a fetch show what verified each note: a passing test run, a
   command-not-found error, your own words, or your approval.
 
+**Project history** (`snout import`): commits from the last six months on every branch, earlier
+Claude Code and Codex sessions in this folder and, once you run `snout import github on`, PRs with
+their reviews and failed CI runs, read through your own `gh` login. Each record keeps its date and a
+link to its source, and a search can leave out anything after a date (`--as-of`). Commits, PRs and
+runs are kept in Snout's config folder, never in the repository. A session start imports git and
+past sessions in the background, the first time in a project and then at most once a day. A commit
+that a rebase or amend took off every branch leaves memory on the next import. Details:
+[configuration](configuration.md).
+
 ## How agents get it
 
 1. **One line at session start.** When the project has other sessions on record, a new session
