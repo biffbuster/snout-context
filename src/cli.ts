@@ -57,7 +57,8 @@ import { archiveFiles, auditContext, listArchives, renderAudit, renderMap, resto
 import { auditCi, renderCi } from "./audit/ci.js";
 import { docWindow, type DocWindow } from "./gate/longdoc.js";
 import { asksToContinue, captureSession, COMMITS, embedKey, embedText, withoutStaleClaims, forgetCard, leftOff, linkCommit, listCards, packVector, readCard, readCards, readVectors, recall, renderRecall, repoBrief, shareMemory, unpackVector, workCards, workingState, writeVectors, CARD_KIND, cardsDir } from "./memory/memory.js";
-import { memoryHint } from "./memory/tools.js";
+import { memoryFetch, memoryHint, memorySearch, type MemoryContext } from "./memory/tools.js";
+import { claimImport, githubNudge, HIST_KIND, importHistory, readImportState, type ImportResult } from "./memory/history.js";
 import { applyDistilled, installedFor, replaceOlder, retireElsewhere, retireInstalled, retireOneOff } from "./memory/distill.js";
 import { coveredBy, instructionText, lastUses, nearDuplicate, restoreObservation, retireUnused, verification } from "./memory/quality.js";
 import { lessonQuestion, parseLessons } from "./memory/lessons.js";
@@ -65,7 +66,7 @@ import { approved as approvedLesson, approveLesson, checkProposals, editLesson, 
 import { installMemorySkill, promote, promotionPreview, removeMemorySkill } from "./memory/skill.js";
 import { cite, factKey, FACTS_HEAD, fittingLessons, heldBack, MAX_PROMPT_NOTES, rankedFit, staleClaims } from "./memory/facts.js";
 import { onPath } from "./util/path.js";
-import { acceptObservation, addObservation, archiveObservation, deleteObservation, shareObservation, listObservations, localViewer, MEMORY_BUDGET, memoryBlock, migratePrefs, OBS_KIND, recallable, sessionViewer, storesFor, supersedeObservation, userPrincipal, type MemoryBlock, type ObsKind, type Observation } from "./memory/store.js";
+import { acceptObservation, addObservation, archiveObservation, deleteObservation, shareObservation, listObservations, localViewer, MEMORY_BUDGET, memoryBlock, migratePrefs, OBS_KIND, projectKey, recallable, sessionViewer, storesFor, supersedeObservation, userPrincipal, type MemoryBlock, type ObsKind, type Observation } from "./memory/store.js";
 import { indexStatus, rebuildIndex } from "./memory/sqlite.js";
 import { readRecallDecisions, recallOutcomes, summarizeRecall } from "./memory/receipts.js";
 import { forgetPref, judgeAndSave, prefCandidates, readPrefs } from "./memory/prefs.js";
@@ -404,6 +405,7 @@ function dispatch(command: string, input: HookInput): void {
     case "map": return cmdMap(paths, cfg, process.argv.slice(3));
     case "memory": return cmdMemory(paths, cfg, process.argv.slice(3));
     case "recall": return cmdRecall(paths, process.argv.slice(3));
+    case "import": return cmdImport(paths, cfg, process.argv.slice(3));
     case "fast": return cmdFast(paths, cfg, process.argv[3]);
     case "version": case "--version": case "-v": return say(`snout ${VERSION}`);
     case "status": return cmdStatus(paths, cfg);
@@ -589,15 +591,17 @@ function onSessionStart(input: HookInput, paths: Paths, cfg: Config): void {
       recordError("memoryServe", err);
     }
   }
+  startImport(paths, cfg);
+  const nudge = importNudge(paths, cfg);
   const brief = startBrief(input, paths, cfg, session);
   const withBrief = (out: Record<string, unknown>) => (brief ? { ...out, hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: brief } } : out);
   const s = summarizeLedger(readDecisions(paths.ledger, 5000));
   const report = firstRunReport(paths, cfg, s);
-  if (report) return emit(withBrief(withOutputStyle(cfg, { systemMessage: report })));
+  if (report) return emit(withBrief(withOutputStyle(cfg, { systemMessage: nudge ? `${report}\n${nudge}` : report })));
   const kept = s.today.heldBack ? ` · ~${fmtTokens(s.today.heldBack)} tokens kept out today` : "";
   const dash = liveDashboard(configDir(), paths.projectDir);
   const where = dash ? ` · dashboard http://127.0.0.1:${dash.port}/` : " · `snout dashboard` to watch it live";
-  emit(withBrief(withOutputStyle(cfg, { systemMessage: `Snout is on (${cfg.mode})${kept}${where}${cfg.output === "concise" ? " · concise output on" : ""}${brief ? " · memory brief loaded" : ""}` })));
+  emit(withBrief(withOutputStyle(cfg, { systemMessage: `Snout is on (${cfg.mode})${kept}${where}${cfg.output === "concise" ? " · concise output on" : ""}${brief ? " · memory brief loaded" : ""}${nudge ? `\n${nudge}` : ""}` })));
 }
 
 
@@ -1432,11 +1436,12 @@ Usage: snout memory notes on|off`);
   }
   if (v === "reindex") {
     const stores = storesFor(paths.projectDir, paths.snoutDir, configDir());
-    const st = rebuildIndex(stores.indexFile!, [[stores.privateDir, OBS_KIND], [stores.globalDir, OBS_KIND], [stores.sharedDir, OBS_KIND], [cardsDir(paths.snoutDir), CARD_KIND]]);
+    const st = rebuildIndex(stores.indexFile!, [[stores.privateDir, OBS_KIND], [stores.globalDir, OBS_KIND], [stores.sharedDir, OBS_KIND], [cardsDir(paths.snoutDir), CARD_KIND], [stores.historyDir!, HIST_KIND]]);
     return say(st.available
       ? `Rebuilt the local index from the files: ${st.records} record${st.records === 1 ? "" : "s"}, ${(st.bytes / 1024).toFixed(0)} KB at ${st.file}. The JSON files are unchanged.`
       : "No local index on this Node (node:sqlite needs Node 22.13 or later), or SNOUT_INDEX=off: memory reads the files directly, with the same results.");
   }
+  if (v === "search" || v === "fetch") return cmdMemoryLookup(paths, v, args.slice(1));
   if (v === "forget") {
     const id = args[1];
     if (!id) return say("Usage: snout memory forget <session>");
@@ -1448,7 +1453,7 @@ Usage: snout memory notes on|off`);
   const ranks = `words${modelReady() ? "; with memorySemantic on, notes may also match a prompt by meaning" : ""}`;
   const index = indexStatus(storesFor(paths.projectDir, paths.snoutDir, configDir()).indexFile!);
   const indexLine = index.available ? `Local index: ${index.records} record${index.records === 1 ? "" : "s"}, ${(index.bytes / 1024).toFixed(0)} KB (SQLite, this machine only; snout memory reindex rebuilds it from the files)` : "Local index: none on this Node; memory reads the files directly";
-  say([head, ...memoryUseLines(paths, cfg), `Search ranks by ${ranks}`, indexLine, ...recallStatsLines(paths, cards), ...rows, "", 'Usage: snout memory on|off · snout memory review · snout memory approve|reject|edit|replace <id> · snout memory promote <id> --name <skill> · snout memory notes on|off · snout memory brief · snout memory list [--all] · snout memory add "<note>" · snout memory archive|drop <id> · snout memory share · snout memory judge jev|off · snout memory prefs [forget <n>] · snout memory forget <session> · snout memory reindex · snout memory model [install|remove] · snout recall "<request>"'].join("\n"));
+  say([head, ...memoryUseLines(paths, cfg), `Search ranks by ${ranks}`, indexLine, ...recallStatsLines(paths, cards), ...rows, "", 'Usage: snout memory on|off · snout memory review · snout memory approve|reject|edit|replace <id> · snout memory promote <id> --name <skill> · snout memory notes on|off · snout memory brief · snout memory list [--all] · snout memory add "<note>" · snout memory archive|drop <id> · snout memory share · snout memory judge jev|off · snout memory prefs [forget <n>] · snout memory forget <session> · snout memory search "<q>" [--as-of <date>] · snout memory fetch <id> · snout memory reindex · snout memory model [install|remove] · snout recall "<request>"'].join("\n"));
 }
 
 /**
@@ -1485,6 +1490,109 @@ function recallStatsLines(paths: Paths, cards: ReturnType<typeof readCards>): st
     `Recall spoke on ${s.spoke} of ${s.prompts} prompts with cards to weigh: its files were opened after ${s.opened}, changed after ${s.changed}.`,
     `Stayed silent on ${s.silent} (no match ${s.byReason["no-match"]}, already shown ${s.byReason["already-recalled"]}, no map agreement ${s.byReason["map-gate"]}); a dropped card named a file the session then changed in ${s.missed}.`,
   ];
+}
+
+/** This user in this project, as the MCP tools see them (mcp.ts), for the same search from the command line. */
+function cliMemoryContext(paths: Paths, asOf?: string): MemoryContext {
+  const stores = storesFor(paths.projectDir, paths.snoutDir, configDir());
+  const unattended = !!(process.env.CI || process.env.SNOUT_TOKEN);
+  return { stores, snoutDir: paths.snoutDir, projectDir: paths.projectDir, viewer: sessionViewer(paths.projectDir, stores.project), user: unattended ? null : userPrincipal(paths.projectDir), agent: "cli", ...(asOf ? { asOf } : {}) };
+}
+
+/** `snout memory search "<q>" [--as-of <date>] [--limit n]` and `snout memory fetch <id>`: what an agent's search would get. */
+function cmdMemoryLookup(paths: Paths, v: "search" | "fetch", args: string[]): void {
+  const opt = (name: string) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
+  const asOf = opt("--as-of");
+  if (asOf && Number.isNaN(Date.parse(asOf))) return say(`snout: --as-of needs a date (2026-10-01 or an ISO time), not "${safeText(asOf, 40)}".`);
+  const rest = args.filter((_, j) => !["--as-of", "--limit"].includes(args[j]!) && !["--as-of", "--limit"].includes(args[j - 1]!)).join(" ").trim();
+  if (!rest) return say(v === "search" ? 'Usage: snout memory search "<words>" [--as-of 2026-10-01] [--limit 5]' : "Usage: snout memory fetch <id> [--as-of 2026-10-01]");
+  const ctx = cliMemoryContext(paths, asOf);
+  try {
+    say(v === "search" ? memorySearch(ctx, rest, Number(opt("--limit")) || 5) : memoryFetch(ctx, rest));
+  } catch (err) {
+    say((err as Error).message);
+    process.exitCode = 1;
+  }
+}
+
+/**
+ * `snout import [--since <date>|6m] [--no-gh] [--no-sessions]`: reads the project's history into
+ * Snout's memory (history.ts). The first run reads six months; later runs what is new since.
+ * `--background`: the run a session start begins (startImport): no output, and `gh` only with
+ * `snout import github on`. `snout import github on|off` sets that.
+ */
+function cmdImport(paths: Paths, cfg: Config, args: string[]): void {
+  const background = args.includes("--background");
+  const stores = storesFor(paths.projectDir, paths.snoutDir, configDir());
+  if (args[0] === "github") {
+    const w = args[1];
+    if (w !== "on" && w !== "off") return say(`Daily GitHub import is ${cfg.importGithub === true ? "on" : "off"}.\nUsage: snout import github on|off`);
+    setConfigKey(paths.config, "importGithub", w === "on" ? true : undefined);
+    return say(w === "on"
+      ? "Daily GitHub import on. Once a day, the session start's background import also reads new PRs and failed CI runs with your gh login (read only). What it reads stays on this machine."
+      : "Daily GitHub import off. The background import reads git and past sessions only; snout import still reads GitHub when you run it.");
+  }
+  if (args[0] === "status") {
+    const st = readImportState(configDir(), stores.project);
+    const gh = st?.ghRead ? ` · GitHub read ${st.ghRead.slice(0, 10)}` : st?.gh ? ` · GitHub: ${st.gh}` : "";
+    return say(st?.last ? `Last import ${st.last.slice(0, 16).replace("T", " ")} UTC · ${Object.keys(st.sessions).length} transcript${Object.keys(st.sessions).length === 1 ? "" : "s"} read${gh} · daily GitHub import ${cfg.importGithub === true ? "on" : "off"}. snout import reads what is new since.` : "Not imported yet. snout import reads git, GitHub (with gh) and past sessions for this project.");
+  }
+  const i = args.indexOf("--since");
+  const sinceArg = i >= 0 ? args[i + 1] : undefined;
+  let since: Date | undefined;
+  if (sinceArg) {
+    const months = /^(\d+)m$/.exec(sinceArg);
+    since = months ? new Date(Date.now() - Number(months[1]) * 30.5 * 86_400_000) : new Date(sinceArg);
+    if (Number.isNaN(since.getTime())) return say(`snout: --since needs a date (2026-05-01) or months (6m), not "${safeText(sinceArg, 40)}".`);
+  }
+  let r: ImportResult;
+  try {
+    r = importHistory({ project: stores.project, projectDir: paths.projectDir, snoutDir: paths.snoutDir, configDir: configDir(), indexFile: stores.indexFile, since, github: background ? cfg.importGithub === true : !args.includes("--no-gh"), sessions: !args.includes("--no-sessions") });
+  } catch (err) {
+    recordError("import", err);
+    if (background) return;
+    return say(`snout: import stopped: ${safeText((err as Error).message, 200)}`);
+  } finally {
+    if (background) try { rmSync(join(configDir(), "history", stores.project, "running"), { force: true }); } catch { /* left; taken over after an hour */ }
+  }
+  if (background) return;
+  const a = r.added;
+  const n = (k: number, one: string, many = `${one}s`) => `${k} ${k === 1 ? one : many}`;
+  say([
+    `${r.first ? "Imported" : "Updated"} this project's history from ${r.since.slice(0, 10)}: ${n(a.commit, "commit")}, ${n(a.pr, "PR")}, ${n(a.run, "failed CI run")}, ${n(a.session, "past session")} new · ${r.total} record${r.total === 1 ? "" : "s"} kept${r.dropped ? ` (${r.dropped} oldest dropped for the ${r.total}-record cap)` : ""}${r.gone ? ` · ${n(r.gone, "commit")} no branch has any more (rebased or amended) removed` : ""}.`,
+    r.ghSkipped ? `GitHub: ${r.ghSkipped}${/not installed|auth|login/i.test(r.ghSkipped) ? "; PRs and CI runs are read with gh once it is installed and logged in" : ""}.` : `GitHub: PRs and CI runs read with your gh login (read only).${cfg.importGithub === true ? "" : " To keep them current each day: snout import github on"}`,
+    r.redacted ? `${n(r.redacted, "credential")} found in that text and replaced before saving.` : "",
+    `Kept on this machine only: ${toRel(r.dir, paths.projectDir)}${a.session ? ` and session records in ${toRel(join(paths.snoutDir, "memory"), paths.projectDir)}` : ""}. Agents find it with snout_memory_search; try: snout memory search "<words>"`,
+    cfg.memory === false ? "Memory is off here (snout memory on), so agents are not told it exists." : "",
+  ].filter(Boolean).join("\n"));
+}
+
+/**
+ * A session start begins an import of what this machine already has (git and past sessions) in the
+ * background, when there has been none or the last is a day old, so memory is not empty on day one
+ * and stays current. GitHub only with `snout import github on`, or when the user runs `snout import`.
+ * Off in CI, in replays, with memory off, or SNOUT_IMPORT=off.
+ */
+function startImport(paths: Paths, cfg: Config): void {
+  if (cfg.memory === false || replayDir || process.env.CI || process.env.SNOUT_IMPORT === "off") return;
+  try {
+    const key = projectKey(paths.projectDir);
+    if (!claimImport(configDir(), key)) return;
+    spawn(process.execPath, [BIN, "import", "--background"], { cwd: paths.projectDir, detached: true, stdio: "ignore", windowsHide: true }).unref();
+  } catch (err) {
+    recordError("backgroundImport", err);
+  }
+}
+
+/** The one-time line telling the user `snout import` adds GitHub (history.ts githubNudge). Shown to the user only. */
+function importNudge(paths: Paths, cfg: Config): string {
+  if (cfg.memory === false || replayDir || cfg.importGithub === true) return "";
+  try {
+    return githubNudge(configDir(), projectKey(paths.projectDir)) ?? "";
+  } catch (err) {
+    recordError("importNudge", err);
+    return "";
+  }
 }
 
 /** `snout recall "<request>" [--as-of <date>]`: what a prompt would get from memory. */
@@ -3210,6 +3318,8 @@ const HELP = `snout ${VERSION} · the context gate for coding agents
   snout mode observe|enforce record only, or trim low-value reads
   snout explain <file>       why a file was trimmed        snout allow <file>   never trim it
   snout memory               what earlier sessions left     snout recall "<q>"   what a prompt would get
+  snout import               read this project's history: git, PRs and CI runs (gh), past sessions
+  snout import github on     also read GitHub in the daily background import (off by default)
 
   Docs and advanced commands: https://github.com/biffbuster/snout-context#cli`;
 

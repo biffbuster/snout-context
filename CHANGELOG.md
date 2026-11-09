@@ -4,6 +4,19 @@
 
 Not measured yet. Nothing below is covered by [docs/claims.md](docs/claims.md).
 
+- `snout import`: reads the project's history into memory. That means six months of commits, PRs
+  with their reviews and failed or timed-out CI runs (through your `gh` login, read only), and
+  earlier Claude Code and Codex sessions in the folder. Each record is dated and links to its
+  source. A CI run shows the commit, PR and session behind it, and the last changes to its
+  workflow file. `snout memory search "<words>" [--as-of <date>]` and `snout memory fetch <id>`
+  give the same results agents get. A PR number or a sha works as a search on its own.
+  Credentials are replaced before saving. A session start imports git and past sessions in the
+  background, the first time in a project and then at most once a day. It reads GitHub only after
+  `snout import github on`; until then, a repository with a GitHub remote gets one line, once,
+  pointing to `snout import`. The local index is rebuilt once from the saved records on the first
+  read after the update. A commit that a rebase or amend took off every branch leaves memory on the
+  next import, and stashed work is never imported.
+
 - Removed: Snout Cloud. The server (`cloud/`), `snout login`, `snout sync` and `snout logout`,
   the sync after each turn, and the dashboard's Cloud preview and hosted pages are gone. Nothing in
   Snout sends data anywhere now. Credentials saved by an earlier `snout login` are no longer read;

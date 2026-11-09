@@ -91,6 +91,8 @@ export interface Stores {
   sharedDir: string;
   /** The local index of all three (sqlite.ts), on this machine only. Without it, the files are read directly. */
   indexFile?: string;
+  /** The project's imported history (history.ts): commits, PRs and CI runs, in the user's config folder. */
+  historyDir?: string;
 }
 
 /** A stable id for the project that reveals neither its remote nor its path. */
@@ -105,7 +107,7 @@ export function projectKey(projectDir: string): string {
 }
 
 export function storesFor(projectDir: string, snoutDir: string, configDir: string, key = projectKey(projectDir)): Stores {
-  return { project: key, privateDir: join(configDir, "memory", key), globalDir: join(configDir, "memory", "global"), sharedDir: join(snoutDir, "memory", "obs"), indexFile: indexFileFor(configDir, snoutDir) };
+  return { project: key, privateDir: join(configDir, "memory", key), globalDir: join(configDir, "memory", "global"), sharedDir: join(snoutDir, "memory", "obs"), indexFile: indexFileFor(configDir, snoutDir), historyDir: join(configDir, "history", key, "records") };
 }
 
 const hash = (s: string, n = 16) => createHash("sha256").update(s).digest("hex").slice(0, n);

@@ -42,6 +42,8 @@ export interface Card {
   /** The first failure the session got past (a test run passed after it). */
   recovered?: { line: string; command: string };
   commits: Commit[];
+  /** Read from a transcript by `snout import`, not written by Snout's hooks as the session ran. */
+  via?: "import";
 }
 
 export interface Commit { sha: string; subject: string; ts: string; files: string[] }

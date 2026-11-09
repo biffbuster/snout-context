@@ -31,7 +31,7 @@ import { dirname, join, resolve } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 
 /** Bumped whenever what a row holds changes (a parse rule, the FTS body): the index is rebuilt. */
-export const SCHEMA = 4;
+export const SCHEMA = 5;
 /** A folder changed more recently than this is compared file by file again on the next read. */
 const SETTLE_MS = 2000;
 const MISSING = -1;
@@ -40,7 +40,7 @@ const BATCH = 200;
 
 /** What one kind of record looks like in the index. `parse`: the caller's own reader; null skips the file. */
 export interface RecordKind<T> {
-  name: "obs" | "card";
+  name: "obs" | "card" | "hist";
   parse: (raw: unknown) => T | null;
   /** The words the FTS body is built from (every form of each), and the text an exact search reads. */
   text: (r: T) => string;

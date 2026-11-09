@@ -47,6 +47,11 @@ export interface Config {
    * (cli.ts startBrief, memory/tools.ts memoryHint). On unless false.
    */
   memoryHint?: boolean;
+  /**
+   * The session start's daily background import also reads PRs and failed CI runs with the user's
+   * `gh` login (cli.ts startImport, memory/history.ts). Opt-in, default off: git and past sessions only.
+   */
+  importGithub?: boolean;
   /** Blocking hooks call a long-running `snout serve` over HTTP instead of starting Node each time. Default on; false keeps command hooks. */
   fastHooks?: boolean;
   /**
