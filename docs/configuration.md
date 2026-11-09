@@ -68,6 +68,21 @@ conflicts: `snout memory share` changes a `.snout/` line in `.gitignore` to `.sn
 `!.snout/memory/`, and stages nothing. Records hold the start of your prompts, so read them before
 you commit them. Whether memory lowers spend per task is not measured yet ([memory](memory.md)).
 
+`snout import` reads the project's history from before Snout was installed: commits on every branch
+from the last six months (subject, message, file names, never a diff), PRs with their reviews and
+comments, and CI runs that failed or timed out, with the jobs and steps that did (both through
+your own `gh` login, read only), plus earlier Claude Code and Codex sessions in this folder, which
+become session records like the ones above. Each record keeps its date and a link to its source,
+`snout_memory_search` finds it, and `snout memory search "<words>" --as-of <date>` leaves out
+anything later. Text that looks like a credential is replaced before anything is saved. Commits,
+PRs and runs are kept in Snout's config folder, never in the repository, at most 3,000 per project
+with the oldest dropped first. A later run reads only what is new. A session start runs a quiet import of git and past sessions
+in the background, the first time in a project and then at most once a day (`SNOUT_IMPORT=off`
+turns it off). It calls `gh` only after `snout import github on` (config key `importGithub`, off by
+default). On a repository with a GitHub remote, after that first import, you see one line, once,
+saying `snout import` adds PRs and CI runs. The agent doesn't see it. Without `gh`, `snout import`
+reads git and past sessions only. `snout import status` shows when it last ran.
+
 `memoryHint` (default on; `SNOUT_MEMORY_HINT=0|1`): in enforce mode, when this project has records
 of other sessions, a new session (not a resumed or compacted one) starts with one line. It says how
 many records there are, the latest one's date and agent, and to search them with

@@ -52,7 +52,7 @@ const TOOLS = [
   {
     name: "snout_memory_search",
     description:
-      "Search Snout's memory for this project: saved observations and records of earlier sessions (task, outcome, files changed, commits, test command, last error). Use it before exploring for how something works here, how to run or set it up, or what was tried before.",
+      "Search Snout's memory for this project: saved observations, records of earlier sessions (task, outcome, files changed, commits, test command, last error) and, once imported, the project's history (commits, PRs with their reviews, CI runs that failed). Use it before exploring for how something works here, how to run or set it up, or what was tried before.",
     inputSchema: {
       type: "object",
       properties: { query: { type: "string", description: "A few words: a file, a command, an error, a feature." }, limit: { type: "number", description: "Results to return (default 5, at most 20)." } },
@@ -61,7 +61,7 @@ const TOOLS = [
   },
   {
     name: "snout_memory_fetch",
-    description: "Open one memory item in full by its id from snout_memory_index or snout_memory_search: an observation (o_...) or an earlier session (session:...).",
+    description: "Open one memory item in full by its id from snout_memory_index or snout_memory_search: an observation (o_...), an earlier session (session:...), or a commit, PR or CI run (commit:..., pr:..., run:...).",
     inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
   },
   {
@@ -230,7 +230,7 @@ function logged(ctx: MemoryContext, kind: "search" | "fetch" | "propose", asked:
     throw err;
   } finally {
     try {
-      const shown = [...new Set(text.match(/\b(?:session:[\w.-]+|o_[a-f0-9]{12})\b/g) ?? [])];
+      const shown = [...new Set(text.match(/\b(?:(?:session|commit|pr|run):[\w.-]+|o_[a-f0-9]{12})\b/g) ?? [])];
       appendRow(join(ctx.snoutDir, "recall.jsonl"), { ts: new Date().toISOString(), session: ctx.session, kind, asked: asked.slice(0, 120), shown, ...(missed ? { missed } : {}), tokensEst: estimateTokens(Buffer.byteLength(text), "x.txt") });
     } catch (err) {
       recordError("memoryLog", err);
