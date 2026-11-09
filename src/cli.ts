@@ -75,7 +75,7 @@ import { prepareMeaning, semanticOn } from "./memory/semantic.js";
 import { buildMap, candidates, renderCandidates, shouldSuggest, type RepoMap } from "./map/map.js";
 import { forgetReads, rememberRead, repeatOf, repeatOutput, requestedWindow, returnedWindow } from "./gate/repeat.js";
 
-const VERSION = "0.3.2";
+const VERSION = "0.3.3";
 /** This bundle, by absolute path: what the gate hook runs. */
 const BIN = resolve(process.argv[1] ?? "dist/snout.mjs");
 

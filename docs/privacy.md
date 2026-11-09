@@ -22,7 +22,7 @@ lasting preference. Those rated 0.8 or higher are saved to `.snout/memory/prefer
 shown at the start of later sessions. `snout memory judge off` turns it off;
 `snout memory prefs forget <n>` removes one.
 
-## Notes (0.3.2, unreleased)
+## Notes (since 0.3.2)
 
 Notes are written on your machine, by fixed rules with no model call. Who may see a note is stored
 with it as hashes of your git email and of the repository, never the email or path itself.
