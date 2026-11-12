@@ -1,0 +1,74 @@
+{
+ "astropy": {
+  "checked": [
+   { "sha": "9f4de8d6a62c", "question": "When the IERS-A table is stale and a conversion needs predictive values, does IERS_Auto still always raise, or does iers_degraded_accuracy apply?" },
+   { "sha": "60c9c64c358e", "question": "Negative indices in WCS.slice were counted from the wrong end of the axis; what fixed that and what happened to sanitize_slices?" },
+   { "sha": "98b363521db7", "question": "Unsigned 64-bit image data came back shifted after a compressed FITS write and read; what was the fix?" },
+   { "sha": "a26c0e8adcb9", "question": "What does astropy.wcs.get_include do now if astropy was built against the system WCSLIB?" },
+   { "sha": "2c22da3a5c8b", "question": "Cutout2D.plot_on_original drew the cutout outline with the wrong extent; when was that fixed?" },
+   { "sha": "caa5d6673c4f", "question": "Do we have a test that pickles a DataInfo object that isn't bound to a parent?" },
+   { "sha": "080ab5237862", "question": "In the WCSAxes API code, why was the length check before removing the custom: prefix of an axis type taken out?" },
+   { "sha": "5304deababb2", "question": "Which method does the fast Lomb-Scargle implementation use by default, and when did it stop using fasper?" },
+   { "sha": "d96b81638081", "question": "In the script that updates the what's new stats, how does it check that the page exists for an explicit path versus the default one?" },
+   { "sha": "987d44ff3d57", "question": "structured_to_unstructured on a StructuredQuantity got its unit wrong; where was that fixed?" },
+   { "sha": "5aee7891004a", "question": "Do masked arrays support numpy's new top_k function from the numpy 2.6 development version?" },
+   { "sha": "a41cc1bb7bed", "question": "Did comparing GCRS frames for equality get cheaper by avoiding a full array broadcast?" },
+   { "sha": "5e39dece702c", "question": "VOTable null values in the fast converters were declared with the wrong integer widths; what changed?" },
+   { "sha": "d14e403a9ccb", "question": "Why was the text_size computation dropped from the tick label alignment code in WCSAxes?" },
+   { "sha": "ba7a7869f453", "question": "Why did we remove the special case for fitsio's cooldown period from the project configuration?" }
+  ],
+  "negatives": [
+   { "question": "Why was the FITS header parser rewritten in Rust?" },
+   { "question": "When did astropy.table drop support for writing HDF5 files?", "note": "hard: a commit skips an HDF5 test when h5py is missing; it doesn't answer this" },
+   { "question": "Why did the cosmology module move its distance calculations to the GPU?" },
+   { "question": "What broke when the bundled WCSLIB was upgraded to version 9.0?" },
+   { "question": "Why are coordinate transformation results cached in Redis now?" },
+   { "question": "When did astropy.time stop accepting Julian dates given as strings?" },
+   { "question": "Why was the Lomb-Scargle periodogram split out into its own package?" },
+   { "question": "Why did the default cosmology change to Planck 2023?" },
+   { "question": "Why did we replace the VOTable XML parser with lxml?" },
+   { "question": "When did convolution switch to using FFTW by default?" },
+   { "question": "Why does the ECSV writer now emit YAML 1.2 headers?" },
+   { "question": "Why did NDData stop supporting masks?" },
+   { "question": "Why did Quantity printing switch to engineering notation by default?" },
+   { "question": "Why was the units module ported to use pint internally?" },
+   { "question": "When did coordinates add support for Mars-centered frames?" }
+  ]
+ },
+ "tokio": {
+  "checked": [
+   { "sha": "7947fa4bd79d", "question": "Can I give a Tokio runtime a name through the tokio::main macro?" },
+   { "sha": "ddc60948ab78", "question": "Is there a way to get a mutable reference to the next item of a Peekable stream, or poll for a peek?" },
+   { "sha": "5b758f5b5bc5", "question": "Why does mpsc Permit::send forget the permit before sending, and what goes wrong if the receiver's waker panics?" },
+   { "sha": "3eb95a40f1b8", "question": "On emscripten without JSPI, how does block_on wait when the runtime parks?" },
+   { "sha": "6276684c288d", "question": "Does StreamNotifyClose implement FusedStream?" },
+   { "sha": "7f67a1bd612a", "question": "Does the futures compat wrapper in tokio-util pass vectored writes through?" },
+   { "sha": "471d65dec218", "question": "When an alternative timer entry is cancelled, why is its stored waker dropped right away instead of during timer maintenance?" },
+   { "sha": "38631ed3de29", "question": "Why did the queue stress1 test sometimes come up a few tasks short?" },
+   { "sha": "044861849318", "question": "Why were the tracing_sync tests changed from async tests to synchronous ones?" },
+   { "sha": "3536cd6987b6", "question": "Closing a semaphore could deadlock when a waker released a permit; how was that fixed?" },
+   { "sha": "32312ae0d6f0", "question": "When did we start running Miri on the TCP socket tests?" },
+   { "sha": "832dd233293e", "question": "Could a panic in a tracing event during poll_acquire leak semaphore permits?" },
+   { "sha": "88212ab64afd", "question": "What memory ordering guarantees does the Semaphore documentation give?" },
+   { "sha": "ee04abe7970b", "question": "Is there a benchmark for inject queue contention when spawning from outside the runtime?" },
+   { "sha": "f085b6211b8e", "question": "Does releasing an mpsc OwnedPermit wake receivers waiting on the channel?" }
+  ],
+  "negatives": [
+   { "question": "Why did the default runtime switch to a single-threaded executor?" },
+   { "question": "When was async-std compatibility added to tokio-util?" },
+   { "question": "Why was Unix domain socket support removed?" },
+   { "question": "What broke when tokio moved to the Rust 2027 edition?" },
+   { "question": "Why does tokio::fs use mmap for reads now?" },
+   { "question": "When did tokio add a built-in HTTP/3 client?" },
+   { "question": "Why was the broadcast channel rewritten on top of crossbeam?" },
+   { "question": "Why did tokio drop support for Windows named pipes?", "note": "hard: a commit adds safety docs and Default impls for named pipe options; it doesn't answer this" },
+   { "question": "Why does the runtime pin worker threads to CPU cores by default now?" },
+   { "question": "When was tokio::sync::Mutex made to poison on panic like std's?" },
+   { "question": "Why was JoinSet deprecated?" },
+   { "question": "What changed when the timer wheel was replaced with a binary heap?" },
+   { "question": "Why does tokio-stream depend on rayon now?" },
+   { "question": "When did tokio add Python bindings?" },
+   { "question": "Why did tokio::select! start requiring futures to be Unpin?" }
+  ]
+ }
+}

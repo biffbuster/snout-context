@@ -6,7 +6,8 @@
  *   plain    no Snout (Codex: Snout's hooks, inherited from the trusted checkout, in observe: they add nothing)
  *   trim     Snout's read gate and output trimming, memory off
  *   memory   trim plus verified memory as built; notes carry from task to task within the chain
- *   search   trim plus memory as it ships: no notes; Snout's search and fetch as MCP tools, and the
+ *   search   trim plus memory as it ships: no notes; Snout's search and fetch as MCP tools, the memory
+ *            skill where the agent reads skills (as the plugin and `snout init codex` ship it), and the
  *            session-start hint once earlier sessions are on record. The agent decides whether to search.
  *
  * Arms are interleaved by task (each task in every arm before the next, the order rotating), so no arm
@@ -53,7 +54,7 @@ import { stamp } from "./stamp.mjs";
 import { codexToolchainEnv, removeSandboxed } from "./codex-toolchain.mjs";
 import { networkCommands, modeProblems, armProblems, scoreStep, costMismatch, spentUsd, hookCoverage, codexHookCoverage, pilotVerdict, armOrder, memoryUse, groupFits, recordName } from "./study-checks.mjs";
 
-const { gateEntries, squeezeEntries } = await import(pathToFileURL(join(REPO, "dist/lib.mjs")).href);
+const { gateEntries, squeezeEntries, MEMORY_SKILL, MEMORY_SKILL_NAME } = await import(pathToFileURL(join(REPO, "dist/lib.mjs")).href);
 
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, a, i, all) => (a.startsWith("--") ? [...acc, [a.slice(2), all[i + 1] && !all[i + 1].startsWith("--") ? all[i + 1] : true]] : acc), []),
@@ -65,8 +66,16 @@ const PILOT_FILE = join(REPO, "bench", "memory-pilot.json");
 const PILOT = args.pilot ? JSON.parse(readFileSync(PILOT_FILE, "utf8")) : null;
 if (PILOT && ((typeof args.arms === "string" && args.arms !== PILOT.armOrder.join(",")) || (args.repeats !== undefined && Number(args.repeats) !== PILOT.repeats))) throw new Error("--pilot sets the arms and repeats (bench/memory-pilot.json)");
 if (PILOT && !PILOT.agents.includes(AGENT)) throw new Error(`the pilot has no ${AGENT} arm`);
-const ARMS = PILOT ? PILOT.armOrder : (typeof args.arms === "string" ? args.arms : "plain,trim,memory").split(",");
-const REPEATS = PILOT ? PILOT.repeats : Number(args.repeats ?? 2);
+// --replay: the PR replay (bench/replay-design.json). Every arm keeps Claude Code's own memory; one
+// workspace per chain holds the project's real history up to each task's base, and nothing after it.
+const REPLAY_FILE = join(REPO, "bench", "replay-design.json");
+const REPLAY = args.replay ? JSON.parse(readFileSync(REPLAY_FILE, "utf8")) : null;
+if (REPLAY && PILOT) throw new Error("--replay and --pilot are separate designs");
+if (REPLAY && AGENT !== "claude") throw new Error("--replay runs Claude Code only so far");
+if (REPLAY && ((typeof args.arms === "string" && args.arms !== REPLAY.armOrder.join(",")) || (args.repeats !== undefined && Number(args.repeats) !== REPLAY.repeats))) throw new Error("--replay sets the arms and repeats (bench/replay-design.json)");
+const DESIGN = PILOT ?? REPLAY;
+const ARMS = DESIGN ? DESIGN.armOrder : (typeof args.arms === "string" ? args.arms : "plain,trim,memory").split(",");
+const REPEATS = DESIGN ? DESIGN.repeats : Number(args.repeats ?? 2);
 const BUDGET = String(args.budget ?? "2.00");
 const MAX_SPEND = args["max-spend"] ? Number(args["max-spend"]) : 0;
 const MAX_SESSIONS = args["max-sessions"] ? Number(args["max-sessions"]) : 0;
@@ -97,9 +106,9 @@ const EFFORT = typeof args.effort === "string" ? args.effort : "low";
 /** The tasks a run uses: validated, not used in an earlier run of ours, and in a check file only its check set. */
 // In the pilot, its tasks only; --only narrows them for a dry run, never for a run with a real agent.
 const studyTasks = () => {
-  const pilot = PILOT ? PILOT.tasks[relative(REPO, TASKS_FILE).replace(/\\/g, "/")] : null;
-  if (PILOT && !pilot) throw new Error(`${TASKS_FILE} is not in the pilot`);
-  if (PILOT && !FAKE && args.only) throw new Error("--only is for a dry run: the pilot runs all its tasks");
+  const pilot = DESIGN ? DESIGN.tasks[relative(REPO, TASKS_FILE).replace(/\\/g, "/")] : null;
+  if (DESIGN && !pilot) throw new Error(`${TASKS_FILE} is not in the ${REPLAY ? "replay design" : "pilot"}`);
+  if (DESIGN && !FAKE && args.only) throw new Error("--only is for a dry run: a frozen design runs all its tasks");
   const tasks = spec.tasks
     .filter((t) => t.validated && !t.usedBefore && (!spec.checkSet || spec.checkSet.includes(t.id)) && (!pilot || pilot.includes(t.id)))
     .filter((t) => typeof args.only !== "string" || args.only.split(",").includes(t.id));
@@ -110,12 +119,12 @@ const studyTasks = () => {
 // ---------- Freeze ----------
 
 /** What a paid run must match (docs/benchmark-protocol.md, "Frozen inputs"): `--freeze` writes it, every paid run checks it. */
-const FREEZE_FILE = join(REPO, "bench", "memory-freeze.json");
+const FREEZE_FILE = join(REPO, "bench", REPLAY ? "replay-freeze.json" : "memory-freeze.json");
 const FROZEN_SETTINGS = { claudeCode: "2.1.306", codex: "0.163.0", claudeModel: "claude-sonnet-5-5", codexModel: "gpt-6.1-sol", codexEffort: "low", budgetUsd: "2.00", limitMinutes: 30 };
 const TASK_FILES = ["bench/memory-tasks-hugo.json", "bench/memory-tasks-vite.json", "bench/memory-check-hugo.json", "bench/memory-check-vite.json"];
 function freezeFiles() {
   const files = ["dist/snout.mjs", "dist/lib.mjs", "hooks/hooks.json", ".codex/hooks.json", "bench/memory-study.mjs", "bench/codex-toolchain.mjs", "bench/study-checks.mjs", "bench/snout-guard.cjs",
-    "bench/swe.mjs", "bench/swelong.mjs", "bench/shipped-hooks.mjs", "bench/stamp.mjs", "bench/memory-pilot.json", "docs/benchmark-protocol.md", ...TASK_FILES];
+    "bench/swe.mjs", "bench/swelong.mjs", "bench/shipped-hooks.mjs", "bench/stamp.mjs", "bench/memory-pilot.json", "docs/benchmark-protocol.md", ...(REPLAY ? ["bench/replay-design.json"] : []), ...TASK_FILES];
   for (const tf of TASK_FILES) {
     const s = JSON.parse(readFileSync(join(REPO, tf), "utf8"));
     for (const t of s.tasks) if (t.validated && !t.usedBefore && (!s.checkSet || s.checkSet.includes(t.id))) files.push(t.patch, t.issueSnapshot);
@@ -153,7 +162,8 @@ function codexUserConfig() {
   return { sha256: createHash("sha256").update(text).digest("hex"), model: top("model"), effort: top("model_reasoning_effort"), sandbox_mode: top("sandbox_mode"), approval_policy: top("approval_policy"), service_tier: top("service_tier"), pluginsEnabled: plugins };
 }
 const GO = spec?.repo === "gohugoio/hugo";
-const CLONE = GO ? join(REPO, "..", "study-hugo") : join(HOME, ".snout-bench", "clones", "vite");
+// Replay fetches history from the clone, which a partial (blobless) clone can't serve: Hugo's replay clone is a full one.
+const CLONE = GO ? (REPLAY ? join(HOME, ".snout-bench", "clones", "hugo") : join(REPO, "..", "study-hugo")) : join(HOME, ".snout-bench", "clones", "vite");
 
 /** What every arm's agent is asked, around the frozen issue snapshot. */
 const prompt = (t) => `The repository in the current directory is ${spec.repo} at the commit just before the fix for the issue below. Find the cause and fix it by editing the source code. Run the relevant tests before you finish, and do not modify the existing tests. There is no network access: dependencies are already installed.
@@ -162,12 +172,67 @@ ${readFileSync(join(REPO, t.issueSnapshot), "utf8")}`;
 
 // ---------- Workspaces ----------
 
-const wsOf = (t) => join(WS_ROOT, `${NAME}-${t.issue}`);
+/** Replay: the chain running now. Its workspace is one folder for every task, as a developer's clone is. */
+let CURRENT = null;
+const wsOf = (t) => (REPLAY && CURRENT ? join(WS_ROOT, `${NAME}-replay-${CURRENT.arm}-r${CURRENT.rep}`) : join(WS_ROOT, `${NAME}-${t.issue}`));
 const gitDirOf = (t) => (AGENT === "codex" ? join(GIT_ROOT, `${NAME}-${t.issue}.git`) : join(wsOf(t), ".git"));
 const git = (t, ...a) => sh("git", ["--git-dir", gitDirOf(t), "--work-tree", wsOf(t), "-c", "user.name=bench", "-c", "user.email=bench@localhost", ...a], { cwd: wsOf(t), env: ENV });
 
+/**
+ * Replay: the chain's workspace moved to the task's base, with the project's real history up to that
+ * commit and nothing after it. Tasks run in merge order, so each fetch adds only the past: the clone
+ * marks the base with a ref, the workspace fetches that ref, and the clone drops it again. Checked
+ * before every session: the fix is absent and every ref reaches only the base's ancestors.
+ */
+function advance(t) {
+  const ws = wsOf(t);
+  // A task whose base is older than the last one's (its PR branched earlier): the store would still hold
+  // that newer history, unreachable but present, so it is rebuilt with only this base's past. Same folder,
+  // so Claude Code's own memory still carries; Snout's import then drops the commits no ref reaches.
+  // The check runs in the clone, which holds both commits; the workspace doesn't have the new base yet.
+  let rebuilt = false;
+  const last = existsSync(join(ws, ".git")) ? git(t, "rev-parse", "-q", "--verify", "refs/heads/main").stdout.trim() : "";
+  if (last && sh("git", ["-C", CLONE, "merge-base", "--is-ancestor", last, t.base], { env: ENV }).status !== 0) {
+    rmSync(join(ws, ".git"), { recursive: true, force: true });
+    rebuilt = true;
+  }
+  if (!existsSync(join(ws, ".git"))) {
+    mkdirSync(ws, { recursive: true });
+    must(sh("git", ["init", "-q", "-b", "main"], { cwd: ws }), "git init");
+    for (const [k, v] of [["core.autocrlf", "false"], ["core.filemode", "false"], ["core.symlinks", "false"]]) git(t, "config", k, v);
+    appendFileSync(join(gitDirOf(t), "info", "exclude"), "\n/.claude/\n/.codex/\n/.agents/\n/.snout/\n/.mcp.json\n/.gocache/\n");
+    git(t, "remote", "add", "origin", `https://github.com/${spec.repo}.git`);
+  }
+  const ref = `refs/snout-replay/${NAME}-${CURRENT.arm}-r${CURRENT.rep}`;
+  must(sh("git", ["-C", CLONE, "update-ref", ref, t.base], { env: ENV }), "mark the base in the clone");
+  try { must(git(t, "fetch", "-q", "--no-tags", CLONE, `+${ref}:refs/snout/incoming`), "fetch the base's history"); }
+  finally { sh("git", ["-C", CLONE, "update-ref", "-d", ref], { env: ENV }); }
+  must(git(t, "checkout", "-q", "-f", "-B", "main", t.base), "check out the base");
+  // Nothing but main: the incoming ref, an earlier session's branches and tags, and the reflog go.
+  for (const r of git(t, "for-each-ref", "--format=%(refname)").stdout.split("\n").map((x) => x.trim()).filter((x) => x && x !== "refs/heads/main")) git(t, "update-ref", "-d", r);
+  git(t, "reflog", "expire", "--expire=now", "--all");
+  must(git(t, "clean", "-fdq"), "clean");
+  if (git(t, "cat-file", "-e", `${t.mergeCommit}^{commit}`).status === 0) throw new Error(`${t.id}: the fix is in the workspace's history`);
+  const reach = git(t, "rev-list", "--all", "--count").stdout.trim(), base = git(t, "rev-list", "--count", t.base).stdout.trim();
+  if (reach !== base) throw new Error(`${t.id}: the workspace's refs reach ${reach} commits, the base ${base}`);
+  if (GO) must(sh("go", ["mod", "download"], { cwd: ws, env: { ...ENV, GOTOOLCHAIN: "local" } }), "go mod download");
+  else must(sh("pnpm", ["install", "--frozen-lockfile", "--prefer-offline"], { cwd: ws, env: { ...ENV, SKIP_INSTALL_SIMPLE_GIT_HOOKS: "1", SKIP_SIMPLE_GIT_HOOKS: "1" } }), "pnpm install");
+  return { rebuilt };
+}
+
+/** Replay: Claude Code's own memory for the chain's workspace (CLAUDE_CONFIG_DIR/projects/<folder>/memory), as files and bytes. */
+const ownMemoryDir = (t) => (CLEAN_HOME ? join(CLEAN_HOME, "projects", wsOf(t).replace(/[^A-Za-z0-9]/g, "-"), "memory") : null);
+function ownMemory(t) {
+  const dir = ownMemoryDir(t);
+  if (!dir || !existsSync(dir)) return { files: 0, bytes: 0 };
+  const files = readdirSync(dir, { recursive: true }).map(String).filter((f) => f.endsWith(".md"));
+  return { files: files.length, bytes: files.reduce((a, f) => a + readFileSync(join(dir, f)).length, 0) };
+}
+
 /** The base commit with no history, dependencies installed and (vite) built, committed as the baseline. Once per task. */
 function prepare(t) {
+  if (REPLAY) return advance(t);
+  // (Gate 4: one workspace per task, prepared once.)
   const ws = wsOf(t);
   const marker = join(gitDirOf(t), "snout-prepared");
   if (existsSync(marker) && readFileSync(marker, "utf8") === t.base) return;
@@ -184,7 +249,7 @@ function prepare(t) {
   // A separate git dir leaves a `.git` file pointing to it: remove it, so the folder has no repository of its own.
   if (AGENT === "codex") rmSync(join(ws, ".git"), { force: true });
   for (const [k, v] of [["core.autocrlf", "false"], ["core.filemode", "false"]]) git(t, "config", k, v);
-  appendFileSync(join(gitDirOf(t), "info", "exclude"), "\n/.claude/\n/.codex/\n/.snout/\n/.mcp.json\n/.gocache/\n");
+  appendFileSync(join(gitDirOf(t), "info", "exclude"), "\n/.claude/\n/.codex/\n/.agents/\n/.snout/\n/.mcp.json\n/.gocache/\n");
   must(git(t, "add", "-A"), "git add");
   must(git(t, "commit", "-q", "--no-verify", "-m", "baseline"), "baseline commit");
   // The repository's address, as any clone has: Snout keys a project's notes by it, so every task of a repo is one project.
@@ -205,7 +270,7 @@ function reset(t) {
   must(git(t, "clean", "-fdq"), "clean");
   // Go's build cache (.gocache) is kept: a warm cache changes time, not what a session sees or spends.
   // Codex: a folder its session's Python made private to the sandbox user is removed as that user.
-  for (const f of [".claude", ".codex", ".snout", ".mcp.json", ...(AGENT === "codex" ? [".git"] : [])]) (AGENT === "codex" && !FAKE ? removeSandboxed : (p) => rmSync(p, { recursive: true, force: true }))(join(wsOf(t), f));
+  for (const f of [".claude", ".codex", ".agents", ".snout", ".mcp.json", ...(AGENT === "codex" ? [".git"] : [])]) (AGENT === "codex" && !FAKE ? removeSandboxed : (p) => rmSync(p, { recursive: true, force: true }))(join(wsOf(t), f));
   if (!GO) must(sh("pnpm", ["--filter", "vite", "run", "build"], { cwd: wsOf(t), env: { ...ENV, ...OFFLINE } }), "rebuild vite");
 }
 
@@ -262,9 +327,13 @@ function searchPreflight(t, snoutEnv) {
 /** TOML for Codex's `-c`: literal strings, so Windows paths need no escaping. */
 const toml = (v) => (Array.isArray(v) ? `[${v.map(toml).join(",")}]` : typeof v === "object" ? `{${Object.entries(v).map(([k, x]) => `${k}=${toml(x)}`).join(",")}}` : `'${String(v)}'`);
 
-/** The arm's hooks in the workspace (Claude Code; Codex inherits the trusted checkout's), and its MCP servers. */
+/** Where the agent reads the memory skill: the plugin ships it to Claude Code, `snout init codex` writes it to .agents/skills. */
+const skillFile = (t) => join(wsOf(t), AGENT === "claude" ? ".claude" : ".agents", "skills", MEMORY_SKILL_NAME, "SKILL.md");
+
+/** The arm's hooks in the workspace (Claude Code; Codex inherits the trusted checkout's), its MCP servers, and the search arm's memory skill. */
 function setArm(t, arm, snoutEnv) {
   const ws = wsOf(t);
+  if (arm === "search") { mkdirSync(join(skillFile(t), ".."), { recursive: true }); writeFileSync(skillFile(t), MEMORY_SKILL); }
   if (AGENT === "claude") {
     if (arm === "plain") armSettings(ws, "plain");
     else {
@@ -338,14 +407,20 @@ function codexFacts(stdout) {
   return { session: thread, tokens: { input, cached, output }, costUsd: usd, commands, mcp, error };
 }
 
-/** Claude Code: every tool call the session made ({id, name, input}), from its transcript. */
-function claudeToolUses(session) {
+/** Claude Code: the session's transcript file, or null. */
+function claudeTranscript(session) {
   const root = join(CLEAN_HOME ?? (FAKE ? join(process.env.TEMP ?? "/tmp", "snout-fake-claude") : join(HOME, ".claude")), "projects");
   let file;
   try { file = readdirSync(root, { recursive: true }).map(String).find((p) => p.endsWith(`${session}.jsonl`)); } catch { /* none */ }
+  return file ? join(root, file) : null;
+}
+
+/** Claude Code: every tool call the session made ({id, name, input}), from its transcript. */
+function claudeToolUses(session) {
+  const file = claudeTranscript(session);
   if (!file) return [];
   const out = new Map();
-  for (const l of readFileSync(join(root, file), "utf8").split("\n")) {
+  for (const l of readFileSync(file, "utf8").split("\n")) {
     try { const o = JSON.parse(l); for (const b of o.message?.content ?? []) if (b.type === "tool_use") out.set(b.id, { id: b.id, name: b.name, input: b.input }); } catch { /* not a row */ }
   }
   return [...out.values()];
@@ -380,8 +455,10 @@ function vitest(t) {
 
 /** The PR's test files over the agent's work (its own edits to them dropped), then FAIL_TO_PASS and PASS_TO_PASS. */
 function grade(t) {
+  // Replay: against the base, not HEAD, which a session may have moved by committing.
+  const at = REPLAY ? t.base : "HEAD";
   for (const f of t.testFiles) {
-    if (git(t, "cat-file", "-e", `HEAD:${f}`).status === 0) git(t, "checkout", "HEAD", "--", f);
+    if (git(t, "cat-file", "-e", `${at}:${f}`).status === 0) git(t, "checkout", at, "--", f);
     else rmSync(join(wsOf(t), f), { force: true });
   }
   const blocks = readFileSync(join(REPO, t.patch), "utf8").split(/^(?=diff --git )/m).filter((b) => b.startsWith("diff --git "));
@@ -420,7 +497,11 @@ function openChain(arm, rep) {
   const snoutConfig = mkdtempSync(join(HOME, ".snout-bench", `mem-cfg-${arm}-`));
   const sideLog = join(snoutConfig, "side-calls.jsonl");
   const snoutEnv = { SNOUT_DIR: snoutDir, SNOUT_CONFIG_DIR: snoutConfig, SNOUT_MEMORY: "", SNOUT_MEMORY_NOTES: "", SNOUT_MEMORY_HINT: "", TYPESAFE_API_KEY: "", SNOUT_CLOUD_URL: "", SNOUT_EMBED_FAKE: "",
+    // Replay: the harness imports, at a known window; a session start's own background import would race it.
+    ...(REPLAY ? { SNOUT_IMPORT: "off" } : {}),
     SNOUT_GUARD_LOG: sideLog, NODE_OPTIONS: [process.env.NODE_OPTIONS, `--require ${JSON.stringify(GUARD)}`].filter(Boolean).join(" ") };
+  // Replay: Claude Code's own memory starts empty for the chain's workspace (its transcripts stay, for repricing).
+  if (REPLAY) { const was = CURRENT; CURRENT = { arm, rep }; const dir = ownMemoryDir({}); if (dir) rmSync(dir, { recursive: true, force: true }); CURRENT = was; }
   const config = armConfig(arm);
   const wrong = armProblems(arm, config);
   if (wrong.length) throw new Error(`arm config: ${wrong.join("; ")}`);
@@ -444,9 +525,19 @@ function recordFilesIn(snoutDir) {
 /** One task's session in a chain. A session that breaks a validity rule marks the chain's row invalid, and the run stops. */
 async function runStep(chain, t, onStep) {
   const { arm, rep, snoutDir, sideLog, snoutEnv, row } = chain;
-  prepare(t);
+  CURRENT = chain;
+  const moved = prepare(t);
   reset(t);
   setArm(t, arm, snoutEnv);
+  // Replay, memory arm: the project's history up to the base, imported as a user's `snout import` would,
+  // six months back from the base's own date (not today's). Git and earlier sessions' records only.
+  let imported;
+  if (REPLAY && arm === "search") {
+    const baseAt = git(t, "log", "-1", "--format=%cI", t.base).stdout.trim();
+    const since = new Date(Date.parse(baseAt) - 183 * 86_400_000).toISOString().slice(0, 10);
+    const r = must(sh(process.execPath, [SNOUT_BIN, "import", "--since", since, "--no-gh", "--no-sessions"], { cwd: wsOf(t), env: { ...ENV, ...snoutEnv } }), "snout import");
+    imported = r.stdout.split("\n")[0].slice(0, 200);
+  }
   if (arm === "search" && !row.steps.length) searchPreflight(t, snoutEnv);
   const before = recallRows(snoutDir).length;
   const recordsBefore = recordFilesIn(snoutDir);
@@ -478,6 +569,10 @@ async function runStep(chain, t, onStep) {
   }
   step.seconds = Math.round((Date.now() - started) / 1000);
   step.timedOut = r.timedOut || undefined;
+  if (imported) step.imported = imported;
+  if (moved?.rebuilt) step.rebuilt = true;
+  // What Claude Code's own memory holds for this workspace after the session (every arm keeps it on).
+  if (REPLAY) step.ownMemory = ownMemory(t);
   step.network = networkCommands(step.commands);
   const rows = recallRows(snoutDir).slice(before).filter((x) => x.session === step.session);
   // What memory showed this session and whether it acted on it (one session at a time per chain, so every new row is its own).
@@ -492,6 +587,11 @@ async function runStep(chain, t, onStep) {
   step.notes = rows.filter((x) => x.kind === "inject" && x.injected).map((x) => ({ turn: x.turn, items: x.items, tokens: x.tokensEst, leftOff: x.leftOff }));
   // The session-start hint, as Snout logged it (its text names no record; the handoff check saw it reach both agents).
   step.hint = rows.some((x) => x.kind === "hint") || undefined;
+  // The search arm's memory skill: listed in the session's context (Claude Code's transcript holds the listing), and opened or not.
+  if (arm === "search" && AGENT === "claude" && step.session) {
+    const file = claudeTranscript(step.session);
+    step.skill = { installed: existsSync(skillFile(t)), seen: !!file && readFileSync(file, "utf8").includes(MEMORY_SKILL_NAME), opened: uses.some((u) => u.name === "Skill" && JSON.stringify(u.input ?? {}).includes(MEMORY_SKILL_NAME)) || undefined };
+  }
   step.hookRows = step.session ? hookRows(snoutDir, step.session) : 0;
   // Each tool call Snout's hooks should see, against their heartbeats (Codex: each shell command).
   if (arm !== "plain" && step.session) {
@@ -500,7 +600,7 @@ async function runStep(chain, t, onStep) {
   }
   step.side = snoutSideCalls(lines(sideLog).slice(sideBefore));
   git(t, "add", "-A");
-  step.patch = git(t, "diff", "--cached", "HEAD").stdout;
+  step.patch = git(t, "diff", "--cached", REPLAY ? t.base : "HEAD").stdout;
   git(t, "reset", "-q");
   Object.assign(step, step.patch.trim() ? scoreStep(step, grade(t)) : { resolved: false });
   row.steps.push(step);
@@ -511,6 +611,8 @@ async function runStep(chain, t, onStep) {
   // Memory search reaches only `search`: no other arm has the server.
   if (arm !== "search" && step.memoryCalls?.length) row.invalid = `memory search reached the ${arm} arm (${t.id})`;
   if (arm !== "search" && step.hint) row.invalid = `the session-start hint reached the ${arm} arm (${t.id})`;
+  // Without the skill in its context the search arm isn't memory as it ships (a stand-in writes no skill listing).
+  if (!FAKE && step.skill && !step.skill.seen) { row.invalid = `the memory skill was not in the session's context (${t.id})`; return; }
   if (arm !== "search" && step.memory) row.invalid = `Snout's memory tools answered in the ${arm} arm (${t.id})`;
   // Snout ran in the arm's mode: a session's judged records in trim or memory are enforce rows.
   if (arm !== "plain" && step.session) {
@@ -539,7 +641,7 @@ async function runRepeat(tasks, rep, rows, save) {
     for (const [i, t] of tasks.entries()) {
       // A task's group starts only if all its arms fit the cap at the costliest session so far (bench/memory-pilot.json "spend").
       const costliest = Math.max(0, ...rows.flatMap((r) => r.steps.map((s) => s.costUsd ?? 0)));
-      if (PILOT && MAX_SPEND && !groupFits(spent(), costliest, ARMS.length, MAX_SPEND)) {
+      if (DESIGN && MAX_SPEND && !groupFits(spent(), costliest, ARMS.length, MAX_SPEND)) {
         stop = `the next group (${t.id}) would pass --max-spend $${MAX_SPEND} at $${costliest.toFixed(3)} a session`;
         for (const c of chains) c.row.capped = stop;
         break;
@@ -645,7 +747,8 @@ function summarize(saved) {
   // The search arm: which sessions got the session-start hint, and which searched (tasks oldest first).
   for (const r of rows.filter((x) => x.arm === "search")) {
     const searched = r.steps.filter((s) => s.memoryCalls?.length);
-    console.log(`\n  search, rep ${r.rep}: hint in ${r.steps.filter((s) => s.hint).length} of ${r.steps.length} sessions; searched in ${searched.length} (${searched.map((s) => `${s.task}: ${s.memoryCalls.join(", ")}`).join("; ") || "none"})`);
+    const skill = r.steps.some((s) => s.skill) ? `; skill listed in ${r.steps.filter((s) => s.skill?.seen).length}, opened in ${r.steps.filter((s) => s.skill?.opened).length}` : "";
+    console.log(`\n  search, rep ${r.rep}: hint in ${r.steps.filter((s) => s.hint).length} of ${r.steps.length} sessions${skill}; searched in ${searched.length} (${searched.map((s) => `${s.task}: ${s.memoryCalls.join(", ")}`).join("; ") || "none"})`);
   }
   // Below this many tasks a bootstrap over tasks has too few to draw from; no interval is shown.
   const MIN_TASKS_FOR_INTERVAL = 10;
@@ -743,10 +846,10 @@ async function main() {
   const tasks = studyTasks().sort((a, b) => a.merged.localeCompare(b.merged));
   if (!tasks.length) throw new Error(`no validated tasks in ${TASKS_FILE}`);
   if (!FAKE && AGENT === "claude" && !MAX_SPEND) throw new Error("--max-spend is required for a paid Claude Code run");
-  const cap = PILOT?.maxSpendUsdPerTasksFile?.[AGENT];
-  if (!FAKE && cap && MAX_SPEND > cap) throw new Error(`the pilot caps a Claude Code run at $${cap} per tasks file`);
+  const cap = DESIGN?.maxSpendUsdPerTasksFile?.[AGENT];
+  if (!FAKE && cap && MAX_SPEND > cap) throw new Error(`the ${REPLAY ? "replay design" : "pilot"} caps a Claude Code run at ${cap} per tasks file`);
   const frozen = frozenBuild();
-  const runId = `memory-study-${AGENT}-${NAME}-${Date.now()}`;
+  const runId = `${REPLAY ? "replay" : "memory-study"}-${AGENT}-${NAME}-${Date.now()}`;
   const outFile = join(REPO, "bench/ab-results", `${runId}.json`);
   mkdirSync(join(REPO, "bench/ab-results"), { recursive: true });
   mkdirSync(WS_ROOT, { recursive: true });
@@ -754,7 +857,7 @@ async function main() {
   const rows = [];
   const versions = { claude: FAKE ? "stand-in" : AGENT === "claude" ? frozen.claudeCode : undefined, codex: AGENT === "codex" ? (FAKE ? "stand-in" : sh("codex", ["--version"], { shell: process.platform === "win32" }).stdout.trim()) : undefined, node: process.version, ...(AGENT === "codex" ? { codexEffort: EFFORT, codexUserConfig: FAKE ? undefined : codexUserConfig() } : {}) };
   if (!FAKE) checkFreeze(AGENT === "codex" ? versions.codex : versions.claude);
-  const save = () => writeFileSync(outFile, JSON.stringify({ runId, agent: AGENT, model: MODEL, repo: spec.repo, tasksFile: TASKS_FILE.replace(REPO, "").replace(/^[\\/]/, ""), tasks: tasks.map((t) => t.id), arms: ARMS, repeats: REPEATS, ...(PILOT ? { pilot: createHash("sha256").update(readFileSync(PILOT_FILE)).digest("hex") } : {}), interleaved: true, budget: BUDGET, limitMinutes: LIMIT_MS / 60000, measuredAt: new Date().toISOString(), ...stamp(), frozen, versions, rows, inFlight }, null, 2));
+  const save = () => writeFileSync(outFile, JSON.stringify({ runId, agent: AGENT, model: MODEL, repo: spec.repo, tasksFile: TASKS_FILE.replace(REPO, "").replace(/^[\\/]/, ""), tasks: tasks.map((t) => t.id), arms: ARMS, repeats: REPEATS, ...(PILOT ? { pilot: createHash("sha256").update(readFileSync(PILOT_FILE)).digest("hex") } : {}), ...(REPLAY ? { replay: createHash("sha256").update(readFileSync(REPLAY_FILE)).digest("hex") } : {}), interleaved: true, budget: BUDGET, limitMinutes: LIMIT_MS / 60000, measuredAt: new Date().toISOString(), ...stamp(), frozen, versions, rows, inFlight }, null, 2));
   console.error(`${ARMS.length} arms × ${REPEATS} repeat(s) × ${tasks.length} tasks = ${ARMS.length * REPEATS * tasks.length} sessions, ${AGENT} ${MODEL} → ${outFile}`);
   for (let rep = 0; rep < REPEATS; rep++) {
     const stop = await runRepeat(tasks, rep, rows, save);

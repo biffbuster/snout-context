@@ -57,7 +57,7 @@ import { archiveFiles, auditContext, listArchives, renderAudit, renderMap, resto
 import { auditCi, renderCi } from "./audit/ci.js";
 import { docWindow, type DocWindow } from "./gate/longdoc.js";
 import { asksToContinue, captureSession, COMMITS, embedKey, embedText, withoutStaleClaims, forgetCard, leftOff, linkCommit, listCards, packVector, readCard, readCards, readVectors, recall, renderRecall, repoBrief, shareMemory, unpackVector, workCards, workingState, writeVectors, CARD_KIND, cardsDir } from "./memory/memory.js";
-import { memoryFetch, memoryHint, memorySearch, type MemoryContext } from "./memory/tools.js";
+import { memoryFetch, memoryHint, memorySearch, prepareHistorySearch, type MemoryContext } from "./memory/tools.js";
 import { claimImport, githubNudge, HIST_KIND, importHistory, readImportState, type ImportResult } from "./memory/history.js";
 import { applyDistilled, installedFor, replaceOlder, retireElsewhere, retireInstalled, retireOneOff } from "./memory/distill.js";
 import { coveredBy, instructionText, lastUses, nearDuplicate, restoreObservation, retireUnused, verification } from "./memory/quality.js";
@@ -1441,7 +1441,7 @@ Usage: snout memory notes on|off`);
       ? `Rebuilt the local index from the files: ${st.records} record${st.records === 1 ? "" : "s"}, ${(st.bytes / 1024).toFixed(0)} KB at ${st.file}. The JSON files are unchanged.`
       : "No local index on this Node (node:sqlite needs Node 22.13 or later), or SNOUT_INDEX=off: memory reads the files directly, with the same results.");
   }
-  if (v === "search" || v === "fetch") return cmdMemoryLookup(paths, v, args.slice(1));
+  if (v === "search" || v === "fetch") return cmdMemoryLookup(paths, cfg, v, args.slice(1));
   if (v === "forget") {
     const id = args[1];
     if (!id) return say("Usage: snout memory forget <session>");
@@ -1499,20 +1499,38 @@ function cliMemoryContext(paths: Paths, asOf?: string): MemoryContext {
   return { stores, snoutDir: paths.snoutDir, projectDir: paths.projectDir, viewer: sessionViewer(paths.projectDir, stores.project), user: unattended ? null : userPrincipal(paths.projectDir), agent: "cli", ...(asOf ? { asOf } : {}) };
 }
 
-/** `snout memory search "<q>" [--as-of <date>] [--limit n]` and `snout memory fetch <id>`: what an agent's search would get. */
-function cmdMemoryLookup(paths: Paths, v: "search" | "fetch", args: string[]): void {
+/**
+ * `snout memory search "<q>" [--as-of <date>] [--limit n] [--files a.ts,b.ts]` and `snout memory fetch
+ * <id>`: what an agent's search would get. `--files`: files the agent is working on, as the MCP tool takes them.
+ */
+function cmdMemoryLookup(paths: Paths, cfg: Config, v: "search" | "fetch", args: string[]): void {
+  const flags = ["--as-of", "--limit", "--files"];
   const opt = (name: string) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
   const asOf = opt("--as-of");
   if (asOf && Number.isNaN(Date.parse(asOf))) return say(`snout: --as-of needs a date (2026-10-01 or an ISO time), not "${safeText(asOf, 40)}".`);
-  const rest = args.filter((_, j) => !["--as-of", "--limit"].includes(args[j]!) && !["--as-of", "--limit"].includes(args[j - 1]!)).join(" ").trim();
-  if (!rest) return say(v === "search" ? 'Usage: snout memory search "<words>" [--as-of 2026-10-01] [--limit 5]' : "Usage: snout memory fetch <id> [--as-of 2026-10-01]");
+  const files = (opt("--files") ?? "").split(",").map((f) => f.trim()).filter(Boolean);
+  const rest = args.filter((_, j) => !flags.includes(args[j]!) && !flags.includes(args[j - 1]!)).join(" ").trim();
+  if (!rest) return say(v === "search" ? 'Usage: snout memory search "<words>" [--as-of 2026-10-01] [--limit 5] [--files a.ts,b.ts]' : "Usage: snout memory fetch <id> [--as-of 2026-10-01]");
   const ctx = cliMemoryContext(paths, asOf);
-  try {
-    say(v === "search" ? memorySearch(ctx, rest, Number(opt("--limit")) || 5) : memoryFetch(ctx, rest));
-  } catch (err) {
-    say((err as Error).message);
-    process.exitCode = 1;
-  }
+  const run = () => {
+    try {
+      say(v === "search" ? memorySearch(ctx, rest, Number(opt("--limit")) || 5, files) : memoryFetch(ctx, rest));
+    } catch (err) {
+      say((err as Error).message);
+      process.exitCode = 1;
+    }
+  };
+  // With meaning on, the question's vector first (and those of history records still without one).
+  if (v !== "search" || !semanticOn(cfg)) return run();
+  pending = true;
+  void prepareHistorySearch(ctx, rest, true).catch((err) => recordError("meaning", err)).finally(() => { run(); process.exit(process.exitCode ?? 0); });
+}
+
+/** With meaning on, an import embeds the history records that have no vector yet, so searches don't wait for them. */
+function embedHistory(paths: Paths, cfg: Config): void {
+  if (!semanticOn(cfg)) return;
+  pending = true;
+  void prepareHistorySearch(cliMemoryContext(paths), null, true).catch((err) => recordError("meaning", err)).finally(() => process.exit(0));
 }
 
 /**
@@ -1555,7 +1573,7 @@ function cmdImport(paths: Paths, cfg: Config, args: string[]): void {
   } finally {
     if (background) try { rmSync(join(configDir(), "history", stores.project, "running"), { force: true }); } catch { /* left; taken over after an hour */ }
   }
-  if (background) return;
+  if (background) return embedHistory(paths, cfg);
   const a = r.added;
   const n = (k: number, one: string, many = `${one}s`) => `${k} ${k === 1 ? one : many}`;
   say([
@@ -1565,6 +1583,7 @@ function cmdImport(paths: Paths, cfg: Config, args: string[]): void {
     `Kept on this machine only: ${toRel(r.dir, paths.projectDir)}${a.session ? ` and session records in ${toRel(join(paths.snoutDir, "memory"), paths.projectDir)}` : ""}. Agents find it with snout_memory_search; try: snout memory search "<words>"`,
     cfg.memory === false ? "Memory is off here (snout memory on), so agents are not told it exists." : "",
   ].filter(Boolean).join("\n"));
+  embedHistory(paths, cfg);
 }
 
 /**

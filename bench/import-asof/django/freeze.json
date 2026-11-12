@@ -1,0 +1,446 @@
+{
+ "set": "django",
+ "rules": "v2",
+ "frozenAt": "2026-11-09T20:01:20.740Z",
+ "seed": "snout-import-asof-2026-11-09",
+ "repo": {
+  "path": "~/.snout-bench/mapeval-clones3/django__django",
+  "ref": "origin/main",
+  "head": "d430084791a61b31cecec132bce3dca19194f7f2",
+  "headAt": "2026-10-15T08:51:04+02:00"
+ },
+ "window": {
+  "tasks": [
+   "2026-07-15T06:51:04.000Z",
+   "2026-10-15T06:51:04.000Z"
+  ],
+  "import": "--since 9m --no-gh --no-sessions"
+ },
+ "selection": "non-merge commits on the ref in the task window changing 1-5 files with at least one source file (not docs, tests, CI or package metadata); not dependency or release work; ranked by sha256(seed:sha); first 40",
+ "query": "commit subject without issue or PR references (#N anywhere, a leading 'Fixed/Refs #N --')",
+ "cut": "commit time minus 1 s",
+ "hit": "a top-5 history record is a commit that touched at least one gold file",
+ "gold": "the task's changed source files",
+ "baselines": {
+  "recent": "the 5 most recent non-merge commits on the ref before the cut",
+  "words": "the 5 most recent non-merge commits on the ref before the cut, in the import window, whose subject shares a word (3+ letters, not a stopword) with the query"
+ },
+ "pass": {
+  "hitRate": 0.5,
+  "marginOverBestBaseline": 0.15,
+  "silentControls": 8
+ },
+ "policy": "No tuning against these tasks. A fix needs a new frozen set. Misses are reported as absent from the candidates or ranked below fifth.",
+ "tasks": [
+  {
+   "sha": "cf63ff2186852ee1aac4a802b0ff6a93f6e08891",
+   "subject": "Fixed #37411 -- Added compatibility for oracledb 26.0.0+.",
+   "query": "Added compatibility for oracledb 26.0.0+.",
+   "gold": [
+    "django/db/backends/oracle/base.py"
+   ],
+   "cut": "2026-10-11T14:24:15.000Z"
+  },
+  {
+   "sha": "6669d66a795029add189bebe6f7a7fdcf2c9f9d4",
+   "subject": "Skipped 1-element geometry collection tests on all Oracle versions.",
+   "query": "Skipped 1-element geometry collection tests on all Oracle versions.",
+   "gold": [
+    "django/contrib/gis/db/backends/oracle/features.py"
+   ],
+   "cut": "2026-10-12T15:02:30.000Z"
+  },
+  {
+   "sha": "8d1c673466bcabff500edc6c7724e5a20f6df3de",
+   "subject": "Fixed #37309 -- Used _is_pk_set() in Model.__eq__.",
+   "query": "Used _is_pk_set() in Model.__eq__.",
+   "gold": [
+    "django/db/models/base.py"
+   ],
+   "cut": "2026-09-01T20:15:40.000Z"
+  },
+  {
+   "sha": "850e026cbfbe65944a5e0dc50e47c7ac64143708",
+   "subject": "Fixed #36809 -- Allowed customizing EmailValidator per-part validation.",
+   "query": "Allowed customizing EmailValidator per-part validation.",
+   "gold": [
+    "django/core/validators.py"
+   ],
+   "cut": "2026-09-14T15:22:11.000Z"
+  },
+  {
+   "sha": "27151e13c4b61fed42f19a2f07be0b1e73aacecc",
+   "subject": "Fixed #36229 -- Improved SVG icon color contrast in django/views/templates/default_urlconf.html.",
+   "query": "Improved SVG icon color contrast in django/views/templates/default_urlconf.html.",
+   "gold": [
+    "django/views/templates/default_urlconf.html"
+   ],
+   "cut": "2026-07-21T07:50:29.000Z"
+  },
+  {
+   "sha": "c9ff757a55392b1f50968eb89fe775f6155168d8",
+   "subject": "Fixed #37234 -- Fixed bulk_create() for late-saved related primary keys.",
+   "query": "Fixed bulk_create() for late-saved related primary keys.",
+   "gold": [
+    "django/db/models/query.py"
+   ],
+   "cut": "2026-07-29T21:02:41.000Z"
+  },
+  {
+   "sha": "c01135b42f8257581da7286786be69f923f24cfc",
+   "subject": "Removed new contributor GitHub Action workflow.",
+   "query": "Removed new contributor GitHub Action workflow.",
+   "gold": [
+    "zizmor.yml"
+   ],
+   "cut": "2026-10-10T01:43:46.000Z"
+  },
+  {
+   "sha": "64edef37e7b419dd584307d84650a192fb47dc4c",
+   "subject": "Fixed #36947 -- Avoided altering column type when only db_comment changes.",
+   "query": "Avoided altering column type when only db_comment changes.",
+   "gold": [
+    "django/db/backends/base/features.py",
+    "django/db/backends/base/schema.py",
+    "django/db/backends/oracle/features.py",
+    "django/db/backends/postgresql/features.py"
+   ],
+   "cut": "2026-09-16T08:50:57.000Z"
+  },
+  {
+   "sha": "2b30f6255b5ef84afbd827993643d52ef2c0963a",
+   "subject": "Fixed #36933 -- Distinguished shapes of boolean icons.",
+   "query": "Distinguished shapes of boolean icons.",
+   "gold": [
+    "django/contrib/admin/static/admin/img/icon-yes-dark.svg",
+    "django/contrib/admin/static/admin/img/icon-yes.svg"
+   ],
+   "cut": "2026-09-08T19:01:01.000Z"
+  },
+  {
+   "sha": "ca14173f968cf36115f22d6c6785f738de4391ed",
+   "subject": "Fixed #37240 -- Fixed simplify_regex() with multiple unnamed groups.",
+   "query": "Fixed simplify_regex() with multiple unnamed groups.",
+   "gold": [
+    "django/urls/utils.py"
+   ],
+   "cut": "2026-07-31T07:37:05.000Z"
+  },
+  {
+   "sha": "9cb2cba6fc7f71ed768aed8cbc32e7447ecb0be8",
+   "subject": "Fixed typo in django/db/backends/mysql/schema.py.",
+   "query": "Fixed typo in django/db/backends/mysql/schema.py.",
+   "gold": [
+    "django/db/backends/mysql/schema.py"
+   ],
+   "cut": "2026-09-16T08:50:57.000Z"
+  },
+  {
+   "sha": "c88b304cc2d90fc37d3bd1f5f3829706fa6c13bc",
+   "subject": "Fixed CVE-2026-77050 -- Prevented memory exhaustion in get_supported_language_variant().",
+   "query": "Fixed CVE-2026-77050 -- Prevented memory exhaustion in get_supported_language_variant().",
+   "gold": [
+    "django/utils/translation/trans_real.py"
+   ],
+   "cut": "2026-10-06T11:16:43.000Z"
+  },
+  {
+   "sha": "50eef95591b1e5d8c47b2e8c96066cb0c516753a",
+   "subject": "Fixed #37291 -- Prevented tuple lookups from hanging on F() expressions.",
+   "query": "Prevented tuple lookups from hanging on F() expressions.",
+   "gold": [
+    "django/db/models/fields/tuple_lookups.py"
+   ],
+   "cut": "2026-09-30T21:30:37.000Z"
+  },
+  {
+   "sha": "7f48e266a83110d62ffb4663d72c9e347db75a9b",
+   "subject": "Refs #37297 -- Prevented crash on JSONField __isnull lookups on Oracle when a key is outside its integer range.",
+   "query": "Prevented crash on JSONField __isnull lookups on Oracle when a key is outside its integer range.",
+   "gold": [
+    "django/db/models/fields/json.py"
+   ],
+   "cut": "2026-10-07T16:48:51.000Z"
+  },
+  {
+   "sha": "00dca6f097f443de7a24c04bc133f98c83c632aa",
+   "subject": "Fixed #37222 -- Fixed QuerySet.distinct() crash on duplicated selections.",
+   "query": "Fixed QuerySet.distinct() crash on duplicated selections.",
+   "gold": [
+    "django/db/models/sql/compiler.py"
+   ],
+   "cut": "2026-09-02T15:49:35.000Z"
+  },
+  {
+   "sha": "8a162076e1988ddf9453edfb8329d5df1573dc38",
+   "subject": "Improved wording in PR quality check messages.",
+   "query": "Improved wording in PR quality check messages.",
+   "gold": [
+    "scripts/pr_quality/check_pr.py",
+    "scripts/pr_quality/errors.py"
+   ],
+   "cut": "2026-07-24T13:36:56.000Z"
+  },
+  {
+   "sha": "c6be0bf3bb744d234947cefd6def9f31d9655800",
+   "subject": "Fixed #37254 -- Added fields.E323 for models referenced by ManyToManyFields.",
+   "query": "Added fields.E323 for models referenced by ManyToManyFields.",
+   "gold": [
+    "django/db/models/fields/related.py"
+   ],
+   "cut": "2026-08-13T06:00:31.000Z"
+  },
+  {
+   "sha": "f1d11117c6a3e227ce7cdd263cf0743f0eb73070",
+   "subject": "Fixed #28219 -- Made UnorderedObjectListWarning skip Django frames.",
+   "query": "Made UnorderedObjectListWarning skip Django frames.",
+   "gold": [
+    "django/core/paginator.py"
+   ],
+   "cut": "2026-10-12T15:23:18.000Z"
+  },
+  {
+   "sha": "f7610bda78afb13ee395dfee2445805d8c7ad0f6",
+   "subject": "Fixed #37250 -- Allowed nesting GEOS GeometryCollection objects.",
+   "query": "Allowed nesting GEOS GeometryCollection objects.",
+   "gold": [
+    "django/contrib/gis/geos/collections.py"
+   ],
+   "cut": "2026-08-17T10:59:31.000Z"
+  },
+  {
+   "sha": "60a17fccf4f2fa31b823b0f938005897f2f3ef16",
+   "subject": "Fixed #37300 -- Preserved parent instance hints on custom Prefetch querysets.",
+   "query": "Preserved parent instance hints on custom Prefetch querysets.",
+   "gold": [
+    "django/db/models/fields/related_descriptors.py"
+   ],
+   "cut": "2026-08-31T20:34:47.000Z"
+  },
+  {
+   "sha": "83cbd21be57483e6b3eb6e4688a561c841aff75e",
+   "subject": "Fixed CVE-2026-87975 -- Prevented forging actions in model formsets with editable PKs.",
+   "query": "Fixed CVE-2026-87975 -- Prevented forging actions in model formsets with editable PKs.",
+   "gold": [
+    "django/forms/models.py"
+   ],
+   "cut": "2026-10-06T11:23:13.000Z"
+  },
+  {
+   "sha": "d8cedcab5241725003eef059dd76c533f24c5430",
+   "subject": "Refs #37203 -- Escaped introspection error comments in inspectdb.",
+   "query": "Escaped introspection error comments in inspectdb.",
+   "gold": [
+    "django/core/management/commands/inspectdb.py"
+   ],
+   "cut": "2026-07-23T12:55:09.000Z"
+  },
+  {
+   "sha": "2a5da9d00555beef8e5f6307cfcbfc029d45491e",
+   "subject": "Fixed #37203 -- Used normalized field names for composite pks in inspectdb.",
+   "query": "Used normalized field names for composite pks in inspectdb.",
+   "gold": [
+    "django/core/management/commands/inspectdb.py"
+   ],
+   "cut": "2026-07-23T12:55:09.000Z"
+  },
+  {
+   "sha": "2f7f30c320b6517d31fb8852db1875ad3a6a774f",
+   "subject": "Fixed #36496 -- Ensured the parent path to a sqlite file exists.",
+   "query": "Ensured the parent path to a sqlite file exists.",
+   "gold": [
+    "django/db/backends/sqlite3/base.py"
+   ],
+   "cut": "2026-09-29T15:39:44.000Z"
+  },
+  {
+   "sha": "c9eb16a87e60c305fb3651459639f647cce498db",
+   "subject": "Refs #36905 -- Corrected safe param in JSONResponse signature in docs.",
+   "query": "Corrected safe param in JSONResponse signature in docs.",
+   "gold": [
+    "django/http/response.py"
+   ],
+   "cut": "2026-08-07T15:01:46.000Z"
+  },
+  {
+   "sha": "439b936753e5a679ffcf40cff5918c5637f7c72b",
+   "subject": "Added test skip for 1-element GeometryCollections on Oracle 23.9.",
+   "query": "Added test skip for 1-element GeometryCollections on Oracle 23.9.",
+   "gold": [
+    "django/contrib/gis/db/backends/oracle/features.py"
+   ],
+   "cut": "2026-08-29T14:10:22.000Z"
+  },
+  {
+   "sha": "08e4c0d8e7db6343567e7b02e25da8ea2226a7e0",
+   "subject": "Fixed #37322 -- Avoided transforms on spatial fields with srid=None.",
+   "query": "Avoided transforms on spatial fields with srid=None.",
+   "gold": [
+    "django/contrib/gis/db/backends/base/operations.py",
+    "django/contrib/gis/db/backends/postgis/operations.py"
+   ],
+   "cut": "2026-10-05T23:01:56.000Z"
+  },
+  {
+   "sha": "be6cf832293779d8aeaeddca8c47a37ba1530898",
+   "subject": "Fixed #37274 -- Allowed transforms in order_by() after alias().",
+   "query": "Allowed transforms in order_by() after alias().",
+   "gold": [
+    "django/db/models/sql/compiler.py",
+    "django/db/models/sql/query.py"
+   ],
+   "cut": "2026-08-17T17:21:53.000Z"
+  },
+  {
+   "sha": "be6a149de8f85fb8f858680f721dbaadd182f1d8",
+   "subject": "Fixed #37145 -- Made ModelFormSet respect custom Form.add_prefix().",
+   "query": "Made ModelFormSet respect custom Form.add_prefix().",
+   "gold": [
+    "django/forms/models.py"
+   ],
+   "cut": "2026-09-07T15:02:21.000Z"
+  },
+  {
+   "sha": "616e8c52ded7f4c7b00cae5a95f5a5d12a6a39b9",
+   "subject": "Fixed #37264 -- Handled further malformed _source_model values in admin popups.",
+   "query": "Handled further malformed _source_model values in admin popups.",
+   "gold": [
+    "django/contrib/admin/options.py"
+   ],
+   "cut": "2026-08-11T21:16:11.000Z"
+  },
+  {
+   "sha": "4ea38d54c10e0f44e189605c217a55cdfe9fdde8",
+   "subject": "Fixed #37160 -- Made admin views raise PermissionDenied consistently.",
+   "query": "Made admin views raise PermissionDenied consistently.",
+   "gold": [
+    "django/contrib/admin/options.py",
+    "django/contrib/admin/sites.py"
+   ],
+   "cut": "2026-07-24T16:10:30.000Z"
+  },
+  {
+   "sha": "9465349120ef8a0b0689e12bcbfd05f3d173ebdf",
+   "subject": "Fixed #37238 -- Prevented fallback to python default for a pk with a db_default.",
+   "query": "Prevented fallback to python default for a pk with a db_default.",
+   "gold": [
+    "django/db/models/base.py"
+   ],
+   "cut": "2026-07-31T07:52:34.000Z"
+  },
+  {
+   "sha": "1a9fba7a6c2a0acead19bbb45c25ceb0fdcca7c8",
+   "subject": "Fixed #23424 -- Corrected tokenization of verbatim blocks.",
+   "query": "Corrected tokenization of verbatim blocks.",
+   "gold": [
+    "django/template/base.py"
+   ],
+   "cut": "2026-10-13T13:20:40.000Z"
+  },
+  {
+   "sha": "8362cdc7efc9c881fdba48ce19e89b9194de7c46",
+   "subject": "Bumped minimum setuptools version to 83.",
+   "query": "Bumped minimum setuptools version to 83.",
+   "gold": [
+    "pyproject.toml"
+   ],
+   "cut": "2026-07-28T13:56:19.000Z"
+  },
+  {
+   "sha": "76e1bca1311ae7073a1fa4add6f9d19d709f0f09",
+   "subject": "Fixed #36694 -- Restored missing Index options in PostGISSchemaEditor._create_spatial_index_sql().",
+   "query": "Restored missing Index options in PostGISSchemaEditor._create_spatial_index_sql().",
+   "gold": [
+    "django/contrib/gis/db/backends/postgis/schema.py"
+   ],
+   "cut": "2026-07-20T17:32:07.000Z"
+  },
+  {
+   "sha": "30ebe0001c1d10bebc68567f796d821f7b309f4d",
+   "subject": "Added missing lang override in translation fetching helper for Serbian (Latin script).",
+   "query": "Added missing lang override in translation fetching helper for Serbian (Latin script).",
+   "gold": [
+    "scripts/manage_translations.py"
+   ],
+   "cut": "2026-08-05T18:08:40.000Z"
+  },
+  {
+   "sha": "c2517faff335f683e1cbe55d9844910b3fb40670",
+   "subject": "Fixed #37198 -- Fixed content_disposition_header() quoting of filenames ending with newlines.",
+   "query": "Fixed content_disposition_header() quoting of filenames ending with newlines.",
+   "gold": [
+    "django/utils/http.py"
+   ],
+   "cut": "2026-07-27T14:00:15.000Z"
+  },
+  {
+   "sha": "93d7e82b6a67aa56a2d9dababfefb8bda543786e",
+   "subject": "Fixed #37382, Refs #29303 -- Made @non_atomic_requests recognize async views.",
+   "query": "Made @non_atomic_requests recognize async views.",
+   "gold": [
+    "django/db/transaction.py"
+   ],
+   "cut": "2026-10-09T07:15:22.000Z"
+  },
+  {
+   "sha": "e0d64a5adaaad1cec22a0f909602ea4127c04ad3",
+   "subject": "Fixed subject/verb agreement in DecimalValidator messages.",
+   "query": "Fixed subject/verb agreement in DecimalValidator messages.",
+   "gold": [
+    "django/core/validators.py"
+   ],
+   "cut": "2026-07-24T13:36:56.000Z"
+  },
+  {
+   "sha": "66c40aafa2310abb9ec809c1584955b7caa2a706",
+   "subject": "Fixed #37297 -- Prevented crash on JSONField key lookups when an integer key is outside PostgreSQL's int4 range.",
+   "query": "Prevented crash on JSONField key lookups when an integer key is outside PostgreSQL's int4 range.",
+   "gold": [
+    "django/db/models/fields/json.py"
+   ],
+   "cut": "2026-10-07T16:48:51.000Z"
+  }
+ ],
+ "controls": [
+  {
+   "from": "snout-context f181d35650",
+   "query": "Repo docs: import in the README and memory page, contributing guide, issue templates"
+  },
+  {
+   "from": "snout-context 0635051606",
+   "query": "Codex: PowerShell gate follows cd, held-out benchmark runner, bench check in verify and CI, handoff notes"
+  },
+  {
+   "from": "snout-context d7663c7698",
+   "query": "First-run import: past commits, PRs, CI runs and sessions in memory search"
+  },
+  {
+   "from": "snout-context 24c16cc904",
+   "query": "Snout 0.3.2: shared memory across agents, dashboard redesign, opt-in Cloud sign-in"
+  },
+  {
+   "from": "snout-context 60a2fc4ac1",
+   "query": "0.3.1 docs: shorter README, all five tasks that cost more, recorded spend, publish checks, preference judge privacy note"
+  },
+  {
+   "from": "snout-context b0db4bc5d9",
+   "query": "Prepare Snout 0.3.1 release candidate"
+  },
+  {
+   "from": "snout-context 3d89b00d7e",
+   "query": "Tests: pass on case-sensitive file systems and macOS temp paths"
+  },
+  {
+   "from": "snout-context f7058b0867",
+   "query": "Fast hooks: the gate starts its own server, and the server stays up while a project uses it"
+  },
+  {
+   "from": "snout-context cc597b05e7",
+   "query": "Benchmarks: A/B and long-session harnesses start Claude Code on Windows"
+  },
+  {
+   "from": "snout-context 06a5971601",
+   "query": "0.3.0: the fast gate's server starter follows plugin updates"
+  }
+ ]
+}

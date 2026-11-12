@@ -242,6 +242,36 @@ test("sessions that ran in a symlinked spelling of the folder are this project's
   assert.deepEqual(readdirSync(join(f.proj, ".snout", "memory")).sort(), [`${f.codexId}.json`, `${f.claudeId}.json`].sort());
 });
 
+test("a word most of the history uses is no answer on its own; a rarer one, a path or a sha still is", () => {
+  const f = fixture();
+  for (let i = 1; i <= 12; i++) commit(f.proj, "CHANGELOG.md", `## 1.${i}.0\n`, `release: v1.${i}.0`, 9 - i * 0.1);
+  commit(f.proj, "src/sourcemap.js", "export const roots = [];\n", "fix(sourcemap): skip URL source roots when injecting sources", 1);
+  snout(f, ["import", "--no-gh", "--no-sessions"]);
+  // "release" and "changelog" are in 12 of 15 history records: an unrelated question that shares them is answered by nothing.
+  assert.match(snout(f, ["memory", "search", "Snout 0.3.2: changelog dated for release"]).out, /Nothing in memory matches/);
+  // Rarer words answer, and so does a path.
+  assert.match(snout(f, ["memory", "search", "sourcemap source roots are wrong"]).out, /commit:\w+ +commit .*skip URL source roots/);
+  assert.match(snout(f, ["memory", "search", "what changed in src/sourcemap.js"]).out, /skip URL source roots.*\(named\)/);
+  // A record found by words or meaning is marked as related: the agent checks it answers.
+  const related = snout(f, ["memory", "search", "sourcemap source roots are wrong"]).out;
+  assert.match(related, /skip URL source roots.*\(related, may not answer\)/);
+  assert.match(related, /one marked related shares words or meaning with the question and may not answer it/);
+  // A release a question names by version is still found: "v1.12.0" is in one record only.
+  assert.match(snout(f, ["memory", "search", "release v1.12.0 changelog"]).out, /release: v1\.12\.0/);
+});
+
+test("history after the as-of date changes nothing about an earlier search", () => {
+  const f = fixture();
+  snout(f, ["import", "--no-gh", "--no-sessions"]);
+  const cut = iso(4);
+  const before = snout(f, ["memory", "search", "shard the CI workflow", "--as-of", cut]).out;
+  // Later commits that share the question's words: they would change word rarity if they were counted.
+  for (let i = 0; i < 15; i++) commit(f.proj, `.github/workflows/w${i}.yml`, `name: w${i}\n`, `Shard workflow ${i} for CI`, 2 - i * 0.05);
+  snout(f, ["import", "--no-gh", "--no-sessions"]);
+  assert.equal(snout(f, ["memory", "search", "shard the CI workflow", "--as-of", cut]).out, before);
+  assert.notEqual(snout(f, ["memory", "search", "shard the CI workflow"]).out, before, "without the cut, the later commits are there");
+});
+
 test("a commit amended or rebased away leaves memory, and the stash never enters it", () => {
   const f = fixture();
   snout(f, ["import", "--no-gh"]);

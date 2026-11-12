@@ -128,6 +128,18 @@ named a file the fix needed 87% of the time, against 75% for words with the map'
 52% (`bench/sessioneval.mjs --embed`). Card vectors are kept in `.snout/memory-vectors.json`, not in the
 shared `memory/` folder, and are recomputed when a card changes.
 
+History search (the commits, PRs and CI runs `snout import` reads) ranks every record you may see at
+the search's date: by words weighted by how rare they are in that history, by meaning when
+`memorySemantic` is on and the model is installed, and by the files the agent says it is working on
+(`files` in `snout_memory_search`, `--files a.ts,b.ts` on the command line). Ranking is not answering:
+a record is shown only with evidence. That is a sha, PR number, version or path the question gives;
+or, with the model, a close meaning, or a fair one together with a fair share of the question's rarer words;
+or, without it, a larger share of them (two or more). A file match alone never shows a
+record, and when nothing meets the bar the search says so. Ranking finds related records, not
+answers, so a commit found by words or meaning is shown as "(related, may not answer)" for the agent
+to check; one the question names is shown as "(named)". Record vectors are kept with the imported
+history in the config folder: an import embeds them all, and a search embeds at most 256 still missing.
+
 That is every key the shipped code reads. Keys for later phases — a model name, a tier-2
 budget, context-injection limits — are deliberately **absent** rather than present and
 inert: a configuration key that silently does nothing is worse than a missing one, because

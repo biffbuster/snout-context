@@ -1,0 +1,1195 @@
+{
+ "project": "tokio",
+ "label": "redesign",
+ "measuredAt": "2026-11-09T21:25:58.650Z",
+ "freezeSha256": "648e6a4898578cecf363b8b7a1ae6ac62ff04349a3432712a536ebb78067b836",
+ "snoutVersion": "0.3.3",
+ "commit": "f181d35",
+ "dirty": true,
+ "bundleSha256": "bdba0f25a8f216e0e0ca1ae0c597688c56c384cf046c55f4b7395a965c75fae7",
+ "import": "Imported this project's history from 2026-02-08: 525 commits, 0 PRs, 0 failed CI runs, 0 past sessions new · 525 records kept.",
+ "modes": {
+  "words": {
+   "checked": [
+    {
+     "question": "Can I give a Tokio runtime a name through the tokio::main macro?",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "question": "Is there a way to get a mutable reference to the next item of a Peekable stream, or poll for a peek?",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Why does mpsc Permit::send forget the permit before sending, and what goes wrong if the receiver's waker panics?",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "On emscripten without JSPI, how does block_on wait when the runtime parks?",
+     "shown": 3,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Does StreamNotifyClose implement FusedStream?",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Does the futures compat wrapper in tokio-util pass vectored writes through?",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "When an alternative timer entry is cancelled, why is its stored waker dropped right away instead of during timer maintenance?",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Why did the queue stress1 test sometimes come up a few tasks short?",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Why were the tracing_sync tests changed from async tests to synchronous ones?",
+     "shown": 2,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Closing a semaphore could deadlock when a waker released a permit; how was that fixed?",
+     "shown": 4,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "When did we start running Miri on the TCP socket tests?",
+     "shown": 3,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Could a panic in a tracing event during poll_acquire leak semaphore permits?",
+     "shown": 4,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "What memory ordering guarantees does the Semaphore documentation give?",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Is there a benchmark for inject queue contention when spawning from outside the runtime?",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Does releasing an mpsc OwnedPermit wake receivers waiting on the channel?",
+     "shown": 4,
+     "right": true,
+     "wrongOnly": false
+    }
+   ],
+   "negatives": [
+    {
+     "kind": "realistic",
+     "question": "Why did the default runtime switch to a single-threaded executor?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "When was async-std compatibility added to tokio-util?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "Why was Unix domain socket support removed?",
+     "shown": 2
+    },
+    {
+     "kind": "realistic",
+     "question": "What broke when tokio moved to the Rust 2027 edition?",
+     "shown": 1
+    },
+    {
+     "kind": "realistic",
+     "question": "Why does tokio::fs use mmap for reads now?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "When did tokio add a built-in HTTP/3 client?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "Why was the broadcast channel rewritten on top of crossbeam?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "Why did tokio drop support for Windows named pipes?",
+     "shown": 2
+    },
+    {
+     "kind": "realistic",
+     "question": "Why does the runtime pin worker threads to CPU cores by default now?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "When was tokio::sync::Mutex made to poison on panic like std's?",
+     "shown": 2
+    },
+    {
+     "kind": "realistic",
+     "question": "Why was JoinSet deprecated?",
+     "shown": 2
+    },
+    {
+     "kind": "realistic",
+     "question": "What changed when the timer wheel was replaced with a binary heap?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "Why does tokio-stream depend on rayon now?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "When did tokio add Python bindings?",
+     "shown": 4
+    },
+    {
+     "kind": "realistic",
+     "question": "Why did tokio::select! start requiring futures to be Unpin?",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Codex: native read trim, PowerShell gate, Codex-safe answers, memory from Codex sessions, Windows tests",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Claims: cite the recall evals rerun on the clean 0.3.1 build",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Post-compaction memory, repo map, replay, dashboards, long-session benchmark",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Claims for 0.3.2: offline recall evals rerun on the 0.3.2 bundle; the 0.3.1 cost result moves to docs/archive/0.3.1",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Session memory for Codex and Claude Code, optional local recall model, memory pilot harness",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "0.3.1 results: 140-session Claude Code run, -25.5% cost per solved task (95% CI -39.1% to -7.6%), raw rows and reports",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Snout 0.3.3: version, changelog date and claims",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "SWE-bench harness: rotate arm order, total spend cap, stop when the API refuses sessions",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Build: bundle the dashboard page with LF endings, so a Windows build matches CI",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Snout 0.2.2",
+     "shown": 0
+    }
+   ],
+   "tasks": [
+    {
+     "sha": "a09d3cf1da",
+     "shown": 1,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "e0f829f033",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "d241e4b511",
+     "shown": 1,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "99dbe548b7",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "535e802e74",
+     "shown": 3,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "3eb95a40f1",
+     "shown": 2,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "40b8779482",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "f987088648",
+     "shown": 5,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "6303e1882c",
+     "shown": 1,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "916ef20c63",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "67c58565dc",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "42c5d2b415",
+     "shown": 5,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "ce2399a718",
+     "shown": 2,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "df6e04f2d8",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "57108460ac",
+     "shown": 2,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "24ca4458fd",
+     "shown": 1,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "95e2101459",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "011f7f4b47",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "85a6d13882",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "7d0d729d8f",
+     "shown": 3,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "2ebac75c36",
+     "shown": 4,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "436faa2da3",
+     "shown": 1,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "babd90dee5",
+     "shown": 2,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "122d82d264",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "a99332abcf",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "8be327721e",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "4167c5634e",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "a85c3f5baa",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "5d5ca1181e",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "7d2a0f105d",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "7147b620d1",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "0e25691ea0",
+     "shown": 1,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "4d71b417f4",
+     "shown": 3,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "2598543b8a",
+     "shown": 1,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "1309451987",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "6e15e2e32a",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "eb9cdf2ff0",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "1989b46f5a",
+     "shown": 4,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "e43fb07c7c",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "7f6bb9afca",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    }
+   ],
+   "tokens": [
+    24,
+    130,
+    125,
+    207,
+    298,
+    122,
+    128,
+    117,
+    149,
+    273,
+    211,
+    271,
+    119,
+    125,
+    266,
+    24,
+    21,
+    146,
+    120,
+    18,
+    19,
+    23,
+    163,
+    25,
+    155,
+    161,
+    24,
+    18,
+    256,
+    22,
+    26,
+    23,
+    27,
+    26,
+    26,
+    26,
+    19,
+    26,
+    27,
+    10,
+    125,
+    301,
+    112,
+    21,
+    208,
+    160,
+    15,
+    242,
+    119,
+    22,
+    20,
+    324,
+    158,
+    117,
+    161,
+    124,
+    22,
+    122,
+    24,
+    212,
+    276,
+    121,
+    171,
+    17,
+    302,
+    15,
+    18,
+    242,
+    18,
+    134,
+    128,
+    107,
+    211,
+    136,
+    133,
+    23,
+    326,
+    251,
+    19,
+    22
+   ]
+  },
+  "meaning": {
+   "checked": [
+    {
+     "question": "Can I give a Tokio runtime a name through the tokio::main macro?",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Is there a way to get a mutable reference to the next item of a Peekable stream, or poll for a peek?",
+     "shown": 2,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Why does mpsc Permit::send forget the permit before sending, and what goes wrong if the receiver's waker panics?",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "On emscripten without JSPI, how does block_on wait when the runtime parks?",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Does StreamNotifyClose implement FusedStream?",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Does the futures compat wrapper in tokio-util pass vectored writes through?",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "When an alternative timer entry is cancelled, why is its stored waker dropped right away instead of during timer maintenance?",
+     "shown": 4,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Why did the queue stress1 test sometimes come up a few tasks short?",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Why were the tracing_sync tests changed from async tests to synchronous ones?",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Closing a semaphore could deadlock when a waker released a permit; how was that fixed?",
+     "shown": 4,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "When did we start running Miri on the TCP socket tests?",
+     "shown": 4,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Could a panic in a tracing event during poll_acquire leak semaphore permits?",
+     "shown": 4,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "What memory ordering guarantees does the Semaphore documentation give?",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Is there a benchmark for inject queue contention when spawning from outside the runtime?",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Does releasing an mpsc OwnedPermit wake receivers waiting on the channel?",
+     "shown": 4,
+     "right": true,
+     "wrongOnly": false
+    }
+   ],
+   "negatives": [
+    {
+     "kind": "realistic",
+     "question": "Why did the default runtime switch to a single-threaded executor?",
+     "shown": 1
+    },
+    {
+     "kind": "realistic",
+     "question": "When was async-std compatibility added to tokio-util?",
+     "shown": 3
+    },
+    {
+     "kind": "realistic",
+     "question": "Why was Unix domain socket support removed?",
+     "shown": 5
+    },
+    {
+     "kind": "realistic",
+     "question": "What broke when tokio moved to the Rust 2027 edition?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "Why does tokio::fs use mmap for reads now?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "When did tokio add a built-in HTTP/3 client?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "Why was the broadcast channel rewritten on top of crossbeam?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "Why did tokio drop support for Windows named pipes?",
+     "shown": 2
+    },
+    {
+     "kind": "realistic",
+     "question": "Why does the runtime pin worker threads to CPU cores by default now?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "When was tokio::sync::Mutex made to poison on panic like std's?",
+     "shown": 1
+    },
+    {
+     "kind": "realistic",
+     "question": "Why was JoinSet deprecated?",
+     "shown": 3
+    },
+    {
+     "kind": "realistic",
+     "question": "What changed when the timer wheel was replaced with a binary heap?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "Why does tokio-stream depend on rayon now?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "When did tokio add Python bindings?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "Why did tokio::select! start requiring futures to be Unpin?",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Codex: native read trim, PowerShell gate, Codex-safe answers, memory from Codex sessions, Windows tests",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Claims: cite the recall evals rerun on the clean 0.3.1 build",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Post-compaction memory, repo map, replay, dashboards, long-session benchmark",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Claims for 0.3.2: offline recall evals rerun on the 0.3.2 bundle; the 0.3.1 cost result moves to docs/archive/0.3.1",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Session memory for Codex and Claude Code, optional local recall model, memory pilot harness",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "0.3.1 results: 140-session Claude Code run, -25.5% cost per solved task (95% CI -39.1% to -7.6%), raw rows and reports",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Snout 0.3.3: version, changelog date and claims",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "SWE-bench harness: rotate arm order, total spend cap, stop when the API refuses sessions",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Build: bundle the dashboard page with LF endings, so a Windows build matches CI",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Snout 0.2.2",
+     "shown": 0
+    }
+   ],
+   "tasks": [
+    {
+     "sha": "a09d3cf1da",
+     "shown": 2,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "e0f829f033",
+     "shown": 3,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "d241e4b511",
+     "shown": 1,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "99dbe548b7",
+     "shown": 3,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "535e802e74",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "3eb95a40f1",
+     "shown": 2,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "40b8779482",
+     "shown": 1,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "f987088648",
+     "shown": 5,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "6303e1882c",
+     "shown": 3,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "916ef20c63",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "67c58565dc",
+     "shown": 2,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "42c5d2b415",
+     "shown": 5,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "ce2399a718",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "df6e04f2d8",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "57108460ac",
+     "shown": 2,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "24ca4458fd",
+     "shown": 4,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "95e2101459",
+     "shown": 2,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "011f7f4b47",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "85a6d13882",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "7d0d729d8f",
+     "shown": 3,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "2ebac75c36",
+     "shown": 4,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "436faa2da3",
+     "shown": 2,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "babd90dee5",
+     "shown": 5,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "122d82d264",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "a99332abcf",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "8be327721e",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "4167c5634e",
+     "shown": 1,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "a85c3f5baa",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "5d5ca1181e",
+     "shown": 5,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "7d2a0f105d",
+     "shown": 2,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "7147b620d1",
+     "shown": 2,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "0e25691ea0",
+     "shown": 3,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "4d71b417f4",
+     "shown": 1,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "2598543b8a",
+     "shown": 1,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "1309451987",
+     "shown": 3,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "6e15e2e32a",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "eb9cdf2ff0",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "1989b46f5a",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "e43fb07c7c",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "7f6bb9afca",
+     "shown": 2,
+     "right": false,
+     "wrongOnly": true
+    }
+   ],
+   "tokens": [
+    274,
+    173,
+    125,
+    283,
+    297,
+    301,
+    265,
+    117,
+    248,
+    284,
+    269,
+    271,
+    119,
+    336,
+    266,
+    116,
+    212,
+    279,
+    21,
+    18,
+    19,
+    23,
+    163,
+    25,
+    113,
+    205,
+    24,
+    18,
+    16,
+    22,
+    26,
+    23,
+    27,
+    26,
+    26,
+    26,
+    19,
+    26,
+    27,
+    10,
+    171,
+    193,
+    112,
+    179,
+    294,
+    160,
+    114,
+    242,
+    202,
+    22,
+    160,
+    338,
+    116,
+    117,
+    161,
+    250,
+    161,
+    122,
+    24,
+    212,
+    276,
+    164,
+    292,
+    17,
+    302,
+    15,
+    109,
+    242,
+    290,
+    177,
+    164,
+    189,
+    117,
+    136,
+    211,
+    23,
+    326,
+    293,
+    19,
+    150
+   ]
+  }
+ },
+ "rankedTop5MeaningFiles": 0.65,
+ "knownHasGold": 22,
+ "checks": [
+  {
+   "name": "words: unanswerable questions answered with nothing",
+   "ok": false,
+   "detail": "76% (bar 90%)"
+  },
+  {
+   "name": "words: checked questions answered with the right commit",
+   "ok": true,
+   "detail": "93% (bar 35%)"
+  },
+  {
+   "name": "words: checked questions answered only wrongly",
+   "ok": true,
+   "detail": "0% (bar <= 20%)"
+  },
+  {
+   "name": "words: tasks answered with a commit touching a gold file",
+   "ok": true,
+   "detail": "40% (bar 25%)"
+  },
+  {
+   "name": "meaning: unanswerable questions answered with nothing",
+   "ok": false,
+   "detail": "76% (bar 90%)"
+  },
+  {
+   "name": "meaning: checked questions answered with the right commit",
+   "ok": true,
+   "detail": "100% (bar 50%)"
+  },
+  {
+   "name": "meaning: checked questions answered only wrongly",
+   "ok": true,
+   "detail": "0% (bar <= 20%)"
+  },
+  {
+   "name": "meaning: tasks answered with a commit touching a gold file",
+   "ok": true,
+   "detail": "48% (bar 40%)"
+  },
+  {
+   "name": "meaning+files: a gold-touching commit ranked in the first five",
+   "ok": true,
+   "detail": "65% (bar 60%)"
+  },
+  {
+   "name": "output tokens (median, max)",
+   "ok": true,
+   "detail": "125 and 338 (bars 250, 600)"
+  },
+  {
+   "name": "warm search p95, meaning (in process)",
+   "ok": true,
+   "detail": "23 ms (words p95 6 ms; bar 250)"
+  },
+  {
+   "name": "cold CLI search, meaning (median of 5)",
+   "ok": true,
+   "detail": "431 ms (words 137 ms; bar 3000)"
+  },
+  {
+   "name": "peak memory with the model loaded",
+   "ok": true,
+   "detail": "288 MB (bar 450)"
+  }
+ ],
+ "pass": false,
+ "timings": {
+  "warmMs": {
+   "words": 4.411200000002282,
+   "meaning": 15.282499999997526
+  },
+  "coldCliMs": {
+   "words": [
+    138,
+    147,
+    133,
+    137,
+    127
+   ],
+   "meaning": [
+    412,
+    431,
+    452,
+    443,
+    419
+   ]
+  }
+ }
+}

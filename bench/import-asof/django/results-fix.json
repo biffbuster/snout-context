@@ -1,0 +1,591 @@
+{
+ "set": "django",
+ "label": "fix",
+ "measuredAt": "2026-11-09T20:27:36.722Z",
+ "snoutVersion": "0.3.3",
+ "commit": "f181d35",
+ "dirty": true,
+ "bundleSha256": "a3c6326a1269432d68d5bb40c2184d08cc8eadb2dee43cc45f8d57ad200f8360",
+ "import": "Imported this project's history from 2026-02-08: 1270 commits, 0 PRs, 0 failed CI runs, 0 past sessions new · 1270 records kept.",
+ "score": {
+  "snout": 0.275,
+  "recent": 0,
+  "words": 0.125,
+  "silentControls": 3
+ },
+ "pass": false,
+ "rows": [
+  {
+   "sha": "cf63ff2186",
+   "query": "Added compatibility for oracledb 26.0.0+.",
+   "found": [
+    "cae7247962",
+    "52e5ba1696"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "6669d66a79",
+   "query": "Skipped 1-element geometry collection tests on all Oracle versions.",
+   "found": [
+    "cccc004b46",
+    "ba80833fa6",
+    "6af5da3177",
+    "9e4a3f186b",
+    "d2e59b77fe"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": false
+  },
+  {
+   "sha": "8d1c673466",
+   "query": "Used _is_pk_set() in Model.__eq__.",
+   "found": [
+    "df0b833255",
+    "902e5c0fb2",
+    "1c6d4779ac",
+    "f3e66a32a3"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": false
+  },
+  {
+   "sha": "850e026cbf",
+   "query": "Allowed customizing EmailValidator per-part validation.",
+   "found": [
+    "7241568978",
+    "00dca6f097",
+    "5b3cfce517",
+    "f13c20f81b",
+    "051f3909e8"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "27151e13c4",
+   "query": "Improved SVG icon color contrast in django/views/templates/default_urlconf.html.",
+   "found": [
+    "3d34265d5d",
+    "3e4e0db669",
+    "35dab0ad9e",
+    "3dea5fed07",
+    "a09323d832"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "c9ff757a55",
+   "query": "Fixed bulk_create() for late-saved related primary keys.",
+   "found": [
+    "1720b7b240",
+    "71af23d1f4",
+    "c3a3ea7bed",
+    "a2348c85fc",
+    "21c51c2623"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "c01135b42f",
+   "query": "Removed new contributor GitHub Action workflow.",
+   "found": [
+    "9799d2adf1",
+    "f0b75f46fd",
+    "02369b526a",
+    "f8f5ace1bc",
+    "efaf1b6a90"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": false
+  },
+  {
+   "sha": "64edef37e7",
+   "query": "Avoided altering column type when only db_comment changes.",
+   "found": [
+    "1d20e124b3",
+    "99672c672a",
+    "bccee1b199",
+    "07d4f69c94",
+    "0c634de4e6"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "ranked below fifth"
+  },
+  {
+   "sha": "2b30f6255b",
+   "query": "Distinguished shapes of boolean icons.",
+   "found": [
+    "8f50bae618",
+    "4b2b4bf0ac"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "ca14173f96",
+   "query": "Fixed simplify_regex() with multiple unnamed groups.",
+   "found": [
+    "22d25eff15"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": false
+  },
+  {
+   "sha": "9cb2cba6fc",
+   "query": "Fixed typo in django/db/backends/mysql/schema.py.",
+   "found": [
+    "3028fbcbec",
+    "7f814ee937",
+    "9ea5f4facc",
+    "9892449102",
+    "c6f81b3832"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "c88b304cc2",
+   "query": "Fixed CVE-2026-77050 -- Prevented memory exhaustion in get_supported_language_variant().",
+   "found": [
+    "25872ef34e",
+    "7847227a3f"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "50eef95591",
+   "query": "Prevented tuple lookups from hanging on F() expressions.",
+   "found": [
+    "0060c6c032",
+    "b5388a3a80",
+    "386257b33e",
+    "fc805c6f34",
+    "0751d5fed1"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": true,
+   "reason": "ranked below fifth"
+  },
+  {
+   "sha": "7f48e266a8",
+   "query": "Prevented crash on JSONField __isnull lookups on Oracle when a key is outside its integer range.",
+   "found": [
+    "386257b33e",
+    "ff27883ca0",
+    "b83ab92bc5",
+    "cce6c57ed3",
+    "83cbd21be5"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": true
+  },
+  {
+   "sha": "00dca6f097",
+   "query": "Fixed QuerySet.distinct() crash on duplicated selections.",
+   "found": [
+    "3282d9f4ed",
+    "8d1c673466",
+    "c8fefebeca",
+    "7576781cc6",
+    "9adc205b6d"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "8a162076e1",
+   "query": "Improved wording in PR quality check messages.",
+   "found": [
+    "864850b20f",
+    "055d7a682f",
+    "c8fefebeca"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": true,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "c6be0bf3bb",
+   "query": "Added fields.E323 for models referenced by ManyToManyFields.",
+   "found": [],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "f1d11117c6",
+   "query": "Made UnorderedObjectListWarning skip Django frames.",
+   "found": [],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "f7610bda78",
+   "query": "Allowed nesting GEOS GeometryCollection objects.",
+   "found": [
+    "ba80833fa6",
+    "6af5da3177",
+    "9e4a3f186b",
+    "d2e59b77fe",
+    "f05fac88c4"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "60a17fccf4",
+   "query": "Preserved parent instance hints on custom Prefetch querysets.",
+   "found": [
+    "c17e494866",
+    "4abc595b1a",
+    "c1686c1320",
+    "621b2563b0",
+    "59a89d1008"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "ranked below fifth"
+  },
+  {
+   "sha": "83cbd21be5",
+   "query": "Fixed CVE-2026-87975 -- Prevented forging actions in model formsets with editable PKs.",
+   "found": [
+    "5b3cfce517"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "d8cedcab52",
+   "query": "Escaped introspection error comments in inspectdb.",
+   "found": [
+    "25cf1cbb1c"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "2a5da9d005",
+   "query": "Used normalized field names for composite pks in inspectdb.",
+   "found": [
+    "a1ead0a580",
+    "21c51c2623",
+    "7ab2d80353",
+    "cb192dbb19",
+    "5ef47fccfa"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "2f7f30c320",
+   "query": "Ensured the parent path to a sqlite file exists.",
+   "found": [
+    "9381e9ce1c",
+    "48e0a64e64",
+    "7f66c3b41f",
+    "21c51c2623",
+    "bd1a758306"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "c9eb16a87e",
+   "query": "Corrected safe param in JSONResponse signature in docs.",
+   "found": [
+    "b5d9dbdf2b",
+    "c37cc705e2",
+    "6e15ac8066",
+    "b787274ede",
+    "4b2edb3418"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": false
+  },
+  {
+   "sha": "439b936753",
+   "query": "Added test skip for 1-element GeometryCollections on Oracle 23.9.",
+   "found": [
+    "cccc004b46",
+    "1f5bf635df",
+    "f00270d05e",
+    "50c2b7c836"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": true
+  },
+  {
+   "sha": "08e4c0d8e7",
+   "query": "Avoided transforms on spatial fields with srid=None.",
+   "found": [],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "be6cf83229",
+   "query": "Allowed transforms in order_by() after alias().",
+   "found": [
+    "0e1d950fbb",
+    "7cf1c22d4d",
+    "20960df455",
+    "f05fac88c4",
+    "1a001208b0"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": false
+  },
+  {
+   "sha": "be6a149de8",
+   "query": "Made ModelFormSet respect custom Form.add_prefix().",
+   "found": [
+    "a09323d832",
+    "9b1db9cb2c",
+    "16093e38b0",
+    "57c8c8b107",
+    "21dcd9a94f"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "616e8c52de",
+   "query": "Handled further malformed _source_model values in admin popups.",
+   "found": [
+    "115ffd0463",
+    "208f80cb68",
+    "39b3e2d0c7",
+    "f1949c1f97",
+    "7ab2d80353"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "4ea38d54c1",
+   "query": "Made admin views raise PermissionDenied consistently.",
+   "found": [
+    "0c634de4e6",
+    "ea9742c6d0"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "9465349120",
+   "query": "Prevented fallback to python default for a pk with a db_default.",
+   "found": [
+    "07394506a7",
+    "1720b7b240",
+    "71af23d1f4",
+    "c3a3ea7bed",
+    "a2348c85fc"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": false
+  },
+  {
+   "sha": "1a9fba7a6c",
+   "query": "Corrected tokenization of verbatim blocks.",
+   "found": [
+    "0f9a648a80",
+    "15cb06982a",
+    "69d86004f7",
+    "8d326336c5"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "8362cdc7ef",
+   "query": "Bumped minimum setuptools version to 83.",
+   "found": [
+    "490e495564",
+    "0f1b39b28b",
+    "3ebd048cf7",
+    "0bac49beb9",
+    "6c8eee41f7"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "ranked below fifth"
+  },
+  {
+   "sha": "76e1bca131",
+   "query": "Restored missing Index options in PostGISSchemaEditor._create_spatial_index_sql().",
+   "found": [
+    "b1a9fe4360",
+    "bc529fb8a6",
+    "2e48636c54",
+    "7c4439d9c8",
+    "472f84e2cb"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "30ebe0001c",
+   "query": "Added missing lang override in translation fetching helper for Serbian (Latin script).",
+   "found": [
+    "a276941334",
+    "c8fefebeca",
+    "d76a03b72a",
+    "7ae70e7504",
+    "27f74d02c0"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "c2517faff3",
+   "query": "Fixed content_disposition_header() quoting of filenames ending with newlines.",
+   "found": [],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "93d7e82b6a",
+   "query": "Made @non_atomic_requests recognize async views.",
+   "found": [
+    "bdbda29c3e",
+    "9d9443e6fd",
+    "41357f42c5",
+    "4ea38d54c1",
+    "b5b53afa29"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": false
+  },
+  {
+   "sha": "e0d64a5ada",
+   "query": "Fixed subject/verb agreement in DecimalValidator messages.",
+   "found": [],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "66c40aafa2",
+   "query": "Prevented crash on JSONField key lookups when an integer key is outside PostgreSQL's int4 range.",
+   "found": [
+    "386257b33e",
+    "7241568978",
+    "00dca6f097",
+    "ff27883ca0",
+    "b83ab92bc5"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": true
+  }
+ ],
+ "controls": [
+  {
+   "query": "Repo docs: import in the README and memory page, contributing guide, issue templates",
+   "silent": false
+  },
+  {
+   "query": "Codex: PowerShell gate follows cd, held-out benchmark runner, bench check in verify and CI, handoff notes",
+   "silent": false
+  },
+  {
+   "query": "First-run import: past commits, PRs, CI runs and sessions in memory search",
+   "silent": false
+  },
+  {
+   "query": "Snout 0.3.2: shared memory across agents, dashboard redesign, opt-in Cloud sign-in",
+   "silent": false
+  },
+  {
+   "query": "0.3.1 docs: shorter README, all five tasks that cost more, recorded spend, publish checks, preference judge privacy note",
+   "silent": false
+  },
+  {
+   "query": "Prepare Snout 0.3.1 release candidate",
+   "silent": true
+  },
+  {
+   "query": "Tests: pass on case-sensitive file systems and macOS temp paths",
+   "silent": false
+  },
+  {
+   "query": "Fast hooks: the gate starts its own server, and the server stays up while a project uses it",
+   "silent": false
+  },
+  {
+   "query": "Benchmarks: A/B and long-session harnesses start Claude Code on Windows",
+   "silent": true
+  },
+  {
+   "query": "0.3.0: the fast gate's server starter follows plugin updates",
+   "silent": true
+  }
+ ]
+}
