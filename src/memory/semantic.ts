@@ -29,7 +29,7 @@ const pack = (v: Float32Array) => Buffer.from(v.buffer, v.byteOffset, v.byteLeng
 const unpack = (s: string) => { const b = Buffer.from(s, "base64"); return new Float32Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength)); };
 
 /** Vectors from the warm model in `snout serve`, or, when allowed, from the model loaded here. Null on any failure. */
-async function embed(texts: string[], inProcess: boolean): Promise<Float32Array[] | null> {
+export async function embedTexts(texts: string[], inProcess: boolean): Promise<Float32Array[] | null> {
   if (!texts.length) return [];
   try {
     const r = await fetch(`http://127.0.0.1:${HOOK_PORT}/snout/v1/embed`, {
@@ -65,7 +65,7 @@ export async function prepareMeaning(snoutDir: string, question: string, records
     const texts = [...new Set(records)];
     for (const t of texts) { const v = cache.vectors[key(t)]; if (v) vectors.set(key(t), unpack(v)); }
     const missing = texts.filter((t) => !vectors.has(key(t)));
-    const got = await embed([`${QUERY_PREFIX}${question}`, ...missing], inProcess);
+    const got = await embedTexts([`${QUERY_PREFIX}${question}`, ...missing], inProcess);
     if (!got) return;
     vectors.set(queryKey(question), got[0]!);
     missing.forEach((t, i) => { vectors.set(key(t), got[i + 1]!); cache.vectors[key(t)] = pack(got[i + 1]!); });

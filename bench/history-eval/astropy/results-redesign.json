@@ -1,0 +1,1195 @@
+{
+ "project": "astropy",
+ "label": "redesign",
+ "measuredAt": "2026-11-09T21:25:22.837Z",
+ "freezeSha256": "103ab2cf5d0126cb53760d0858e8bdad752aec37012b8ef96bcf017223a5c817",
+ "snoutVersion": "0.3.3",
+ "commit": "f181d35",
+ "dirty": true,
+ "bundleSha256": "bdba0f25a8f216e0e0ca1ae0c597688c56c384cf046c55f4b7395a965c75fae7",
+ "import": "Imported this project's history from 2026-02-08: 1971 commits, 0 PRs, 0 failed CI runs, 0 past sessions new · 1971 records kept.",
+ "modes": {
+  "words": {
+   "checked": [
+    {
+     "question": "When the IERS-A table is stale and a conversion needs predictive values, does IERS_Auto still always raise, or does iers_degraded_accuracy apply?",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Negative indices in WCS.slice were counted from the wrong end of the axis; what fixed that and what happened to sanitize_slices?",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Unsigned 64-bit image data came back shifted after a compressed FITS write and read; what was the fix?",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "question": "What does astropy.wcs.get_include do now if astropy was built against the system WCSLIB?",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Cutout2D.plot_on_original drew the cutout outline with the wrong extent; when was that fixed?",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "question": "Do we have a test that pickles a DataInfo object that isn't bound to a parent?",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "In the WCSAxes API code, why was the length check before removing the custom: prefix of an axis type taken out?",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Which method does the fast Lomb-Scargle implementation use by default, and when did it stop using fasper?",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "In the script that updates the what's new stats, how does it check that the page exists for an explicit path versus the default one?",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "structured_to_unstructured on a StructuredQuantity got its unit wrong; where was that fixed?",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Do masked arrays support numpy's new top_k function from the numpy 2.6 development version?",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Did comparing GCRS frames for equality get cheaper by avoiding a full array broadcast?",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "question": "VOTable null values in the fast converters were declared with the wrong integer widths; what changed?",
+     "shown": 2,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Why was the text_size computation dropped from the tick label alignment code in WCSAxes?",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Why did we remove the special case for fitsio's cooldown period from the project configuration?",
+     "shown": 2,
+     "right": true,
+     "wrongOnly": false
+    }
+   ],
+   "negatives": [
+    {
+     "kind": "realistic",
+     "question": "Why was the FITS header parser rewritten in Rust?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "When did astropy.table drop support for writing HDF5 files?",
+     "shown": 2
+    },
+    {
+     "kind": "realistic",
+     "question": "Why did the cosmology module move its distance calculations to the GPU?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "What broke when the bundled WCSLIB was upgraded to version 9.0?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "Why are coordinate transformation results cached in Redis now?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "When did astropy.time stop accepting Julian dates given as strings?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "Why was the Lomb-Scargle periodogram split out into its own package?",
+     "shown": 5
+    },
+    {
+     "kind": "realistic",
+     "question": "Why did the default cosmology change to Planck 2023?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "Why did we replace the VOTable XML parser with lxml?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "When did convolution switch to using FFTW by default?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "Why does the ECSV writer now emit YAML 1.2 headers?",
+     "shown": 2
+    },
+    {
+     "kind": "realistic",
+     "question": "Why did NDData stop supporting masks?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "Why did Quantity printing switch to engineering notation by default?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "Why was the units module ported to use pint internally?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "When did coordinates add support for Mars-centered frames?",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Launch cleanup: README and changelog, access instead of pricing, results stamped with the Snout version, claims check, recall evals rerun on 0.3.0, generated-marker fix, snout --version",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Session memory: a card per session, linked commits, recall when a prompt bears on it; CI workflow audit; notice when the plugin never started; Read opens PDFs and screenshots; remove the cloud service and old benchmark scripts",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Bench for 0.3.3: memory studies, frozen gate sets, handoff checks and context measurement",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Claims for 0.3.3: Claude Code cost per solved task measured on the release",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Context audit charges @AGENTS.md imports to Claude and counts root-session files only; SWE-bench protocol: plain arm, Claude Code 2.1.301, pilot sizes the confirmation",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "SWE-bench harness: run from a frozen copy of a committed build, verified byte for byte",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Context audit counts what Claude Code loads; generated-file and migration-snapshot rules; SWE-bench Verified protocol",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "SWE-bench harness: free dry run with a stand-in agent, Windows symlink-safe checkout, stop when Snout records nothing",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "SWE-bench harness runs on Windows; held-out task draw and plain baseline fixed before any run",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Memory keeps instructions first, uninstall per agent, beta pricing",
+     "shown": 0
+    }
+   ],
+   "tasks": [
+    {
+     "sha": "0fe552bd31",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "c5bdcb9e9b",
+     "shown": 1,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "8c8439b1c7",
+     "shown": 5,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "f591a9fcb4",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "2936fe9f7e",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "8d3d17c50a",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "d27bef358f",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "ad8045386d",
+     "shown": 4,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "40efb1a8d6",
+     "shown": 5,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "82a3ef77a8",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "19172fe43a",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "501070db7e",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "98f0d6580b",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "a8fd292614",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "972a7c6c61",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "4a9c6a8011",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "2e9b133530",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "d26c6412c9",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "f1295f70b7",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "a41cc1bb7b",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "c330471599",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "ed7ace61fe",
+     "shown": 3,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "41b2293b72",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "1c395cb399",
+     "shown": 5,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "49c96aeac8",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "5e39dece70",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "a55373ee49",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "781217daae",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "7fc2184ff9",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "1e3b887a52",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "37dcfb3731",
+     "shown": 3,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "2767e754fa",
+     "shown": 3,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "4c945a3085",
+     "shown": 4,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "9d1030bc12",
+     "shown": 2,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "697cda92fc",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "e46c293254",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "909812638a",
+     "shown": 5,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "33d2594b18",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "667837ac65",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "ad9d20ffd4",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    }
+   ],
+   "tokens": [
+    142,
+    146,
+    26,
+    150,
+    26,
+    295,
+    130,
+    129,
+    125,
+    352,
+    267,
+    26,
+    206,
+    125,
+    153,
+    20,
+    163,
+    25,
+    23,
+    23,
+    24,
+    300,
+    21,
+    21,
+    21,
+    186,
+    17,
+    25,
+    21,
+    22,
+    26,
+    26,
+    26,
+    26,
+    26,
+    26,
+    26,
+    26,
+    26,
+    24,
+    26,
+    126,
+    238,
+    26,
+    26,
+    26,
+    144,
+    205,
+    277,
+    26,
+    12,
+    341,
+    312,
+    26,
+    11,
+    26,
+    18,
+    21,
+    26,
+    24,
+    332,
+    209,
+    26,
+    194,
+    26,
+    19,
+    223,
+    21,
+    26,
+    26,
+    175,
+    191,
+    216,
+    167,
+    26,
+    22,
+    241,
+    26,
+    26,
+    22
+   ]
+  },
+  "meaning": {
+   "checked": [
+    {
+     "question": "When the IERS-A table is stale and a conversion needs predictive values, does IERS_Auto still always raise, or does iers_degraded_accuracy apply?",
+     "shown": 2,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Negative indices in WCS.slice were counted from the wrong end of the axis; what fixed that and what happened to sanitize_slices?",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Unsigned 64-bit image data came back shifted after a compressed FITS write and read; what was the fix?",
+     "shown": 3,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "What does astropy.wcs.get_include do now if astropy was built against the system WCSLIB?",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Cutout2D.plot_on_original drew the cutout outline with the wrong extent; when was that fixed?",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Do we have a test that pickles a DataInfo object that isn't bound to a parent?",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "In the WCSAxes API code, why was the length check before removing the custom: prefix of an axis type taken out?",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Which method does the fast Lomb-Scargle implementation use by default, and when did it stop using fasper?",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "In the script that updates the what's new stats, how does it check that the page exists for an explicit path versus the default one?",
+     "shown": 2,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "structured_to_unstructured on a StructuredQuantity got its unit wrong; where was that fixed?",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Do masked arrays support numpy's new top_k function from the numpy 2.6 development version?",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Did comparing GCRS frames for equality get cheaper by avoiding a full array broadcast?",
+     "shown": 2,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "VOTable null values in the fast converters were declared with the wrong integer widths; what changed?",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Why was the text_size computation dropped from the tick label alignment code in WCSAxes?",
+     "shown": 3,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "question": "Why did we remove the special case for fitsio's cooldown period from the project configuration?",
+     "shown": 3,
+     "right": true,
+     "wrongOnly": false
+    }
+   ],
+   "negatives": [
+    {
+     "kind": "realistic",
+     "question": "Why was the FITS header parser rewritten in Rust?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "When did astropy.table drop support for writing HDF5 files?",
+     "shown": 5
+    },
+    {
+     "kind": "realistic",
+     "question": "Why did the cosmology module move its distance calculations to the GPU?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "What broke when the bundled WCSLIB was upgraded to version 9.0?",
+     "shown": 5
+    },
+    {
+     "kind": "realistic",
+     "question": "Why are coordinate transformation results cached in Redis now?",
+     "shown": 2
+    },
+    {
+     "kind": "realistic",
+     "question": "When did astropy.time stop accepting Julian dates given as strings?",
+     "shown": 4
+    },
+    {
+     "kind": "realistic",
+     "question": "Why was the Lomb-Scargle periodogram split out into its own package?",
+     "shown": 5
+    },
+    {
+     "kind": "realistic",
+     "question": "Why did the default cosmology change to Planck 2023?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "Why did we replace the VOTable XML parser with lxml?",
+     "shown": 1
+    },
+    {
+     "kind": "realistic",
+     "question": "When did convolution switch to using FFTW by default?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "Why does the ECSV writer now emit YAML 1.2 headers?",
+     "shown": 2
+    },
+    {
+     "kind": "realistic",
+     "question": "Why did NDData stop supporting masks?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "Why did Quantity printing switch to engineering notation by default?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "Why was the units module ported to use pint internally?",
+     "shown": 0
+    },
+    {
+     "kind": "realistic",
+     "question": "When did coordinates add support for Mars-centered frames?",
+     "shown": 5
+    },
+    {
+     "kind": "control",
+     "question": "Launch cleanup: README and changelog, access instead of pricing, results stamped with the Snout version, claims check, recall evals rerun on 0.3.0, generated-marker fix, snout --version",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Session memory: a card per session, linked commits, recall when a prompt bears on it; CI workflow audit; notice when the plugin never started; Read opens PDFs and screenshots; remove the cloud service and old benchmark scripts",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Bench for 0.3.3: memory studies, frozen gate sets, handoff checks and context measurement",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Claims for 0.3.3: Claude Code cost per solved task measured on the release",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Context audit charges @AGENTS.md imports to Claude and counts root-session files only; SWE-bench protocol: plain arm, Claude Code 2.1.301, pilot sizes the confirmation",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "SWE-bench harness: run from a frozen copy of a committed build, verified byte for byte",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Context audit counts what Claude Code loads; generated-file and migration-snapshot rules; SWE-bench Verified protocol",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "SWE-bench harness: free dry run with a stand-in agent, Windows symlink-safe checkout, stop when Snout records nothing",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "SWE-bench harness runs on Windows; held-out task draw and plain baseline fixed before any run",
+     "shown": 0
+    },
+    {
+     "kind": "control",
+     "question": "Memory keeps instructions first, uninstall per agent, beta pricing",
+     "shown": 0
+    }
+   ],
+   "tasks": [
+    {
+     "sha": "0fe552bd31",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "c5bdcb9e9b",
+     "shown": 1,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "8c8439b1c7",
+     "shown": 4,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "f591a9fcb4",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "2936fe9f7e",
+     "shown": 1,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "8d3d17c50a",
+     "shown": 1,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "d27bef358f",
+     "shown": 1,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "ad8045386d",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "40efb1a8d6",
+     "shown": 5,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "82a3ef77a8",
+     "shown": 1,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "19172fe43a",
+     "shown": 5,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "501070db7e",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "98f0d6580b",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "a8fd292614",
+     "shown": 1,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "972a7c6c61",
+     "shown": 1,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "4a9c6a8011",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "2e9b133530",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "d26c6412c9",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "f1295f70b7",
+     "shown": 1,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "a41cc1bb7b",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "c330471599",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "ed7ace61fe",
+     "shown": 5,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "41b2293b72",
+     "shown": 5,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "1c395cb399",
+     "shown": 5,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "49c96aeac8",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "5e39dece70",
+     "shown": 2,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "a55373ee49",
+     "shown": 5,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "781217daae",
+     "shown": 1,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "7fc2184ff9",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "1e3b887a52",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "37dcfb3731",
+     "shown": 1,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "2767e754fa",
+     "shown": 5,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "4c945a3085",
+     "shown": 4,
+     "right": true,
+     "wrongOnly": false
+    },
+    {
+     "sha": "9d1030bc12",
+     "shown": 5,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "697cda92fc",
+     "shown": 3,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "e46c293254",
+     "shown": 0,
+     "right": false,
+     "wrongOnly": false
+    },
+    {
+     "sha": "909812638a",
+     "shown": 5,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "33d2594b18",
+     "shown": 5,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "667837ac65",
+     "shown": 2,
+     "right": false,
+     "wrongOnly": true
+    },
+    {
+     "sha": "ad9d20ffd4",
+     "shown": 5,
+     "right": false,
+     "wrongOnly": true
+    }
+   ],
+   "tokens": [
+    180,
+    358,
+    292,
+    335,
+    256,
+    295,
+    130,
+    270,
+    182,
+    352,
+    267,
+    161,
+    363,
+    195,
+    181,
+    20,
+    299,
+    25,
+    264,
+    202,
+    291,
+    325,
+    21,
+    137,
+    21,
+    186,
+    17,
+    25,
+    21,
+    322,
+    26,
+    26,
+    26,
+    26,
+    26,
+    26,
+    26,
+    26,
+    26,
+    24,
+    26,
+    126,
+    213,
+    26,
+    132,
+    122,
+    144,
+    229,
+    277,
+    133,
+    197,
+    317,
+    310,
+    144,
+    98,
+    26,
+    18,
+    21,
+    147,
+    24,
+    340,
+    281,
+    346,
+    190,
+    26,
+    164,
+    223,
+    118,
+    26,
+    26,
+    99,
+    247,
+    216,
+    311,
+    260,
+    22,
+    241,
+    244,
+    168,
+    211
+   ]
+  }
+ },
+ "rankedTop5MeaningFiles": 0.375,
+ "knownHasGold": 16,
+ "checks": [
+  {
+   "name": "words: unanswerable questions answered with nothing",
+   "ok": false,
+   "detail": "88% (bar 90%)"
+  },
+  {
+   "name": "words: checked questions answered with the right commit",
+   "ok": true,
+   "detail": "80% (bar 35%)"
+  },
+  {
+   "name": "words: checked questions answered only wrongly",
+   "ok": true,
+   "detail": "0% (bar <= 20%)"
+  },
+  {
+   "name": "words: tasks answered with a commit touching a gold file",
+   "ok": false,
+   "detail": "18% (bar 25%)"
+  },
+  {
+   "name": "meaning: unanswerable questions answered with nothing",
+   "ok": false,
+   "detail": "68% (bar 90%)"
+  },
+  {
+   "name": "meaning: checked questions answered with the right commit",
+   "ok": true,
+   "detail": "100% (bar 50%)"
+  },
+  {
+   "name": "meaning: checked questions answered only wrongly",
+   "ok": true,
+   "detail": "0% (bar <= 20%)"
+  },
+  {
+   "name": "meaning: tasks answered with a commit touching a gold file",
+   "ok": false,
+   "detail": "18% (bar 40%)"
+  },
+  {
+   "name": "meaning+files: a gold-touching commit ranked in the first five",
+   "ok": false,
+   "detail": "38% (bar 60%)"
+  },
+  {
+   "name": "output tokens (median, max)",
+   "ok": true,
+   "detail": "125 and 363 (bars 250, 600)"
+  },
+  {
+   "name": "warm search p95, meaning (in process)",
+   "ok": true,
+   "detail": "77 ms (words p95 15 ms; bar 250)"
+  },
+  {
+   "name": "cold CLI search, meaning (median of 5)",
+   "ok": true,
+   "detail": "526 ms (words 175 ms; bar 3000)"
+  },
+  {
+   "name": "peak memory with the model loaded",
+   "ok": true,
+   "detail": "419 MB (bar 450)"
+  }
+ ],
+ "pass": false,
+ "timings": {
+  "warmMs": {
+   "words": 10.148300000000745,
+   "meaning": 34.540600000007544
+  },
+  "coldCliMs": {
+   "words": [
+    165,
+    177,
+    174,
+    175,
+    186
+   ],
+   "meaning": [
+    551,
+    527,
+    525,
+    526,
+    512
+   ]
+  }
+ }
+}

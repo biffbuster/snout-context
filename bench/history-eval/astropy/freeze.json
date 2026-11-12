@@ -1,0 +1,787 @@
+{
+ "project": "astropy",
+ "frozenAt": "2026-11-09T21:23:24.856Z",
+ "seed": "snout-history-eval-2026-11-09",
+ "repo": {
+  "path": "~/.snout-bench/mapeval-clones3/astropy__astropy",
+  "ref": "origin/main",
+  "head": "4834673051018f1585a3f21e986994c1b1893d32",
+  "headAt": "2026-10-15T17:32:53+02:00"
+ },
+ "import": "--since 9m --no-gh --no-sessions",
+ "criteria": {
+  "negatives": {
+   "minSilentShare": {
+    "words": 0.9,
+    "meaning": 0.9
+   }
+  },
+  "checked": {
+   "minCorrectShare": {
+    "words": 0.35,
+    "meaning": 0.5
+   },
+   "maxWrongOnlyShare": {
+    "words": 0.2,
+    "meaning": 0.2
+   }
+  },
+  "tasks": {
+   "minAnsweredRightShare": {
+    "words": 0.25,
+    "meaning": 0.4
+   },
+   "minRankedTop5Share": {
+    "meaning+files": 0.6
+   }
+  },
+  "budget": {
+   "medianTokens": 250,
+   "maxTokens": 600
+  },
+  "performance": {
+   "warmP95Ms": 250,
+   "coldCliMeaningMs": 3000,
+   "rssMbMeaning": 450
+  }
+ },
+ "tasks": [
+  {
+   "sha": "0fe552bd31dc797a43fd6c0adba4cbb76a9b715f",
+   "subject": "Format percent-style scalar tick labels using the format unit instead of the coordinate native unit",
+   "query": "Format percent-style scalar tick labels using the format unit instead of the coordinate native unit",
+   "gold": [
+    "astropy/visualization/wcsaxes/formatter_locator.py"
+   ],
+   "cut": "2026-09-04T23:29:42.000Z",
+   "known": [
+    "astropy/visualization/wcsaxes/coordinate_helpers.py",
+    "astropy/visualization/wcsaxes/core.py",
+    "cextern/wcslib/CHANGES"
+   ]
+  },
+  {
+   "sha": "c5bdcb9e9b582ccf1da89fd4e58d61f18acb25a7",
+   "subject": "PERF: Move any handling of bytes after str path",
+   "query": "PERF: Move any handling of bytes after str path",
+   "gold": [
+    "astropy/units/core.py"
+   ],
+   "cut": "2026-07-23T14:07:16.000Z",
+   "known": [
+    "astropy/extern/configobj/configobj.py",
+    "astropy/io/fits/header.py",
+    "astropy/utils/data.py"
+   ]
+  },
+  {
+   "sha": "8c8439b1c7f27c3cb97e043b69b42b2e53ffb40e",
+   "subject": "BUG: ensure return type is correct.",
+   "query": "BUG: ensure return type is correct.",
+   "gold": [
+    "astropy/stats/sigma_clipping.py"
+   ],
+   "cut": "2026-08-19T16:10:01.000Z",
+   "known": [
+    "astropy/convolution/convolve.py",
+    "astropy/coordinates/angles/core.py",
+    "astropy/coordinates/angles/utils.py"
+   ]
+  },
+  {
+   "sha": "f591a9fcb4b3ff3469931a8e2f89670eadc0a031",
+   "subject": "Transform uint `_ImageBaseHDU`s with blanks to float/NaN for `ignore_blank=False`",
+   "query": "Transform uint `_ImageBaseHDU`s with blanks to float/NaN for `ignore_blank=False`",
+   "gold": [
+    "astropy/io/fits/hdu/image.py"
+   ],
+   "cut": "2026-10-15T13:20:09.000Z",
+   "known": [
+    "astropy/io/fits/hdu/image.py",
+    "astropy/io/fits/hdu/hdulist.py",
+    "astropy/io/fits/hdu/table.py"
+   ]
+  },
+  {
+   "sha": "2936fe9f7e5947ac0aefb532374c385df10598dc",
+   "subject": "Fix WCSPixel2WorldTransform to return an (N, dims) shaped array for empty pixel input instead of the transposed (dims, N) shape",
+   "query": "Fix WCSPixel2WorldTransform to return an (N, dims) shaped array for empty pixel input instead of the transposed (dims, N) shape",
+   "gold": [
+    "astropy/visualization/wcsaxes/wcsapi.py"
+   ],
+   "cut": "2026-09-04T23:29:42.000Z",
+   "known": [
+    "astropy/visualization/wcsaxes/wcsapi.py",
+    "astropy/wcs/src/wcslib_wrap.c",
+    "cextern/cfitsio/ChangeLog"
+   ]
+  },
+  {
+   "sha": "8d3d17c50af7b18e50d400e3ff3b8137187a5f6f",
+   "subject": "Remove the always-identity dpi/offset transform from CoordinateHelper ticks",
+   "query": "Remove the always-identity dpi/offset transform from CoordinateHelper ticks",
+   "gold": [
+    "astropy/visualization/wcsaxes/coordinate_helpers.py"
+   ],
+   "cut": "2026-09-04T23:29:42.000Z",
+   "known": [
+    "astropy/visualization/wcsaxes/coordinate_helpers.py",
+    "astropy/visualization/wcsaxes/core.py",
+    "cextern/wcslib/CHANGES"
+   ]
+  },
+  {
+   "sha": "d27bef358f6108f181112e3bfa1c976e5f2c8e39",
+   "subject": "Head angular_diameter_distance parameters section with z, not z1",
+   "query": "Head angular_diameter_distance parameters section with z, not z1",
+   "gold": [
+    "astropy/cosmology/_src/flrw/base.py"
+   ],
+   "cut": "2026-08-05T21:54:16.000Z",
+   "known": [
+    "astropy/cosmology/_src/flrw/base.py",
+    "astropy/cosmology/_src/funcs/optimize.py",
+    "astropy/cosmology/_src/units_equivalencies.py"
+   ]
+  },
+  {
+   "sha": "ad8045386de3123065baf2fb8328c5524ea94f9e",
+   "subject": "Update .mailmap for new contributors",
+   "query": "Update .mailmap for new contributors",
+   "gold": [
+    ".mailmap"
+   ],
+   "cut": "2026-10-02T20:43:26.000Z",
+   "known": [
+    "scripts/update-credits.py",
+    "astropy/CITATION",
+    "astropy/extern/ply/lex.py"
+   ]
+  },
+  {
+   "sha": "40efb1a8d6adb6ac22eb49d20b763447b8ecefcd",
+   "subject": "RFC: rewrite type annotations with PEP 695 type parameters",
+   "query": "RFC: rewrite type annotations with PEP 695 type parameters",
+   "gold": [
+    ".ruff.toml",
+    "astropy/convolution/_convolve.pyi",
+    "astropy/nddata/utils.py",
+    "astropy/utils/shapes.py",
+    "astropy/utils/xml/_iterparser.pyi"
+   ],
+   "cut": "2026-09-09T07:04:55.000Z",
+   "known": [
+    "astropy/extern/ply/lex.py",
+    "astropy/modeling/polynomial.py",
+    "astropy/nddata/nduncertainty.py"
+   ]
+  },
+  {
+   "sha": "82a3ef77a8590f37afcc7362ced5487aafa409b7",
+   "subject": "Escape the decimal point in the sexagesimal and scalar format-string regexes so malformed formats raise ValueError instead of silently dropping precision",
+   "query": "Escape the decimal point in the sexagesimal and scalar format-string regexes so malformed formats raise ValueError instead of silently dropping precision",
+   "gold": [
+    "astropy/visualization/wcsaxes/formatter_locator.py"
+   ],
+   "cut": "2026-09-04T23:29:42.000Z",
+   "known": [
+    "cextern/wcslib/CHANGES",
+    "astropy/io/fits/column.py",
+    "astropy/coordinates/angles/core.py"
+   ]
+  },
+  {
+   "sha": "19172fe43af85d5f20301d38a1a56372c68373a9",
+   "subject": "Fix typo in name",
+   "query": "Fix typo in name",
+   "gold": [
+    ".mailmap"
+   ],
+   "cut": "2026-10-14T13:55:50.000Z",
+   "known": [
+    "cextern/cfitsio/ChangeLog",
+    "cextern/expat/Changes"
+   ]
+  },
+  {
+   "sha": "501070db7ea3c7f23fae3f8cda321289887952d8",
+   "subject": "TYP: complete type annotations for test_configs.py, and fix an incorrect protocol",
+   "query": "TYP: complete type annotations for test_configs.py, and fix an incorrect protocol",
+   "gold": [
+    "astropy/config/paths.py"
+   ],
+   "cut": "2026-09-19T11:05:02.000Z",
+   "known": [
+    "astropy/utils/data.py",
+    "cextern/cfitsio/ChangeLog",
+    "astropy/modeling/core.py"
+   ]
+  },
+  {
+   "sha": "98f0d6580b02459698355682da4bc4ca47d8954e",
+   "subject": "Keep the mask when converting MaskedColumn to Quantity",
+   "query": "Keep the mask when converting MaskedColumn to Quantity",
+   "gold": [
+    "astropy/table/column.py"
+   ],
+   "cut": "2026-10-12T10:43:06.000Z",
+   "known": [
+    "astropy/table/operations.py",
+    "astropy/table/table.py",
+    "astropy/utils/iers/iers.py"
+   ]
+  },
+  {
+   "sha": "a8fd2926147633229f61df0b8fc72f1b4e610a93",
+   "subject": "Added backward-compatibility layer for configobj and validate and added deprecation warning",
+   "query": "Added backward-compatibility layer for configobj and validate and added deprecation warning",
+   "gold": [
+    "astropy/extern/configobj/__init__.py",
+    "astropy/extern/configobj/configobj.py",
+    "astropy/extern/configobj/validate.py"
+   ],
+   "cut": "2026-10-01T09:29:49.000Z",
+   "known": [
+    "pyproject.toml",
+    "astropy/modeling/core.py",
+    "astropy/utils/iers/iers.py"
+   ]
+  },
+  {
+   "sha": "972a7c6c61bc9d84dc9a2e0bc4ec60b29c0cf314",
+   "subject": "Fix line break",
+   "query": "Fix line break",
+   "gold": [
+    "astropy/visualization/wcsaxes/core.py"
+   ],
+   "cut": "2026-09-21T17:12:34.000Z",
+   "known": [
+    "astropy/coordinates/baseframe.py",
+    "astropy/coordinates/builtin_frames/__init__.py",
+    "astropy/coordinates/name_resolve.py"
+   ]
+  },
+  {
+   "sha": "4a9c6a8011efbc84c3ec83c9e8b60bfbd218de39",
+   "subject": "Use ax.coords.frame instead of a stale loop variable for the spine order in auto_assign_coord_positions",
+   "query": "Use ax.coords.frame instead of a stale loop variable for the spine order in auto_assign_coord_positions",
+   "gold": [
+    "astropy/visualization/wcsaxes/_auto.py"
+   ],
+   "cut": "2026-09-04T23:29:42.000Z",
+   "known": [
+    "astropy/visualization/wcsaxes/core.py",
+    "astropy/visualization/wcsaxes/_auto.py",
+    "astropy/visualization/wcsaxes/coordinate_helpers.py"
+   ]
+  },
+  {
+   "sha": "2e9b133530d102f6b6ce458d63b53706d4f9954a",
+   "subject": "Round the seconds with the builtin round",
+   "query": "Round the seconds with the builtin round",
+   "gold": [
+    "astropy/coordinates/angles/formats.py"
+   ],
+   "cut": "2026-08-10T08:16:44.000Z",
+   "known": [
+    "astropy/time/core.py",
+    "astropy/coordinates/sky_coordinate.py",
+    "astropy/io/votable/tree.py"
+   ]
+  },
+  {
+   "sha": "d26c6412c9d530a3bd1e7857b1b2d4eb9754e97e",
+   "subject": "ENH: allow general inplace arrays for np.add,subtract.",
+   "query": "ENH: allow general inplace arrays for np.add,subtract.",
+   "gold": [
+    "astropy/units/function/logarithmic.py"
+   ],
+   "cut": "2026-08-24T17:58:26.000Z",
+   "known": [
+    "astropy/io/fits/hdu/image.py",
+    "astropy/modeling/fitting.py",
+    "astropy/nddata/mixins/ndarithmetic.py"
+   ]
+  },
+  {
+   "sha": "f1295f70b7d56d26b8cd5ff0b0e2441817b79dc3",
+   "subject": "Fix off-by one bug in VOTable column index range check Passing a columns=len(fields) got past the range check, causing an empty-column table when using TABLEDATA. Also extend documentation to include the column index option.",
+   "query": "Fix off-by one bug in VOTable column index range check Passing a columns=len(fields) got past the range check, causing an empty-column table when using TABLEDATA. Also extend documentation to include the column index option.",
+   "gold": [
+    "astropy/io/votable/table.py",
+    "astropy/io/votable/tree.py"
+   ],
+   "cut": "2026-10-06T20:57:49.000Z",
+   "known": [
+    "cextern/cfitsio/ChangeLog",
+    "cextern/wcslib/CHANGES",
+    "cextern/expat/lib/expat.h"
+   ]
+  },
+  {
+   "sha": "a41cc1bb7bedf98ccf5b4f7c24b6fec02ebc732f",
+   "subject": "Use broadcast_shapes instead of broadcast in GCRS equality checks",
+   "query": "Use broadcast_shapes instead of broadcast in GCRS equality checks",
+   "gold": [
+    "astropy/coordinates/representation/base.py"
+   ],
+   "cut": "2026-09-17T07:16:01.000Z",
+   "known": [
+    "astropy/coordinates/baseframe.py",
+    "astropy/modeling/core.py",
+    "astropy/coordinates/sky_coordinate.py"
+   ]
+  },
+  {
+   "sha": "c3304715990d5ebd1d1d1348d8692eada89a929e",
+   "subject": "Make iterparse.c work with opaque Python objects (#20504)",
+   "query": "Make iterparse.c work with opaque Python objects",
+   "gold": [
+    "astropy/utils/xml/src/iterparse.c"
+   ],
+   "cut": "2026-09-30T19:55:49.000Z",
+   "known": [
+    "astropy/utils/xml/src/iterparse.c",
+    "astropy/utils/xml/setup_package.py",
+    "astropy/visualization/wcsaxes/core.py"
+   ]
+  },
+  {
+   "sha": "ed7ace61feed948701a39f5fc15e3b2d934cef85",
+   "subject": "Fix bug in parsing of frames in WCSAxes (#20480)",
+   "query": "Fix bug in parsing of frames in WCSAxes",
+   "gold": [
+    "astropy/visualization/wcsaxes/wcsapi.py"
+   ],
+   "cut": "2026-10-14T23:17:15.000Z",
+   "known": [
+    "astropy/visualization/wcsaxes/coordinate_helpers.py",
+    "astropy/visualization/wcsaxes/core.py",
+    "astropy/visualization/wcsaxes/frame.py"
+   ]
+  },
+  {
+   "sha": "41b2293b7280ea682ae8f6cacd2bb870ebeff890",
+   "subject": "Support masked Time in aggregate_downsample; mask BLS transit_time only if needed",
+   "query": "Support masked Time in aggregate_downsample; mask BLS transit_time only if needed",
+   "gold": [
+    "astropy/timeseries/downsample.py",
+    "astropy/timeseries/periodograms/bls/core.py"
+   ],
+   "cut": "2026-10-06T14:29:32.000Z",
+   "known": [
+    "astropy/timeseries/downsample.py",
+    "astropy/timeseries/periodograms/bls/core.py",
+    "astropy/timeseries/periodograms/bls/methods.py"
+   ]
+  },
+  {
+   "sha": "1c395cb3996ac0e4aab302ca079400951d3807c7",
+   "subject": "Fix typo",
+   "query": "Fix typo",
+   "gold": [
+    "astropy/utils/shapes.py"
+   ],
+   "cut": "2026-10-13T09:38:32.000Z",
+   "known": [
+    "cextern/cfitsio/ChangeLog",
+    "cextern/expat/Changes"
+   ]
+  },
+  {
+   "sha": "49c96aeac8c5c40e554770fa036b70a6c6676201",
+   "subject": "Fix block_replicate promoting float16/float32/complex64 inputs to float64 (#20364)",
+   "query": "Fix block_replicate promoting float16/float32/complex64 inputs to float64",
+   "gold": [
+    "astropy/nddata/blocks.py"
+   ],
+   "cut": "2026-09-11T13:58:33.000Z",
+   "known": [
+    "astropy/io/misc/yaml.py",
+    "astropy/coordinates/baseframe.py",
+    "astropy/io/votable/converters.py"
+   ]
+  },
+  {
+   "sha": "5e39dece702c418f7d24d1e9abeb2d6488445359",
+   "subject": "fix: declare null_value as fixed-width types",
+   "query": "fix: declare null_value as fixed-width types",
+   "gold": [
+    "astropy/io/votable/src/fast_converters.pyx"
+   ],
+   "cut": "2026-09-11T07:33:03.000Z",
+   "known": [
+    "astropy/io/misc/ecsv.py",
+    "astropy/table/column.py",
+    "cextern/cfitsio/ChangeLog"
+   ]
+  },
+  {
+   "sha": "a55373ee49237819c77b2690c02ba968bb6448e1",
+   "subject": "Update minimum required version of astropy-iers-data",
+   "query": "Update minimum required version of astropy-iers-data",
+   "gold": [
+    "pyproject.toml"
+   ],
+   "cut": "2026-08-02T00:34:54.000Z",
+   "known": [
+    "astropy/time/core.py",
+    "pyproject.toml",
+    "astropy/coordinates/earth.py"
+   ]
+  },
+  {
+   "sha": "781217daaea32114e5c789269df11b2e584a80eb",
+   "subject": "BUG: make better effort to make hashes of units logical",
+   "query": "BUG: make better effort to make hashes of units logical",
+   "gold": [
+    "astropy/units/core.py"
+   ],
+   "cut": "2026-08-08T12:58:00.000Z",
+   "known": [
+    "astropy/io/fits/fitsrec.py",
+    "astropy/units/core.py",
+    "astropy/utils/shapes.py"
+   ]
+  },
+  {
+   "sha": "7fc2184ff9b572bab54d32ba8fcafb7cfe4b5afa",
+   "subject": "Use deprecated directives with the deprecation versions for the exclude_overlapping and rule arguments",
+   "query": "Use deprecated directives with the deprecation versions for the exclude_overlapping and rule arguments",
+   "gold": [
+    "astropy/visualization/wcsaxes/coordinate_helpers.py"
+   ],
+   "cut": "2026-09-18T22:03:30.000Z",
+   "known": [
+    "astropy/visualization/wcsaxes/coordinate_helpers.py",
+    "astropy/stats/funcs.py",
+    "astropy/visualization/wcsaxes/ticklabels.py"
+   ]
+  },
+  {
+   "sha": "1e3b887a52656a05e7173460155d73ce72226817",
+   "subject": "Remove dead _pixel attribute assignments from the unused Spine world setter",
+   "query": "Remove dead _pixel attribute assignments from the unused Spine world setter",
+   "gold": [
+    "astropy/visualization/wcsaxes/frame.py"
+   ],
+   "cut": "2026-09-04T23:29:42.000Z",
+   "known": [
+    "cextern/wcslib/CHANGES",
+    "astropy/visualization/wcsaxes/coordinate_helpers.py",
+    "astropy/visualization/wcsaxes/frame.py"
+   ]
+  },
+  {
+   "sha": "37dcfb37312e8f2b6df0479849f3a24f3a92423e",
+   "subject": "Remove un-needed Giles config",
+   "query": "Remove un-needed Giles config",
+   "gold": [
+    "pyproject.toml"
+   ],
+   "cut": "2026-10-06T14:42:12.000Z",
+   "known": [
+    ".circleci/config.yml",
+    "astropy/io/ascii/tdat.py",
+    "astropy/io/fits/hdu/hdulist.py"
+   ]
+  },
+  {
+   "sha": "2767e754facdd0517866cf539d5a436c23ed537b",
+   "subject": "Merge pull request #20538 from snbianco/logger-warnings",
+   "query": "Merge pull request from snbianco/logger-warnings",
+   "gold": [
+    "astropy/logger.py"
+   ],
+   "cut": "2026-10-13T19:55:30.000Z",
+   "known": [
+    "pyproject.toml",
+    "astropy/table/table.py",
+    "cextern/expat/Changes"
+   ]
+  },
+  {
+   "sha": "4c945a30852c6e40c6b4ea035bd56c0870937744",
+   "subject": "ENH: Allow one to pass in Masked instances in sigma_clip.",
+   "query": "ENH: Allow one to pass in Masked instances in sigma_clip.",
+   "gold": [
+    "astropy/stats/sigma_clipping.py"
+   ],
+   "cut": "2026-08-19T16:10:01.000Z",
+   "known": [
+    "astropy/stats/sigma_clipping.py",
+    "astropy/units/quantity.py",
+    "astropy/utils/iers/iers.py"
+   ]
+  },
+  {
+   "sha": "9d1030bc123964b2181abe856ea669f10b626704",
+   "subject": "BUG,MAINT: ensure biweight functions also work with Masked.",
+   "query": "BUG,MAINT: ensure biweight functions also work with Masked.",
+   "gold": [
+    "astropy/stats/biweight.py",
+    "astropy/stats/funcs.py"
+   ],
+   "cut": "2026-08-19T16:10:01.000Z",
+   "known": [
+    "astropy/stats/biweight.py",
+    "astropy/stats/sigma_clipping.py",
+    "astropy/stats/__init__.py"
+   ]
+  },
+  {
+   "sha": "697cda92fc177cef5834410e7dde7782d570b7c9",
+   "subject": "DEPR: formally deprecate and stop using a semi-private alias utility function (`astropy.utils.data._is_url`)",
+   "query": "DEPR: formally deprecate and stop using a semi-private alias utility function (`astropy.utils.data._is_url`)",
+   "gold": [
+    "astropy/io/fits/file.py",
+    "astropy/utils/data.py"
+   ],
+   "cut": "2026-09-03T15:23:03.000Z",
+   "known": [
+    "cextern/cfitsio/ChangeLog",
+    "cextern/wcslib/C/wcs.h",
+    "cextern/wcslib/C/flexed/fitshdr.c"
+   ]
+  },
+  {
+   "sha": "e46c293254854d28cbc9cb43afdf165048c2b8ae",
+   "subject": "Fix missing column parent-table link on a deep-copied Table (#20088)",
+   "query": "Fix missing column parent-table link on a deep-copied Table",
+   "gold": [
+    "astropy/table/table.py"
+   ],
+   "cut": "2026-07-28T15:52:54.000Z",
+   "known": [
+    "astropy/io/fits/fitsrec.py",
+    "astropy/table/column.py",
+    "astropy/table/table.py"
+   ]
+  },
+  {
+   "sha": "909812638a4940bb6d6e53a79987ac3131f668ec",
+   "subject": "Apply suggestions from code review",
+   "query": "Apply suggestions from code review",
+   "gold": [
+    "astropy/io/fits/hdu/image.py"
+   ],
+   "cut": "2026-10-15T13:20:09.000Z",
+   "known": [
+    "cextern/wcslib/CHANGES",
+    "astropy/wcs/wcsapi/fitswcs.py",
+    "cextern/wcslib/THANKS"
+   ]
+  },
+  {
+   "sha": "33d2594b1875ac2914280c7426dcf8ed7ece856a",
+   "subject": "Merge pull request #20147 from Dhevenddra/fix-duplicated-words-user-facing-text",
+   "query": "Merge pull request from Dhevenddra/fix-duplicated-words-user-facing-text",
+   "gold": [
+    "astropy/coordinates/representation/base.py",
+    "astropy/uncertainty/distributions.py"
+   ],
+   "cut": "2026-07-29T19:52:24.000Z",
+   "known": [
+    "cextern/cfitsio/ChangeLog",
+    "cextern/expat/lib/xmlparse.c",
+    "astropy/io/fits/column.py"
+   ]
+  },
+  {
+   "sha": "667837ac65882487d40f3cb5425fdbb1edf1ba21",
+   "subject": "WHL: upgrade cibuildwheel through OpenAstronomy/github-actions-workflows and enable testing wheels against cp315 on all platforms",
+   "query": "WHL: upgrade cibuildwheel through OpenAstronomy/github-actions-workflows and enable testing wheels against cp315 on all platforms",
+   "gold": [
+    "pyproject.toml"
+   ],
+   "cut": "2026-08-18T09:36:48.000Z",
+   "known": [
+    "pyproject.toml",
+    "cextern/expat/Changes",
+    "cextern/cfitsio/ChangeLog"
+   ]
+  },
+  {
+   "sha": "ad9d20ffd440a21b338ae4805b395b96d5d7e13d",
+   "subject": "Merge pull request #20284 from pllim/unleash-numpydoc-precommit",
+   "query": "Merge pull request from pllim/unleash-numpydoc-precommit",
+   "gold": [
+    ".pre-commit-config.yaml",
+    "pyproject.toml"
+   ],
+   "cut": "2026-09-09T18:07:35.000Z",
+   "known": [
+    "pyproject.toml",
+    "astropy/table/table.py",
+    "cextern/expat/Changes"
+   ]
+  }
+ ],
+ "checked": [
+  {
+   "sha": "9f4de8d6a62c527f0a1ba8d6b7b4c6e70d7bcf86",
+   "question": "When the IERS-A table is stale and a conversion needs predictive values, does IERS_Auto still always raise, or does iers_degraded_accuracy apply?",
+   "subject": "Apply iers_degraded_accuracy to stale IERS_Auto predictive values (#20256)"
+  },
+  {
+   "sha": "60c9c64c358ed0026415f64f0c0f65e9ed314fce",
+   "question": "Negative indices in WCS.slice were counted from the wrong end of the axis; what fixed that and what happened to sanitize_slices?",
+   "subject": "Use simplify_basic_index to normalize slices in WCS.slice and SlicedLowLevelWCS, which fixes negative values not being interpreted relative to the end of the axes, and deprecate sanitize_slices"
+  },
+  {
+   "sha": "98b363521db7012bdcb8d0f98098c22f3999fc9f",
+   "question": "Unsigned 64-bit image data came back shifted after a compressed FITS write and read; what was the fix?",
+   "subject": "Fix uint64 data being silently shifted by 2**63 on compressed FITS round-trip, and explicitly reject RICE_1/PLIO_1 with uint64 values that do not fit in 32 bits"
+  },
+  {
+   "sha": "a26c0e8adcb910fd9f18c4baa2afc7049ed49215",
+   "question": "What does astropy.wcs.get_include do now if astropy was built against the system WCSLIB?",
+   "subject": "Make astropy.wcs.get_include raise an exception when astropy was built against system WCSLIB (#20048)"
+  },
+  {
+   "sha": "2c22da3a5c8bad63c2bc913e81a1a33c54471117",
+   "question": "Cutout2D.plot_on_original drew the cutout outline with the wrong extent; when was that fixed?",
+   "subject": "fix Cutout2D.plot_on_original span"
+  },
+  {
+   "sha": "caa5d6673c4f94a8461db65d069d6f8e681ead5b",
+   "question": "Do we have a test that pickles a DataInfo object that isn't bound to a parent?",
+   "subject": "Add regression test for unbound DataInfo pickling"
+  },
+  {
+   "sha": "080ab52378622c705e29b3210ed85bb09d067393",
+   "question": "In the WCSAxes API code, why was the length check before removing the custom: prefix of an axis type taken out?",
+   "subject": "Remove dead always-true length check before stripping the custom: prefix from axis_type_split"
+  },
+  {
+   "sha": "5304deababb2ccbb37a3576e8942a35707788c2c",
+   "question": "Which method does the fast Lomb-Scargle implementation use by default, and when did it stop using fasper?",
+   "subject": "Change default LS fast algorithm from 'fasper' to 'lra'"
+  },
+  {
+   "sha": "d96b81638081f4cf974aa7fe9e6e3001be0a29b6",
+   "question": "In the script that updates the what's new stats, how does it check that the page exists for an explicit path versus the default one?",
+   "subject": "Unify the page existence check across the explicit and default path cases"
+  },
+  {
+   "sha": "987d44ff3d57e98064520936f24bb77dcaadfc36",
+   "question": "structured_to_unstructured on a StructuredQuantity got its unit wrong; where was that fixed?",
+   "subject": "Fix unit extraction in structured_to_unstructured for StructuredQuantity"
+  },
+  {
+   "sha": "5aee7891004af3439a04ce949d430872e27d214b",
+   "question": "Do masked arrays support numpy's new top_k function from the numpy 2.6 development version?",
+   "subject": "BUG: support numpy.top_k (numpy 2.6.0dev) (utils.masked)"
+  },
+  {
+   "sha": "a41cc1bb7bedf98ccf5b4f7c24b6fec02ebc732f",
+   "question": "Did comparing GCRS frames for equality get cheaper by avoiding a full array broadcast?",
+   "subject": "Use broadcast_shapes instead of broadcast in GCRS equality checks"
+  },
+  {
+   "sha": "5e39dece702c418f7d24d1e9abeb2d6488445359",
+   "question": "VOTable null values in the fast converters were declared with the wrong integer widths; what changed?",
+   "subject": "fix: declare null_value as fixed-width types"
+  },
+  {
+   "sha": "d14e403a9ccbea5e1a2208de5333154df40a30f9",
+   "question": "Why was the text_size computation dropped from the tick label alignment code in WCSAxes?",
+   "subject": "Remove unused text_size computation in TickLabels._set_xy_alignments"
+  },
+  {
+   "sha": "ba7a7869f4537d64791427854367d5cb0aa111a8",
+   "question": "Why did we remove the special case for fitsio's cooldown period from the project configuration?",
+   "subject": "DEP/CLN: cleanup now unnecessary special-casing for fitsio's cooldown period"
+  }
+ ],
+ "negatives": [
+  {
+   "question": "Why was the FITS header parser rewritten in Rust?"
+  },
+  {
+   "question": "When did astropy.table drop support for writing HDF5 files?",
+   "note": "hard: a commit skips an HDF5 test when h5py is missing; it doesn't answer this"
+  },
+  {
+   "question": "Why did the cosmology module move its distance calculations to the GPU?"
+  },
+  {
+   "question": "What broke when the bundled WCSLIB was upgraded to version 9.0?"
+  },
+  {
+   "question": "Why are coordinate transformation results cached in Redis now?"
+  },
+  {
+   "question": "When did astropy.time stop accepting Julian dates given as strings?"
+  },
+  {
+   "question": "Why was the Lomb-Scargle periodogram split out into its own package?"
+  },
+  {
+   "question": "Why did the default cosmology change to Planck 2023?"
+  },
+  {
+   "question": "Why did we replace the VOTable XML parser with lxml?"
+  },
+  {
+   "question": "When did convolution switch to using FFTW by default?"
+  },
+  {
+   "question": "Why does the ECSV writer now emit YAML 1.2 headers?"
+  },
+  {
+   "question": "Why did NDData stop supporting masks?"
+  },
+  {
+   "question": "Why did Quantity printing switch to engineering notation by default?"
+  },
+  {
+   "question": "Why was the units module ported to use pint internally?"
+  },
+  {
+   "question": "When did coordinates add support for Mars-centered frames?"
+  }
+ ],
+ "controls": [
+  {
+   "from": "snout-context 66e02cd9dc",
+   "query": "Launch cleanup: README and changelog, access instead of pricing, results stamped with the Snout version, claims check, recall evals rerun on 0.3.0, generated-marker fix, snout --version"
+  },
+  {
+   "from": "snout-context e31323eb3a",
+   "query": "Session memory: a card per session, linked commits, recall when a prompt bears on it; CI workflow audit; notice when the plugin never started; Read opens PDFs and screenshots; remove the cloud service and old benchmark scripts"
+  },
+  {
+   "from": "snout-context d9fa60c575",
+   "query": "Bench for 0.3.3: memory studies, frozen gate sets, handoff checks and context measurement"
+  },
+  {
+   "from": "snout-context cc47534490",
+   "query": "Claims for 0.3.3: Claude Code cost per solved task measured on the release"
+  },
+  {
+   "from": "snout-context fad9db91e8",
+   "query": "Context audit charges @AGENTS.md imports to Claude and counts root-session files only; SWE-bench protocol: plain arm, Claude Code 2.1.301, pilot sizes the confirmation"
+  },
+  {
+   "from": "snout-context 7697d070c3",
+   "query": "SWE-bench harness: run from a frozen copy of a committed build, verified byte for byte"
+  },
+  {
+   "from": "snout-context 7f0a1fedae",
+   "query": "Context audit counts what Claude Code loads; generated-file and migration-snapshot rules; SWE-bench Verified protocol"
+  },
+  {
+   "from": "snout-context fd08c4940d",
+   "query": "SWE-bench harness: free dry run with a stand-in agent, Windows symlink-safe checkout, stop when Snout records nothing"
+  },
+  {
+   "from": "snout-context dacb001148",
+   "query": "SWE-bench harness runs on Windows; held-out task draw and plain baseline fixed before any run"
+  },
+  {
+   "from": "snout-context f9e982bb48",
+   "query": "Memory keeps instructions first, uninstall per agent, beta pricing"
+  }
+ ]
+}

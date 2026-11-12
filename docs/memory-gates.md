@@ -1170,3 +1170,52 @@ Owner's terms: in three phases, tighten what gets written, deliver high-confiden
 - Stand-in billing handoff (`bench/lesson-handoff.mjs`): PASS in both directions.
 - Chargeline handoff dry run (`bench/ab-results/handoff-dryrun-1793377846880.json`): lesson handed off both ways: approved, shown, opened, solved. `bench/handoff/freeze-lesson.json` was frozen again for the new bundle; the live run hasn't been made.
 - `npm run verify` from PowerShell exited 0, with 513 of 513 tests passing.
+
+## History search: ranking and admission redesign (2026-11-09): new frozen projects FAIL
+
+**Question.** Does search over the imported history (commits) answer real questions and stay silent on
+questions history doesn't answer? Retrieval only, no agent run; no cost or "smarter agents" claim.
+
+**Diagnosis first** (`bench/history-diagnose.mjs`, development sets vite and django from
+`bench/import-asof/`). The right commit was among the candidates for 40 of 40 vite tasks and 30 of 33
+answerable django ones; it was lost at admission and ranking. The old "absent from the candidates"
+label only looked at the first 20 shown; it is now "not among the first 20 shown".
+
+**Design** (`src/memory/history-search.ts`). Permissions and the as-of cut first, then every visible
+record is ranked: BM25 with word statistics from those records only, meaning from the optional local
+model (bge-small, all visible records, not a shortlist), files the agent names (`files` in
+`snout_memory_search`, `--files` in the CLI); ranks fused (RRF, k = 60). Admission is separate: only the
+first `limit` ranked records, each needing an exact clue (sha, PR, version, path), or meaning >= 0.74,
+or meaning >= 0.68 with >= 30% of the question's rarer-word weight, or (no model) >= 40% with two shared
+words. Files rank, never admit. Vectors cached per project; an import embeds all; a search embeds at
+most 256. Thresholds fixed on vite and django (`bench/history-calibrate.mjs`) before the new projects.
+
+**Regression.** The 17 Gate 3 sets, released build against this one: 91 of 1,980 search outputs
+differ, all in history lines (78 show fewer commits, such as an unrelated "Initial" commit); 0 answers
+lost or gained, silence unchanged, 0 uncited or out-of-date lines.
+
+**New frozen projects** (`bench/history-eval.mjs`, frozen before any run; freeze fingerprints in the
+results): astropy (1,971 commits imported) and tokio (525). Each: 40 commit tasks (gold = changed source
+files, a proxy), 15 model-written questions with a known answer commit, 15 realistic questions history
+doesn't answer, 10 unrelated controls. Run once.
+
+| Both projects | Released 0.3.3 | Redesign, words | Redesign, meaning |
+| --- | --- | --- | --- |
+| Known-answer questions answered right | 30/30 | 26/30 | 30/30 |
+| ...answered only wrongly | 0 | 0 | 0 |
+| Unanswerable questions answered with nothing (bar 90% per project) | 5/50 | 41/50 | 36/50 |
+| ...of those, unrelated controls | | 20/20 | 20/20 |
+| Commit tasks answered with a commit touching a gold file | 35/80 | 23/80 | 26/80 |
+
+Verdict: **FAIL** on both projects (`bench/history-eval/{astropy,tokio}/results-redesign.json`). Failing
+stage: **admission**. Every unanswered-question failure was an in-domain false premise answered by an
+on-topic record that doesn't answer it ("When did astropy.table drop HDF5 writing?" shown "Skip HDF5
+test if h5py not installed"; "Why was JoinSet deprecated?" shown "add a Stream wrapper for JoinSet").
+Similarity and word coverage measure relatedness, not answering; the development negatives were
+off-topic and never tested this. Astropy's commit tasks also fail at ranking (right commit in the
+first five 38%; six questions such as "Fix typo" carry no information). One bug: a two-part version in
+a question ("YAML 1.2") counts as an exact clue for any record with "v1.2". Passed: output size (median
+125 tokens, max 363), warm search p95 77 ms with meaning, cold CLI search 0.5 s, 419 MB peak with the model.
+
+Not done, by the stop rule: no threshold change, no new sets. The questions were written and checked by
+the model, not a person (`review.md` in each project folder).

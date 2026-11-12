@@ -1,0 +1,801 @@
+{
+ "project": "tokio",
+ "frozenAt": "2026-11-09T21:23:35.964Z",
+ "seed": "snout-history-eval-2026-11-09",
+ "repo": {
+  "path": "~/.snout-bench/clones/tokio",
+  "ref": "origin/master",
+  "head": "c1489e0ef85f00f3590585eab1f1712129834742",
+  "headAt": "2026-11-09T13:34:00+01:00"
+ },
+ "import": "--since 9m --no-gh --no-sessions",
+ "criteria": {
+  "negatives": {
+   "minSilentShare": {
+    "words": 0.9,
+    "meaning": 0.9
+   }
+  },
+  "checked": {
+   "minCorrectShare": {
+    "words": 0.35,
+    "meaning": 0.5
+   },
+   "maxWrongOnlyShare": {
+    "words": 0.2,
+    "meaning": 0.2
+   }
+  },
+  "tasks": {
+   "minAnsweredRightShare": {
+    "words": 0.25,
+    "meaning": 0.4
+   },
+   "minRankedTop5Share": {
+    "meaning+files": 0.6
+   }
+  },
+  "budget": {
+   "medianTokens": 250,
+   "maxTokens": 600
+  },
+  "performance": {
+   "warmP95Ms": 250,
+   "coldCliMeaningMs": 3000,
+   "rssMbMeaning": 450
+  }
+ },
+ "tasks": [
+  {
+   "sha": "a09d3cf1da7773c221ca02f104bd66fc25dc6cf3",
+   "subject": "stream: clarify post-termination behavior in fuse docs (#8743)",
+   "query": "stream: clarify post-termination behavior in fuse docs",
+   "gold": [
+    "tokio-stream/src/stream_ext.rs"
+   ],
+   "cut": "2026-11-08T17:46:57.000Z",
+   "known": [
+    "tokio/src/sync/mpsc/mod.rs",
+    "tokio-stream/src/stream_ext.rs",
+    "tokio/src/macros/select.rs"
+   ]
+  },
+  {
+   "sha": "e0f829f033008a86f70402b7ec4ea7f7f4652874",
+   "subject": "time: add `Interval::deadline` (#8732)",
+   "query": "time: add `Interval::deadline`",
+   "gold": [
+    "tokio/src/time/interval.rs"
+   ],
+   "cut": "2026-10-28T12:08:27.000Z",
+   "known": [
+    "tokio-stream/src/stream_ext.rs",
+    "tokio/src/time/interval.rs",
+    "tokio/src/time/sleep.rs"
+   ]
+  },
+  {
+   "sha": "d241e4b5112ade7fa47310f39f81f59521ce988b",
+   "subject": "sync: preserve FIFO lock order when coop budget is exhausted (#8371)",
+   "query": "sync: preserve FIFO lock order when coop budget is exhausted",
+   "gold": [
+    "tokio/src/sync/batch_semaphore.rs"
+   ],
+   "cut": "2026-10-11T09:17:26.000Z",
+   "known": [
+    "tokio/src/time/timeout.rs",
+    "tokio/src/runtime/mod.rs",
+    "tokio/src/task/coop/consume_budget.rs"
+   ]
+  },
+  {
+   "sha": "99dbe548b7046915cd56e570e31604e1f8fa83cd",
+   "subject": "util: fix `spawn_pinned` source location for console (#8753)",
+   "query": "util: fix `spawn_pinned` source location for console",
+   "gold": [
+    "tokio-util/Cargo.toml",
+    "tokio-util/src/task/spawn_pinned.rs"
+   ],
+   "cut": "2026-11-08T18:39:20.000Z",
+   "known": [
+    "tokio/src/sync/mutex.rs",
+    "tokio/src/sync/rwlock.rs",
+    "tokio/src/sync/semaphore.rs"
+   ]
+  },
+  {
+   "sha": "535e802e747281b25d414875e605f80d1d0eca1e",
+   "subject": "codec: error on eof when a length-delimited frame head has no payload (#8530)",
+   "query": "codec: error on eof when a length-delimited frame head has no payload",
+   "gold": [
+    "tokio-util/src/codec/length_delimited.rs"
+   ],
+   "cut": "2026-10-11T11:11:10.000Z",
+   "known": [
+    "tokio-util/src/codec/length_delimited.rs",
+    "tokio/src/io/util/async_buf_read_ext.rs",
+    "tokio-util/src/codec/any_delimiter_codec.rs"
+   ]
+  },
+  {
+   "sha": "3eb95a40f1b88623470c4e902e2fa90e807fdeed",
+   "subject": "wasm: use sleep on emscripten without JSPI (#8528)",
+   "query": "wasm: use sleep on emscripten without JSPI",
+   "gold": [
+    "tokio/src/lib.rs",
+    "tokio/src/runtime/park.rs"
+   ],
+   "cut": "2026-10-07T06:18:11.000Z",
+   "known": [
+    "tokio/src/lib.rs",
+    "tokio/src/runtime/mod.rs",
+    "tokio/src/runtime/park.rs"
+   ]
+  },
+  {
+   "sha": "40b87794823653f4f0615c089ab536a74e67c5e9",
+   "subject": "sync: revert `Box::leak` usage (#8522)",
+   "query": "sync: revert `Box::leak` usage",
+   "gold": [
+    "tokio/src/sync/mpsc/block.rs"
+   ],
+   "cut": "2026-09-29T09:07:27.000Z",
+   "known": [
+    "tokio/src/sync/mpsc/block.rs",
+    "tokio/src/macros/select.rs",
+    "tokio/src/task/coop/mod.rs"
+   ]
+  },
+  {
+   "sha": "f987088648d9ea95bf091fdd0b05445a40ca4999",
+   "subject": "chore: prepare tokio-test 0.4.6 (#8508)",
+   "query": "chore: prepare tokio-test 0.4.6",
+   "gold": [
+    "tokio-test/Cargo.toml"
+   ],
+   "cut": "2026-09-25T09:29:42.000Z",
+   "known": [
+    "tokio-util/src/codec/framed_impl.rs",
+    "tokio-util/src/sync/mpsc.rs",
+    "tokio/src/fs/read_uring.rs"
+   ]
+  },
+  {
+   "sha": "6303e1882c5ab6fdb0004c4d25408a34ca609a34",
+   "subject": "sync: wake broadcast `Sender::closed` outside mutex (#8558)",
+   "query": "sync: wake broadcast `Sender::closed` outside mutex",
+   "gold": [
+    "tokio/src/sync/broadcast.rs"
+   ],
+   "cut": "2026-10-02T22:49:23.000Z",
+   "known": [
+    "tokio/src/sync/broadcast.rs",
+    "tokio/src/sync/oneshot.rs",
+    "tokio/src/sync/watch.rs"
+   ]
+  },
+  {
+   "sha": "916ef20c63eed09b6088ea6dbf2dd2cba304c149",
+   "subject": "io: add Loom coverage for deregistration and event delivery (#8505)",
+   "query": "io: add Loom coverage for deregistration and event delivery",
+   "gold": [
+    "tokio/src/runtime/io/driver.rs",
+    "tokio/src/runtime/io/registration.rs",
+    "tokio/src/runtime/io/registration_set.rs",
+    "tokio/src/runtime/io/scheduled_io.rs"
+   ],
+   "cut": "2026-10-11T13:37:14.000Z",
+   "known": [
+    "tokio/src/signal/registry.rs",
+    "tokio/src/signal/unix.rs",
+    "tokio/src/runtime/io/registration.rs"
+   ]
+  },
+  {
+   "sha": "67c58565dcbf12db9ac4420a3690045a8eedce79",
+   "subject": "codec: clarify read buffer mutation requirements (#8690)",
+   "query": "codec: clarify read buffer mutation requirements",
+   "gold": [
+    "tokio-util/src/codec/framed.rs",
+    "tokio-util/src/codec/framed_read.rs"
+   ],
+   "cut": "2026-11-08T17:58:39.000Z",
+   "known": [
+    "tokio/src/fs/read.rs",
+    "tokio/src/fs/read_uring.rs",
+    "tokio/src/io/uring/statx.rs"
+   ]
+  },
+  {
+   "sha": "42c5d2b415a6fba075a6180ef68291be3cd66ab2",
+   "subject": "stream: implement `FusedStream` for more adapters (#8466)",
+   "query": "stream: implement `FusedStream` for more adapters",
+   "gold": [
+    "tokio-stream/src/stream_ext/chunks_timeout.rs",
+    "tokio-stream/src/stream_ext/peekable.rs",
+    "tokio-util/src/io/reader_stream.rs"
+   ],
+   "cut": "2026-10-11T12:00:36.000Z",
+   "known": [
+    "tokio/src/macros/select.rs",
+    "tokio-stream/src/stream_ext/throttle.rs",
+    "tokio-stream/src/lib.rs"
+   ]
+  },
+  {
+   "sha": "ce2399a718b51cb69d5ff39fb6a7d9c850ef100b",
+   "subject": "io: make `copy_buf` cooperative (#8459)",
+   "query": "io: make `copy_buf` cooperative",
+   "gold": [
+    "tokio/src/io/util/copy_buf.rs"
+   ],
+   "cut": "2026-09-13T03:36:03.000Z",
+   "known": [
+    "tokio/src/io/mod.rs",
+    "tokio/src/io/util/copy.rs",
+    "tokio/src/io/util/copy_buf.rs"
+   ]
+  },
+  {
+   "sha": "df6e04f2d8515297b7e769f3c9e09bcb1ea54c7d",
+   "subject": "task: bound `JoinMap` capacity by both tables (#8600)",
+   "query": "task: bound `JoinMap` capacity by both tables",
+   "gold": [
+    "tokio-util/src/task/join_map.rs"
+   ],
+   "cut": "2026-10-09T12:38:35.000Z",
+   "known": [
+    "tokio-util/src/task/join_map.rs",
+    "tokio-stream/src/stream_map.rs",
+    "tokio/src/sync/broadcast.rs"
+   ]
+  },
+  {
+   "sha": "57108460ac60427e9b6948ef7df56ba6e03316d8",
+   "subject": "task: return promptly when joining an empty JoinMap (#8598)",
+   "query": "task: return promptly when joining an empty JoinMap",
+   "gold": [
+    "tokio-util/src/task/join_map.rs"
+   ],
+   "cut": "2026-10-09T16:07:57.000Z",
+   "known": [
+    "tokio-util/src/task/join_map.rs",
+    "tokio-util/src/task/mod.rs",
+    "tokio/src/macros/join.rs"
+   ]
+  },
+  {
+   "sha": "24ca4458fdf37efa54078af227889f7b5be70c53",
+   "subject": "time: drop timer lock before dropping waker in clear_entry (#8552)",
+   "query": "time: drop timer lock before dropping waker in clear_entry",
+   "gold": [
+    "tokio/src/runtime/time/mod.rs"
+   ],
+   "cut": "2026-10-02T22:48:50.000Z",
+   "known": [
+    "tokio/src/runtime/time/entry.rs",
+    "tokio/src/runtime/time/mod.rs",
+    "tokio/src/runtime/io/scheduled_io.rs"
+   ]
+  },
+  {
+   "sha": "95e21014596539e46654fdd366195cbd1c462fae",
+   "subject": "runtime: link `available_parallelism` in worker count docs (#8625)",
+   "query": "runtime: link `available_parallelism` in worker count docs",
+   "gold": [
+    "tokio/src/runtime/builder.rs",
+    "tokio/src/runtime/mod.rs"
+   ],
+   "cut": "2026-10-11T11:53:01.000Z",
+   "known": [
+    "tokio/src/macros/select.rs",
+    "tokio/src/sync/broadcast.rs",
+    "tokio/src/macros/join.rs"
+   ]
+  },
+  {
+   "sha": "011f7f4b470463cf7141f2da944316a599639a07",
+   "subject": "time: simplify wheel constants (#8335)",
+   "query": "time: simplify wheel constants",
+   "gold": [
+    "tokio/src/runtime/time/wheel/level.rs",
+    "tokio/src/runtime/time/wheel/mod.rs",
+    "tokio/src/runtime/time_alt/wheel/level.rs",
+    "tokio/src/runtime/time_alt/wheel/mod.rs"
+   ],
+   "cut": "2026-08-09T15:42:41.000Z",
+   "known": [
+    "tokio/src/util/error.rs",
+    "tokio-test/src/macros.rs",
+    "tokio-util/src/time/delay_queue.rs"
+   ]
+  },
+  {
+   "sha": "85a6d13882e2ccf5c24131b282bab0214b0a493e",
+   "subject": "io: revert \"always cleanup AsyncFd registration list on deregister\" (#8540)",
+   "query": "io: revert \"always cleanup AsyncFd registration list on deregister\"",
+   "gold": [
+    "tokio/src/runtime/io/driver.rs"
+   ],
+   "cut": "2026-10-02T22:52:21.000Z",
+   "known": [
+    "tokio/src/io/async_fd.rs",
+    "tokio/src/runtime/io/driver.rs",
+    "tokio/src/runtime/io/registration_set.rs"
+   ]
+  },
+  {
+   "sha": "7d0d729d8f03a0033d6752730d0fb5928962560e",
+   "subject": "sync: clarify panic behavior of `broadcast::channel()` (#8420)",
+   "query": "sync: clarify panic behavior of `broadcast::channel()`",
+   "gold": [
+    "tokio/src/sync/broadcast.rs"
+   ],
+   "cut": "2026-09-06T12:20:38.000Z",
+   "known": [
+    "tokio/src/sync/broadcast.rs",
+    "tokio/src/sync/mod.rs",
+    "tokio-stream/src/wrappers/broadcast.rs"
+   ]
+  },
+  {
+   "sha": "2ebac75c369d7f6b9e899862ae7302113513c395",
+   "subject": "stream: implement `FusedStream` for MPSC receiver wrappers (#8500)",
+   "query": "stream: implement `FusedStream` for MPSC receiver wrappers",
+   "gold": [
+    "tokio-stream/src/wrappers/mpsc_bounded.rs",
+    "tokio-stream/src/wrappers/mpsc_unbounded.rs"
+   ],
+   "cut": "2026-09-22T20:07:04.000Z",
+   "known": [
+    "tokio/src/macros/select.rs",
+    "tokio-stream/src/stream_ext.rs",
+    "tokio-stream/src/wrappers/mpsc_bounded.rs"
+   ]
+  },
+  {
+   "sha": "436faa2da3970817653fef98c9abc6c8b4367f51",
+   "subject": "rt: drop blocking pool mutex before shutting down rejected task (#8562)",
+   "query": "rt: drop blocking pool mutex before shutting down rejected task",
+   "gold": [
+    "tokio/src/runtime/blocking/pool.rs"
+   ],
+   "cut": "2026-10-02T22:51:31.000Z",
+   "known": [
+    "tokio/src/runtime/blocking/pool.rs",
+    "tokio/src/runtime/scheduler/multi_thread/worker.rs",
+    "tokio/src/runtime/runtime.rs"
+   ]
+  },
+  {
+   "sha": "babd90dee5933869084f4c21f30a4bd47ef7733d",
+   "subject": "task: drop replaced waker outside lock in JoinSet (#8554)",
+   "query": "task: drop replaced waker outside lock in JoinSet",
+   "gold": [
+    "tokio/src/util/idle_notified_set.rs"
+   ],
+   "cut": "2026-10-02T22:50:59.000Z",
+   "known": [
+    "tokio/src/task/spawn.rs",
+    "tokio/src/task/join_set.rs",
+    "tokio-util/src/task/join_map.rs"
+   ]
+  },
+  {
+   "sha": "122d82d2644e905b450e9792a85264fa573e7792",
+   "subject": "metrics: cap log histogram precision (#8496)",
+   "query": "metrics: cap log histogram precision",
+   "gold": [
+    "tokio/src/runtime/metrics/histogram/h2_histogram.rs"
+   ],
+   "cut": "2026-10-11T08:49:18.000Z",
+   "known": [
+    "tokio/src/runtime/metrics/histogram/h2_histogram.rs",
+    "tokio/src/runtime/builder.rs",
+    "tokio/src/runtime/metrics/batch.rs"
+   ]
+  },
+  {
+   "sha": "a99332abcf588dea2453230f93f6171219a04a26",
+   "subject": "rt: prevent shard starvation in sharded blocking queue (#8532)",
+   "query": "rt: prevent shard starvation in sharded blocking queue",
+   "gold": [
+    "tokio/src/runtime/blocking/pool.rs",
+    "tokio/src/runtime/blocking/sharded.rs",
+    "tokio/src/util/rand.rs",
+    "tokio/src/util/rand/rt.rs",
+    "tokio/src/util/rand/rt_unstable.rs"
+   ],
+   "cut": "2026-11-09T11:50:47.000Z",
+   "known": [
+    "tokio/src/runtime/blocking/sharded.rs",
+    "tokio/src/runtime/task/list.rs",
+    "tokio/src/sync/mpsc/mod.rs"
+   ]
+  },
+  {
+   "sha": "8be327721e17e2c26ce712d1196aaf4a38932a65",
+   "subject": "ci: add lockfile for LTS branch (#8616)",
+   "query": "ci: add lockfile for LTS branch",
+   "gold": [
+    "tokio-test/src/macros.rs",
+    "tokio/src/loom/std/atomic_usize.rs"
+   ],
+   "cut": "2026-10-10T12:17:27.000Z",
+   "known": [
+    "tokio-macros/src/select.rs",
+    "tokio-stream/src/stream_map.rs",
+    "tokio-util/src/codec/framed.rs"
+   ]
+  },
+  {
+   "sha": "4167c5634ef9cd091cc5b37156f04cfdb0595414",
+   "subject": "codec: expose I/O sources from codec errors (#8665)",
+   "query": "codec: expose I/O sources from codec errors",
+   "gold": [
+    "tokio-util/src/codec/any_delimiter_codec.rs",
+    "tokio-util/src/codec/lines_codec.rs"
+   ],
+   "cut": "2026-10-19T08:04:13.000Z",
+   "known": [
+    "tokio-util/src/codec/decoder.rs",
+    "tokio-util/src/io/sync_bridge.rs",
+    "tokio-util/src/codec/framed.rs"
+   ]
+  },
+  {
+   "sha": "a85c3f5baa298a6b554fd3700daf0342289881af",
+   "subject": "chore: prepare Tokio v1.53.3 (#8639)",
+   "query": "chore: prepare Tokio v1.53.3",
+   "gold": [
+    "tokio/Cargo.toml"
+   ],
+   "cut": "2026-10-13T18:29:43.000Z",
+   "known": [
+    "tokio-util/src/codec/framed_impl.rs",
+    "tokio-util/src/sync/mpsc.rs",
+    "tokio/src/fs/read_uring.rs"
+   ]
+  },
+  {
+   "sha": "5d5ca1181e3f17d56e03eac9756fa78dba399a39",
+   "subject": "rt: avoid overflow in `shutdown_timeout()` (#8497)",
+   "query": "rt: avoid overflow in `shutdown_timeout()`",
+   "gold": [
+    "tokio/src/runtime/context/blocking.rs"
+   ],
+   "cut": "2026-09-22T08:10:36.000Z",
+   "known": [
+    "tokio/src/runtime/handle.rs",
+    "tokio/src/task/blocking.rs",
+    "tokio/src/runtime/builder.rs"
+   ]
+  },
+  {
+   "sha": "7d2a0f105df0ee3244967dfb77699f2405b951a6",
+   "subject": "time: create timer inside `Throttle` stream lazily (#8468)",
+   "query": "time: create timer inside `Throttle` stream lazily",
+   "gold": [
+    "tokio-stream/src/stream_ext/throttle.rs"
+   ],
+   "cut": "2026-09-16T09:30:08.000Z",
+   "known": [
+    "tokio-util/src/time/delay_queue.rs",
+    "tokio-stream/src/stream_ext.rs",
+    "tokio/src/runtime/time/entry.rs"
+   ]
+  },
+  {
+   "sha": "7147b620d133e4bfcc5efe9762091267adc386d2",
+   "subject": "io: wait for pending operations before `BufReader` seeks (#8599)",
+   "query": "io: wait for pending operations before `BufReader` seeks",
+   "gold": [
+    "tokio/src/fs/file/tests.rs",
+    "tokio/src/io/util/buf_reader.rs"
+   ],
+   "cut": "2026-10-10T09:32:51.000Z",
+   "known": [
+    "tokio/src/io/util/buf_reader.rs",
+    "tokio/src/process/mod.rs",
+    "tokio/src/io/util/buf_stream.rs"
+   ]
+  },
+  {
+   "sha": "0e25691ea096b99c4e06b365c5e16ee1c5863789",
+   "subject": "io: keep the shutdown bit when clearing readiness (#8435)",
+   "query": "io: keep the shutdown bit when clearing readiness",
+   "gold": [
+    "tokio/src/runtime/io/scheduled_io.rs"
+   ],
+   "cut": "2026-09-10T15:52:44.000Z",
+   "known": [
+    "tokio/src/io/async_fd.rs",
+    "tokio/src/io/bsd/poll_aio.rs",
+    "tokio/src/runtime/signal/mod.rs"
+   ]
+  },
+  {
+   "sha": "4d71b417f4ee3494bb60addd280dd9bc212ce47b",
+   "subject": "net: document that `TcpStream::connect` returns only the last error (#8421)",
+   "query": "net: document that `TcpStream::connect` returns only the last error",
+   "gold": [
+    "tokio/src/net/tcp/stream.rs"
+   ],
+   "cut": "2026-09-27T11:02:06.000Z",
+   "known": [
+    "tokio/src/net/tcp/stream.rs",
+    "examples/connect-tcp.rs",
+    "examples/hello_world.rs"
+   ]
+  },
+  {
+   "sha": "2598543b8a68ecf687be896406f5fb506923de96",
+   "subject": "io: add `AsyncFd::register` and deprecate `AsyncFd::new` (#8587)",
+   "query": "io: add `AsyncFd::register` and deprecate `AsyncFd::new`",
+   "gold": [
+    "tokio/src/io/async_fd.rs",
+    "tokio/src/io/mod.rs"
+   ],
+   "cut": "2026-10-10T12:46:16.000Z",
+   "known": [
+    "tokio/src/io/async_fd.rs",
+    "tokio/src/io/bsd/poll_aio.rs",
+    "tokio/src/runtime/io/driver.rs"
+   ]
+  },
+  {
+   "sha": "13094519876096fcc014aa0e876785d6a9870fa0",
+   "subject": "runtime: fix idle bookkeeping when a task dump wakes parked workers (#8372)",
+   "query": "runtime: fix idle bookkeeping when a task dump wakes parked workers",
+   "gold": [
+    "tokio/src/runtime/scheduler/multi_thread/idle.rs",
+    "tokio/src/runtime/scheduler/multi_thread/worker.rs"
+   ],
+   "cut": "2026-09-08T09:27:01.000Z",
+   "known": [
+    "tokio/src/runtime/scheduler/multi_thread/worker.rs",
+    "tokio/src/runtime/builder.rs",
+    "tokio/src/runtime/blocking/pool.rs"
+   ]
+  },
+  {
+   "sha": "6e15e2e32ac0a8920ff69c13f0e98f5b52987674",
+   "subject": "process: enqueue orphans when spawn setup fails after OS spawn (#8359)",
+   "query": "process: enqueue orphans when spawn setup fails after OS spawn",
+   "gold": [
+    "tokio/src/process/unix/mod.rs",
+    "tokio/src/process/unix/orphan.rs"
+   ],
+   "cut": "2026-11-08T17:56:05.000Z",
+   "known": [
+    "tokio/src/runtime/scheduler/multi_thread/worker.rs",
+    "tokio-macros/src/lib.rs",
+    "tokio/src/sync/broadcast.rs"
+   ]
+  },
+  {
+   "sha": "eb9cdf2ff012ec22d4efd74cf46d04222264cd8e",
+   "subject": "stream: implement FusedStream for Empty and Once (#8478)",
+   "query": "stream: implement FusedStream for Empty and Once",
+   "gold": [
+    "tokio-stream/src/empty.rs",
+    "tokio-stream/src/once.rs"
+   ],
+   "cut": "2026-09-14T13:12:15.000Z",
+   "known": [
+    "tokio/src/macros/select.rs",
+    "tokio-stream/src/stream_ext.rs",
+    "tokio/src/sync/notify.rs"
+   ]
+  },
+  {
+   "sha": "1989b46f5a2f08618523fc899d94257238860966",
+   "subject": "wasm: require an active runtime in Emscripten blocking shim (#8628)",
+   "query": "wasm: require an active runtime in Emscripten blocking shim",
+   "gold": [
+    "tokio/src/blocking.rs"
+   ],
+   "cut": "2026-10-12T18:30:38.000Z",
+   "known": [
+    "tokio/src/runtime/mod.rs",
+    "tokio/src/task/local.rs",
+    "tokio/src/runtime/blocking/pool.rs"
+   ]
+  },
+  {
+   "sha": "e43fb07c7ca1cec1a34a9feb387d727f2ce85029",
+   "subject": "rt: suggest `.await` in nested `block_on` panic (#8501)",
+   "query": "rt: suggest `.await` in nested `block_on` panic",
+   "gold": [
+    "tokio/src/runtime/context/runtime.rs"
+   ],
+   "cut": "2026-09-23T05:40:08.000Z",
+   "known": [
+    "tokio/src/runtime/scheduler/current_thread/mod.rs",
+    "tokio/src/runtime/scheduler/multi_thread/worker.rs",
+    "tokio/src/task/local.rs"
+   ]
+  },
+  {
+   "sha": "7f6bb9afcac3a59debfffe65c2591588fa48dfe5",
+   "subject": "io: reject zero buf size on `copy_bidirectional_with_sizes` (#8454)",
+   "query": "io: reject zero buf size on `copy_bidirectional_with_sizes`",
+   "gold": [
+    "tokio/src/io/util/copy_bidirectional.rs"
+   ],
+   "cut": "2026-09-13T12:18:32.000Z",
+   "known": [
+    "tokio/src/runtime/metrics/histogram/h2_histogram.rs",
+    "tokio/src/io/util/copy_bidirectional.rs",
+    "tokio/src/runtime/builder.rs"
+   ]
+  }
+ ],
+ "checked": [
+  {
+   "sha": "7947fa4bd79d7345aa7e6b189fc1fbb6983a4351",
+   "question": "Can I give a Tokio runtime a name through the tokio::main macro?",
+   "subject": "rt: add runtime name (#7924)"
+  },
+  {
+   "sha": "ddc60948ab7823e344ca766afbc8c7f5db896e6d",
+   "question": "Is there a way to get a mutable reference to the next item of a Peekable stream, or poll for a peek?",
+   "subject": "stream: add peek_mut, poll_peek to Peekable (#8262)"
+  },
+  {
+   "sha": "5b758f5b5bc5b05ee3a47004aadaeadc9e2f9cb2",
+   "question": "Why does mpsc Permit::send forget the permit before sending, and what goes wrong if the receiver's waker panics?",
+   "subject": "sync: forget mpsc `Permit` before sending value (#8560)"
+  },
+  {
+   "sha": "3eb95a40f1b88623470c4e902e2fa90e807fdeed",
+   "question": "On emscripten without JSPI, how does block_on wait when the runtime parks?",
+   "subject": "wasm: use sleep on emscripten without JSPI (#8528)"
+  },
+  {
+   "sha": "6276684c288d8e513410219fa2129c69df41af18",
+   "question": "Does StreamNotifyClose implement FusedStream?",
+   "subject": "stream: implement FusedStream for StreamNotifyClose (#8452)"
+  },
+  {
+   "sha": "7f67a1bd612a77387605b70b347679671475092b",
+   "question": "Does the futures compat wrapper in tokio-util pass vectored writes through?",
+   "subject": "compat: forward Tokio vectored writes (#8588)"
+  },
+  {
+   "sha": "471d65dec2185e47f060581a65e1919636066113",
+   "question": "When an alternative timer entry is cancelled, why is its stored waker dropped right away instead of during timer maintenance?",
+   "subject": "time: drop stored waker when cancelling alt timer entry (#8550)"
+  },
+  {
+   "sha": "38631ed3de29781f0e9d4daf74c4497ed126d3ae",
+   "question": "Why did the queue stress1 test sometimes come up a few tasks short?",
+   "subject": "rt: fix spurious failure in queue `stress1` test (#8524)"
+  },
+  {
+   "sha": "0448618493188e1c34e284908ef3c17f2edfc6b2",
+   "question": "Why were the tracing_sync tests changed from async tests to synchronous ones?",
+   "subject": "sync: make `tracing_sync` tests synchronous (#8427)"
+  },
+  {
+   "sha": "3536cd6987b6e3d417184abe797398fa076629ae",
+   "question": "Closing a semaphore could deadlock when a waker released a permit; how was that fixed?",
+   "subject": "sync: wake waiters outside the lock when closing a semaphore (#8529)"
+  },
+  {
+   "sha": "32312ae0d6f0b1c6457f1323e3e7f568f448d0db",
+   "question": "When did we start running Miri on the TCP socket tests?",
+   "subject": "net: enable Miri tests for TCP socket (#8156)"
+  },
+  {
+   "sha": "832dd233293eaa59ba19cc6f5dc4753aab55ac13",
+   "question": "Could a panic in a tracing event during poll_acquire leak semaphore permits?",
+   "subject": "sync: avoid leaking semaphore permits on tracing panic (#8542)"
+  },
+  {
+   "sha": "88212ab64afd2b2f87deeb073f9eef6aaaad3701",
+   "question": "What memory ordering guarantees does the Semaphore documentation give?",
+   "subject": "sync: document memory ordering guarantees for Semaphore (#8119)"
+  },
+  {
+   "sha": "ee04abe7970b769439e2fecd4b1dd8790e4234e1",
+   "question": "Is there a benchmark for inject queue contention when spawning from outside the runtime?",
+   "subject": "bench: add remote_spawn benchmark for inject queue contention (#7944)"
+  },
+  {
+   "sha": "f085b6211b8ebb6aba21f1f1f91e7b8b243aa815",
+   "question": "Does releasing an mpsc OwnedPermit wake receivers waiting on the channel?",
+   "subject": "sync: notify receivers in mpsc `OwnedPermit::release()` method (#8075)"
+  }
+ ],
+ "negatives": [
+  {
+   "question": "Why did the default runtime switch to a single-threaded executor?"
+  },
+  {
+   "question": "When was async-std compatibility added to tokio-util?"
+  },
+  {
+   "question": "Why was Unix domain socket support removed?"
+  },
+  {
+   "question": "What broke when tokio moved to the Rust 2027 edition?"
+  },
+  {
+   "question": "Why does tokio::fs use mmap for reads now?"
+  },
+  {
+   "question": "When did tokio add a built-in HTTP/3 client?"
+  },
+  {
+   "question": "Why was the broadcast channel rewritten on top of crossbeam?"
+  },
+  {
+   "question": "Why did tokio drop support for Windows named pipes?",
+   "note": "hard: a commit adds safety docs and Default impls for named pipe options; it doesn't answer this"
+  },
+  {
+   "question": "Why does the runtime pin worker threads to CPU cores by default now?"
+  },
+  {
+   "question": "When was tokio::sync::Mutex made to poison on panic like std's?"
+  },
+  {
+   "question": "Why was JoinSet deprecated?"
+  },
+  {
+   "question": "What changed when the timer wheel was replaced with a binary heap?"
+  },
+  {
+   "question": "Why does tokio-stream depend on rayon now?"
+  },
+  {
+   "question": "When did tokio add Python bindings?"
+  },
+  {
+   "question": "Why did tokio::select! start requiring futures to be Unpin?"
+  }
+ ],
+ "controls": [
+  {
+   "from": "snout-context 9932e2282a",
+   "query": "Codex: native read trim, PowerShell gate, Codex-safe answers, memory from Codex sessions, Windows tests"
+  },
+  {
+   "from": "snout-context 828db134ba",
+   "query": "Claims: cite the recall evals rerun on the clean 0.3.1 build"
+  },
+  {
+   "from": "snout-context 5b3c4ce35a",
+   "query": "Post-compaction memory, repo map, replay, dashboards, long-session benchmark"
+  },
+  {
+   "from": "snout-context 67f6968790",
+   "query": "Claims for 0.3.2: offline recall evals rerun on the 0.3.2 bundle; the 0.3.1 cost result moves to docs/archive/0.3.1"
+  },
+  {
+   "from": "snout-context c0a5623a29",
+   "query": "Session memory for Codex and Claude Code, optional local recall model, memory pilot harness"
+  },
+  {
+   "from": "snout-context 29c8fa57dd",
+   "query": "0.3.1 results: 140-session Claude Code run, -25.5% cost per solved task (95% CI -39.1% to -7.6%), raw rows and reports"
+  },
+  {
+   "from": "snout-context 847fd2327b",
+   "query": "Snout 0.3.3: version, changelog date and claims"
+  },
+  {
+   "from": "snout-context b99fb54d08",
+   "query": "SWE-bench harness: rotate arm order, total spend cap, stop when the API refuses sessions"
+  },
+  {
+   "from": "snout-context 231a80a4bf",
+   "query": "Build: bundle the dashboard page with LF endings, so a Windows build matches CI"
+  },
+  {
+   "from": "snout-context a8807ef732",
+   "query": "Snout 0.2.2"
+  }
+ ]
+}

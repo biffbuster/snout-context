@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+Not measured on agents. Nothing below is covered by [docs/claims.md](docs/claims.md).
+
+- History search ranks and answers in two separate steps. Every commit, PR and CI run visible at the
+  search's date is ranked, by words weighted by rarity, by meaning when the optional local model is on,
+  and by files the agent names. Then each of the first few needs evidence to be shown: a sha, PR,
+  version or path the question gives, a close meaning, or enough of the question's rarer words. A
+  question nothing answers gets "nothing in memory matches" more often than before, but one on the
+  project's own topic with a false premise can still get related commits that don't answer it.
+- A history line says how it was found: "(named)" when the question gave its sha, PR, version or path,
+  "(related, may not answer)" when it matched on words or meaning. A bare two-part number such as
+  "YAML 1.2" no longer counts as a version.
+- `snout_memory_search` takes `files` (and `snout memory search` takes `--files`): files the agent is
+  working on. They rank history records; they never make one count as an answer.
+- With `memorySemantic` on, an import embeds the imported history, and a search embeds at most 256
+  records still missing.
+
 ## 0.3.3 (2026-11-09)
 
 Not measured yet. Nothing below is covered by [docs/claims.md](docs/claims.md).

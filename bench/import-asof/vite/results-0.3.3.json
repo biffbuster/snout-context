@@ -1,0 +1,623 @@
+{
+ "label": "vite-0.3.3",
+ "measuredAt": "2026-11-09T19:38:39.823Z",
+ "snoutVersion": "0.3.3",
+ "commit": "cc47534",
+ "dirty": false,
+ "bundleSha256": "1ea6b4aecb8357afa6c1ae90d8e2ab1563bfcc05af633cd1420dbeef8cc30ec3",
+ "import": "Imported this project's history from 2026-02-08: 1079 commits, 0 PRs, 0 failed CI runs, 0 past sessions new · 1079 records kept.",
+ "score": {
+  "snout": 0.75,
+  "recent": 0.225,
+  "words": 0.45,
+  "silentControls": 1
+ },
+ "pass": false,
+ "rows": [
+  {
+   "sha": "f155b62cea",
+   "query": "fix(create-vite): add router only options for tanstack router/start",
+   "found": [
+    "fef682d3f0",
+    "456901bb64",
+    "689a0669ad",
+    "18f0f90444",
+    "bb5203d01c"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": true
+  },
+  {
+   "sha": "f68c0d5a28",
+   "query": "fix: handle `server.ws: false` in mergeConfig",
+   "found": [
+    "2151f701dc",
+    "616296895b",
+    "3ba026dade",
+    "02cffa9e2d",
+    "84f5cccc75"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": true,
+   "reason": "ranked below fifth"
+  },
+  {
+   "sha": "02cffa9e2d",
+   "query": "fix: reduce Windows 8.3-short-name detection false-positives",
+   "found": [
+    "173a1b648c",
+    "2a8fde095d",
+    "92b63f219f",
+    "96b0c10162",
+    "8c1855607b"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": false
+  },
+  {
+   "sha": "6f831f9b58",
+   "query": "fix(server): avoid reinitializing watcher when adding file after server close",
+   "found": [
+    "df9e0a589f",
+    "ffd188bb87",
+    "8cb872e7fb",
+    "8b17656bb1",
+    "be9631658f"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "ranked below fifth"
+  },
+  {
+   "sha": "15d82f7dc6",
+   "query": "fix(html): skip caching CSS of chunks in a cycle (fix #23628)",
+   "found": [
+    "e16ff3a119",
+    "648bd04933",
+    "5464190a3e",
+    "15f03073c9",
+    "47c4213f13"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": true
+  },
+  {
+   "sha": "70d56ea184",
+   "query": "fix(dev): a restart requested during a restart used to be dropped (fix #23392)",
+   "found": [
+    "ffd188bb87",
+    "40bc7293ef",
+    "8ce23a3b6e",
+    "3ba026dade",
+    "b1186c36d0"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": false
+  },
+  {
+   "sha": "8abf700eeb",
+   "query": "perf(proxy): pre-compile context matchers at server creation",
+   "found": [
+    "3c94c7c001",
+    "1113acf6cf",
+    "84f5cccc75",
+    "5876b2cc2e",
+    "2fe4ab633a"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "ranked below fifth"
+  },
+  {
+   "sha": "c0f2fc607e",
+   "query": "fix(vite): update outdated upstream file links in license comments",
+   "found": [
+    "22b0166127",
+    "1cbf7d63e1",
+    "4c07b74416",
+    "d4295a9ffc",
+    "44bb9d95a2"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "3ac77d9dd7",
+   "query": "feat(dev): resolve interface name for explicit host in network URLs",
+   "found": [
+    "78accc42a5",
+    "7ca7c1bedf",
+    "2966e9c239",
+    "2ad9ec262a",
+    "960e9efbc1"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": false
+  },
+  {
+   "sha": "8fb7675283",
+   "query": "fix(optimizer): close custom extension analysis bundles",
+   "found": [
+    "e3cfb9deec",
+    "b3132dacea",
+    "6c08c39ac4",
+    "72a5e21925",
+    "9722b0795b"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": true
+  },
+  {
+   "sha": "6a84c72100",
+   "query": "chore: update `optimizeDeps.include` comment",
+   "found": [
+    "5c7cec69b6",
+    "87cc63d91c",
+    "b120589f05",
+    "5fdfd26ed1",
+    "9a37c5df86"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": false
+  },
+  {
+   "sha": "9abd99bfdd",
+   "query": "refactor: remove duplicate configurations",
+   "found": [
+    "67a6807673",
+    "403cc608e4",
+    "b31fd355d9",
+    "d62b3360ec",
+    "e72036eed2"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": false
+  },
+  {
+   "sha": "611668983d",
+   "query": "refactor(dev): separate import resolution from URL conversion",
+   "found": [
+    "7ca7c1bedf",
+    "182f5b2a65",
+    "6d8ab08983",
+    "7471e8c3b3",
+    "d112dad939"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "ranked below fifth"
+  },
+  {
+   "sha": "a6c08e10a6",
+   "query": "refactor: exclude postfix from `__VITE_ASSET__`",
+   "found": [],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "467f7ac3b8",
+   "query": "fix(create-vite): use Vite for TanStack projects",
+   "found": [
+    "f155b62cea",
+    "18f0f90444",
+    "1ac46d64b8",
+    "1527f35818",
+    "4bba787083"
+   ],
+   "hit": true,
+   "recent": true,
+   "words": true
+  },
+  {
+   "sha": "fddf4ea41d",
+   "query": "fix(server): use a random port when port is 0",
+   "found": [
+    "dfc8aa5057",
+    "d323ed7a82",
+    "fa005d19af",
+    "84f5cccc75",
+    "df9e0a589f"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": true
+  },
+  {
+   "sha": "d9b10a98db",
+   "query": "fix(module-runner): exclude completed modules from in-flight cycle detection (fix #22999)",
+   "found": [
+    "f5a22e62ad",
+    "599c5b02a8",
+    "f8b38e316b",
+    "c4acd6982a",
+    "ee2c2cd2c2"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": false
+  },
+  {
+   "sha": "facc2fb1ff",
+   "query": "fix: remove input option unescaping for now",
+   "found": [
+    "41df81a6a4",
+    "689a0669ad",
+    "94fc91be25",
+    "9beae37d72",
+    "b8a21cc821"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": false
+  },
+  {
+   "sha": "eac0cc84aa",
+   "query": "fix(bundled-dev): inject client script tag before chunk scripts",
+   "found": [
+    "23b8a088de",
+    "d5bb819f17",
+    "1e0d05408b",
+    "8b17656bb1",
+    "b24381d741"
+   ],
+   "hit": true,
+   "recent": true,
+   "words": true
+  },
+  {
+   "sha": "f4b4431a2f",
+   "query": "refactor: assets regexp use non-capture",
+   "found": [
+    "92bd2a7f32",
+    "7ca7c1bedf",
+    "e38f29ee48",
+    "4366ac4683",
+    "a6c08e10a6"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": false
+  },
+  {
+   "sha": "8a24572694",
+   "query": "feat(config): include column in config incompatibility location",
+   "found": [
+    "05302b0726",
+    "95a3cdab83",
+    "960e9efbc1",
+    "9beae37d72",
+    "302c755a81"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": true
+  },
+  {
+   "sha": "24bd3316f3",
+   "query": "fix(worker): align worker urls in client and server when using terser",
+   "found": [
+    "69454d7136",
+    "04fc30a4b9",
+    "ffd188bb87",
+    "e8d6a4d339",
+    "a6d43bc9e3"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": false
+  },
+  {
+   "sha": "05a003e6a1",
+   "query": "fix(config): resolve sourcemap paths against sourcemap location",
+   "found": [
+    "e26053b9cb",
+    "14454fd8c9",
+    "4c07b74416",
+    "04f345b370",
+    "55bba7bbd9"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": true
+  },
+  {
+   "sha": "197daf6c4c",
+   "query": "fix(bundled-dev): declare utf-8 charset in fallback page",
+   "found": [
+    "e2da1ea4b5",
+    "a6d43bc9e3",
+    "a6a09f4f39",
+    "b24381d741",
+    "7471e8c3b3"
+   ],
+   "hit": false,
+   "recent": true,
+   "words": true,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "5c1c6c6097",
+   "query": "refactor: use named regex constants over inline literals",
+   "found": [
+    "7ca7c1bedf",
+    "1113acf6cf",
+    "8e8816ca9f",
+    "9239750e61",
+    "e56103f180"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": false
+  },
+  {
+   "sha": "4366ac4683",
+   "query": "feat: use `import.meta.ROLLDOWN_FILE_URL_*` for assets in JS",
+   "found": [
+    "2ad6737a83",
+    "cc50822161",
+    "0377f6b71e",
+    "7ca7c1bedf",
+    "9928722f7d"
+   ],
+   "hit": false,
+   "recent": true,
+   "words": false,
+   "reason": "ranked below fifth"
+  },
+  {
+   "sha": "50b382d318",
+   "query": "fix(css): don't fail on a literal `%` in `url()`",
+   "found": [
+    "abb793e18c",
+    "9fa7ab4990",
+    "5fcce46a60",
+    "c967f48b2e",
+    "64e0a215c2"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": true
+  },
+  {
+   "sha": "1b6ed05397",
+   "query": "fix(server): preserve `$` patterns in static alias replacements",
+   "found": [
+    "58287c0e0e",
+    "b28db28e9e",
+    "dc788e0cd2",
+    "2b45d86d44",
+    "02cffa9e2d"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": true
+  },
+  {
+   "sha": "182f5b2a65",
+   "query": "refactor(bundled-dev): import CSS HMR helpers from `/@vite/client`",
+   "found": [
+    "634745dcc5",
+    "3dbddefaaf",
+    "05302b0726",
+    "7ca7c1bedf",
+    "82e9fef6ec"
+   ],
+   "hit": true,
+   "recent": true,
+   "words": true
+  },
+  {
+   "sha": "8d7623d9b5",
+   "query": "fix(build): handle missing chunk import maps",
+   "found": [
+    "15f03073c9",
+    "e16ff3a119",
+    "ffd188bb87",
+    "648bd04933",
+    "f1f90ed474"
+   ],
+   "hit": true,
+   "recent": true,
+   "words": false
+  },
+  {
+   "sha": "39330f489a",
+   "query": "fix(optimizer): don't skip imports whose binding starts with type",
+   "found": [
+    "6c08c39ac4",
+    "8b9f5cd9f1",
+    "906d8a3cac",
+    "1298951ebc",
+    "ddfe20d19e"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": false
+  },
+  {
+   "sha": "8cb872e7fb",
+   "query": "fix(dev): run closeBundle after buildEnd failure",
+   "found": [
+    "8100320970",
+    "e240df2ea4",
+    "bdfadefb20",
+    "47c4213f13",
+    "e8e9a34dcf"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "04fc30a4b9",
+   "query": "fix(sourcemap): skip URL source roots when injecting sources content",
+   "found": [
+    "abb793e18c",
+    "599c5b02a8",
+    "04f345b370",
+    "f8b38e316b",
+    "f1f90ed474"
+   ],
+   "hit": false,
+   "recent": false,
+   "words": false,
+   "reason": "absent from the candidates"
+  },
+  {
+   "sha": "6894f5cbce",
+   "query": "fix(server): handle file watcher errors without crashing",
+   "found": [
+    "6f831f9b58",
+    "df9e0a589f",
+    "3ba026dade",
+    "e8e9a34dcf",
+    "fc08bdab9b"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": true
+  },
+  {
+   "sha": "0075c4bdd8",
+   "query": "refactor(plugin-legacy): use JSON import for core-js version",
+   "found": [
+    "7ca7c1bedf",
+    "928e721b36",
+    "97ad042170",
+    "1d9fa392a4",
+    "960e9efbc1"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": false
+  },
+  {
+   "sha": "2804636ff6",
+   "query": "fix(css): don't pass empty targets to lightningcss",
+   "found": [
+    "5fcce46a60",
+    "de041a79b0",
+    "9fa7ab4990",
+    "d64a1a5557",
+    "04f345b370"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": true
+  },
+  {
+   "sha": "bba3bb8bee",
+   "query": "fix: merge `build.rolldownOptions.output.minify` correctly",
+   "found": [
+    "4aba8d8720",
+    "b675c7b669",
+    "db2ecc7675",
+    "8e8816ca9f",
+    "7ca7c1bedf"
+   ],
+   "hit": true,
+   "recent": true,
+   "words": true
+  },
+  {
+   "sha": "41f3c6fff8",
+   "query": "fix(utils): match timestamp query parameter with proper delimiters",
+   "found": [
+    "4f9d2f4dad",
+    "9db0b61d4c",
+    "dcf88bd2ad",
+    "17f7b2f193",
+    "2ced1fe4e4"
+   ],
+   "hit": true,
+   "recent": false,
+   "words": false
+  },
+  {
+   "sha": "1331b0b438",
+   "query": "perf(css): look up pure CSS chunks through a Set",
+   "found": [
+    "648bd04933",
+    "e16ff3a119",
+    "c088511f34",
+    "e1803128e5"
+   ],
+   "hit": true,
+   "recent": true,
+   "words": true
+  },
+  {
+   "sha": "a16299092c",
+   "query": "refactor(dev): use ModuleURLs throughout HTML transforms",
+   "found": [
+    "7ca7c1bedf",
+    "960e9efbc1",
+    "57ff177575",
+    "7471e8c3b3",
+    "e2da1ea4b5"
+   ],
+   "hit": true,
+   "recent": true,
+   "words": true
+  }
+ ],
+ "controls": [
+  {
+   "query": "Snout 0.3.2: changelog dated for release",
+   "silent": false
+  },
+  {
+   "query": "Benchmark claims rebuild from repo data: report tool, per-attempt results, publication standard, README rows corrected",
+   "silent": false
+  },
+  {
+   "query": "Recall decision records, and a Jev shadow test of the recall gate",
+   "silent": false
+  },
+  {
+   "query": "Remove Snout Cloud and the reranker",
+   "silent": true
+  },
+  {
+   "query": "Windows: tests run without newline filenames, symlink rights or sh on PATH",
+   "silent": false
+  },
+  {
+   "query": "Context audit counts the skills, commands and agents of enabled Claude Code plugins",
+   "silent": false
+  },
+  {
+   "query": "0.3.1: MCP list index, Jev preference judge (opt-in), status band above the prompt, bench fixes (equal budgets, stop on fail, bundle hash)",
+   "silent": false
+  },
+  {
+   "query": "Memory on request, reviewed lessons and repeat reads; Snout in Claude Code",
+   "silent": false
+  },
+  {
+   "query": "Repo brief at session start: what two or more sessions found, minus what the instruction files say; background-task notices are not user requests",
+   "silent": false
+  },
+  {
+   "query": "CI: Node 22 test isolation flag; Codex search hint follows the shell the agent used, not the OS",
+   "silent": false
+  }
+ ]
+}

@@ -22,7 +22,8 @@ import { configDir, resolvePaths } from "./config.js";
 import { sessionViewer, storesFor, userPrincipal } from "./memory/store.js";
 import { appendRow } from "./ledger/store.js";
 import { recordError } from "./util/log.js";
-import { memoryFetch, memoryIndex, memoryPropose, memorySave, memorySearch, type MemoryContext } from "./memory/tools.js";
+import { memoryFetch, memoryIndex, memoryPropose, memorySave, memorySearch, prepareHistorySearch, type MemoryContext } from "./memory/tools.js";
+import { semanticOn } from "./memory/semantic.js";
 
 const HEAD_LINES = 60;
 const HEAD_BYTES = 6 * 1024;
@@ -55,7 +56,11 @@ const TOOLS = [
       "Search Snout's memory for this project: saved observations, records of earlier sessions (task, outcome, files changed, commits, test command, last error) and, once imported, the project's history (commits, PRs with their reviews, CI runs that failed). Use it before exploring for how something works here, how to run or set it up, or what was tried before.",
     inputSchema: {
       type: "object",
-      properties: { query: { type: "string", description: "A few words: a file, a command, an error, a feature." }, limit: { type: "number", description: "Results to return (default 5, at most 20)." } },
+      properties: {
+        query: { type: "string", description: "A few words: a file, a command, an error, a feature." },
+        limit: { type: "number", description: "Results to return (default 5, at most 20)." },
+        files: { type: "array", items: { type: "string" }, description: "Optional: project-relative paths of files you are already working on. They help rank the project's history; they don't make a record count as an answer." },
+      },
       required: ["query"],
     },
   },
@@ -130,6 +135,9 @@ export function startMcp(projectDir: string, cfg: Config, version: string, write
       buf = buf.slice(nl + 1);
       if (!line) continue;
       chain = chain.then(async () => {
+        // With meaning on, a history search waits for its question's vector (memory/history-search.ts).
+        const search = searchCall(line);
+        if (search !== null && cfg.memory !== false && semanticOn(cfg)) await prepareHistorySearch(memoryContext(projectDir), search, true).catch((err) => recordError("meaning", err));
         const reply = handle(line, projectDir, cfg, version, only);
         if (reply) write(JSON.stringify(reply) + "\n");
       });
@@ -139,6 +147,19 @@ export function startMcp(projectDir: string, cfg: Config, version: string, write
 }
 
 const safeName = (n: unknown) => String(n ?? "").replace(/[^\w.-]/g, "").slice(0, 60);
+
+/** The query of a snout_memory_search call, or null for any other message. */
+function searchCall(line: string): string | null {
+  try {
+    const m = JSON.parse(line) as { method?: string; params?: { name?: string; arguments?: { query?: unknown } } };
+    return m.method === "tools/call" && m.params?.name === "snout_memory_search" ? String(m.params.arguments?.query ?? "") : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The files a search names: strings only, a few at most. */
+const searchFiles = (v: unknown): string[] => (Array.isArray(v) ? v.filter((f): f is string => typeof f === "string" && !!f.trim()).slice(0, 20) : []);
 
 /**
  * What the server tells the agent it is for. Offered only memory search (and fetch), it says only
@@ -243,7 +264,7 @@ function callTool(name: string, args: Json, projectDir: string, cfg: Config): st
     if (cfg.memory === false) throw new Error("Snout memory is off in this project (snout memory on turns it back on).");
     const ctx = memoryContext(projectDir);
     if (name === "snout_memory_index") return memoryIndex(ctx, typeof cfg.memoryBudget === "number" ? cfg.memoryBudget : undefined);
-    if (name === "snout_memory_search") return logged(ctx, "search", String(args.query ?? ""), () => memorySearch(ctx, String(args.query ?? ""), Number(args.limit) || 5));
+    if (name === "snout_memory_search") return logged(ctx, "search", String(args.query ?? ""), () => memorySearch(ctx, String(args.query ?? ""), Number(args.limit) || 5, searchFiles(args.files)));
     if (name === "snout_memory_fetch") return logged(ctx, "fetch", String(args.id ?? ""), () => memoryFetch(ctx, String(args.id ?? "")));
     if (name === "snout_memory_propose") return logged(ctx, "propose", String(args.text ?? ""), () => memoryPropose(ctx, args));
     if (name === "snout_memory_save") return memorySave(ctx, args);
