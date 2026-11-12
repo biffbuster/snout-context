@@ -1,0 +1,51 @@
+diff --git a/src/client/fetch-result-please.ts b/src/client/fetch-result-please.ts
+index 069ffe21f9..ecd10c4558 100644
+--- a/src/client/fetch-result-please.ts
++++ b/src/client/fetch-result-please.ts
+@@ -85,7 +85,7 @@ function detectResponseType(response: Response): 'json' | 'text' {
+   }
+ 
+   // `_contentType` might look like: `application/json; charset=utf-8`, `text/plain`, so we get the first part before `;`
+-  const contentType = _contentType.split(';').shift()!
++  const contentType = _contentType.split(';').shift()!.trim()
+ 
+   if (jsonRegex.test(contentType)) {
+     return 'json'
+diff --git a/src/client/utils.test.ts b/src/client/utils.test.ts
+index 442de5c6b2..3ebc32e089 100644
+--- a/src/client/utils.test.ts
++++ b/src/client/utils.test.ts
+@@ -214,6 +214,9 @@ describe('parseResponse', async () => {
+   const _app = new Hono()
+     .get('/text', (c) => c.text('hi'))
+     .get('/json', (c) => c.json({ message: 'hi' }))
++    .get('/json-ows', (c) =>
++      c.json({ message: 'hi' }, 200, { 'Content-Type': 'application/json ; charset=utf-8' })
++    )
+     .get('/might-error-json', (c) => {
+       if (Math.random() > 0.5) {
+         return c.json({ error: 'error' }, 500)
+@@ -251,6 +254,12 @@ describe('parseResponse', async () => {
+     http.get('http://localhost/json', () => {
+       return HttpResponse.json({ message: 'hi' })
+     }),
++    http.get('http://localhost/json-ows', () => {
++      return HttpResponse.json(
++        { message: 'hi' },
++        { headers: { 'content-type': 'application/json ; charset=utf-8' } }
++      )
++    }),
+     http.get('http://localhost/might-error-json', () => {
+       if (Math.random() > 0.5) {
+         return HttpResponse.json({ error: 'error' }, { status: 500 })
+@@ -321,6 +330,10 @@ describe('parseResponse', async () => {
+       expect(result).toEqual({ message: 'hi' })
+       type _verify = Expect<Equal<typeof result, { message: string }>>
+     }),
++    it('should auto parse the json response - whitespace before a parameter', async () => {
++      const result = await parseResponse(client['json-ows'].$get())
++      expect(result).toEqual({ message: 'hi' })
++    }),
+     it('should auto parse the json response - sync fetch', async () => {
+       const result = await parseResponse(await client.json.$get())
+       expect(result).toEqual({ message: 'hi' })

@@ -68,7 +68,8 @@ if (PILOT && ((typeof args.arms === "string" && args.arms !== PILOT.armOrder.joi
 if (PILOT && !PILOT.agents.includes(AGENT)) throw new Error(`the pilot has no ${AGENT} arm`);
 // --replay: the PR replay (bench/replay-design.json). Every arm keeps Claude Code's own memory; one
 // workspace per chain holds the project's real history up to each task's base, and nothing after it.
-const REPLAY_FILE = join(REPO, "bench", "replay-design.json");
+// --design picks another replay design (bench/everyday-design.json): its own tasks, freeze and results, same rules.
+const REPLAY_FILE = join(REPO, "bench", typeof args.design === "string" ? args.design : "replay-design.json");
 const REPLAY = args.replay ? JSON.parse(readFileSync(REPLAY_FILE, "utf8")) : null;
 if (REPLAY && PILOT) throw new Error("--replay and --pilot are separate designs");
 if (REPLAY && AGENT !== "claude") throw new Error("--replay runs Claude Code only so far");
@@ -119,9 +120,10 @@ const studyTasks = () => {
 // ---------- Freeze ----------
 
 /** What a paid run must match (docs/benchmark-protocol.md, "Frozen inputs"): `--freeze` writes it, every paid run checks it. */
-const FREEZE_FILE = join(REPO, "bench", REPLAY ? "replay-freeze.json" : "memory-freeze.json");
+const FREEZE_FILE = join(REPO, "bench", REPLAY ? (typeof args.design === "string" ? args.design.replace(/-design\.json$/, "-freeze.json") : "replay-freeze.json") : "memory-freeze.json");
 const FROZEN_SETTINGS = { claudeCode: "2.1.306", codex: "0.163.0", claudeModel: "claude-sonnet-5-5", codexModel: "gpt-6.1-sol", codexEffort: "low", budgetUsd: "2.00", limitMinutes: 30 };
-const TASK_FILES = ["bench/memory-tasks-hugo.json", "bench/memory-tasks-vite.json", "bench/memory-check-hugo.json", "bench/memory-check-vite.json"];
+// A design's own task files are frozen with it; the first study's files always are.
+const TASK_FILES = [...new Set(["bench/memory-tasks-hugo.json", "bench/memory-tasks-vite.json", "bench/memory-check-hugo.json", "bench/memory-check-vite.json", ...Object.keys(REPLAY?.tasks ?? {})])];
 function freezeFiles() {
   const files = ["dist/snout.mjs", "dist/lib.mjs", "hooks/hooks.json", ".codex/hooks.json", "bench/memory-study.mjs", "bench/codex-toolchain.mjs", "bench/study-checks.mjs", "bench/snout-guard.cjs",
     "bench/swe.mjs", "bench/swelong.mjs", "bench/shipped-hooks.mjs", "bench/stamp.mjs", "bench/memory-pilot.json", "docs/benchmark-protocol.md", ...(REPLAY ? ["bench/replay-design.json"] : []), ...TASK_FILES];
@@ -163,7 +165,10 @@ function codexUserConfig() {
 }
 const GO = spec?.repo === "gohugoio/hugo";
 // Replay fetches history from the clone, which a partial (blobless) clone can't serve: Hugo's replay clone is a full one.
-const CLONE = GO ? (REPLAY ? join(HOME, ".snout-bench", "clones", "hugo") : join(REPO, "..", "study-hugo")) : join(HOME, ".snout-bench", "clones", "vite");
+const CLONE = GO ? (REPLAY ? join(HOME, ".snout-bench", "clones", "hugo") : join(REPO, "..", "study-hugo")) : join(HOME, ".snout-bench", "clones", NAME ?? "vite");
+/** A build the tests need: vite's tests import its built package. Other TypeScript repositories test their sources. */
+const BUILD = spec?.repo === "vitejs/vite" ? ["--filter", "vite", "run", "build"] : null;
+const build = (cwd, env) => (BUILD ? sh("pnpm", BUILD, { cwd, env }) : { status: 0 });
 
 /** What every arm's agent is asked, around the frozen issue snapshot. */
 const prompt = (t) => `The repository in the current directory is ${spec.repo} at the commit just before the fix for the issue below. Find the cause and fix it by editing the source code. Run the relevant tests before you finish, and do not modify the existing tests. There is no network access: dependencies are already installed.
@@ -258,7 +263,7 @@ function prepare(t) {
   else {
     // The repo's postinstall would write .git/hooks into the folder: a `.git` there could make Codex treat it as its own, untrusted project.
     must(sh("pnpm", ["install", "--frozen-lockfile", "--prefer-offline"], { cwd: ws, env: { ...ENV, SKIP_INSTALL_SIMPLE_GIT_HOOKS: "1", SKIP_SIMPLE_GIT_HOOKS: "1" } }), "pnpm install");
-    must(sh("pnpm", ["--filter", "vite", "run", "build"], { cwd: ws, env: ENV }), "build vite");
+    must(build(ws, ENV), "build");
   }
   if (AGENT === "codex") rmSync(join(ws, ".git"), { recursive: true, force: true });
   writeFileSync(marker, t.base);
@@ -271,7 +276,7 @@ function reset(t) {
   // Go's build cache (.gocache) is kept: a warm cache changes time, not what a session sees or spends.
   // Codex: a folder its session's Python made private to the sandbox user is removed as that user.
   for (const f of [".claude", ".codex", ".agents", ".snout", ".mcp.json", ...(AGENT === "codex" ? [".git"] : [])]) (AGENT === "codex" && !FAKE ? removeSandboxed : (p) => rmSync(p, { recursive: true, force: true }))(join(wsOf(t), f));
-  if (!GO) must(sh("pnpm", ["--filter", "vite", "run", "build"], { cwd: wsOf(t), env: { ...ENV, ...OFFLINE } }), "rebuild vite");
+  if (!GO) must(build(wsOf(t), { ...ENV, ...OFFLINE }), "rebuild");
 }
 
 /** The arm's Snout config, in the chain's Snout folder (SNOUT_DIR), which is where Snout reads it. */
@@ -443,7 +448,7 @@ function goTest(t) {
 function vitest(t) {
   const out = join(WS_ROOT, `${NAME}-${t.issue}.grade.json`);
   rmSync(out, { force: true });
-  sh("pnpm", ["exec", "vitest", "run", ...t.specFiles, "--reporter=json", `--outputFile=${out}`], { cwd: wsOf(t), env: { ...ENV, ...OFFLINE } });
+  sh("pnpm", ["exec", "vitest", "run", ...t.specFiles, "--reporter=json", `--outputFile=${out}`, "--coverage.enabled=false"], { cwd: wsOf(t), env: { ...ENV, ...OFFLINE } });
   if (!existsSync(out)) return {};
   const res = {};
   for (const f of JSON.parse(readFileSync(out, "utf8")).testResults) {
@@ -467,8 +472,8 @@ function grade(t) {
   const a = git(t, "apply", "--whitespace=nowarn", testPatch);
   if (a.status !== 0) return { resolved: false, gradeError: `test files did not apply: ${a.stderr.slice(0, 200)}` };
   if (!GO) {
-    const b = sh("pnpm", ["--filter", "vite", "run", "build"], { cwd: wsOf(t), env: { ...ENV, ...OFFLINE } });
-    if (b.status !== 0) return { resolved: false, gradeError: "vite does not build with the agent's change" };
+    const b = build(wsOf(t), { ...ENV, ...OFFLINE });
+    if (b.status !== 0) return { resolved: false, gradeError: `${NAME} does not build with the agent's change` };
   }
   const res = GO ? goTest(t) : vitest(t);
   const f2pFailed = t.f2p.filter((n) => res[n] !== "pass");

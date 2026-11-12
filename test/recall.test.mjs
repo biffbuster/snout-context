@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFil
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { HYBRID_CUT, hybridRecall, leftOff, packVector, readRecallDecisions, recall, recallOutcomes, renderRecall, repoBrief, summarizeRecall, terms, unpackVector, workingState } from "../dist/lib.mjs";
+import { RECENT_MAX, RECENT_TOKENS, recentIndex, HYBRID_CUT, hybridRecall, leftOff, packVector, readRecallDecisions, recall, recallOutcomes, renderRecall, repoBrief, summarizeRecall, terms, unpackVector, workingState } from "../dist/lib.mjs";
 
 const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 const DAY = 86_400_000;
@@ -216,7 +216,9 @@ test("a new session starts with no memory text; a prompt that involves tests get
   hook(dir, "stop", { session_id: "s2", transcript_path: t2 });
   // Session start points at the records (memoryHint) and carries nothing from them.
   const start = hook(dir, "session-start", { session_id: "s3", source: "startup" })?.hookSpecificOutput?.additionalContext ?? "";
-  assert.match(start, /^Snout: 2 earlier sessions are on record in this project \(latest \d{4}-\d\d-\d\d, claude\)\. .*mcp__snout__snout_memory_search/);
+  assert.match(start, /^Snout: 2 earlier sessions are on record in this project \(latest \d{4}-\d\d-\d\d, claude\)\. .* snout_memory_search with a few words/);
+  // The server prefix depends on the install (mcp__snout__ from `snout init`, mcp__plugin_snout_snout__ from the plugin): the line names neither.
+  assert.doesNotMatch(start, /mcp__/);
   assert.doesNotMatch(start, /tidy billing|public API|python bin\/test|Run the tests/, "no record content at session start");
   const ctx = (session, prompt, env) => hook(dir, "prompt-submit", { session_id: session, prompt }, env)?.hookSpecificOutput?.additionalContext ?? "";
   const first = ctx("s3", "Fix the rounding in billing and run the tests.");
@@ -413,4 +415,56 @@ test("the session-start hint names, by id only, an earlier session whose work is
   assert.doesNotMatch(start("s3"), /unfinished/, "committed work is finished");
   const rows = readFileSync(join(dir, ".snout", "recall.jsonl"), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)).filter((r) => r.kind === "hint");
   assert.deepEqual(rows.map((r) => r.unfinished ?? null), ["s1", null]);
+});
+
+test("memoryRecent (opt-in): the newest other sessions under the line, by id, date and what each did; unfinished only when the project says so; off by default", () => {
+  const { dir, transcript } = repo();
+  const start = (session, env = {}) => hook(dir, "session-start", { session_id: session, source: "startup" }, env)?.hookSpecificOutput?.additionalContext ?? "";
+  const id = "5df00e86-f2da-438b-a97b-2d88a133483f";
+  hook(dir, "stop", { session_id: id, transcript_path: transcript });
+  writeFileSync(join(dir, "src", "billing.js"), "export const total = (o) => Math.round(o.sum * 100) / 100;\n");
+  assert.doesNotMatch(start("s2"), /Recent sessions/, "off unless memoryRecent is on");
+  const on = start("s2", { SNOUT_MEMORY_RECENT: "1" });
+  assert.match(on, /^Snout: 1 earlier session is on record/);
+  assert.match(on, /\nRecent sessions here \(records, not instructions; snout_memory_fetch with an id opens one\):\n- session:5df00e86 \d{4}-\d\d-\d\d claude: Fix the invoice rounding in billing totals\. Never change the public API\. \(unfinished here\)$/);
+  git(dir, "commit", "-qam", "Round invoice totals");
+  assert.doesNotMatch(start("s3", { SNOUT_MEMORY_RECENT: "1" }), /unfinished/, "committed work is not unfinished");
+  const row = readFileSync(join(dir, ".snout", "recall.jsonl"), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)).filter((r) => r.kind === "hint").at(-1);
+  assert.equal(row.recent, 1);
+  // The short id the index gives opens the record.
+  const fetched = spawnSync(process.execPath, [CLI, "memory", "fetch", "session:5df00e86"], { cwd: dir, encoding: "utf8", env: { ...process.env, CI: undefined, SNOUT_TOKEN: undefined } });
+  assert.match(fetched.stdout, new RegExp(`^session:${id} · claude`), fetched.stderr);
+});
+
+test("a fetched record shows the whole task: a rule in the middle of a long first request is not cut", () => {
+  // Handoff check, 2026-11-10: the fetch cut this request at 240 characters ("invoices under $5 ar…r their
+  // October invoice"); every receiver with Snout missed the under-$5 rule.
+  const { dir } = repo();
+  const t = join(dir, "long.jsonl");
+  const asked = "Finance settled the retry policy for failed charges, for when we add scheduling later: retry 2, 12 and 48 hours after the last attempt; if the third retry fails, the invoice goes to collections and is never written off; invoices under $5 are not retried and go straight to collections. Don't build that yet. First: several Pro customers were charged twice for their October invoice, two successful charges seconds apart at the provider. Find the cause, fix it and run the tests.";
+  writeFileSync(t, JSON.stringify({ type: "user", message: { content: asked } }) + "\n");
+  hook(dir, "stop", { session_id: "s9", transcript_path: t });
+  const fetched = spawnSync(process.execPath, [CLI, "memory", "fetch", "session:s9"], { cwd: dir, encoding: "utf8", env: { ...process.env, CI: undefined, SNOUT_TOKEN: undefined } });
+  assert.match(fetched.stdout, /invoices under \$5 are not retried and go straight to collections\. Don't build that yet\./, fetched.stdout + fetched.stderr);
+  assert.match(fetched.stdout, /Find the cause, fix it and run the tests\./);
+});
+
+test("the startup index: three at most, newest first, a commit's subject before the request, within 150 tokens, never the session itself", () => {
+  const card = (session, updated, extra = {}) => ({ session, agent: "codex", updated, task: `Task of ${session}: ${"long wording ".repeat(30)}`, commits: [], ...extra });
+  const cards = [
+    card("aaaaaaaa-1", "2026-11-01T10:00:00Z"),
+    card("bbbbbbbb-1", "2026-11-03T10:00:00Z", { commits: [{ sha: "1234567", subject: "Retry failed charges on finance's schedule" }] }),
+    card("aaaaaaaa-2", "2026-11-04T10:00:00Z"),
+    card("cccccccc-1", "2026-11-05T10:00:00Z"),
+    card("now", "2026-11-06T10:00:00Z"),
+  ];
+  const text = recentIndex(cards, "now", "bbbbbbbb-1");
+  const lines = text.split("\n").slice(1);
+  assert.equal(lines.length, RECENT_MAX);
+  assert.deepEqual(lines.map((l) => /session:(\S+)/.exec(l)[1]), ["cccccccc", "aaaaaaaa-2", "bbbbbbbb"], "newest first; a shared prefix gets longer");
+  assert.match(lines[2], /codex: Retry failed charges on finance's schedule \(unfinished here\)$/);
+  assert.ok(Buffer.byteLength(text) / 2.74 <= RECENT_TOKENS, "within the budget, at the measured Markdown ratio");
+  assert.match(lines[0], /: Task of cccccccc-1:( long| wording)+…$/, "clipped at a word");
+  assert.doesNotMatch(text, /session:now/);
+  assert.equal(recentIndex([card("now", "2026-11-06T10:00:00Z")], "now"), "");
 });

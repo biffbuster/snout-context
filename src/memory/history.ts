@@ -22,7 +22,7 @@
 import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { basename, join, resolve } from "node:path";
-import { codexSessionFacts, sessionFacts, type SessionFacts } from "../compact/memory.js";
+import { codexSessionFacts, GOAL_CHARS, sessionFacts, type SessionFacts } from "../compact/memory.js";
 import { claudeRoot, claudeSlug, codexRoot, jsonlFiles } from "../spend/usage.js";
 import { writeAtomic } from "../util/atomic.js";
 import { cardsDir, readCard, type Card, type Commit } from "./memory.js";
@@ -398,7 +398,7 @@ function importedCard(t: Transcript, facts: SessionFacts, meta: ReturnType<typeo
   return {
     v: 1, id: meta.session, session: meta.session, agent: t.agent, started: meta.started, updated: meta.updated,
     ...(meta.branch ? { branch: meta.branch } : {}),
-    task: s(facts.goal, 600), request: facts.request !== facts.goal ? s(facts.request, 400) : undefined, outcome: s(facts.outcome, 600),
+    task: s(facts.goal, GOAL_CHARS), request: facts.request !== facts.goal ? s(facts.request, 400) : undefined, outcome: s(facts.outcome, 600),
     changed: facts.changed.filter((p) => !/^[A-Za-z]:|^\//.test(p)).slice(0, 20),
     test: pair(facts.test), error: pair(facts.error), rules: facts.rules.map((r) => clean(r, 300)),
     missing: facts.missing.filter((m) => !m.module).map((m) => m.name), slow: facts.slow,

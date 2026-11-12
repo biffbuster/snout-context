@@ -1,0 +1,300 @@
+diff --git a/packages/runtime-core/__tests__/hmr.spec.ts b/packages/runtime-core/__tests__/hmr.spec.ts
+index 9e92ed2a218..177c8deb23a 100644
+--- a/packages/runtime-core/__tests__/hmr.spec.ts
++++ b/packages/runtime-core/__tests__/hmr.spec.ts
+@@ -1041,6 +1041,213 @@ describe('hot module replacement', () => {
+     expect(serializeInner(root)).toBe('<div>bar</div>')
+   })
+ 
++  // #16040
++  test.each([false, true])(
++    'reload async child twice while setup is pending (parent root: %s)',
++    async parentRoot => {
++      const id = `pending-async-reload-${parentRoot}`
++      let resolveSetup!: () => void
++      const pending = new Promise<void>(resolve => {
++        resolveSetup = resolve
++      })
++      const versions: string[] = []
++      const makeChild = (text: string): ComponentOptions => ({
++        __hmrId: id,
++        async setup() {
++          versions.push(text)
++          if (text === 'bar') await pending
++          return { text }
++        },
++        render: compileToFunction('<span>{{ text }}</span>'),
++      })
++      const Child = makeChild('foo')
++      createRecord(id, Child)
++      const Parent: ComponentOptions = {
++        __hmrId: `${id}-parent`,
++        components: { Child },
++        render: compileToFunction(
++          parentRoot ? '<Child />' : '<div><Child /></div>',
++        ),
++      }
++      const App: ComponentOptions = {
++        components: { Parent },
++        render: compileToFunction('<Suspense><Parent /></Suspense>'),
++      }
++      const root = nodeOps.createElement('div')
++      render(h(App), root)
++      await timeout()
++
++      reload(id, makeChild('bar'))
++      await nextTick()
++      expect(versions).toEqual(['foo', 'bar'])
++
++      reload(id, makeChild('baz'))
++      await nextTick()
++      resolveSetup()
++      await timeout()
++
++      expect(serializeInner(root)).toBe(
++        parentRoot ? '<span>baz</span>' : '<div><span>baz</span></div>',
++      )
++      expect(versions).toEqual(['foo', 'bar', 'baz'])
++    },
++  )
++
++  test('reload waits for newly exposed async roots', async () => {
++    const id = 'pending-async-nested-reload'
++    let resolveSetup!: () => void
++    let resolveInner!: () => void
++    const pending = new Promise<void>(resolve => {
++      resolveSetup = resolve
++    })
++    const innerPending = new Promise<void>(resolve => {
++      resolveInner = resolve
++    })
++    const Inner: ComponentOptions = {
++      props: ['text'],
++      async setup(props: any) {
++        if (props.text === 'bar') await innerPending
++      },
++      render: compileToFunction('<span>{{ text }}</span>'),
++    }
++    const versions: string[] = []
++    const makeChild = (text: string): ComponentOptions => ({
++      __hmrId: id,
++      components: { Inner },
++      async setup() {
++        versions.push(text)
++        if (text === 'bar') await pending
++        return { text }
++      },
++      render: compileToFunction('<Inner :text="text" />'),
++    })
++    const Child = makeChild('foo')
++    createRecord(id, Child)
++    const Parent: ComponentOptions = {
++      __hmrId: `${id}-parent`,
++      components: { Child },
++      render: compileToFunction('<Child />'),
++    }
++    const App: ComponentOptions = {
++      components: { Parent },
++      render: compileToFunction('<div><Suspense><Parent /></Suspense></div>'),
++    }
++    const root = nodeOps.createElement('div')
++    render(h(App), root)
++    await timeout()
++    expect(serializeInner(root)).toBe('<div><span>foo</span></div>')
++
++    reload(id, makeChild('bar'))
++    await nextTick()
++    reload(id, makeChild('baz'))
++    await nextTick()
++
++    resolveSetup()
++    await timeout()
++    expect(versions).toEqual(['foo', 'bar'])
++
++    resolveInner()
++    await timeout()
++    expect(serializeInner(root)).toBe('<div><span>baz</span></div>')
++    expect(versions).toEqual(['foo', 'bar', 'baz'])
++  })
++
++  test('pending reload of an unmounted instance does not overwrite a newer reload', async () => {
++    const id = 'pending-async-unmounted-reload'
++    const resolves: (() => void)[] = []
++    const versions: string[] = []
++    const makeChild = (text: string): ComponentOptions => ({
++      __hmrId: id,
++      async setup() {
++        versions.push(text)
++        if (text !== 'v2') {
++          await new Promise<void>(resolve => {
++            resolves.push(resolve)
++          })
++        }
++        return { text }
++      },
++      render: compileToFunction('<span>{{ text }}</span>'),
++    })
++    const Child = makeChild('foo')
++    createRecord(id, Child)
++    const show = ref(true)
++    const App: ComponentOptions = {
++      __hmrId: `${id}-app`,
++      components: { Child },
++      setup: () => ({ show }),
++      render: compileToFunction(
++        '<div><Suspense v-if="show"><Child /></Suspense></div>',
++      ),
++    }
++    const root = nodeOps.createElement('div')
++    render(h(App), root)
++
++    reload(id, makeChild('v1'))
++    await nextTick()
++    show.value = false
++    await nextTick()
++    show.value = true
++    await nextTick()
++    expect(versions).toEqual(['foo', 'v1'])
++
++    reload(id, makeChild('v2'))
++    await nextTick()
++    resolves[1]()
++    resolves[0]()
++    await timeout()
++
++    expect(serializeInner(root)).toBe('<div><span>v2</span></div>')
++    expect(versions).toEqual(['foo', 'v1', 'v2'])
++  })
++
++  test('reload after a pending async setup rejects', async () => {
++    const id = 'pending-async-rejected-reload'
++    let rejectSetup!: (error: Error) => void
++    const Child: ComponentOptions = {
++      __hmrId: id,
++      setup: () =>
++        new Promise((_, reject) => {
++          rejectSetup = reject
++        }),
++      render: compileToFunction('<span>old</span>'),
++    }
++    createRecord(id, Child)
++    const Parent: ComponentOptions = {
++      __hmrId: `${id}-parent`,
++      components: { Child },
++      render: compileToFunction('<Child />'),
++    }
++    const App: ComponentOptions = {
++      components: { Parent },
++      render: compileToFunction('<Suspense><Parent /></Suspense>'),
++    }
++    const root = nodeOps.createElement('div')
++    const app = createApp(App)
++    const onError = (app.config.errorHandler = vi.fn())
++    app.mount(root)
++
++    const setup = vi.fn(() => ({}))
++    reload(id, {
++      __hmrId: id,
++      setup,
++      render: compileToFunction('<span>latest</span>'),
++    })
++    await nextTick()
++    const error = new Error('setup failed')
++    rejectSetup(error)
++    await timeout()
++
++    expect(onError).toHaveBeenCalledWith(
++      error,
++      expect.anything(),
++      'setup function',
++    )
++    expect(serializeInner(root)).toBe('<span>latest</span>')
++    expect(setup).toHaveBeenCalledTimes(1)
++    app.unmount()
++  })
++
+   // #14127
+   test('update cached text nodes', async () => {
+     const root = nodeOps.createElement('div')
+diff --git a/packages/runtime-core/src/hmr.ts b/packages/runtime-core/src/hmr.ts
+index 18ad691b19b..cef78b7bc4c 100644
+--- a/packages/runtime-core/src/hmr.ts
++++ b/packages/runtime-core/src/hmr.ts
+@@ -8,7 +8,8 @@ import {
+   isClassComponent,
+ } from './component'
+ import { SchedulerJobFlags, queueJob, queuePostFlushCb } from './scheduler'
+-import { extend, getGlobalThis } from '@vue/shared'
++import { NOOP, extend, getGlobalThis } from '@vue/shared'
++import { locateNonHydratedAsyncRoot } from './renderer'
+ 
+ type HMRComponent = ComponentOptions | ClassComponent
+ 
+@@ -154,17 +155,49 @@ function reload(id: string, newComp: HMRComponent): void {
+       // 4. Force the parent instance to re-render. This will cause all updated
+       // components to be unmounted and re-mounted. Queue the update so that we
+       // don't end up forcing the same parent to re-render multiple times.
+-      queueJob(() => {
++      const update = () => {
+         // vite-plugin-vue/issues/599
+-        // don't update if the job is already disposed
+-        if (!(instance.job.flags! & SchedulerJobFlags.DISPOSED)) {
+-          isHmrUpdating = true
++        // Async setup may not have created a render job yet.
++        if (!instance.scope.active) return
++
++        const pending =
++          __FEATURE_SUSPENSE__ &&
++          (instance.asyncDep && !instance.asyncResolved
++            ? instance
++            : locateNonHydratedAsyncRoot(instance.parent!))
++        if (pending) {
++          // #16040 Recheck the root chain after each setup resolves: it may
++          // expose another async root that would defer the parent update.
++          pending.asyncDep!.catch(NOOP).then(() => {
++            // A rejected setup may never reach Suspense's initialization.
++            if (
++              instance.scope.active &&
++              (pending.asyncResolved || !pending.scope.active)
++            ) {
++              queueJob(update)
++            }
++          })
++          return
++        }
++
++        // The previous flush may have cleared the dirty set while waiting.
++        dirtyInstances = hmrDirtyComponents.get(oldComp)
++        if (!dirtyInstances) {
++          hmrDirtyComponents.set(oldComp, (dirtyInstances = new Set()))
++        }
++        dirtyInstances.add(instance)
++
++        isHmrUpdating = true
++        try {
+           instance.parent!.update()
++        } finally {
+           isHmrUpdating = false
+           // #6930, #11248 avoid infinite recursion
+           dirtyInstances.delete(instance)
++          queuePostFlushCb(() => hmrDirtyComponents.clear())
+         }
+-      })
++      }
++      queueJob(update)
+     } else if (instance.appContext.reload) {
+       // root instance mounted via createApp() has a reload method
+       instance.appContext.reload()
+diff --git a/packages/runtime-core/src/renderer.ts b/packages/runtime-core/src/renderer.ts
+index 326f84e3878..f178cda23c0 100644
+--- a/packages/runtime-core/src/renderer.ts
++++ b/packages/runtime-core/src/renderer.ts
+@@ -2646,7 +2646,7 @@ function getSequence(arr: number[]): number[] {
+   return result
+ }
+ 
+-function locateNonHydratedAsyncRoot(
++export function locateNonHydratedAsyncRoot(
+   instance: ComponentInternalInstance,
+ ): ComponentInternalInstance | undefined {
+   const subComponent = instance.subTree.component

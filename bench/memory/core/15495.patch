@@ -1,0 +1,116 @@
+diff --git a/packages/compiler-sfc/__tests__/__snapshots__/compileScript.spec.ts.snap b/packages/compiler-sfc/__tests__/__snapshots__/compileScript.spec.ts.snap
+index 795f0ae8840..c718e769086 100644
+--- a/packages/compiler-sfc/__tests__/__snapshots__/compileScript.spec.ts.snap
++++ b/packages/compiler-sfc/__tests__/__snapshots__/compileScript.spec.ts.snap
+@@ -206,6 +206,54 @@ return { n, get x() { return x } }
+ })"
+ `;
+ 
++exports[`SFC compile <script setup> > async/await detection > await in switch case 1`] = `
++"import { withAsyncContext as _withAsyncContext } from 'vue'
++
++export default {
++  async setup(__props, { expose: __expose }) {
++  __expose();
++
++let __temp, __restore
++switch (a) {
++        case 1:
++          foo()
++          ;(
++  ([__temp,__restore] = _withAsyncContext(() => bar())),
++  await __temp,
++  __restore()
++)
++      }
++return {  }
++}
++
++}"
++`;
++
++exports[`SFC compile <script setup> > async/await detection > await in switch case nested in a block 1`] = `
++"import { withAsyncContext as _withAsyncContext } from 'vue'
++
++export default {
++  async setup(__props, { expose: __expose }) {
++  __expose();
++
++let __temp, __restore
++if (a) {
++        switch (b) {
++          case 1:
++            qux()
++            ;(
++  ([__temp,__restore] = _withAsyncContext(() => bar())),
++  await __temp,
++  __restore()
++)
++        }
++      }
++return {  }
++}
++
++}"
++`;
++
+ exports[`SFC compile <script setup> > async/await detection > expression statement 1`] = `
+ "import { withAsyncContext as _withAsyncContext } from 'vue'
+ 
+diff --git a/packages/compiler-sfc/__tests__/compileScript.spec.ts b/packages/compiler-sfc/__tests__/compileScript.spec.ts
+index a1cc885cdac..caaae92b41d 100644
+--- a/packages/compiler-sfc/__tests__/compileScript.spec.ts
++++ b/packages/compiler-sfc/__tests__/compileScript.spec.ts
+@@ -960,6 +960,28 @@ describe('SFC compile <script setup>', () => {
+       assertAwaitDetection(`if (ok) { await foo } else { await bar }`)
+     })
+ 
++    // #15495
++    test('await in switch case', () => {
++      const code = assertAwaitDetection(`switch (a) {
++        case 1:
++          foo()
++          await bar()
++      }`)
++      expect(code).toMatch(/foo\(\)\s*;\(/)
++    })
++
++    // #15495
++    test('await in switch case nested in a block', () => {
++      const code = assertAwaitDetection(`if (a) {
++        switch (b) {
++          case 1:
++            qux()
++            await bar()
++        }
++      }`)
++      expect(code).toMatch(/qux\(\)\s*;\(/)
++    })
++
+     test('multiple `if` nested statements', () => {
+       assertAwaitDetection(`if (ok) {
+         let a = 'foo'
+diff --git a/packages/compiler-sfc/src/compileScript.ts b/packages/compiler-sfc/src/compileScript.ts
+index 901196235e4..3c070a0e02a 100644
+--- a/packages/compiler-sfc/src/compileScript.ts
++++ b/packages/compiler-sfc/src/compileScript.ts
+@@ -646,6 +646,8 @@ export function compileScript(
+           }
+           if (child.type === 'BlockStatement') {
+             scope.push(child.body)
++          } else if (child.type === 'SwitchCase') {
++            scope.push(child.consequent)
+           }
+           if (child.type === 'AwaitExpression') {
+             hasAwait = true
+@@ -670,7 +672,9 @@ export function compileScript(
+           }
+         },
+         leave(node: Node) {
+-          if (node.type === 'BlockStatement') scope.pop()
++          if (node.type === 'BlockStatement' || node.type === 'SwitchCase') {
++            scope.pop()
++          }
+         },
+       })
+     }

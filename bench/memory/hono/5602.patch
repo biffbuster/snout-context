@@ -1,0 +1,85 @@
+diff --git a/src/middleware/etag/index.test.ts b/src/middleware/etag/index.test.ts
+index 8b13aec88a..0f3b00d110 100644
+--- a/src/middleware/etag/index.test.ts
++++ b/src/middleware/etag/index.test.ts
+@@ -472,6 +472,29 @@ describe('Etag Middleware', () => {
+     })
+   })
+ 
++  it('Should cancel the discarded body on 304', async () => {
++    let cancelled = false
++    const app = new Hono()
++    app.use('/etag/*', etag())
++    app.get('/etag/stream', (c) => {
++      const stream = new ReadableStream<Uint8Array>({
++        pull(controller) {
++          controller.enqueue(new TextEncoder().encode('chunk'))
++        },
++        cancel() {
++          cancelled = true
++        },
++      })
++      return c.body(stream, 200, { ETag: '"stream-v1"' })
++    })
++
++    const res = await app.request('http://localhost/etag/stream', {
++      headers: { 'If-None-Match': '"stream-v1"' },
++    })
++    expect(res.status).toBe(304)
++    expect(cancelled).toBe(true)
++  })
++
+   it('Should remove all non-retained headers on 304 without skipping any', async () => {
+     const app = new Hono()
+     app.use('/etag/*', etag())
+diff --git a/src/middleware/etag/index.ts b/src/middleware/etag/index.ts
+index 03c350e879..64f211005a 100644
+--- a/src/middleware/etag/index.ts
++++ b/src/middleware/etag/index.ts
+@@ -117,6 +117,7 @@ export const etag = (options?: ETagOptions): MiddlewareHandler => {
+     const matched = ifNoneMatch === '*' || etagMatches(etag, ifNoneMatch)
+ 
+     if (matched) {
++      await res.body?.cancel()
+       c.res = new Response(null, {
+         status: 304,
+         statusText: 'Not Modified',
+diff --git a/src/middleware/pretty-json/index.test.ts b/src/middleware/pretty-json/index.test.ts
+index 9c4426731c..c67b30c719 100644
+--- a/src/middleware/pretty-json/index.test.ts
++++ b/src/middleware/pretty-json/index.test.ts
+@@ -198,6 +198,22 @@ describe('JSON pretty by Middleware', () => {
+     await expect(res.text()).rejects.toThrow()
+   })
+ 
++  it('Should cancel the original body when the response is replaced', async () => {
++    let original: Response | undefined
++    const app = new Hono()
++    app.use('*', prettyJSON({ force: true }))
++    app.get('/x', () => {
++      original = new Response('{"message":"Hono!"}', {
++        headers: { 'Content-Type': 'application/json' },
++      })
++      return original
++    })
++
++    const res = await app.request('http://localhost/x')
++    expect(await res.json()).toEqual({ message: 'Hono!' })
++    expect((await original!.body!.getReader().read()).done).toBe(true)
++  })
++
+   it('Should remove a stale Content-Length when the body is prettified', async () => {
+     const app = new Hono()
+     app.use('*', prettyJSON({ force: true }))
+diff --git a/src/middleware/pretty-json/index.ts b/src/middleware/pretty-json/index.ts
+index 2d6575e6e0..0fbfff1617 100644
+--- a/src/middleware/pretty-json/index.ts
++++ b/src/middleware/pretty-json/index.ts
+@@ -60,6 +60,7 @@ export const prettyJSON = (options?: PrettyOptions): MiddlewareHandler => {
+         // e.g. an empty 204 response or a body that is not valid JSON
+         return
+       }
++      await c.res.body?.cancel()
+       c.res = new Response(JSON.stringify(obj, null, options?.space ?? 2), c.res)
+       // The length of the body has changed, so remove the stale Content-Length
+       c.res.headers.delete('Content-Length')

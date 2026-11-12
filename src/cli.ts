@@ -57,7 +57,7 @@ import { archiveFiles, auditContext, listArchives, renderAudit, renderMap, resto
 import { auditCi, renderCi } from "./audit/ci.js";
 import { docWindow, type DocWindow } from "./gate/longdoc.js";
 import { asksToContinue, captureSession, COMMITS, embedKey, embedText, withoutStaleClaims, forgetCard, leftOff, linkCommit, listCards, packVector, readCard, readCards, readVectors, recall, renderRecall, repoBrief, shareMemory, unpackVector, workCards, workingState, writeVectors, CARD_KIND, cardsDir } from "./memory/memory.js";
-import { memoryFetch, memoryHint, memorySearch, prepareHistorySearch, type MemoryContext } from "./memory/tools.js";
+import { memoryFetch, memoryHint, memorySearch, prepareHistorySearch, recentIndex, type MemoryContext } from "./memory/tools.js";
 import { claimImport, githubNudge, HIST_KIND, importHistory, readImportState, type ImportResult } from "./memory/history.js";
 import { applyDistilled, installedFor, replaceOlder, retireElsewhere, retireInstalled, retireOneOff } from "./memory/distill.js";
 import { coveredBy, instructionText, lastUses, nearDuplicate, restoreObservation, retireUnused, verification } from "./memory/quality.js";
@@ -608,7 +608,7 @@ function onSessionStart(input: HookInput, paths: Paths, cfg: Config): void {
 /**
  * A new session starts with no memory text: notes are shown on the prompts they fit
  * (promptNotes), never as one block for every task. Session start keeps the store current and, when
- * other sessions of this project are on record, says so in one line with how to search them
+ * other sessions of this project or its imported history are on record, says so in one line with how to search them
  * (memoryHint): nothing from the records themselves. Not in observe mode; `memoryHint: false` turns it off.
  */
 function startBrief(input: HookInput, paths: Paths, cfg: Config, session: string): string {
@@ -638,9 +638,15 @@ function startBrief(input: HookInput, paths: Paths, cfg: Config, session: string
     const approvedHere = recallable(stores, [sessionViewer(paths.projectDir, stores.project)]).filter((o) => approvedLesson(o) && !heldBack(o, paths.projectDir));
     // With automatic notes on, the line also names each lesson by where it applies (never what it says).
     const index = cfg.memoryNotes === true ? approvedHere.map((o) => ({ id: o.id, applies: o.lesson!.applies })) : [];
-    const hint = memoryHint(readCards(paths.snoutDir), session, agentName(), unfinished, approvedHere.length, index);
-    if (hint) appendRow(join(paths.snoutDir, "recall.jsonl"), { ts: new Date().toISOString(), session, kind: "hint", ...(unfinished ? { unfinished } : {}), tokensEst: estimateTokens(Buffer.byteLength(hint), "x.txt") });
-    return hint;
+    // What the project's imported history holds, as counts: the line says it can be searched (nothing from it).
+    const history = readImportState(configDir(), stores.project)?.counts ?? null;
+    const cards = readCards(paths.snoutDir);
+    const hint = memoryHint(cards, session, agentName(), unfinished, approvedHere.length, index, history);
+    // Opt-in experiment (memoryRecent): the newest other sessions below the line, picked by recency, as records.
+    const recent = hint && cfg.memoryRecent === true ? recentIndex(cards, session, unfinished) : "";
+    const text = recent ? `${hint}\n${recent}` : hint;
+    if (text) appendRow(join(paths.snoutDir, "recall.jsonl"), { ts: new Date().toISOString(), session, kind: "hint", ...(unfinished ? { unfinished } : {}), ...(recent ? { recent: recent.split("\n").length - 1 } : {}), tokensEst: estimateTokens(Buffer.byteLength(text), "x.txt") });
+    return text;
   } catch (err) {
     recordError("memoryHint", err);
     return "";

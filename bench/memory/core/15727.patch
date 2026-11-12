@@ -1,0 +1,162 @@
+diff --git a/packages/runtime-core/__tests__/components/BaseTransition.spec.ts b/packages/runtime-core/__tests__/components/BaseTransition.spec.ts
+index 4bcc24e4cb4..427df997681 100644
+--- a/packages/runtime-core/__tests__/components/BaseTransition.spec.ts
++++ b/packages/runtime-core/__tests__/components/BaseTransition.spec.ts
+@@ -1653,4 +1653,58 @@ describe('BaseTransition', () => {
+     await nextTick()
+     expect(serializeInner(root)).toBe('<div foo="1">two</div>')
+   })
++
++  // #15727
++  describe('mode: "out-in" leave done synchronously', () => {
++    async function testOutIn(
++      {
++        trueBranch,
++        falseBranch,
++        trueSerialized,
++        falseSerialized,
++      }: ToggleOptions,
++      withKeepAlive = false,
++    ) {
++      const toggle = ref(true)
++      const { props, cbs } = mockProps(
++        { mode: 'out-in', onLeave: vi.fn((_el, done) => done()) },
++        withKeepAlive,
++      )
++      const { root } = mount(
++        props,
++        () => (toggle.value ? trueBranch() : falseBranch()),
++        withKeepAlive,
++      )
++      expect(serializeInner(root)).toBe(trueSerialized)
++
++      // the leave finishes inside the patch that starts it
++      toggle.value = false
++      await nextTick()
++      expect(props.onAfterLeave).toHaveBeenCalledTimes(1)
++      assertCalledWithEl(props.onAfterLeave, trueSerialized)
++      expect(serializeInner(root)).toBe(falseSerialized)
++      expect(props.onEnter).toHaveBeenCalledTimes(1)
++      assertCalledWithEl(props.onEnter, falseSerialized)
++      cbs.doneEnter[falseSerialized]()
++      expect(props.onAfterEnter).toHaveBeenCalledTimes(1)
++
++      toggle.value = true
++      await nextTick()
++      expect(props.onAfterLeave).toHaveBeenCalledTimes(2)
++      assertCalledWithEl(props.onAfterLeave, falseSerialized, 1)
++      expect(serializeInner(root)).toBe(trueSerialized)
++    }
++
++    test('w/ elements', async () => {
++      await runTestWithElements(testOutIn)
++    })
++
++    test('w/ components', async () => {
++      await runTestWithComponents(testOutIn)
++    })
++
++    test('w/ KeepAlive', async () => {
++      await runTestWithKeepAlive(testOutIn)
++    })
++  })
+ })
+diff --git a/packages/runtime-core/src/components/BaseTransition.ts b/packages/runtime-core/src/components/BaseTransition.ts
+index 66d24067703..83a4ec81917 100644
+--- a/packages/runtime-core/src/components/BaseTransition.ts
++++ b/packages/runtime-core/src/components/BaseTransition.ts
+@@ -15,13 +15,13 @@ import {
+ } from '../vnode'
+ import { warn } from '../warning'
+ import { isKeepAlive } from './KeepAlive'
+-import { toRaw } from '@vue/reactivity'
++import { EffectFlags, toRaw } from '@vue/reactivity'
+ import { ErrorCodes, callWithAsyncErrorHandling } from '../errorHandling'
+ import { PatchFlags, ShapeFlags, isArray, isFunction } from '@vue/shared'
+ import { onBeforeUnmount, onMounted } from '../apiLifecycle'
+ import { isTeleport } from './Teleport'
+ import type { RendererElement } from '../renderer'
+-import { SchedulerJobFlags } from '../scheduler'
++import { type SchedulerJob, SchedulerJobFlags, queueJob } from '../scheduler'
+ import { isHmrUpdating } from '../hmr'
+ import { filterSingleRoot } from '../componentRenderUtils'
+ 
+@@ -227,7 +227,20 @@ const BaseTransitionImpl: ComponentOptions = {
+             // #6835
+             // it also needs to be updated when active is undefined
+             if (!(instance.job.flags! & SchedulerJobFlags.DISPOSED)) {
+-              instance.update()
++              // #15727 a leave done synchronously lands here inside the
++              // patch that starts it, before the placeholder is mounted:
++              // update once that patch is done
++              if (instance.effect.flags & EffectFlags.RUNNING) {
++                const job: SchedulerJob = () => {
++                  if (!(instance.job.flags! & SchedulerJobFlags.DISPOSED)) {
++                    instance.update()
++                  }
++                }
++                job.i = instance
++                queueJob(job)
++              } else {
++                instance.update()
++              }
+             }
+             delete leavingHooks.afterLeave
+             oldInnerChild = undefined
+diff --git a/packages/vue/__tests__/e2e/Transition.spec.ts b/packages/vue/__tests__/e2e/Transition.spec.ts
+index 05013bc6164..894d6769701 100644
+--- a/packages/vue/__tests__/e2e/Transition.spec.ts
++++ b/packages/vue/__tests__/e2e/Transition.spec.ts
+@@ -776,6 +776,52 @@ describe('e2e: Transition', () => {
+       E2E_TIMEOUT,
+     )
+ 
++    test(
++      'onLeave event immediately done (out-in mode)',
++      async () => {
++        const onLeaveSpy = vi.fn()
++        await page().exposeFunction('onLeaveSpy', onLeaveSpy)
++
++        await page().evaluate(async () => {
++          const { onLeaveSpy } = window as any
++          const { createApp, ref } = (window as any).Vue
++          createApp({
++            template: `
++              <div id="container">
++                <transition mode="out-in" @leave="onLeave">
++                  <div v-if="toggle">True</div>
++                  <div v-else>False</div>
++                </transition>
++              </div>
++              <button id="toggleBtn" @click="click">button</button>
++            `,
++            setup: () => {
++              const toggle = ref(true)
++              function onLeave(el: Element, done: Function) {
++                onLeaveSpy()
++                // immediately done
++                done()
++              }
++              const click = () => (toggle.value = !toggle.value)
++              return {
++                toggle,
++                click,
++                onLeave,
++              }
++            },
++          }).mount('#app')
++        })
++
++        expect(await html('#container')).toBe('<div>True</div>')
++
++        await click('#toggleBtn')
++        await transitionFinish()
++        expect(onLeaveSpy).toBeCalled()
++        expect(await html('#container')).toBe('<div class="">False</div>')
++      },
++      E2E_TIMEOUT,
++    )
++
+     test(
+       'css: false',
+       async () => {

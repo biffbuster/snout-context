@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { networkCommands, modeProblems, armProblems, scoreStep, costMismatch, spentUsd, hookCoverage, codexHookCoverage, pilotVerdict, armOrder, memoryUse, wrongRecalls, labelTasks, groupFits, memoryPath, memoryDiagnosis, recordName } from "../bench/study-checks.mjs";
+import { networkCommands, modeProblems, armProblems, scoreStep, costMismatch, spentUsd, hookCoverage, codexHookCoverage, pilotVerdict, armOrder, memoryUse, wrongRecalls, labelTasks, groupFits, memoryPath, memoryDiagnosis, recordName, straySkillDirs } from "../bench/study-checks.mjs";
 
 const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 
@@ -241,4 +241,11 @@ test("the pilot's verdict traces a search session's records to the tasks that le
   assert.equal(v.path[1].reached, "acted on a labeled record");
   assert.deepEqual(v.byLabel.candidate.search, { sessions: 1, solved: 1, costUsd: 0.1 });
   assert.match(v.diagnosis, /^overhead/, "the same cost per solved task as trim is not lower");
+});
+
+test("Snout's memory skill above a Codex workspace is found; the operator's other skills are not", () => {
+  const has = (paths) => (p) => paths.includes(p);
+  assert.deepEqual(straySkillDirs("C:/u/repo/.snout/ws", has(["C:/u/repo/.agents/skills/snout-memory"])), ["C:/u/repo/.agents/skills/snout-memory"]);
+  assert.deepEqual(straySkillDirs("/home/u/repo", has(["/home/u/.agents/skills/framer"])), [], "a skill of the operator's own is their usual setup");
+  assert.deepEqual(straySkillDirs("/home/u/repo", has([])), []);
 });

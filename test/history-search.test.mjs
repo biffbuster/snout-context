@@ -59,6 +59,15 @@ test("a version, sha, PR or path the question gives answers exactly", () => {
   assert.equal(exactIn("what changed in 2.4.1")(rec("g2", "release 2.4.1")), true, "three parts are one");
 });
 
+test("a sha whose first seven characters are all digits still names its commit, and only that commit", () => {
+  // About one random sha in 27 starts this way; test/import.test.mjs hit it as a flaky failure (2026-11-10).
+  const digits = rec("98933634", "fix shard rollover");
+  const mentioning = rec("c0ffee1", "bump", { body: "ticket 9893363 in the tracker" });
+  assert.equal(exactIn("what did 9893363 change")(digits), true);
+  assert.equal(exactIn("what did 9893363 change")(mentioning), false, "a long number in another record's text is no mention of a commit");
+  assert.equal(exactIn("what did c0ffee1 change")(rec("e1", "x", { body: "reverts c0ffee1" })), true, "a sha with a letter still counts as a mention");
+});
+
 test("records after the as-of date change nothing: not the ranking statistics, not the result", () => {
   const before = [...releases.slice(0, 3), fix];
   const later = Array.from({ length: 30 }, (_, i) => rec(`f${i}`, `sourcemap roots rework ${i}`, { at: "2026-11-01T00:00:00Z" }));

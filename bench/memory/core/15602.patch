@@ -1,0 +1,255 @@
+diff --git a/packages/compiler-sfc/__tests__/compileScript/__snapshots__/defineModel.spec.ts.snap b/packages/compiler-sfc/__tests__/compileScript/__snapshots__/defineModel.spec.ts.snap
+index 5f8acd95585..ed303312999 100644
+--- a/packages/compiler-sfc/__tests__/compileScript/__snapshots__/defineModel.spec.ts.snap
++++ b/packages/compiler-sfc/__tests__/compileScript/__snapshots__/defineModel.spec.ts.snap
+@@ -166,6 +166,86 @@ return { count }
+ }"
+ `;
+ 
++exports[`defineModel() > w/ props destructure, default factory using the props argument 1`] = `
++"import { useModel as _useModel, mergeModels as _mergeModels, defineComponent as _defineComponent } from 'vue'
++
++export default /*@__PURE__*/_defineComponent({
++  props: /*@__PURE__*/_mergeModels({
++    x: { type: Number, required: false }
++  }, {
++    "modelValue": {
++        default: props => props.x
++      },
++    "modelModifiers": {},
++  }),
++  emits: ["update:modelValue"],
++  setup(__props: any, { expose: __expose }) {
++  __expose();
++
++      
++      const modelValue = _useModel(__props, "modelValue")
++      
++return { modelValue }
++}
++
++})"
++`;
++
++exports[`defineModel() > w/ props destructure, local shadowing a destructured prop 1`] = `
++"import { useModel as _useModel, mergeModels as _mergeModels, defineComponent as _defineComponent } from 'vue'
++
++export default /*@__PURE__*/_defineComponent({
++  props: /*@__PURE__*/_mergeModels({
++    x: { type: Number, required: false }
++  }, {
++    "modelValue": {
++        default: () => { const x = 1; return x }
++      },
++    "modelModifiers": {},
++  }),
++  emits: ["update:modelValue"],
++  setup(__props: any, { expose: __expose }) {
++  __expose();
++
++      
++      const modelValue = _useModel(__props, "modelValue")
++      
++return { modelValue }
++}
++
++})"
++`;
++
++exports[`defineModel() > w/ props destructure, nested var shadowing a destructured prop 1`] = `
++"import { useModel as _useModel, mergeModels as _mergeModels, defineComponent as _defineComponent } from 'vue'
++
++export default /*@__PURE__*/_defineComponent({
++  props: /*@__PURE__*/_mergeModels({
++    x: { type: Number, required: false }
++  }, {
++    "modelValue": {
++        default: () => {
++          if (true) {
++            var x = 1
++          }
++          return x
++        }
++      },
++    "modelModifiers": {},
++  }),
++  emits: ["update:modelValue"],
++  setup(__props: any, { expose: __expose }) {
++  __expose();
++
++      
++      const modelValue = _useModel(__props, "modelValue")
++      
++return { modelValue }
++}
++
++})"
++`;
++
+ exports[`defineModel() > w/ template literal name 1`] = `
+ "import { useModel as _useModel } from 'vue'
+ 
+diff --git a/packages/compiler-sfc/__tests__/compileScript/defineModel.spec.ts b/packages/compiler-sfc/__tests__/compileScript/defineModel.spec.ts
+index 4cf2f011326..92948ebb99b 100644
+--- a/packages/compiler-sfc/__tests__/compileScript/defineModel.spec.ts
++++ b/packages/compiler-sfc/__tests__/compileScript/defineModel.spec.ts
+@@ -287,6 +287,76 @@ describe('defineModel()', () => {
+     expect(content).toMatch(`set: (v) => { return v + __props.x }`)
+   })
+ 
++  // #15602
++  test('w/ props destructure, prop option referencing a destructured prop', () => {
++    expect(() =>
++      compile(
++        `
++      <script setup lang="ts">
++      const { x } = defineProps<{ x?: number }>()
++      const modelValue = defineModel({
++        default: () => x
++      })
++      </script>
++      `,
++        { propsDestructure: true },
++      ),
++    ).toThrow(`prop options cannot reference destructured props`)
++  })
++
++  test('w/ props destructure, default factory using the props argument', () => {
++    const { content } = compile(
++      `
++      <script setup lang="ts">
++      const { x } = defineProps<{ x?: number }>()
++      const modelValue = defineModel({
++        default: props => props.x
++      })
++      </script>
++      `,
++      { propsDestructure: true },
++    )
++    assertCode(content)
++    expect(content).toMatch(`default: props => props.x`)
++  })
++
++  test('w/ props destructure, local shadowing a destructured prop', () => {
++    const { content } = compile(
++      `
++      <script setup lang="ts">
++      const { x } = defineProps<{ x?: number }>()
++      const modelValue = defineModel({
++        default: () => { const x = 1; return x }
++      })
++      </script>
++      `,
++      { propsDestructure: true },
++    )
++    assertCode(content)
++    expect(content).toMatch(`default: () => { const x = 1; return x }`)
++  })
++
++  test('w/ props destructure, nested var shadowing a destructured prop', () => {
++    const { content } = compile(
++      `
++      <script setup lang="ts">
++      const { x } = defineProps<{ x?: number }>()
++      const modelValue = defineModel({
++        default: () => {
++          if (true) {
++            var x = 1
++          }
++          return x
++        }
++      })
++      </script>
++      `,
++      { propsDestructure: true },
++    )
++    assertCode(content)
++    expect(content).toMatch(`return x`)
++  })
++
+   test('w/ Boolean And Function types, production mode', () => {
+     const { content, bindings } = compile(
+       `
+diff --git a/packages/compiler-sfc/src/script/definePropsDestructure.ts b/packages/compiler-sfc/src/script/definePropsDestructure.ts
+index e1050c25573..1ba7f127581 100644
+--- a/packages/compiler-sfc/src/script/definePropsDestructure.ts
++++ b/packages/compiler-sfc/src/script/definePropsDestructure.ts
+@@ -23,6 +23,7 @@ import { genPropsAccessExp } from '@vue/shared'
+ import { isCallOf, resolveObjectKey } from './utils'
+ import type { ScriptCompileContext } from './context'
+ import { DEFINE_PROPS } from './defineProps'
++import { DEFINE_MODEL } from './defineModel'
+ 
+ export function processPropsDestructure(
+   ctx: ScriptCompileContext,
+@@ -110,6 +111,8 @@ export function transformDestructuredProps(
+   const excludedIds = new WeakSet<Identifier>()
+   const parentStack: Node[] = []
+   const propsLocalToPublicMap: Record<string, string> = Object.create(null)
++  const modelOptionNodes = new Set<Node>()
++  let currentModelOption: Node | null = null
+ 
+   for (const key in ctx.propsDestructuredBindings) {
+     const { local } = ctx.propsDestructuredBindings[key]
+@@ -117,6 +120,12 @@ export function transformDestructuredProps(
+     propsLocalToPublicMap[local] = key
+   }
+ 
++  for (const { runtimeOptionNodes } of Object.values(ctx.modelDecls)) {
++    for (const node of runtimeOptionNodes) {
++      modelOptionNodes.add(node)
++    }
++  }
++
+   function pushScope(isFunctionScope = false) {
+     const scope = (currentScope = Object.create(currentScope))
+     scopeStack.push(scope)
+@@ -226,6 +235,27 @@ export function transformDestructuredProps(
+   }
+ 
+   function rewriteId(id: Identifier, parent: Node, parentStack: Node[]) {
++    if (currentModelOption) {
++      const isDefault =
++        (currentModelOption.type === 'ObjectProperty' ||
++          currentModelOption.type === 'ObjectMethod') &&
++        resolveObjectKey(
++          currentModelOption.key,
++          currentModelOption.computed,
++        ) === 'default'
++      ctx.error(
++        `\`${DEFINE_MODEL}()\` prop options cannot reference destructured props ` +
++          `because they are hoisted outside of the setup() function.` +
++          (isDefault
++            ? ` Use the props argument of the default factory instead, ` +
++              `e.g. default: props => props${genPropsAccessExp(
++                propsLocalToPublicMap[id.name],
++              ).slice(`__props`.length)}`
++            : ``),
++        id,
++      )
++    }
++
+     if (
+       (parent.type === 'AssignmentExpression' && id === parent.left) ||
+       parent.type === 'UpdateExpression'
+@@ -286,6 +316,10 @@ export function transformDestructuredProps(
+         return this.skip()
+       }
+ 
++      if (modelOptionNodes.has(node)) {
++        currentModelOption = node
++      }
++
+       checkUsage(node, 'watch', vueImportAliases.watch)
+       checkUsage(node, 'toRef', vueImportAliases.toRef)
+ 
+@@ -347,6 +381,9 @@ export function transformDestructuredProps(
+     },
+     leave(node: Node, parent: Node | null) {
+       parent && parentStack.pop()
++      if (node === currentModelOption) {
++        currentModelOption = null
++      }
+       if (isFunctionType(node)) {
+         popScope(true)
+       } else if (node.type === 'BlockStatement' && !isFunctionType(parent!)) {

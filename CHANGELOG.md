@@ -17,6 +17,18 @@ Not measured on agents. Nothing below is covered by [docs/claims.md](docs/claims
   working on. They rank history records; they never make one count as an answer.
 - With `memorySemantic` on, an import embeds the imported history, and a search embeds at most 256
   records still missing.
+- The session-start line names the imported history by counts (commits, PRs, failed CI runs) once it
+  holds 20 records or more, and says a search helps when a task fixes something that used to work.
+  The line names the search tool without its server prefix, which differs between the plugin and
+  `snout init`; it used to give the `snout init` name to plugin installs too.
+- The memory skill says the project's history is searchable and when it helps: a fix for something
+  that used to work, or for code that changed recently.
+- `memoryRecent` (experiment, off by default): under the session-start line, an index of the newest
+  other sessions here, three at most and 150 tokens in all, each with a short id that
+  `snout_memory_fetch` opens, its date, agent and what it did, and "unfinished here" only when the
+  project's state says so. Same in Claude Code and Codex. Automatic notes on prompts stay off.
+- A search that names a commit by seven all-digit characters finds that commit. One sha prefix in
+  about 27 is all digits, and such a question used to answer nothing.
 
 ## 0.3.3 (2026-11-09)
 

@@ -1219,3 +1219,56 @@ a question ("YAML 1.2") counts as an exact clue for any record with "v1.2". Pass
 
 Not done, by the stop rule: no threshold change, no new sets. The questions were written and checked by
 the model, not a person (`review.md` in each project folder).
+
+## PR replay pilot, Hugo (2026-11-10): memory never used
+
+Frozen design `bench/replay-design.json` (amended before any paid session to give the search arm the
+memory skill it ships with). Hugo only, five tasks, three arms, Sonnet 5.5, $2.29 API
+(`bench/ab-results/replay-claude-hugo-1794321127100.json`). All 15 sessions valid.
+
+- Solved 3 of 5 in every arm, the same tasks. Cost $0.86 plain, $0.71 trim, $0.72 search; five tasks
+  support no claim.
+- Search arm: the skill was in context 5 of 5 times and the session-start line 4 of 5; the agent searched
+  0 times. No arm ran `git log`, `git blame` or `git show`. Claude Code wrote no memory of its own in any
+  headless session, so plain was Claude Code without memory in practice.
+- Diagnosis: the line and the skill named earlier sessions only, not the 600-odd imported commits, and
+  the skill said to skip memory when the prompt and the code are enough, which they were on separate
+  bug fixes. vite was not run: the same wording on the same kind of task would teach nothing new.
+- Changed after it: the line names the imported history and says a search helps when a task fixes
+  something that used to work; the skill says the same and to name the file in the question (a path
+  there finds the commit that last changed it; the `files` option only ranks). A free check at each
+  task's base found the commit behind the bug for all three history-dependent pilot tasks by file path,
+  and for one by words (`bench/history-dependence.mjs` labels such tasks: Hugo 9 of 22, vite 6 of 18).
+
+## Startup index check (2026-11-10): Snout's record decides the task; the index adds no solves
+
+Question: does an index of recent sessions at startup (`memoryRecent`, opt-in) get agents to open
+and apply earlier work more often than the session-start line alone? Spec `bench/handoff/spec-index.json`
+(the decision handoff: three projects, a decision the user gave only in the first session, hidden tests),
+frozen before any session. Each receiver ran three ways from the same snapshot: Snout with the line
+(on), Snout with the line and the index (index), and without Snout (off, Claude Code's own memory on).
+
+| | on | index | off |
+|---|---|---|---|
+| Solved, first run (9 directions) | 5 | 5 | 0 |
+| Solved after the fetch fix (dunning rerun, 3 directions) | 3 | 3 | 0 |
+| Opened the giver's record | 12 of 12 | 12 of 12 | n/a |
+
+- First run: `bench/handoff/results-2026-11-10-index.json`, 36 sessions, $1.94 API. Every receiver with
+  Snout opened the giver's record; the prompt names a decision it doesn't give, which the skill covers.
+- All six dunning failures with Snout came from Snout: a fetch showed the task cut at 240 characters
+  ("invoices under $5 ar…r their October invoice"). Receivers with the line guessed the rest and failed
+  that test; receivers with the index stopped and asked. Fixed: a record keeps up to 2,000 characters of
+  the task and a fetch shows it whole (test in `test/recall.test.mjs`). Rerun of the three dunning
+  directions: `results-2026-11-10-index-2.json`, 12 sessions, $0.83 API: solved with Snout 6 of 6.
+- The two other failures: Codex receivers on depotclock, shown the full rule, applied it wrongly.
+- The index: same solves; in 5 of 12 it led to a fetch by its short id without a search. Tokens and cost,
+  index − on, went both ways (one pair per direction). It stays opt-in: its case is tasks where agents
+  don't think to look, which this check, where every receiver looked, does not test.
+- Validity: Codex receivers without Snout were flagged in four directions. In the first run a copy of the
+  memory skill in this checkout's `.agents/skills` reached them; the harness now refuses to run while one
+  is there. In the rerun, one called `snout_memory_search` by name with no Snout server present (0 calls
+  reached it). One Claude receiver with Snout missed one hook call and solved.
+- What it shows: with a decision held only in an earlier session, agents with Snout's record solved 8 of
+  9 directions in each Snout arm, counting dunning after the fix; plain agents solved none (0 of 12 over
+  both runs). The tasks were built to need the record; how often real work needs one is not measured here.

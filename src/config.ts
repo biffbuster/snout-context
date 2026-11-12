@@ -48,6 +48,12 @@ export interface Config {
    */
   memoryHint?: boolean;
   /**
+   * Opt-in experiment (2026-11-10): below the session-start line, an index of the newest other
+   * sessions here (at most three, 150 tokens): each one's id, date, agent and what it did, and
+   * "unfinished here" only when the project's state says so (memory/tools.ts recentIndex). Off unless true.
+   */
+  memoryRecent?: boolean;
+  /**
    * The session start's daily background import also reads PRs and failed CI runs with the user's
    * `gh` login (cli.ts startImport, memory/history.ts). Opt-in, default off: git and past sessions only.
    */
@@ -224,6 +230,7 @@ export function loadConfig(paths: Paths): Config {
   if (process.env.SNOUT_REPO_MAP === "1" || process.env.SNOUT_REPO_MAP === "0") cfg.repoMap = process.env.SNOUT_REPO_MAP === "1";
   if (process.env.SNOUT_MEMORY_NOTES === "1" || process.env.SNOUT_MEMORY_NOTES === "0") cfg.memoryNotes = process.env.SNOUT_MEMORY_NOTES === "1";
   if (process.env.SNOUT_MEMORY_HINT === "1" || process.env.SNOUT_MEMORY_HINT === "0") cfg.memoryHint = process.env.SNOUT_MEMORY_HINT === "1";
+  if (process.env.SNOUT_MEMORY_RECENT === "1" || process.env.SNOUT_MEMORY_RECENT === "0") cfg.memoryRecent = process.env.SNOUT_MEMORY_RECENT === "1";
 
   return cfg;
 }

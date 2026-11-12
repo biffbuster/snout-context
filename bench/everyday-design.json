@@ -1,0 +1,188 @@
+{
+ "name": "Everyday replay: vuejs/core in merge order; Claude Code with its own memory, plus Snout trimming, plus Snout memory",
+ "written": "2026-11-10",
+ "protocol": "docs/benchmark-protocol.md#memory-study, with the replay rules (amendments of 2026-11-09 and 2026-11-10) and the everyday amendment of 2026-11-10",
+ "question": "On real issues from a repository never used in development, worked in merge order in one clone as a developer would, does Snout (trimming, and trimming plus memory as it ships) lower cost per solved task against Claude Code with its own memory, without solving fewer?",
+ "repository": {
+  "repo": "vuejs/core",
+  "rule": "the protocol TypeScript rule; among the surveyed repositories with Windows CI and not used in development (honojs/hono, vuejs/core), the one with more candidate tasks whose grading tests run without a browser or an outside service; a tie broken by more tasks validated on this machine (written in .snout/notes/plan-everyday-test-2026-11-10.md before the survey)",
+  "survey": {
+   "date": "2026-11-10",
+   "since": "2026-07-30",
+   "hono": {
+    "candidates": 24,
+    "withoutBrowserOrService": 23,
+    "validated": 7,
+    "note": "12 could not be installed with pnpm: hono used bun at those bases"
+   },
+   "core": {
+    "candidates": 25,
+    "withoutBrowserOrService": 23,
+    "validated": 22,
+    "validatedWithoutBrowser": 21,
+    "excluded": {
+     "core-15727": "its grading test is a browser (e2e) test"
+    }
+   }
+  }
+ },
+ "arms": {
+  "plain": "Claude Code with its own memory (auto memory, on by default); no Snout",
+  "trim": "plain plus Snout's read gate and output trimming; Snout memory off",
+  "search": "trim plus Snout memory as it ships: session records from earlier tasks in the chain, the project's history imported up to the base (snout import, six months back from the base's date, git only), the session-start hint, the memory skill (as the plugin ships it; added 2026-11-10 before any paid session, docs/benchmark-protocol.md), and memory search and fetch as MCP tools; the agent decides whether to search"
+ },
+ "replay": {
+  "workspace": "one folder per chain (arm and repeat), so Claude Code's own memory and Snout's records carry from task to task as in a developer's clone",
+  "history": "each task fetches only its base and the base's ancestors from the local clone, in merge order; before every session the fix's commit must be absent and every ref must reach only the base's ancestors, or the run stops",
+  "ownMemory": "Claude Code's memory folder for the chain's workspace is emptied when the chain opens and measured after every session; if Claude Code writes none in headless runs, plain is reported as Claude Code without memory in practice",
+  "grading": "the fix PR's own tests over the agent's work, against the base commit (a session that commits is graded on its work)"
+ },
+ "armOrder": [
+  "plain",
+  "trim",
+  "search"
+ ],
+ "repeats": 1,
+ "agents": [
+  "claude"
+ ],
+ "model": "claude-sonnet-5-5",
+ "budgetUsdPerSession": "2.00",
+ "chain": "one chain per arm: all 21 tasks in merge order in one workspace, so every task keeps what earlier tasks in the chain left (the agent's session records, and the real history up to its base)",
+ "labels": {
+  "core-15288": {
+   "dependsOnHistory": false,
+   "issueSaysItUsedToWork": true
+  },
+  "core-15320": {
+   "dependsOnHistory": false,
+   "issueSaysItUsedToWork": true
+  },
+  "core-15478": {
+   "dependsOnHistory": true,
+   "issueSaysItUsedToWork": false
+  },
+  "core-15495": {
+   "dependsOnHistory": false,
+   "issueSaysItUsedToWork": false
+  },
+  "core-15496": {
+   "dependsOnHistory": true,
+   "issueSaysItUsedToWork": true
+  },
+  "core-15602": {
+   "dependsOnHistory": true,
+   "issueSaysItUsedToWork": false
+  },
+  "core-15551": {
+   "dependsOnHistory": true,
+   "issueSaysItUsedToWork": false
+  },
+  "core-15639": {
+   "dependsOnHistory": false,
+   "issueSaysItUsedToWork": false
+  },
+  "core-15710": {
+   "dependsOnHistory": false,
+   "issueSaysItUsedToWork": true
+  },
+  "core-15775": {
+   "dependsOnHistory": false,
+   "issueSaysItUsedToWork": false
+  },
+  "core-15817": {
+   "dependsOnHistory": false,
+   "issueSaysItUsedToWork": false
+  },
+  "core-15632": {
+   "dependsOnHistory": false,
+   "issueSaysItUsedToWork": true
+  },
+  "core-15643": {
+   "dependsOnHistory": false,
+   "issueSaysItUsedToWork": false
+  },
+  "core-15792": {
+   "dependsOnHistory": false,
+   "issueSaysItUsedToWork": false
+  },
+  "core-15723": {
+   "dependsOnHistory": false,
+   "issueSaysItUsedToWork": true
+  },
+  "core-15716": {
+   "dependsOnHistory": true,
+   "issueSaysItUsedToWork": true
+  },
+  "core-16051": {
+   "dependsOnHistory": true,
+   "issueSaysItUsedToWork": false
+  },
+  "core-16000": {
+   "dependsOnHistory": false,
+   "issueSaysItUsedToWork": true
+  },
+  "core-16040": {
+   "dependsOnHistory": false,
+   "issueSaysItUsedToWork": false
+  },
+  "core-16098": {
+   "dependsOnHistory": true,
+   "issueSaysItUsedToWork": true
+  },
+  "core-16091": {
+   "dependsOnHistory": false,
+   "issueSaysItUsedToWork": true
+  }
+ },
+ "labelRule": "bench/history-dependence.mjs, before any session: a source line the fix changes was last changed within 183 days before the base; issue words reported apart",
+ "tasks": {
+  "bench/memory-tasks-core.json": [
+   "core-15288",
+   "core-15320",
+   "core-15478",
+   "core-15495",
+   "core-15496",
+   "core-15602",
+   "core-15551",
+   "core-15639"
+  ]
+ },
+ "heldOut": {
+  "bench/memory-tasks-core.json": [
+   "core-15710",
+   "core-15775",
+   "core-15817",
+   "core-15632",
+   "core-15643",
+   "core-15792",
+   "core-15723",
+   "core-15716",
+   "core-16051",
+   "core-16000",
+   "core-16040",
+   "core-16098",
+   "core-16091"
+  ]
+ },
+ "maxSpendUsdPerTasksFile": {
+  "claude": 5
+ },
+ "pilot": {
+  "purpose": "feasibility and size, not a claim: the chain runs cleanly with a real agent on vuejs/core, whether agents use memory on the four history-dependent pilot tasks, and how much the arms vary",
+  "valid": "every chain valid (no leak, no network use, no Snout side call, hooks seen where Snout runs, the memory skill listed in every search session), and every session graded",
+  "proceedToFullRun": "valid, search solves no fewer than trim minus one task, and the search arm searched or fetched on at least one of the four history-dependent pilot tasks; otherwise diagnose before any further paid run",
+  "reported": "solved, cost and cost per solved task per arm; search vs trim and search vs plain (point estimates only, fewer than 10 tasks per repository); memory use (searched, opened, acted on); wrong recalls (acted on a record and failed a task trim solved); Claude Code's own memory files per session; tokens Snout kept out; results by label (history-dependent or not)"
+ },
+ "fullRun": {
+  "tasks": "the chain replays all 21 tasks in merge order (the eight pilot tasks first, run again and not scored, so later tasks keep their earlier sessions); the 13 held-out vuejs/core tasks are scored, with the held-out Hugo and vite tasks of bench/replay-design.json",
+  "primary": "cost per solved task, search vs plain, paired by task, 95% bootstrap interval",
+  "secondary": "search vs trim (does memory add to trimming), solved-fraction difference with a one-sided 95% lower bound against a 10-point margin, wrong recalls; results by label",
+  "claim": "a savings claim only if the interval lies below 1 and the solved-fraction lower bound stays within the margin",
+  "power": "31 scored tasks, below the 56 the 10-point margin needs: the run can reveal large quality losses, not rule out a 10-point one"
+ },
+ "caveats": [
+  "Claude Code wrote no memory of its own in the Hugo pilot's headless sessions; if that holds, plain is Claude Code without memory in practice",
+  "the chain's tasks were merged over ten weeks; a developer's day has more related work per hour"
+ ]
+}
