@@ -21,7 +21,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { sharedWords, terms, wordForms, type Card } from "./memory.js";
 import { acceptObservation, addObservation, archiveObservation, listObservations, markSuperseded, proposeObservation, reactivateObservation, supersedeObservation, write, type NewObservation, type Observation, type Stores } from "./store.js";
-import { PASSED } from "../compact/memory.js";
+import { PASSED, stopsSession } from "../compact/memory.js";
 import { coveredBy, restoreObservation, UNUSED } from "./quality.js";
 import { onPath } from "../util/path.js";
 
@@ -217,7 +217,7 @@ const ONE_OFF = /\b(?:yet|for now|right now|as part of|if needed|next|today|tomo
 export const oneOff = (text: string): boolean => ONE_OFF.test(text);
 
 /** An instruction a note may come from: lasting, or worded as lasting, and not tied to the moment. */
-const keepable = (text: string): boolean => !oneOff(text) && (lasting(text) || standing(text));
+const keepable = (text: string): boolean => !oneOff(text) && !stopsSession(text) && (lasting(text) || standing(text));
 
 /** The word that starts the test run itself: `go test`, `npm test`, `pytest`, `node --test`, `runtests.py`. */
 const RUNNER = /^(?:py\.?test|jest|vitest|mocha|rspec|phpunit|tox|unittest|test(?::[\w:-]+)?|--test|runtests\.py|(?:run[-_])?tests?(?:[-_]\w+)?\.(?:m?[jt]s|sh|py))$/;

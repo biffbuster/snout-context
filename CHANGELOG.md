@@ -19,6 +19,12 @@ Not measured on agents. Nothing below is covered by [docs/claims.md](docs/claims
   note, and `reject <id>` turns it down so it isn't suggested again. `snout memory` counts them as
   suggested from what you said; it used to call them written by an agent.
 - `snout memory list --all` says how many it didn't list past the first 40.
+- Fixed: the left-off note no longer repeats where the last session was told to stop. It quoted
+  the whole request, so "Stop after the first callback" reached the next session, which stopped
+  there too instead of doing the follow-up. The note now leaves out such limits ("stop after...",
+  "leave the rest for tomorrow", "and stop there") and says it did. The session's record keeps the
+  request whole, labels the limit as that session's, and no longer lists it as a standing
+  instruction. Limits on an action, such as "don't push yet", stay in the note.
 
 ## 0.3.4 (2026-11-12)
 

@@ -111,6 +111,9 @@ that a rebase or amend took off every branch leaves memory on the next import. D
    and its last words, within the prompt's memory budget. It comes only when that work is still
    unfinished here and the prompt asks to continue it ("pick up where we left off") or names one of
    its files. Every other prompt gets nothing, so a session on unrelated work pays nothing for it.
+   Where that session was told to stop ("stop after the first callback", "leave the rest for
+   tomorrow") is left out of the note, which says so, because it limited that session and not the
+   next one. The session's record keeps it.
    It works across agents: a Codex session picks up where Claude Code stopped, and the reverse.
    `snout memory leftoff off` turns it off. It was measured with Claude Code (below).
 
