@@ -89,7 +89,11 @@ export async function installModel(log: (s: string) => void, dir = modelDir(), m
   if (!existsSync(join(dir, "package.json"))) writeFileSync(join(dir, "package.json"), '{ "name": "snout-model", "private": true }\n');
   if (!existsSync(join(dir, "node_modules", "@huggingface", "transformers", "package.json"))) {
     log(`Installing ${LIBRARY} into ${dir} ...`);
-    const npm = spawnSync("npm", ["install", LIBRARY, "--no-audit", "--no-fund", "--loglevel=error"], { cwd: dir, stdio: "inherit", shell: process.platform === "win32", windowsHide: true });
+    const args = ["install", LIBRARY, "--no-audit", "--no-fund", "--loglevel=error"];
+    // npm is npm.cmd on Windows, which only runs through a shell. The words are fixed here, so one command
+    // line is passed whole: Node warns (DEP0190) when an argument list goes to a shell unescaped.
+    const opts = { cwd: dir, stdio: "inherit" as const, windowsHide: true };
+    const npm = process.platform === "win32" ? spawnSync(`npm ${args.join(" ")}`, { ...opts, shell: true }) : spawnSync("npm", args, opts);
     if (npm.status !== 0) throw new Error("npm install failed (is npm on PATH?)");
   }
   for (const f of files) {
