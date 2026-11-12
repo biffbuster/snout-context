@@ -68,7 +68,8 @@ that a rebase or amend took off every branch leaves memory on the next import. D
    history of 20 records or more, a new session is told how many there are (sessions with the
    latest one's date and agent; commits, PRs and failed CI runs), and how to search them. If the
    newest work is still unfinished here, the line also gives that session's id. It includes nothing
-   from the records. It is shown in enforce mode, and `memoryHint: false` turns it off. The line exists because neither agent
+   from the records. It is shown in either mode (the mode decides trimming, not memory), and
+   `memoryHint: false` turns it off. The line exists because neither agent
    passes Snout's own tool guidance on in a usable form: Codex leaves MCP server instructions out,
    and Claude Code lists Snout's tools by name only until they are loaded. In a live check, neither
    agent searched a record it wasn't told about.
@@ -95,6 +96,14 @@ that a rebase or amend took off every branch leaves memory on the next import. D
    and the header says they are records. It was added on 2026-11-10 because agents seldom searched
    for records they only knew existed, and it is being measured against the line alone before any
    default changes. Automatic notes and lessons on prompts stay off.
+5. **Where you left off (on by default since 2026-11-11).** In either mode, a new session's first
+   prompt gets a short note on where the last working session stopped:
+   what it was asked, its uncommitted changes, notes or docs it changed, open to-dos, a failing test,
+   and its last words, within the prompt's memory budget. It comes only when that work is still
+   unfinished here and the prompt asks to continue it ("pick up where we left off") or names one of
+   its files. Every other prompt gets nothing, so a session on unrelated work pays nothing for it.
+   It works across agents: a Codex session picks up where Claude Code stopped, and the reverse.
+   `snout memory leftoff off` turns it off. It was measured with Claude Code (below).
 
 Claude Code gets the hooks, the tools and the skill from the plugin. Codex gets them from
 `snout init codex`, which writes the skill to `.agents/skills/snout-memory/`. Each agent can search
@@ -128,8 +137,21 @@ and fetch in `.snout/recall.jsonl`, with the query (up to 120 characters) and th
   does not go to a larger run. Reviewed lessons and the skill are the changes made in response, and
   they have not been measured ([result](memory-gates.md#result-2026-10-29-no-go-for-memory-as-it-shipped-for-both-agents),
   [next test](memory-lessons.md#next-the-billing-handoff-live)).
-- **What Snout doesn't claim yet:** that memory saves tokens or money, or that it gets better on its
-  own. It won't claim either until results support it. The 0.3.1 cost result in
+- **Where you left off** (2026-11-11; Claude Code, one session per scenario). Eight handoffs where an
+  earlier session stopped with work unfinished and a decision the next step needed, then "Pick up where
+  we left off." With the session-start line alone, 8 of 8 receivers did the next step and kept the
+  decision, each after opening the record; with the left-off note too, 8 of 8, none opened it, and the
+  median receiver reached its first edit after 2 tool calls and about 60,000 tokens instead of 4 and
+  80,000. Plain Claude Code did 4 of 8: none of the 4 where the earlier session just stopped, all 4
+  where it was asked to leave notes, and those 4 cost a little less than with the note ($0.196 against
+  $0.219 in all). In 4 controls a
+  prompt named a file the earlier session left unfinished but asked for something else: every receiver,
+  with the note or without, did what was asked and left the unfinished step alone. The tasks were built
+  to need the earlier decision, so this says nothing about everyday work.
+  Spec: `bench/handoff/spec-leftoff.json`; results: `bench/handoff/results-2026-11-11-leftoff.json`
+  and `-leftoff-2.json`.
+- **What Snout doesn't claim yet:** that memory saves tokens or money on everyday work, or that it
+  gets better on its own. It won't claim either until results support it. The 0.3.1 cost result in
   [claims](claims.md) measures trimming, not memory.
 
 ## Paused

@@ -1,0 +1,371 @@
+{
+ "name": "Continuity check: \"Pick up where we left off\" after unfinished work, with Snout and without",
+ "written": "2026-11-10",
+ "purpose": "In real resumes of this project, the next session reread progress notes, handoff files, git history and its own memory (4-19 tool calls, 20-46K characters) to recover what was done, what was next and what the user had decided (an approval gate, an order, a chosen option, a cap). This check asks, on fresh work: when a session stops with work unfinished and a decision the next step must honor, does the next session, told only \"Pick up where we left off.\", do the next step and honor the decision, and at what cost, with Snout as it ships and without it. Both receivers start from the same snapshot: the giver's files, its git history and uncommitted changes, any notes it left, and Claude Code's own memory as the giver left it.",
+ "developedFrom": "the six real resumes of this project (2026-10-14 to 2026-11-09), read for what was reread and which decisions were needed; none of their work is used here",
+ "ownMemory": "claude",
+ "skill": true,
+ "keepGiverHistory": true,
+ "settings": {
+  "claudeCode": "2.1.306",
+  "codex": "0.163.0",
+  "claudeModel": "claude-sonnet-5-5",
+  "codexModel": "gpt-6.1-sol",
+  "codexEffort": "low",
+  "budgetUsd": "0.40",
+  "limitMinutes": 30,
+  "overshootUsdPerSession": 0.2
+ },
+ "approvedTotalUsd": 6,
+ "arms": {
+  "giver": "Snout as it ships, so the session is recorded: hooks in enforce (trimming), memory on, automatic notes off, the session-start line, the memory skill, and search, fetch and propose. Claude Code's own memory on. The store starts empty. One giver per direction; both receivers start from what it left.",
+  "on": "Snout as it ships, on a copy of the giver's store: trimming, the session-start line (it names a session whose work is unfinished here when the project's state says so), the memory skill, search and fetch. Claude Code's own memory on, starting from what the giver left.",
+  "off": "Claude Code with no Snout: its own memory on, starting from what the giver left. Same snapshot, same prompt."
+ },
+ "conditions": {
+  "natural": "the giver's prompt ends as a user would when stopping for the day",
+  "save": "the same prompt plus: \"Before you finish, leave whatever notes we'll need to pick this up next time.\""
+ },
+ "order": "Per direction: the giver, then the receiver with Snout (on), then without (off), both from the giver's snapshot.",
+ "directions": [
+  {
+   "id": "continuity-shipcalc-natural",
+   "project": "shipcalc",
+   "language": "javascript",
+   "remote": "https://git.example.com/shop/shipcalc.git",
+   "condition": "natural",
+   "giverPrompt": "Customers are being overcharged at the exact weight limits: a 1 kg parcel is billed at the 5 kg price, and a 20 kg parcel is refused. Plan for this week: (1) fix that boundary bug in domesticQuote; (2) add international quotes as `internationalQuote(weightKg, zone, items)` in a new src/international.js. Pricing from ops: zone EU is 1500 cents for the first kilo, then 80 cents for each started 100 g; zone WORLD is 2500 cents for the first kilo, then 140 cents for each started 100 g. Two rules from ops: above 2 kg, round the weight up to the next 0.5 kg before pricing; and lithium batteries never ship internationally, so if any item has `lithium: true`, throw a RestrictedItemError (export it from the same file). Let's only do step 1 today and run the tests. I'll be back tomorrow for step 2.",
+   "receiverPrompt": "Pick up where we left off.",
+   "expectedFact": "Ops' international pricing and rules as the user gave them: EU 1500 + 80 per started 100 g, WORLD 2500 + 140; above 2 kg round up to the next 0.5 kg; lithium never ships internationally (RestrictedItemError).",
+   "recordPattern": "lithium|RestrictedItemError|0\\.5 kg",
+   "repoPattern": "lithium|RestrictedItemError|next 0\\.5 kg",
+   "codePattern": "RestrictedItemError|lithium",
+   "dryRunSay": "Fixed the boundary bug: bands now include their upper limit. Step 2 (international quotes with ops' rules) is next.",
+   "grade": {
+    "runner": "node",
+    "baseTests": [
+     "test/rates.test.js"
+    ],
+    "giverTests": [
+     "hidden/handoff-giver.test.js"
+    ],
+    "receiverTests": [
+     "hidden/handoff-receiver-task.test.js",
+     "hidden/handoff-receiver-decision.test.js"
+    ],
+    "receiverTaskTests": [
+     "hidden/handoff-receiver-task.test.js"
+    ],
+    "receiverDecisionTests": [
+     "hidden/handoff-receiver-decision.test.js"
+    ],
+    "testDir": "test",
+    "refGiver": "ref-giver",
+    "refReceiver": "ref-receiver"
+   },
+   "giver": "claude",
+   "receiver": "claude"
+  },
+  {
+   "id": "continuity-shipcalc-save",
+   "project": "shipcalc",
+   "language": "javascript",
+   "remote": "https://git.example.com/shop/shipcalc.git",
+   "condition": "save",
+   "giverPrompt": "Customers are being overcharged at the exact weight limits: a 1 kg parcel is billed at the 5 kg price, and a 20 kg parcel is refused. Plan for this week: (1) fix that boundary bug in domesticQuote; (2) add international quotes as `internationalQuote(weightKg, zone, items)` in a new src/international.js. Pricing from ops: zone EU is 1500 cents for the first kilo, then 80 cents for each started 100 g; zone WORLD is 2500 cents for the first kilo, then 140 cents for each started 100 g. Two rules from ops: above 2 kg, round the weight up to the next 0.5 kg before pricing; and lithium batteries never ship internationally, so if any item has `lithium: true`, throw a RestrictedItemError (export it from the same file). Let's only do step 1 today and run the tests. I'll be back tomorrow for step 2. Before you finish, leave whatever notes we'll need to pick this up next time.",
+   "receiverPrompt": "Pick up where we left off.",
+   "expectedFact": "Ops' international pricing and rules as the user gave them: EU 1500 + 80 per started 100 g, WORLD 2500 + 140; above 2 kg round up to the next 0.5 kg; lithium never ships internationally (RestrictedItemError).",
+   "recordPattern": "lithium|RestrictedItemError|0\\.5 kg",
+   "repoPattern": "lithium|RestrictedItemError|next 0\\.5 kg",
+   "codePattern": "RestrictedItemError|lithium",
+   "dryRunSay": "Fixed the boundary bug: bands now include their upper limit. Step 2 (international quotes with ops' rules) is next.",
+   "grade": {
+    "runner": "node",
+    "baseTests": [
+     "test/rates.test.js"
+    ],
+    "giverTests": [
+     "hidden/handoff-giver.test.js"
+    ],
+    "receiverTests": [
+     "hidden/handoff-receiver-task.test.js",
+     "hidden/handoff-receiver-decision.test.js"
+    ],
+    "receiverTaskTests": [
+     "hidden/handoff-receiver-task.test.js"
+    ],
+    "receiverDecisionTests": [
+     "hidden/handoff-receiver-decision.test.js"
+    ],
+    "testDir": "test",
+    "refGiver": "ref-giver",
+    "refReceiver": "ref-receiver"
+   },
+   "giver": "claude",
+   "receiver": "claude"
+  },
+  {
+   "id": "continuity-notifier-natural",
+   "project": "notifier",
+   "language": "javascript",
+   "remote": "https://git.example.com/platform/notifier.git",
+   "condition": "natural",
+   "giverPrompt": "Two things on notifications. (1) Emails to addresses with capital letters, like Ana@Example.com, are rejected by the provider, so those users get nothing. (2) Then SMS: users with `prefers: \"sms\"` and a phone number should get a text through src/sms.js instead of an email. The platform team's conditions for (2): `notify(user, message)` keeps its exact signature and keeps returning an array of message ids, because billing and auth call it; and a text longer than 160 characters is cut to 160 with … as the last character. Please just fix (1) today and run the tests; we'll do the SMS part next time.",
+   "receiverPrompt": "Pick up where we left off.",
+   "expectedFact": "The platform team's conditions for SMS: notify keeps its exact signature and returns an array of message ids; a text over 160 characters is cut to 160 with an ellipsis as the last character.",
+   "recordPattern": "160|exact signature|array of message ids",
+   "repoPattern": "ellipsis|… as the last|exact signature|array of message ids|billing and auth",
+   "codePattern": "…",
+   "dryRunSay": "Fixed: addresses are lower-cased before sending. The SMS part with the platform team's conditions is next.",
+   "grade": {
+    "runner": "node",
+    "baseTests": [
+     "test/notify.test.js"
+    ],
+    "giverTests": [
+     "hidden/handoff-giver.test.js"
+    ],
+    "receiverTests": [
+     "hidden/handoff-receiver-task.test.js",
+     "hidden/handoff-receiver-decision.test.js"
+    ],
+    "receiverTaskTests": [
+     "hidden/handoff-receiver-task.test.js"
+    ],
+    "receiverDecisionTests": [
+     "hidden/handoff-receiver-decision.test.js"
+    ],
+    "testDir": "test",
+    "refGiver": "ref-giver",
+    "refReceiver": "ref-receiver"
+   },
+   "giver": "claude",
+   "receiver": "claude"
+  },
+  {
+   "id": "continuity-notifier-save",
+   "project": "notifier",
+   "language": "javascript",
+   "remote": "https://git.example.com/platform/notifier.git",
+   "condition": "save",
+   "giverPrompt": "Two things on notifications. (1) Emails to addresses with capital letters, like Ana@Example.com, are rejected by the provider, so those users get nothing. (2) Then SMS: users with `prefers: \"sms\"` and a phone number should get a text through src/sms.js instead of an email. The platform team's conditions for (2): `notify(user, message)` keeps its exact signature and keeps returning an array of message ids, because billing and auth call it; and a text longer than 160 characters is cut to 160 with … as the last character. Please just fix (1) today and run the tests; we'll do the SMS part next time. Before you finish, leave whatever notes we'll need to pick this up next time.",
+   "receiverPrompt": "Pick up where we left off.",
+   "expectedFact": "The platform team's conditions for SMS: notify keeps its exact signature and returns an array of message ids; a text over 160 characters is cut to 160 with an ellipsis as the last character.",
+   "recordPattern": "160|exact signature|array of message ids",
+   "repoPattern": "ellipsis|… as the last|exact signature|array of message ids|billing and auth",
+   "codePattern": "…",
+   "dryRunSay": "Fixed: addresses are lower-cased before sending. The SMS part with the platform team's conditions is next.",
+   "grade": {
+    "runner": "node",
+    "baseTests": [
+     "test/notify.test.js"
+    ],
+    "giverTests": [
+     "hidden/handoff-giver.test.js"
+    ],
+    "receiverTests": [
+     "hidden/handoff-receiver-task.test.js",
+     "hidden/handoff-receiver-decision.test.js"
+    ],
+    "receiverTaskTests": [
+     "hidden/handoff-receiver-task.test.js"
+    ],
+    "receiverDecisionTests": [
+     "hidden/handoff-receiver-decision.test.js"
+    ],
+    "testDir": "test",
+    "refGiver": "ref-giver",
+    "refReceiver": "ref-receiver"
+   },
+   "giver": "claude",
+   "receiver": "claude"
+  },
+  {
+   "id": "continuity-invoicer-natural",
+   "project": "invoicer",
+   "language": "javascript",
+   "remote": "https://git.example.com/finance/invoicer.git",
+   "condition": "natural",
+   "giverPrompt": "Invoices are off by a fraction of a cent now and then: totalCents adds up floating-point dollars, so 3 × $0.10 comes out as 30.000000000000004 cents. Fix that today so totals are exact integer cents, and run the tests. Next session we'll add volume discounts as `discountedTotalCents(order)` in a new src/discounts.js. Sales signed off on the rules: 5% off when an order has 50 to 99 units, 10% off at 100 units or more; units are counted across the whole order, not per line; gift cards (SKUs starting with GC-) never get a discount and don't count toward the units; round the discount to the nearest cent. Only the rounding fix today.",
+   "receiverPrompt": "Pick up where we left off.",
+   "expectedFact": "Sales' discount rules: 5% at 50-99 units, 10% at 100+, units over the whole order, gift cards (GC-) excluded from units and discount, discount rounded to the nearest cent.",
+   "recordPattern": "5%|10%|GC-|gift card",
+   "repoPattern": "5% off|10% off|GC-|gift card",
+   "codePattern": "GC-|0\\.05|0\\.1\\b",
+   "dryRunSay": "Totals are now exact integer cents. Volume discounts with sales' rules are next.",
+   "grade": {
+    "runner": "node",
+    "baseTests": [
+     "test/invoice.test.js"
+    ],
+    "giverTests": [
+     "hidden/handoff-giver.test.js"
+    ],
+    "receiverTests": [
+     "hidden/handoff-receiver-task.test.js",
+     "hidden/handoff-receiver-decision.test.js"
+    ],
+    "receiverTaskTests": [
+     "hidden/handoff-receiver-task.test.js"
+    ],
+    "receiverDecisionTests": [
+     "hidden/handoff-receiver-decision.test.js"
+    ],
+    "testDir": "test",
+    "refGiver": "ref-giver",
+    "refReceiver": "ref-receiver"
+   },
+   "giver": "claude",
+   "receiver": "claude"
+  },
+  {
+   "id": "continuity-invoicer-save",
+   "project": "invoicer",
+   "language": "javascript",
+   "remote": "https://git.example.com/finance/invoicer.git",
+   "condition": "save",
+   "giverPrompt": "Invoices are off by a fraction of a cent now and then: totalCents adds up floating-point dollars, so 3 × $0.10 comes out as 30.000000000000004 cents. Fix that today so totals are exact integer cents, and run the tests. Next session we'll add volume discounts as `discountedTotalCents(order)` in a new src/discounts.js. Sales signed off on the rules: 5% off when an order has 50 to 99 units, 10% off at 100 units or more; units are counted across the whole order, not per line; gift cards (SKUs starting with GC-) never get a discount and don't count toward the units; round the discount to the nearest cent. Only the rounding fix today. Before you finish, leave whatever notes we'll need to pick this up next time.",
+   "receiverPrompt": "Pick up where we left off.",
+   "expectedFact": "Sales' discount rules: 5% at 50-99 units, 10% at 100+, units over the whole order, gift cards (GC-) excluded from units and discount, discount rounded to the nearest cent.",
+   "recordPattern": "5%|10%|GC-|gift card",
+   "repoPattern": "5% off|10% off|GC-|gift card",
+   "codePattern": "GC-|0\\.05|0\\.1\\b",
+   "dryRunSay": "Totals are now exact integer cents. Volume discounts with sales' rules are next.",
+   "grade": {
+    "runner": "node",
+    "baseTests": [
+     "test/invoice.test.js"
+    ],
+    "giverTests": [
+     "hidden/handoff-giver.test.js"
+    ],
+    "receiverTests": [
+     "hidden/handoff-receiver-task.test.js",
+     "hidden/handoff-receiver-decision.test.js"
+    ],
+    "receiverTaskTests": [
+     "hidden/handoff-receiver-task.test.js"
+    ],
+    "receiverDecisionTests": [
+     "hidden/handoff-receiver-decision.test.js"
+    ],
+    "testDir": "test",
+    "refGiver": "ref-giver",
+    "refReceiver": "ref-receiver"
+   },
+   "giver": "claude",
+   "receiver": "claude"
+  },
+  {
+   "id": "continuity-profiles-natural",
+   "project": "profiles",
+   "language": "javascript",
+   "remote": "https://git.example.com/people/profiles.git",
+   "condition": "natural",
+   "giverPrompt": "We're renaming the profile field `fullname` to `display_name` (the data team's migration). Plan: (1) loadProfile should accept records with either field, preferring display_name; (2) then switch our writers to display_name; (3) later, once the data team confirms their backfill, drop fullname support. Two constraints: the backfill is NOT confirmed yet, so reading fullname has to stay for now; and src/legacy-export.js must keep writing a `fullname` column, because the payroll vendor parses that file and won't change. Just do (1) today and run the tests; we'll continue next time.",
+   "receiverPrompt": "Pick up where we left off.",
+   "expectedFact": "The rename's constraints: the backfill is not confirmed, so fullname stays readable; legacy-export keeps its fullname column for the payroll vendor.",
+   "recordPattern": "backfill|legacy-export|payroll",
+   "repoPattern": "backfill|vendor parses|NOT confirmed",
+   "codePattern": "backfill",
+   "dryRunSay": "loadProfile now reads display_name or fullname. Switching the writers is next.",
+   "grade": {
+    "runner": "node",
+    "baseTests": [
+     "test/profiles.test.js"
+    ],
+    "giverTests": [
+     "hidden/handoff-giver.test.js"
+    ],
+    "receiverTests": [
+     "hidden/handoff-receiver-task.test.js",
+     "hidden/handoff-receiver-decision.test.js"
+    ],
+    "receiverTaskTests": [
+     "hidden/handoff-receiver-task.test.js"
+    ],
+    "receiverDecisionTests": [
+     "hidden/handoff-receiver-decision.test.js"
+    ],
+    "testDir": "test",
+    "refGiver": "ref-giver",
+    "refReceiver": "ref-receiver"
+   },
+   "giver": "claude",
+   "receiver": "claude"
+  },
+  {
+   "id": "continuity-profiles-save",
+   "project": "profiles",
+   "language": "javascript",
+   "remote": "https://git.example.com/people/profiles.git",
+   "condition": "save",
+   "giverPrompt": "We're renaming the profile field `fullname` to `display_name` (the data team's migration). Plan: (1) loadProfile should accept records with either field, preferring display_name; (2) then switch our writers to display_name; (3) later, once the data team confirms their backfill, drop fullname support. Two constraints: the backfill is NOT confirmed yet, so reading fullname has to stay for now; and src/legacy-export.js must keep writing a `fullname` column, because the payroll vendor parses that file and won't change. Just do (1) today and run the tests; we'll continue next time. Before you finish, leave whatever notes we'll need to pick this up next time.",
+   "receiverPrompt": "Pick up where we left off.",
+   "expectedFact": "The rename's constraints: the backfill is not confirmed, so fullname stays readable; legacy-export keeps its fullname column for the payroll vendor.",
+   "recordPattern": "backfill|legacy-export|payroll",
+   "repoPattern": "backfill|vendor parses|NOT confirmed",
+   "codePattern": "backfill",
+   "dryRunSay": "loadProfile now reads display_name or fullname. Switching the writers is next.",
+   "grade": {
+    "runner": "node",
+    "baseTests": [
+     "test/profiles.test.js"
+    ],
+    "giverTests": [
+     "hidden/handoff-giver.test.js"
+    ],
+    "receiverTests": [
+     "hidden/handoff-receiver-task.test.js",
+     "hidden/handoff-receiver-decision.test.js"
+    ],
+    "receiverTaskTests": [
+     "hidden/handoff-receiver-task.test.js"
+    ],
+    "receiverDecisionTests": [
+     "hidden/handoff-receiver-decision.test.js"
+    ],
+    "testDir": "test",
+    "refGiver": "ref-giver",
+    "refReceiver": "ref-receiver"
+   },
+   "giver": "claude",
+   "receiver": "claude"
+  }
+ ],
+ "scoring": {
+  "success": "the receiver's task checks (hidden/handoff-receiver-task.test.js) and decision checks (hidden/handoff-receiver-decision.test.js) both pass, with the project's own tests and the giver's check; reported apart as task passed and decision honored",
+  "beforeFirstEdit": "from the receiver's transcript: tool calls, characters of tool results, and tokens (input, cache read, cache write and output of every call) before its first edit to a project file that is not a note (*.md, *.txt) or an agent's own folder",
+  "cost": "per arm: total cost per successful handoff = (the givers' cost, shared by both arms + that arm's receivers' cost) / that arm's successes; every session at the higher of its transcript price and Claude Code's own. Snout's capture is local (no model call), so its cost is in the giver's session only",
+  "ownMemory": "after each giver: the files in Claude Code's memory folder for the workspace and whether any states the decision; reported per direction",
+  "whole": "the receivers differ in trimming as well as memory, so a difference is the effect of the whole Snout setup",
+  "gate": "receivers run only if the giver solved step 1, its Snout record exists and states the decision (recordPattern); otherwise the direction is reported as stopped"
+ },
+ "stages": {
+  "1": {
+   "directions": [
+    "continuity-shipcalc-natural"
+   ],
+   "ceilingUsd": 1.8,
+   "gate": "the giver solved step 1 and its record holds the decision; both receivers ran and are valid"
+  },
+  "2": {
+   "directions": [
+    "continuity-shipcalc-save",
+    "continuity-notifier-natural",
+    "continuity-notifier-save",
+    "continuity-invoicer-natural",
+    "continuity-invoicer-save",
+    "continuity-profiles-natural",
+    "continuity-profiles-save"
+   ]
+  }
+ },
+ "validity": [
+  "As spec-record.json, and: Claude Code's own memory is on in every arm and isolated from the operator's (--plan or --api is required live).",
+  "Each Claude Code receiver starts from the memory the giver left, not from what the other receiver wrote.",
+  "Snapshots and grading copies never hold .claude, .codex, .agents, .snout or .mcp.json.",
+  "Each receiver's workspace holds the giver's git history (a bundle of its repository) and its uncommitted changes; nothing from another direction or receiver.",
+  "A session that could pass the approved total does not start: a direction starts only if all its Claude Code sessions could reach their budget plus the overshoot within the cap, and each session is checked again before it starts."
+ ]
+}

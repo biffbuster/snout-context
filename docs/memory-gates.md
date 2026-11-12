@@ -1272,3 +1272,36 @@ frozen before any session. Each receiver ran three ways from the same snapshot: 
 - What it shows: with a decision held only in an earlier session, agents with Snout's record solved 8 of
   9 directions in each Snout arm, counting dunning after the fix; plain agents solved none (0 of 12 over
   both runs). The tasks were built to need the record; how often real work needs one is not measured here.
+
+## Everyday replay pilot, vuejs/core (2026-11-10): memory never used; stop before the full run
+
+Frozen design `bench/everyday-design.json` (vuejs/core chosen by rule; the first eight of 21 tasks in merge
+order, four of them history-dependent). Three arms, Sonnet 5.5, $1.98 API
+(`bench/ab-results/replay-claude-core-1794342641250.json`). All 24 sessions valid; hooks saw 128 of 128 tool calls.
+
+- Solved 5 of 8 in every arm, the same tasks. Cost $0.49 plain, $0.72 trim, $0.77 search; nearly all of
+  the gap is core-15551, which every arm failed: plain stopped after 10 turns, the Snout arms built a
+  reproduction and reran the suite for 32 and 34 turns. Without it: $0.42, $0.42, $0.39. Eight tasks
+  support no claim either way.
+- Memory: the session-start line (now naming 251 imported commits and "fixes something that used to work")
+  and the skill were in context 8 of 8 times; the agent searched 0 times. With the Hugo pilot, 0 searches
+  in 12 sessions that had the line.
+- Stop rule: valid yes; search no worse than trim minus one, yes; searched on a history-dependent task, no.
+  The full run does not start.
+- Free check afterwards: on 5 of the 7 history-dependent tasks of both pilots, the commit that last
+  changed the fix's lines was among the last three commits of a file the agent itself opened, and four of
+  those five tasks failed in every arm (core-15496, core-15602, core-15551, hugo-15358). That commit is a
+  likely cause, not a verified one. It points at delivery tied to what the agent reads, not to what it asks.
+
+## File history diagnostic (2026-11-10): dropped after one pair
+
+Design `bench/diag-file-history-design.json`: trimming alone against trimming plus file history notes
+(`memoryFileHistory`, opt-in), staged under a $3.50 total. Stage 1, core-15496 in both arms, $0.14
+(`bench/ab-results/replay-claude-core-1794350688087.json`): the note reached the session (75 tokens,
+listing the commit the issue already named), both arms failed the same hidden test, and the frozen gate
+held stage 2 back. A free review of the three remaining tasks (`.snout/notes/file-history-review-2026-11-10.md`)
+found none where history adds evidence the issue lacks: one issue names the relevant commit, one listed
+commit is only the last change to the file, and for core-15551 the hidden tests fail before the listed
+commit as well. The diagnostic is dropped; the notes stay opt-in and off. A later history test needs
+tasks that are verified regressions (the test passes at the listed commit's parent and fails at it) whose
+issue does not name the commit.

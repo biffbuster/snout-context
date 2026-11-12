@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFil
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { RECENT_MAX, RECENT_TOKENS, recentIndex, HYBRID_CUT, hybridRecall, leftOff, packVector, readRecallDecisions, recall, recallOutcomes, renderRecall, repoBrief, summarizeRecall, terms, unpackVector, workingState } from "../dist/lib.mjs";
+import { RECENT_MAX, RECENT_TOKENS, recentIndex, HYBRID_CUT, asksToContinue, estimateTokens, hybridRecall, leftOff, MEMORY_BUDGET, packVector, readRecallDecisions, recall, recallOutcomes, renderRecall, repoBrief, summarizeRecall, terms, unpackVector, workingState } from "../dist/lib.mjs";
 
 const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 const DAY = 86_400_000;
@@ -147,7 +147,7 @@ test("a session's private notes go to the configured folder, not the user's real
   assert.ok(process.env.SNOUT_CONFIG_DIR.startsWith(tmpdir()), "this file's other hooks write to a temporary folder");
 });
 
-test("a fresh install is in observe: notes are saved and recorded as fitting, and none reaches the agent", () => {
+test("a fresh install is in observe: notes are saved and recorded as fitting, and none reaches the agent; the session-start line does", () => {
   // Gate 2, 2026-10-26: no mode in the environment, the project or the user's config.
   const { dir, transcript } = repo();
   writeFileSync(transcript, readFileSync(transcript, "utf8") + [
@@ -156,9 +156,12 @@ test("a fresh install is in observe: notes are saved and recorded as fitting, an
   ].map((r) => JSON.stringify(r)).join("\n") + "\n");
   const fresh = { SNOUT_MODE: undefined, SNOUT_HOME: mkdtempSync(join(tmpdir(), "snout-fresh-home-")), SNOUT_CONFIG_DIR: mkdtempSync(join(tmpdir(), "snout-fresh-cfg-")) };
   hook(dir, "stop", { session_id: "s1", transcript_path: transcript }, fresh);
-  assert.match(hook(dir, "session-start", { session_id: "s2", source: "startup" }, fresh)?.systemMessage ?? "", /\(observe\)/);
+  const start = hook(dir, "session-start", { session_id: "s2", source: "startup" }, fresh);
+  assert.match(start?.systemMessage ?? "", /\(observe\)/);
+  // Since 2026-11-11 memory reaches the agent in observe too; observe only never trims or blocks.
+  assert.match(start?.hookSpecificOutput?.additionalContext ?? "", /1 earlier session is on record/);
   assert.equal(hook(dir, "prompt-submit", { session_id: "s2", prompt: "The tests fail after my change. Run the tests and fix it." }, fresh)?.hookSpecificOutput?.additionalContext, undefined);
-  const rows = readFileSync(join(dir, ".snout", "recall.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
+  const rows = readFileSync(join(dir, ".snout", "recall.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l)).filter((r) => r.kind === "inject");
   assert.ok(rows.some((r) => r.items.length && r.injected === false), "the fitting note is recorded as not shown");
 });
 
@@ -362,6 +365,35 @@ test("a new session hears where unfinished work stopped, across agents, and noth
   assert.equal(leftOff([half], { now: at + 8 * DAY, dirty: new Set(["src/checkout.ts"]) }), "");
 });
 
+test("the left-off note keeps the whole ask, so a decision deep in it is there; the record's shorter copy of the ask is not shown again; notes are named", () => {
+  // Continuity check, 2026-11-11: the ask was cut at 200 characters and the decision sat 400 to 800 in,
+  // so 4 of 8 notes left it out (bench/leftoff-check.mjs).
+  const ask = `Two things on notifications. (1) Emails to addresses with capital letters are rejected, so fix that today and run the tests. ${"Some users get nothing from the provider because of it. ".repeat(5)}The platform team's conditions for (2): notify(user, message) keeps its exact signature, and a text longer than 160 characters is cut to 160.`;
+  const half = card({ session: "n1", task: ask, request: `${ask.slice(0, 399)}…`, changed: ["src/notify.js", "NOTES.md"], outcome: "Fixed (1). The SMS part is next." });
+  const at = Date.parse(half.updated) + 3_600_000;
+  const opts = { now: at, dirty: new Set(["src/notify.js", "NOTES.md"]), prompt: "Pick up where we left off." };
+  const text = leftOff([half], opts);
+  assert.match(text, /keeps its exact signature, and a text longer than 160 characters is cut to 160\."$/m);
+  assert.doesNotMatch(text, /Last thing asked/, "the record's shorter copy of the ask is the same ask");
+  assert.match(text, /not committed yet: src\/notify\.js$/m);
+  assert.match(text, /Notes or docs it changed: NOTES\.md$/m);
+  assert.match(text, /Its last words: Fixed \(1\)\. The SMS part is next\.$/);
+  assert.doesNotMatch(text, /The rest is in its record/, "nothing was cut");
+  assert.ok(estimateTokens(Buffer.byteLength(text), "x.md") <= MEMORY_BUDGET, "within the prompt's memory budget");
+  // An ask too long for the note is cut, and the note says where the rest is.
+  const long = leftOff([{ ...half, task: ask + " More context.".repeat(120) }], opts);
+  assert.match(long, /\n- The rest is in its record: snout_memory_fetch session:n1$/);
+  assert.ok(long.length <= 1550 && estimateTokens(Buffer.byteLength(long), "x.md") <= MEMORY_BUDGET, `${long.length} characters`);
+});
+
+test("asking to continue is read from the prompt's prose, not from the code it quotes", () => {
+  assert.equal(asksToContinue("Continue where the last session left off."), true);
+  assert.equal(asksToContinue("Next steps:\n    - continue the refactor in src/a.js"), true, "an indented list item is prose");
+  assert.equal(asksToContinue("This loop skips rows:\n```py\nfor r in rows:\n    if not r: continue\n```"), false);
+  assert.equal(asksToContinue("Aggregates are dropped:\nfor expr in order_by:\n\tif expr.contains_aggregate:\n\t\tcontinue"), false, "SWE-bench django-13569");
+  assert.equal(asksToContinue("Why does `continue` skip the cleanup here?"), false);
+});
+
 test("the working state reads the branch and every uncommitted file, new ones included", () => {
   const dir = mkdtempSync(join(tmpdir(), "snout-left-"));
   const g = (...a) => spawnSync("git", a, { cwd: dir, encoding: "utf8" });
@@ -379,7 +411,7 @@ test("the working state reads the branch and every uncommitted file, new ones in
   assert.deepEqual([...workingState(tmpdir()).dirty].length >= 0, true);
 });
 
-test("the session-start hint: once there are other sessions on record, in enforce, with memory; never their content", () => {
+test("the session-start hint: once there are other sessions on record, in either mode, with memory; never their content", () => {
   const { dir, transcript } = repo();
   const start = (session, payload = {}, env = {}) => hook(dir, "session-start", { session_id: session, source: "startup", ...payload }, env)?.hookSpecificOutput?.additionalContext ?? "";
   assert.equal(start("s1"), "", "nothing on record yet");
@@ -396,7 +428,7 @@ test("the session-start hint: once there are other sessions on record, in enforc
   assert.match(codex.stdout, /1 earlier session is on record/);
   assert.doesNotMatch(codex.stdout, /ToolSearch/, "not for Codex");
   assert.equal(start("s2", { source: "resume" }), "", "once per session: not on resume or compaction");
-  assert.equal(start("s2", {}, { SNOUT_MODE: "observe" }), "", "observe mode shows nothing");
+  assert.match(start("s5", {}, { SNOUT_MODE: "observe" }), /^Snout: 1 earlier session is on record/, "observe shows it too");
   assert.equal(start("s2", {}, { SNOUT_MEMORY_HINT: "0" }), "", "memoryHint off");
   assert.equal(start("s2", {}, { SNOUT_MEMORY: "0" }), "", "memory off");
   const log = readFileSync(join(dir, ".snout", "recall.jsonl"), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)).filter((r) => r.kind === "hint");
@@ -434,6 +466,28 @@ test("memoryRecent (opt-in): the newest other sessions under the line, by id, da
   // The short id the index gives opens the record.
   const fetched = spawnSync(process.execPath, [CLI, "memory", "fetch", "session:5df00e86"], { cwd: dir, encoding: "utf8", env: { ...process.env, CI: undefined, SNOUT_TOKEN: undefined } });
   assert.match(fetched.stdout, new RegExp(`^session:${id} · claude`), fetched.stderr);
+});
+
+test("memoryLeftOff (on by default): a first prompt that continues unfinished work gets the left-off note without the automatic notes, in either mode; other prompts and the switch off get nothing", () => {
+  const { dir, transcript } = repo();
+  hook(dir, "stop", { session_id: "s1", transcript_path: transcript });
+  writeFileSync(join(dir, "src", "billing.js"), "export const total = (o) => Math.round(o.sum * 100) / 100;\n");
+  const ask = (session, prompt, env) => hook(dir, "prompt-submit", { session_id: session, prompt }, env)?.hookSpecificOutput?.additionalContext ?? "";
+  const notesOff = { SNOUT_MEMORY_NOTES: "0" };
+  assert.equal(ask("s2", "Pick up where we left off.", { ...notesOff, SNOUT_MEMORY_LEFTOFF: "0" }), "", "the switch off");
+  assert.match(ask("s3", "Pick up where we left off.", notesOff), /^Snout memory: where the last session in this repo left off \(claude[^\n]*\n- It was asked: "Fix the invoice rounding in billing totals\. Never change the public API\."\n- Its changes not committed yet: src\/billing\.js/);
+  assert.equal(ask("s4", "Add a dark mode toggle to settings.", notesOff), "", "a prompt that continues nothing");
+  assert.match(ask("s5", "Pick up where we left off.", { ...notesOff, SNOUT_MODE: "observe" }), /^Snout memory: where the last session in this repo left off/, "observe shows it too");
+  const rows = readFileSync(join(dir, ".snout", "recall.jsonl"), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)).filter((r) => r.kind === "inject");
+  assert.deepEqual(rows.map((r) => [r.session, r.leftShown, r.injected]), [["s2", false, false], ["s3", true, false], ["s5", true, false]]);
+  // `snout memory leftoff off` writes false, since the switch is on unless false; `on` removes it.
+  const memory = (...a) => spawnSync(process.execPath, [CLI, "memory", ...a], { cwd: dir, encoding: "utf8", env: { ...process.env, CI: undefined, SNOUT_TOKEN: undefined, SNOUT_MEMORY_LEFTOFF: undefined } }).stdout;
+  assert.match(memory("leftoff"), /The left-off note is on\./);
+  memory("leftoff", "off");
+  assert.match(memory("leftoff"), /The left-off note is off\./);
+  assert.equal(ask("s6", "Pick up where we left off.", notesOff), "", "off from the project's config");
+  memory("leftoff", "on");
+  assert.match(memory("leftoff"), /The left-off note is on\./);
 });
 
 test("a fetched record shows the whole task: a rule in the middle of a long first request is not cut", () => {

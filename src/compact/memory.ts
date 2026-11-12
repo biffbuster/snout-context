@@ -164,8 +164,12 @@ function requestText(text: string): string | undefined {
   if (!t || /^<(command-|local-command|system-reminder|task-notification)/.test(t)) return undefined;
   const own = t.replace(/<\\?pasted_content\b[^>]*>[\s\S]*?(<\\?\/pasted_content>|$)/g, " ").replace(/\[Image #\d+\]/g, " ").replace(/\s+/g, " ").trim();
   const letters = own.replace(/[^\p{L}\s]/gu, "").replace(/\s+/g, "").length;
-  // Mostly letters, and no key held down (a run of one character).
-  return own.length >= 3 && letters / own.replace(/\s+/g, "").length >= 0.6 && !/(.)\1{5,}/.test(own) ? own : undefined;
+  const chars = own.replace(/\s+/g, "").length;
+  // Mostly letters, and not keys held down: runs of one character (six or more) making up a third of the
+  // message or more. One long run inside a real request ("30.000000000000004 cents", a "------" divider)
+  // is not that; before 2026-11-10 any run of six dropped the whole request, and the decision it gave.
+  const runs = [...own.matchAll(/(.)\1{5,}/gu)].reduce((n, m) => n + [...m[0]].length, 0);
+  return own.length >= 3 && letters / chars >= 0.6 && runs * 3 < chars ? own : undefined;
 }
 
 /**

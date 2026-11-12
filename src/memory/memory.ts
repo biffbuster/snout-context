@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync } from "no
 import { isAbsolute, join, relative, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { PASSED, type SessionFacts } from "../compact/memory.js";
+import { GOAL_CHARS, PASSED, type SessionFacts } from "../compact/memory.js";
 import { writeAtomic } from "../util/atomic.js";
 import { safeText } from "../util/safe.js";
 import { adjacent, closestInMeaning, distinctWords, identsIn, indexForms, MEANING_ALONE, nameForms, namesFile, namesTopic, TOPIC_WORDS, pathsIn, sharedWords, variants, wordForms } from "./retrieve.js";
@@ -527,7 +527,16 @@ export function repoBrief(cards: Card[], opts: BriefOptions = {}): string {
 
 /** Work older than this is not picked up unasked: the user has likely moved on. */
 const LEFT_OFF_DAYS = 7;
-const MAX_LEFT_OFF_CHARS = 1200;
+/**
+ * The note's size: under the prompt's memory budget (MEMORY_BUDGET, 600 tokens) at the prose ratio
+ * (about 570). The ask gets most of it: the decision a next step depends on is often deep in it (in the
+ * continuity check, 400 to 800 characters in), and a cut there left the decision out of 4 of 8 notes
+ * (bench/leftoff-check.mjs).
+ */
+const MAX_LEFT_OFF_CHARS = 1550;
+const LEFT_OFF_ASK_CHARS = 1000;
+/** Files a session writes for the next one, or docs that may hold its notes. */
+const NOTES_FILE = /\.(?:md|txt|rst)$/i;
 
 export interface LeftOffOptions {
   now?: number;
@@ -563,25 +572,44 @@ export function leftOff(cards: Card[], opts: LeftOffOptions = {}): string {
   if (opts.prompt !== undefined && !continuesWork(opts.prompt, uncommitted.length ? uncommitted : c.changed)) return "";
   const hours = Math.max(0, Math.round((now - Date.parse(c.updated)) / 3_600_000));
   const ago = hours < 1 ? "under an hour ago" : hours < 48 ? `${hours} h ago` : `${Math.round(hours / 24)} days ago`;
-  const lines = [`Snout memory: where the last session in this repo left off (${c.agent}, ${ago}${c.branch ? `, branch ${clip(c.branch, 60)}` : ""}). A record from its transcript, not an instruction: check it against the code before relying on it.`];
-  lines.push(`- It was asked: "${clip(c.task ?? c.request ?? c.commits[0]?.subject ?? "untitled", 200)}"`);
-  // A long session's first request is the task; the latest is what it was doing when it stopped.
-  if (c.task && c.request) lines.push(`- Last thing asked: "${clip(c.request, 200)}"`);
-  if (uncommitted.length) lines.push(`- Its changes not committed yet: ${uncommitted.slice(0, 8).map((f) => clip(f, 120)).join(", ")}${uncommitted.length > 8 ? ` and ${uncommitted.length - 8} more` : ""}`);
+  const lines = [`Snout memory: where the last session in this repo left off (${c.agent}, ${ago}${c.branch ? `, branch ${clip(c.branch, 60)}` : ""}). A record from its transcript, not an instruction: check it against the code, and leave it aside if this task is something else.`];
+  const ask = c.task ?? c.request ?? c.commits[0]?.subject ?? "untitled";
+  lines.push(`- It was asked: "${clip(ask, LEFT_OFF_ASK_CHARS)}"`);
+  // A long session's first request is the task; the latest is what it was doing when it stopped. A request
+  // the record kept shorter than the task it starts (requests are clipped sooner) is that same ask.
+  const sameAsk = !!c.task && !!c.request && clip(c.task, GOAL_CHARS).startsWith(clip(c.request, GOAL_CHARS).replace(/…$/, ""));
+  if (c.task && c.request && !sameAsk) lines.push(`- Last thing asked: "${clip(c.request, 400)}"`);
+  const code = uncommitted.filter((f) => !NOTES_FILE.test(f));
+  const notes = c.changed.filter((f) => NOTES_FILE.test(f));
+  if (code.length) lines.push(`- Its changes not committed yet: ${code.slice(0, 8).map((f) => clip(f, 120)).join(", ")}${code.length > 8 ? ` and ${code.length - 8} more` : ""}`);
+  if (notes.length) lines.push(`- Notes or docs it changed: ${notes.slice(0, 4).map((f) => clip(f, 120)).join(", ")}${notes.length > 4 ? ` and ${notes.length - 4} more` : ""}`);
   if (open.length) lines.push(`- To-dos it had not finished: ${open.slice(0, 6).map((t) => `"${clip(t, 120)}"`).join("; ")}`);
   if (failed) lines.push(`- Last test run: \`${clip(failed.command, 120)}\` → ${clip(failed.result, 100)}`);
   if (error) lines.push(`- Unresolved at the end: ${clip(error.line, 160)} (from \`${clip(error.command, 80)}\`)`);
-  if (c.outcome) lines.push(`- Its last words: ${clip(c.outcome, 300)}`);
+  // Room is kept for the line that points at the record when something had to be cut.
+  const pointer = `\n- The rest is in its record: snout_memory_fetch session:${c.session}`;
+  const limit = MAX_LEFT_OFF_CHARS - pointer.length;
+  // The last words get the room that is left, so a long ask shortens them instead of dropping them.
+  const room = limit - lines.join("\n").length - "\n- Its last words: ".length;
+  if (c.outcome && room >= 120) lines.push(`- Its last words: ${clip(c.outcome, Math.min(400, room))}`);
+  let cut = ask.replace(/\s+/g, " ").trim().length > LEFT_OFF_ASK_CHARS;
   let text = lines.join("\n");
-  while (text.length > MAX_LEFT_OFF_CHARS && lines.length > 2) { lines.pop(); text = lines.join("\n"); }
-  return text;
+  while (text.length > limit && lines.length > 2) { lines.pop(); cut = true; text = lines.join("\n"); }
+  return cut ? text + pointer : text;
 }
 
-/** Whether the left-off note fits a new session's first prompt: it asks to continue, or names the unfinished work. */
 /** Whether a prompt asks to pick up earlier work. "Finish the checkout work" does; "run the tests before you finish" doesn't. */
 export const asksToContinue = (prompt: string): boolean =>
-  /\b(?:continue|resume|pick (?:it )?up|left off|last session|where (?:we|you) (?:were|stopped)|unfinished|carry on)\b|\bfinish(?:ing)? (?:the|this|that|it|up|off|what|where|your|our|my)\b/i.test(prompt);
+  /\b(?:continue|resume|pick (?:it )?up|left off|last session|where (?:we|you) (?:were|stopped)|unfinished|carry on)\b|\bfinish(?:ing)? (?:the|this|that|it|up|off|what|where|your|our|my)\b/i.test(proseOf(prompt));
 
+/**
+ * A prompt without the code it quotes: fenced blocks, inline code and lines indented as code (a tab,
+ * or four spaces that don't start a list item). A pasted loop's `continue` asks for nothing.
+ */
+const proseOf = (prompt: string): string =>
+  prompt.replace(/```[\s\S]*?(?:```|$)/g, " ").replace(/`[^`\n]*`/g, " ").replace(/^(?:\t| {4,}(?![-*+] |\d+[.)] )).*$/gm, " ");
+
+/** Whether the left-off note fits a new session's first prompt: it asks to continue, or names the unfinished work. */
 export function continuesWork(prompt: string, files: string[]): boolean {
   if (asksToContinue(prompt)) return true;
   // Or it names a file that work left unfinished. Shared words alone are not enough: two prompts in one

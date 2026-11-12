@@ -18,6 +18,7 @@ stores only the keys you set, so upgrades can move the defaults under you.
   "memory": true,                 // a record per session in .snout/memory; agents search it on demand
   "memoryHint": true,             // one line at session start saying earlier sessions and history are on record
   "memoryRecent": false,          // experiment: an index of the three newest sessions under that line
+  "memoryLeftOff": true,          // where the last session left off, on a first prompt that continues it
   "memoryNotes": false,           // true: add a saved note to the prompt it fits (opt-in)
   "memoryBudget": 600             // tokens of automatic notes per prompt, when memoryNotes is on
 }
@@ -84,7 +85,7 @@ default). On a repository with a GitHub remote, after that first import, you see
 saying `snout import` adds PRs and CI runs. The agent doesn't see it. Without `gh`, `snout import`
 reads git and past sessions only. `snout import status` shows when it last ran.
 
-`memoryHint` (default on; `SNOUT_MEMORY_HINT=0|1`): in enforce mode, when this project has records
+`memoryHint` (default on; `SNOUT_MEMORY_HINT=0|1`): in either mode, when this project has records
 of other sessions or an imported history of 20 records or more, a new session (not a resumed or
 compacted one) starts with one line. It says how many session records there are, the latest one's
 date and agent, how many commits, PRs and failed CI runs the history holds, and to search them with
@@ -103,6 +104,14 @@ an index of the newest other sessions here: three at most, 150 tokens in all, ea
 project's state shows its work unfinished. Recency picks the entries, so they may be unrelated to the
 task; the header says they are records. It is off until it is measured against the line alone
 ([memory](memory.md#how-agents-get-it)).
+
+`memoryLeftOff` (default on since 2026-11-11; `snout memory leftoff on|off`, or
+`SNOUT_MEMORY_LEFTOFF=0|1`): in either mode, a new session's first prompt gets a note on where the last working
+session stopped: what it was asked (up to 1,000 characters), its uncommitted changes, notes or docs it
+changed, open to-dos, a failing test or an unresolved error, and its last words. It is added only when
+that work is still unfinished here (within 7 days) and the prompt asks to continue it or names one of
+its files; any other prompt gets nothing. The note stays within `memoryBudget`. `memoryNotes` shows
+it too. Measured with Claude Code against the session-start line alone ([claims](claims.md)).
 
 `memoryNotes` (default off; `snout memory notes on|off`, or `SNOUT_MEMORY_NOTES=0|1`): in enforce mode,
 add the saved notes that fit a prompt to it, each with where it came from, once per session. It is off

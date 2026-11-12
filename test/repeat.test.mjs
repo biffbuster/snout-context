@@ -105,6 +105,17 @@ test("printing a file with cat after reading it, or cat twice, is stopped with a
   assert.equal(hook(root2, "pre-tool", cat, { SNOUT_MODE: "observe" })?.hookSpecificOutput?.permissionDecision, undefined, "observe never blocks");
 });
 
+test("a cat whose output Claude Code saved to a file reached the agent as a preview: reading the file again is not blocked", () => {
+  const root = project();
+  const cat = { tool_name: "Bash", tool_use_id: "b1", tool_input: { command: "ls src && cat src/big.ts" } };
+  hook(root, "pre-tool", cat);
+  // Past its limit Claude Code shows the agent the first 2 KB and the saved file's path; the hook still gets stdout.
+  hook(root, "post-tool", { ...cat, tool_response: { stdout: readFileSync(join(root, "src/big.ts"), "utf8"), stderr: "", interrupted: false, isImage: false, persistedOutputPath: join(root, "saved.txt"), persistedOutputSize: 30725 } });
+  assert.equal(hook(root, "pre-tool", { ...cat, tool_use_id: "b2", tool_input: { command: "cat src/big.ts" } })?.hookSpecificOutput?.permissionDecision, undefined, "the cat runs again");
+  assert.ok(!isSkip(hook(root, "pre-tool", readCall(root))), "a Read gets the whole file");
+  assert.ok(!isSkip(hook(root, "pre-tool", readCall(root, { offset: 5, limit: 5 }))), "and any window of it");
+});
+
 test("an identical MCP or command result is replaced with a pointer to the earlier copy", () => {
   const root = project();
   const rows = Array.from({ length: 40 }, (_, i) => ({ id: i, title: `Issue ${i}`, body: "x".repeat(30) }));

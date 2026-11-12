@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { networkCommands, modeProblems, armProblems, scoreStep, costMismatch, spentUsd, hookCoverage, codexHookCoverage, pilotVerdict, armOrder, memoryUse, wrongRecalls, labelTasks, groupFits, memoryPath, memoryDiagnosis, recordName, straySkillDirs } from "../bench/study-checks.mjs";
+import { networkCommands, modeProblems, armProblems, scoreStep, costMismatch, spentUsd, hookCoverage, codexHookCoverage, pilotVerdict, armOrder, memoryUse, wrongRecalls, labelTasks, groupFits, memoryPath, memoryDiagnosis, recordName, straySkillDirs, stageGate } from "../bench/study-checks.mjs";
 
 const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
 
@@ -79,6 +79,14 @@ test("hook coverage counts each tool call once, against the hook's heartbeats", 
   assert.deepEqual(hookCoverage(uses, beats), { expected: 4, seen: 4, missing: 0, started: true, prompted: true });
   assert.equal(hookCoverage(uses, beats.slice(0, 4)).missing, 2);
   assert.equal(hookCoverage(uses, []).started, false);
+});
+
+test("a tool call that failed expects no PostToolUse hook", () => {
+  // Continuity stage 1, 2026-11-10: a memory search with an empty query errored; Claude Code ran no
+  // PostToolUse hook for it, and the harness counted that as a missed hook and voided the session.
+  const uses = [{ id: "g", name: "Glob" }, { id: "m", name: "mcp__snout__snout_memory_search", error: true }, { id: "r1", name: "Read" }, { id: "r2", name: "Read" }, { id: "r3", name: "Read" }, { id: "b", name: "Bash" }];
+  const beats = [{ event: "session-start" }, { event: "prompt-submit" }, ...Array(5).fill({ event: "post-tool" })];
+  assert.deepEqual(hookCoverage(uses, beats), { expected: 5, seen: 5, missing: 0, started: true, prompted: true });
 });
 
 test("Codex hook coverage matches each shell command to a pre-tool heartbeat", () => {
@@ -201,11 +209,26 @@ test("the frozen pilot's labels are what the rule gives on the reference fixes, 
   assert.deepEqual(pilot.labels, want);
 });
 
-test("a task group starts only if every arm fits the cap at the costliest session so far", () => {
-  assert.equal(groupFits(0, 0, 3, 3), true, "the first group");
-  assert.equal(groupFits(2.1, 0.3, 3, 3), true);
-  assert.equal(groupFits(2.2, 0.3, 3, 3), false);
-  assert.equal(groupFits(50, 5, 3, undefined), true, "no cap");
+test("a task group starts only if every session could reach its budget plus one call and the cap still holds", () => {
+  // Two sessions at a $0.60 budget and $0.25 past it: $1.70 for the pair.
+  assert.equal(groupFits(0, 2, 0.85, 1.7), true, "the first pair, exactly at the ceiling");
+  assert.equal(groupFits(0.01, 2, 0.85, 1.7), false, "a cent spent leaves no room for a whole pair");
+  // The old bound: cheap sessions so far said a pair at $0.06 a session fits; the next one may still cost its whole budget.
+  assert.equal(groupFits(1.5, 2, 0.85, 3.5), true);
+  assert.equal(groupFits(1.85, 2, 0.85, 3.5), false);
+  assert.equal(groupFits(50, 2, 0.85, undefined), true, "no cap");
+});
+
+test("a staged diagnostic's next stage starts only after delivery and engagement", () => {
+  const row = (arm, fileHistory, extra = {}) => ({ arm, steps: [{ task: "t1", ...(fileHistory ? { fileHistory } : {}) }], ...extra });
+  const used = { notes: 1, delivered: true, inspected: ["fb9b45ce7"], mentioned: [] };
+  assert.deepEqual(stageGate([row("trim"), row("history", used)]), []);
+  assert.deepEqual(stageGate([row("trim"), row("history", { ...used, inspected: [], mentioned: ["fb9b45ce7"] })]), [], "naming a listed commit counts");
+  assert.deepEqual(stageGate([row("trim"), row("history", { notes: 0, delivered: false, inspected: [], mentioned: [] })]), ["no history session got a note", "no session looked at or named a listed commit"]);
+  assert.deepEqual(stageGate([row("trim"), row("history", { ...used, delivered: false })]), ["no note reached its session's context", "no session looked at or named a listed commit"]);
+  assert.deepEqual(stageGate([row("trim"), row("history", { ...used, inspected: [], mentioned: [] })]), ["no session looked at or named a listed commit"]);
+  assert.match(stageGate([row("trim", null, { invalid: "x" }), row("history", used)])[0], /invalid/);
+  assert.match(stageGate([row("trim", null, { capped: "cap" }), row("history", used)])[0], /cap/);
 });
 
 test("the memory path: hint, search, labeled record shown, opened, acted on, result; and what to work on next", () => {
