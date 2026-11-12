@@ -105,13 +105,14 @@ project's state shows its work unfinished. Recency picks the entries, so they ma
 task; the header says they are records. It is off until it is measured against the line alone
 ([memory](memory.md#how-agents-get-it)).
 
-`memoryLeftOff` (default on since 2026-11-11; `snout memory leftoff on|off`, or
+`memoryLeftOff` (default on since 0.3.4; `snout memory leftoff on|off`, or
 `SNOUT_MEMORY_LEFTOFF=0|1`): in either mode, a new session's first prompt gets a note on where the last working
 session stopped: what it was asked (up to 1,000 characters), its uncommitted changes, notes or docs it
 changed, open to-dos, a failing test or an unresolved error, and its last words. It is added only when
 that work is still unfinished here (within 7 days) and the prompt asks to continue it or names one of
 its files; any other prompt gets nothing. The note stays within `memoryBudget`. `memoryNotes` shows
-it too. Measured with Claude Code against the session-start line alone ([claims](claims.md)).
+it too. Measured with Claude Code against the session-start line alone
+([memory](memory.md#what-has-been-measured)).
 
 `memoryNotes` (default off; `snout memory notes on|off`, or `SNOUT_MEMORY_NOTES=0|1`): in enforce mode,
 add the saved notes that fit a prompt to it, each with where it came from, once per session. It is off

@@ -96,7 +96,7 @@ that a rebase or amend took off every branch leaves memory on the next import. D
    and the header says they are records. It was added on 2026-11-10 because agents seldom searched
    for records they only knew existed, and it is being measured against the line alone before any
    default changes. Automatic notes and lessons on prompts stay off.
-5. **Where you left off (on by default since 2026-11-11).** In either mode, a new session's first
+5. **Where you left off (on by default since 0.3.4).** In either mode, a new session's first
    prompt gets a short note on where the last working session stopped:
    what it was asked, its uncommitted changes, notes or docs it changed, open to-dos, a failing test,
    and its last words, within the prompt's memory budget. It comes only when that work is still
@@ -151,8 +151,8 @@ and fetch in `.snout/recall.jsonl`, with the query (up to 120 characters) and th
   Spec: `bench/handoff/spec-leftoff.json`; results: `bench/handoff/results-2026-11-11-leftoff.json`
   and `-leftoff-2.json`.
 - **What Snout doesn't claim yet:** that memory saves tokens or money on everyday work, or that it
-  gets better on its own. It won't claim either until results support it. The 0.3.1 cost result in
-  [claims](claims.md) measures trimming, not memory.
+  gets better on its own. It won't claim either until results support it. The 0.3.3 cost result in
+  [its archive](archive/0.3.3/claims.md) measures trimming, not memory.
 
 ## Paused
 

@@ -1,9 +1,17 @@
 # Changelog
 
-## Unreleased
+## 0.3.4 (2026-11-12)
 
-Not measured on agents. Nothing below is covered by [docs/claims.md](docs/claims.md).
+Only the left-off note was measured on agents, with Claude Code, before this release
+([memory](docs/memory.md#what-has-been-measured)). Nothing below is covered by
+[docs/claims.md](docs/claims.md).
 
+- Where the last session left off, on by default (`memoryLeftOff`; `snout memory leftoff off` turns it
+  off): a new session's first prompt gets it, without the rest of the automatic notes, only when that
+  work is still unfinished here and the prompt asks to continue it or names its files. Measured with
+  Claude Code on 8 handoffs and 4 controls (docs/memory.md, "What has been measured").
+- Memory reaches the agent in observe mode too: the session-start line and the left-off note. The mode
+  decides trimming only. Automatic notes (`memoryNotes`) still show in enforce only.
 - Fixed: a command whose output Claude Code saved to a file (it shows the agent a 2 KB preview past
   its own limit) no longer counts as reading the files it printed. Before, `cat` of a large file
   inside such a command blocked the next read of that file as a repeat the agent already had.
@@ -30,12 +38,6 @@ Not measured on agents. Nothing below is covered by [docs/claims.md](docs/claims
   other sessions here, three at most and 150 tokens in all, each with a short id that
   `snout_memory_fetch` opens, its date, agent and what it did, and "unfinished here" only when the
   project's state says so. Same in Claude Code and Codex. Automatic notes on prompts stay off.
-- Where the last session left off, on by default (`memoryLeftOff`; `snout memory leftoff off` turns it
-  off): a new session's first prompt gets it, without the rest of the automatic notes, only when that
-  work is still unfinished here and the prompt asks to continue it or names its files. Measured with
-  Claude Code on 8 handoffs and 4 controls (docs/memory.md, "What has been measured").
-- Memory reaches the agent in observe mode too: the session-start line and the left-off note. The mode
-  decides trimming only. Automatic notes (`memoryNotes`) still show in enforce only.
 - The left-off note keeps the whole ask up to 1,000 characters. It was cut at 200, and in the
   continuity check the user's decision sat 400 to 800 characters in, so 4 of 8 notes left it out. A
   request that repeats the ask is no longer shown a second time, notes or docs the session changed are

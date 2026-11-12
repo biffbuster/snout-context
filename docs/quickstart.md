@@ -42,7 +42,7 @@ before anything is changed.
 
 ## Turn it on
 
-The default mode, observe, records but never changes what the agent sees. After your first session
+The default mode, observe, records what Snout would trim and trims nothing. After your first session
 Snout tells you what it would have kept out. When you trust the numbers:
 
 ```text
@@ -60,9 +60,11 @@ whether that matches your mode.
 
 ## Memory between sessions
 
-Nothing to set up. Each session leaves a record in `.snout/memory/`. In enforce mode, a new session
+Nothing to set up. Each session leaves a record in `.snout/memory/`. In either mode, a new session
 starts with one line saying earlier sessions are on record. The agent searches and opens them with
-Snout's two memory tools when its task may build on them. `snout memory` lists the records and shows
+Snout's two memory tools when its task may build on them. Ask a new session to pick up where the last
+one left off and its first prompt also gets a short note on where that session stopped
+(`snout memory leftoff off` turns it off). `snout memory` lists the records and shows
 whether agents used them. Using Codex in the same project too? `snout init codex` gives it the same
 memory, and each agent can search the other's records. More in [memory](memory.md).
 

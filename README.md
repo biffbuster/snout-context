@@ -10,7 +10,8 @@ what each session did, so the next session, in either agent, can look it up. It 
 each session spent.
 
 Runs locally, no account. On our 14-task benchmark, Snout 0.3.3 cut Claude Code's cost per solved
-task by 25.0% ([details](docs/claims.md)). That result is for trimming. Memory is not measured yet.
+task by 25.0% ([details](docs/archive/0.3.3/claims.md)). That result is for trimming. Memory has been
+measured only on handing work from one session to the next ([memory](docs/memory.md#what-has-been-measured)).
 
 ## Install
 
