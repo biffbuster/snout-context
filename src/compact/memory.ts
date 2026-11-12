@@ -193,6 +193,12 @@ function errorLine(out: string): string | undefined {
 }
 const RULE_CHARS = 1600;
 const OUTCOME_CHARS = 600;
+/**
+ * What a session was asked, as its record keeps it. The first request is often where the user gives a
+ * decision ("finance settled the retry policy: ..."); at 600 characters, a 2026-11-10 handoff check cut
+ * one in the middle of its last rule, and every receiver missed that rule.
+ */
+export const GOAL_CHARS = 2000;
 
 function instructions(request: string): string[] {
   return request.split(/(?<=[.!?])\s+|\n+/).map((x) => x.trim()).filter((x) => x.length >= 15 && x.length <= 300 && !x.endsWith("?") && INSTRUCTION.test(x));
@@ -223,7 +229,7 @@ function factsFromClaudeRows(lines: Iterable<string>, projectDir: string, first?
   const facts: SessionFacts = { rules: [], missing: [], slow: [], changed: [], todos: [] };
   let problem: SessionFacts["recovered"];
   const uses = new Map<string, any>();
-  if (first) facts.goal = oneLine(first, 600);
+  if (first) facts.goal = oneLine(first, GOAL_CHARS);
   for (const line of lines) {
     if (!line) continue;
     let o: any;
@@ -235,7 +241,7 @@ function factsFromClaudeRows(lines: Iterable<string>, projectDir: string, first?
       // Issue text pasted in tags is the task's material, not the user's instructions.
       const request = requestText(text.replace(/<issue>[\s\S]*?(<\/issue>|$)/g, " "));
       if (request) {
-        facts.goal ??= oneLine(request, 600);
+        facts.goal ??= oneLine(request, GOAL_CHARS);
         facts.request = oneLine(request, 400);
         facts.said = [...(facts.said ?? []), oneLine(request, 2000)].slice(-SAID);
         for (const r of instructions(request)) {

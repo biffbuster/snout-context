@@ -237,3 +237,21 @@ export function byLabel(rows, labels, arms = ["plain", "trim", "search"]) {
   }));
   return out;
 }
+
+/**
+ * Snout's memory skill where a Codex session finds it above its workspace: Codex reads .agents/skills in
+ * the folders above, and the harnesses keep Codex workspaces inside this checkout. A copy left by
+ * `snout init codex` reached every Codex session of the 2026-11-10 index check, the off arm too. The
+ * operator's other skills are their usual setup, the same in every arm. Returns the paths found.
+ */
+export function straySkillDirs(start, exists, name = "snout-memory") {
+  const out = [];
+  for (let d = start; ; ) {
+    const p = `${d.replace(/[\/]+$/, "")}/.agents/skills/${name}`;
+    if (exists(p)) out.push(p);
+    const up = d.replace(/[\/][^\/]*$/, "");
+    if (!up || up === d || /^[A-Za-z]:$/.test(d)) break;
+    d = up;
+  }
+  return out;
+}

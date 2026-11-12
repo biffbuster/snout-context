@@ -1,0 +1,34 @@
+diff --git a/src/context.test.ts b/src/context.test.ts
+index d695dd3dfe..1fa06daf4d 100644
+--- a/src/context.test.ts
++++ b/src/context.test.ts
+@@ -494,6 +494,15 @@ describe('Context header', () => {
+     expect(c.res.headers.get('X-Custom')).toBe('Message')
+   })
+ 
++  it('Should be able to set headers after the response body is consumed', async () => {
++    c.res = new Response('bar')
++    expect(await c.res.text()).toBe('bar')
++    c.header('X-Custom', 'Message')
++    c.res = c.text('alternative')
++    expect(c.res.headers.get('X-Custom')).toBe('Message')
++    expect(await c.res.text()).toBe('alternative')
++  })
++
+   it('Should handle headers with array values correctly', async () => {
+     c.header('X-Array', 'value1')
+     const res = c.json({ test: 'data' }, 200, {
+diff --git a/src/context.ts b/src/context.ts
+index acd762522c..6db87172ff 100644
+--- a/src/context.ts
++++ b/src/context.ts
+@@ -517,7 +517,8 @@ export class Context<
+    * ```
+    */
+   header: SetHeaders = (name, value, options): void => {
+-    if (this.finalized) {
++    // a consumed body can't be passed to a new Response
++    if (this.finalized && !(this.#res as Response).bodyUsed) {
+       this.#res = createResponseInstance((this.#res as Response).body, this.#res)
+     }
+     const headers = this.#res ? this.#res.headers : (this.#preparedHeaders ??= new Headers())

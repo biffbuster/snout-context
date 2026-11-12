@@ -1,0 +1,56 @@
+diff --git a/src/jsx/base.ts b/src/jsx/base.ts
+index d653fb4c56..71fb23c9bc 100644
+--- a/src/jsx/base.ts
++++ b/src/jsx/base.ts
+@@ -165,7 +165,8 @@ export const attributeToBuffer = (
+   v: unknown,
+   tag?: string
+ ): void => {
+-  if (v === null || v === undefined) {
++  // refs only make sense in the DOM
++  if (key === 'ref' || v === null || v === undefined) {
+     return
+   }
+   if (typeof v === 'boolean' && booleanAttributes.has(key)) {
+@@ -175,7 +176,7 @@ export const attributeToBuffer = (
+     return
+   }
+   if (typeof v === 'function') {
+-    if (!key.startsWith('on') && key !== 'ref') {
++    if (!key.startsWith('on')) {
+       throw new Error(
+         `Invalid prop '${key}' of type 'function' supplied to ${tag ? `'${tag}'` : 'a JSX element'}.`
+       )
+diff --git a/src/jsx/index.test.tsx b/src/jsx/index.test.tsx
+index ae38f0858e..b96c04264d 100644
+--- a/src/jsx/index.test.tsx
++++ b/src/jsx/index.test.tsx
+@@ -482,6 +482,12 @@ describe('render to string', () => {
+       expect(template.toString()).toBe('<div>Content</div>')
+     })
+ 
++    it('should be ignored used in ref props with a ref object', () => {
++      const ref = { current: null }
++      const template = <div ref={ref}>Content</div>
++      expect(template.toString()).toBe('<div>Content</div>')
++    })
++
+     it('should raise an error if used in other props', () => {
+       const onClick = () => {}
+       const template = <button data-handler={onClick}>Click</button>
+diff --git a/src/jsx/jsx-runtime.test.tsx b/src/jsx/jsx-runtime.test.tsx
+index 793c452b21..51d978dccc 100644
+--- a/src/jsx/jsx-runtime.test.tsx
++++ b/src/jsx/jsx-runtime.test.tsx
+@@ -50,6 +50,11 @@ describe('jsx-runtime', () => {
+     )
+   })
+ 
++  it('Should render nothing for a ref in jsxAttr()', () => {
++    expect(String(jsxAttr('ref', { current: null } as never))).toBe('')
++    expect(String(jsxAttr('ref', (() => {}) as never))).toBe('')
++  })
++
+   it('Should render nothing for a null style object in jsxAttr()', () => {
+     expect(String(jsxAttr('style', null as never))).toBe('')
+   })

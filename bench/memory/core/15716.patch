@@ -1,0 +1,460 @@
+diff --git a/packages/server-renderer/__tests__/render.spec.ts b/packages/server-renderer/__tests__/render.spec.ts
+index 256d027ffa0..c40b2934a5a 100644
+--- a/packages/server-renderer/__tests__/render.spec.ts
++++ b/packages/server-renderer/__tests__/render.spec.ts
+@@ -20,6 +20,7 @@ import {
+   renderSlot,
+   resolveComponent,
+   resolveDynamicComponent,
++  watch,
+   watchEffect,
+   withCtx,
+ } from 'vue'
+@@ -37,9 +38,7 @@ const promisifyStream = (stream: Readable) => {
+     stream.on('data', data => {
+       result += data
+     })
+-    stream.on('error', () => {
+-      reject(result)
+-    })
++    stream.on('error', reject)
+     stream.on('end', () => {
+       resolve(result)
+     })
+@@ -1331,5 +1330,257 @@ function testRender(type: string, render: typeof renderToString) {
+       const html = await render(app)
+       expect(html).toBe(`<div attr="attr">Functional Component</div>`)
+     })
++
++    test('should propagate unhandled async setup errors', async () => {
++      const error = new Error('setup failed')
++      const app = createApp({
++        async setup() {
++          throw error
++        },
++        render: () => h('div', 'should not render'),
++      })
++
++      await expect(render(app)).rejects.toBe(error)
++      expect(
++        'Unhandled error during execution of setup function',
++      ).toHaveBeenWarned()
++    })
++
++    test('should recover from synchronous onServerPrefetch errors', async () => {
++      const app = createApp({
++        setup() {
++          onServerPrefetch(() => {
++            throw new Error('prefetch failed')
++          })
++          return () => h('div', 'rendered')
++        },
++      })
++
++      expect(await render(app)).toBe('<div>rendered</div>')
++      expect(
++        'Unhandled error during execution of serverPrefetch hook',
++      ).toHaveBeenWarned()
++    })
++
++    test('should handle async setup rejection while awaiting an earlier sibling', async () => {
++      let resolveSlow!: () => void
++      const slow = new Promise<void>(resolve => {
++        resolveSlow = resolve
++      })
++      const error = new Error('setup failed')
++      const app = createApp({
++        components: {
++          Slow: {
++            async setup() {
++              await slow
++              return () => h('div', 'slow')
++            },
++          },
++          Bad: {
++            async setup() {
++              throw error
++            },
++          },
++        },
++        template: '<div><Slow /><Bad /></div>',
++      })
++
++      const result = render(app).catch(error => error)
++      // Allow unhandled rejections to surface before the buffer reaches Bad.
++      await new Promise<void>(resolve => setImmediate(resolve))
++      resolveSlow()
++
++      expect(await result).toBe(error)
++      expect(
++        'Unhandled error during execution of setup function',
++      ).toHaveBeenWarned()
++    })
++
++    test('should handle render error while awaiting an earlier sibling', async () => {
++      let resolveSlow!: () => void
++      const slow = new Promise<void>(resolve => {
++        resolveSlow = resolve
++      })
++      const error = new Error('render failed')
++      const Slow = {
++        async setup() {
++          await slow
++          return () => h('div', 'slow')
++        },
++      }
++      const Bad = {
++        setup() {
++          return {
++            fail() {
++              throw error
++            },
++          }
++        },
++        template: `<div>{{ fail() }}</div>`,
++      }
++      const app = createApp({
++        render: () => h('div', [h(Slow), h(Bad)]),
++      })
++
++      const result = render(app).catch(error => error)
++      // Allow unhandled rejections to surface before the buffer reaches Bad.
++      await new Promise<void>(resolve => setImmediate(resolve))
++      resolveSlow()
++
++      expect(await result).toBe(error)
++      expect(
++        'Unhandled error during execution of render function',
++      ).toHaveBeenWarned()
++    })
++
++    test('should stop sync watchers when async setup errors', async () => {
++      const source = ref(0)
++      const spy = vi.fn()
++      const error = new Error('setup failed')
++      const Watcher = {
++        setup() {
++          watch(source, spy, { flush: 'sync' })
++          return () => h('div')
++        },
++      }
++      const Bad = {
++        async setup() {
++          throw error
++        },
++      }
++      const app = createApp({
++        render: () => h('div', [h(Watcher), h(Bad)]),
++      })
++
++      await expect(render(app)).rejects.toBe(error)
++      source.value++
++      expect(spy).not.toHaveBeenCalled()
++      expect(
++        'Unhandled error during execution of setup function',
++      ).toHaveBeenWarned()
++    })
++
++    test('should stop sync watchers registered after a failed render', async () => {
++      const source = ref(0)
++      const spy = vi.fn()
++      const error = new Error('setup failed')
++      let resolveSlow!: () => void
++      const slow = new Promise<void>(resolve => {
++        resolveSlow = resolve
++      })
++      const Watcher = {
++        setup() {
++          watch(source, spy, { flush: 'sync' })
++          return () => h('div')
++        },
++      }
++      const Bad = {
++        async setup() {
++          throw error
++        },
++      }
++      const Slow = {
++        async setup() {
++          await slow
++          return () => h(Watcher)
++        },
++      }
++      const app = createApp({
++        render: () => h('div', [h(Bad), h(Slow)]),
++      })
++
++      await expect(render(app)).rejects.toBe(error)
++      resolveSlow()
++      await new Promise<void>(resolve => setTimeout(resolve))
++      source.value++
++      expect(spy).not.toHaveBeenCalled()
++      expect(
++        'Unhandled error during execution of setup function',
++      ).toHaveBeenWarned()
++    })
++
++    describe('watcher cleanup errors', () => {
++      const cleanupError = new Error('cleanup failed')
++      const cleanup = vi.fn(() => {
++        throw cleanupError
++      })
++      const ThrowingCleanup = {
++        setup() {
++          watchEffect(onCleanup => onCleanup(cleanup), { flush: 'sync' })
++          return () => h('div')
++        },
++      }
++
++      beforeEach(() => {
++        cleanup.mockClear()
++      })
++
++      test('after a successful render', async () => {
++        const app = createApp({
++          render: () => h(ThrowingCleanup),
++        })
++
++        await expect(render(app)).rejects.toBe(cleanupError)
++        expect(cleanup).toHaveBeenCalledTimes(1)
++        expect(
++          'Unhandled error during execution of watcher cleanup function',
++        ).toHaveBeenWarned()
++      })
++
++      test('should not mask the render error', async () => {
++        const error = new Error('setup failed')
++        const Bad = {
++          async setup() {
++            throw error
++          },
++        }
++        const app = createApp({
++          render: () => h('div', [h(ThrowingCleanup), h(Bad)]),
++        })
++
++        await expect(render(app)).rejects.toBe(error)
++        await new Promise<void>(resolve => setTimeout(resolve))
++        expect(cleanup).toHaveBeenCalledTimes(1)
++        expect(
++          'Unhandled error during execution of setup function',
++        ).toHaveBeenWarned()
++        expect(
++          'Unhandled error during execution of watcher cleanup function',
++        ).toHaveBeenWarned()
++      })
++
++      test('for watchers registered after a failed render', async () => {
++        const error = new Error('setup failed')
++        let resolveSlow!: () => void
++        const slow = new Promise<void>(resolve => {
++          resolveSlow = resolve
++        })
++        const Bad = {
++          async setup() {
++            throw error
++          },
++        }
++        const Slow = {
++          async setup() {
++            await slow
++            return () => h(ThrowingCleanup)
++          },
++        }
++        const app = createApp({
++          render: () => h('div', [h(Bad), h(Slow)]),
++        })
++
++        await expect(render(app)).rejects.toBe(error)
++        resolveSlow()
++        await new Promise<void>(resolve => setTimeout(resolve))
++        expect(cleanup).toHaveBeenCalledTimes(1)
++        expect(
++          'Unhandled error during execution of setup function',
++        ).toHaveBeenWarned()
++        expect(
++          'Unhandled error during execution of watcher cleanup function',
++        ).toHaveBeenWarned()
++      })
++    })
+   })
+ }
+diff --git a/packages/server-renderer/src/render.ts b/packages/server-renderer/src/render.ts
+index cb45c881686..862ce869fe0 100644
+--- a/packages/server-renderer/src/render.ts
++++ b/packages/server-renderer/src/render.ts
+@@ -106,29 +106,36 @@ export function renderComponentVNode(
+   if (__DEV__) popWarningContext()
+   const hasAsyncSetup = isPromise(res)
+   let prefetches = instance.sp /* LifecycleHooks.SERVER_PREFETCH */
++  let p: Promise<SSRBuffer>
+   if (hasAsyncSetup || prefetches) {
+-    const p: Promise<unknown> = Promise.resolve(res as Promise<void>)
++    p = Promise.resolve(res as Promise<void>)
+       .then(() => {
+         // instance.sp may be null until an async setup resolves, so evaluate it here
+         if (hasAsyncSetup) prefetches = instance.sp
+         if (prefetches) {
+-          return Promise.all(
+-            prefetches.map(prefetch => prefetch.call(instance.proxy)),
+-          )
++          try {
++            return Promise.all(
++              prefetches.map(prefetch => prefetch.call(instance.proxy)),
++            ).catch(NOOP)
++          } catch {
++            // The wrapped lifecycle hook has already reported the error.
++          }
+         }
+       })
+-      // Note: error display is already done by the wrapped lifecycle hook function.
+-      .catch(NOOP)
+-    return p.then(() => renderComponentSubTree(instance, slotScopeId))
++      .then(() => renderComponentSubTree(instance, slotScopeId))
+   } else {
+     try {
+       return renderComponentSubTree(instance, slotScopeId)
+     } catch (err) {
+       // let the SSR buffer propagate the error so parent render functions
+       // don't handle the same error again
+-      return Promise.reject(err)
++      p = Promise.reject(err)
+     }
+   }
++  // Observe rejections before the buffer reaches this component, but let the
++  // caller receive them by returning the original promise.
++  p.catch(NOOP)
++  return p
+ }
+ 
+ function renderComponentSubTree(
+diff --git a/packages/server-renderer/src/renderToStream.ts b/packages/server-renderer/src/renderToStream.ts
+index cb5ef75e0fe..400174ad80c 100644
+--- a/packages/server-renderer/src/renderToStream.ts
++++ b/packages/server-renderer/src/renderToStream.ts
+@@ -9,7 +9,11 @@ import {
+ import { isPromise, isString } from '@vue/shared'
+ import { type SSRBuffer, type SSRContext, renderComponentVNode } from './render'
+ import type { Readable, Writable } from 'node:stream'
+-import { resolveTeleports } from './renderToString'
++import {
++  cleanupFailedRender,
++  resolveTeleports,
++  stopWatchers,
++} from './renderToString'
+ 
+ const { isVNode } = ssrUtils
+ 
+@@ -73,17 +77,20 @@ export function renderToSimpleStream<T extends SimpleReadable>(
+   // provide the ssr context to the tree
+   input.provide(ssrContextKey, context)
+ 
++  let buffer: SSRBuffer | undefined
+   Promise.resolve(renderComponentVNode(vnode))
+-    .then(buffer => unrollBuffer(buffer, stream))
++    .then(b => unrollBuffer((buffer = b), stream))
+     .then(() => resolveTeleports(context))
+-    .then(() => {
+-      if (context.__watcherHandles) {
+-        for (const unwatch of context.__watcherHandles) {
+-          unwatch()
+-        }
+-      }
+-    })
+-    .then(() => stream.push(null))
++    .then(
++      () => {
++        stopWatchers(context)
++        stream.push(null)
++      },
++      error => {
++        cleanupFailedRender(buffer, context)
++        throw error
++      },
++    )
+     .catch(error => {
+       stream.destroy(error)
+     })
+diff --git a/packages/server-renderer/src/renderToString.ts b/packages/server-renderer/src/renderToString.ts
+index 83d659bd9ec..26ed3f27530 100644
+--- a/packages/server-renderer/src/renderToString.ts
++++ b/packages/server-renderer/src/renderToString.ts
+@@ -6,7 +6,7 @@ import {
+   ssrContextKey,
+   ssrUtils,
+ } from '@vue/runtime-dom'
+-import { isPromise, isString } from '@vue/shared'
++import { NOOP, isPromise, isString } from '@vue/shared'
+ import { type SSRBuffer, type SSRContext, renderComponentVNode } from './render'
+ 
+ const { isVNode } = ssrUtils
+@@ -81,19 +81,60 @@ export async function renderToString(
+   vnode.appContext = input._context
+   // provide the ssr context to the tree
+   input.provide(ssrContextKey, context)
+-  const buffer = await renderComponentVNode(vnode)
+-
+-  const result = await unrollBuffer(buffer as SSRBuffer)
+-
+-  await resolveTeleports(context)
++  let buffer: SSRBuffer | undefined
++  let result: string
++  try {
++    buffer = await renderComponentVNode(vnode)
++    result = await unrollBuffer(buffer)
++    await resolveTeleports(context)
++  } catch (err) {
++    cleanupFailedRender(buffer, context)
++    throw err
++  }
++  stopWatchers(context)
++  return result
++}
+ 
+-  if (context.__watcherHandles) {
+-    for (const unwatch of context.__watcherHandles) {
+-      unwatch()
++export function stopWatchers(context: SSRContext, start = 0): void {
++  const handles = context.__watcherHandles
++  if (handles) {
++    for (let i = start; i < handles.length; i++) {
++      handles[i]()
+     }
+   }
++}
+ 
+-  return result
++/**
++ * Stops watchers without masking the render error. Components after the
++ * failure point are still in flight and can register watchers once the render
++ * has settled, so those are stopped when they finish.
++ * Cleanup errors here have already been reported by the watcher.
++ */
++export function cleanupFailedRender(
++  buffer: SSRBuffer | undefined,
++  context: SSRContext,
++): void {
++  const stopped = context.__watcherHandles ? context.__watcherHandles.length : 0
++  try {
++    stopWatchers(context)
++  } catch {}
++  ;(async () => {
++    if (buffer) await settleBuffer(buffer)
++    for (const key in context.__teleportBuffers) {
++      await settleBuffer(context.__teleportBuffers[key])
++    }
++    stopWatchers(context, stopped)
++  })().catch(NOOP)
++}
++
++async function settleBuffer(buffer: SSRBuffer): Promise<void> {
++  if (!buffer.hasAsync) return
++  for (let item of buffer) {
++    try {
++      if (isPromise(item)) item = await item
++      if (!isString(item)) await settleBuffer(item)
++    } catch {}
++  }
+ }
+ 
+ export async function resolveTeleports(context: SSRContext): Promise<void> {

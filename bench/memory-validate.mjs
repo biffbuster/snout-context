@@ -11,9 +11,9 @@
  * condition runs twice and must give the same results, or the task is excluded as flaky.
  * FAIL_TO_PASS: tests that fail before and pass after. PASS_TO_PASS: tests that pass in all four runs.
  *
- * Go: `go test -json` on the packages of the PR's _test.go files. TypeScript (vite): dependencies
- * installed offline-first and the workspace's `vite` package built, then vitest's JSON reporter on the
- * PR's spec files; the package is rebuilt after the fix is applied, as grading does.
+ * Go: `go test -json` on the packages of the PR's _test.go files. TypeScript: dependencies installed
+ * offline-first (vite: its own `vite` package built, and rebuilt after the fix is applied, as grading
+ * does), then vitest's JSON reporter on the PR's spec files, coverage off.
  *
  * Writes, under bench/memory/<repo>/: <issue>.patch (the PR's diff, never shown to an agent) and
  * <issue>.issue.md (the issue as it read before the fix PR was opened, links to PRs, commits and
@@ -40,6 +40,10 @@ const memoryCheck = () => { if (freemem() < MIN_FREE) throw new LowMemory(`free 
 const spec = JSON.parse(readFileSync(TASKS_FILE, "utf8"));
 const NAME = spec.repo.split("/")[1];
 const GO = spec.repo === "gohugoio/hugo";
+/** A build the tests need first: vite's tests import its built package. hono and vuejs/core test their sources. */
+const BUILD = spec.repo === "vitejs/vite" ? ["--filter", "vite", "run", "build"] : null;
+/** Spec files a repository's own vitest config keeps out of direct runs (hono's router tests import its *.case.test.* files). */
+const NOT_RUN = /\.case\.test\./;
 // pnpm through a corepack shim (`corepack enable --install-directory ~/.snout-bench/bin pnpm`): vite's scripts call `pnpm` by name.
 const BIN = join(homedir(), ".snout-bench", "bin");
 const ENV = { ...process.env, GOTOOLCHAIN: "local", PATH: `${BIN}${delimiter}${process.env.PATH ?? process.env.Path ?? ""}`, CI: "1" };
@@ -71,7 +75,7 @@ function goTest(cwd, pkgs) {
 
 function vitest(cwd, files) {
   const out = join(cwd, "..", `vitest-${Date.now()}.json`);
-  sh("pnpm", ["exec", "vitest", "run", ...files, "--reporter=json", `--outputFile=${out}`], cwd);
+  sh("pnpm", ["exec", "vitest", "run", ...files, "--reporter=json", `--outputFile=${out}`, "--coverage.enabled=false"], cwd);
   if (!existsSync(out)) return { res: {}, loaded: false };
   const r = JSON.parse(readFileSync(out, "utf8"));
   rmSync(out, { force: true });
@@ -118,10 +122,10 @@ function validate(t) {
       if (!pkgs.length) return { why: "no Go test files" };
       run = () => goTest(dir, pkgs);
     } else {
-      files = testFiles.filter((f) => SPEC.test(f) && !/(?:^|\/)fixtures?\//.test(f));
+      files = testFiles.filter((f) => SPEC.test(f) && !NOT_RUN.test(f) && !/(?:^|\/)fixtures?\//.test(f));
       if (!files.length) return { why: "no spec file vitest runs" };
       must(sh("pnpm", ["install", "--frozen-lockfile", "--prefer-offline"], dir), "pnpm install");
-      const build = () => must(sh("pnpm", ["--filter", "vite", "run", "build"], dir), "build vite");
+      const build = () => { if (BUILD) must(sh("pnpm", BUILD, dir), "build"); };
       build();
       run = () => vitest(dir, files);
       // The fix is built before the after-runs, as grading builds the agent's work.

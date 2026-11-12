@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -305,6 +305,25 @@ test("the background run prints nothing, never calls gh unless asked, and frees 
   assert.ok(ghCalls(f).some((c) => c[0] === "api"), "gh read once opted in");
   assert.match(snout(f, ["import", "status"]).out, /GitHub read \d{4}-\d\d-\d\d · daily GitHub import on/);
   assert.match(snout(f, ["import", "github", "off"]).out, /Daily GitHub import off/);
+});
+
+test("after an import, the session-start line says the project's history can be searched, by counts only", () => {
+  const f = fixture();
+  const env = { ...f.env, SNOUT_MODE: "enforce" };
+  // The folder as `snout import` sees it: on macOS the temp folder is reached through a symlink
+  // (/var -> /private/var), and a project with no remote is keyed by its path.
+  const cwd = realpathSync(f.proj);
+  const start = () => {
+    const r = spawnSync(process.execPath, [CLI, "session-start"], { cwd, encoding: "utf8", env, input: JSON.stringify({ session_id: "n1", cwd, source: "startup" }) });
+    return JSON.parse(r.stdout).hookSpecificOutput?.additionalContext ?? "";
+  };
+  assert.doesNotMatch(start(), /history/, "nothing imported yet");
+  // HINT_HISTORY_MIN records at least: a shorter history is one git log screen.
+  for (let i = 0; i < 18; i++) commit(f.proj, `docs/page${i}.md`, `# Page ${i}\n`, `Docs: page ${i}`, 8 - i * 0.1);
+  assert.equal(snout(f, ["import"], env).status, 0);
+  const line = start();
+  assert.match(line, /and so is its history \(20 commits, 1 PR, 1 failed CI run\)\. If this task .* or fixes something that used to work, search before you start: snout_memory_search/);
+  assert.doesNotMatch(line, /Shard|timeout|token/i, "counts, nothing from the records");
 });
 
 test("on a GitHub repo, the user is told once that snout import adds PRs and CI runs", () => {

@@ -1,0 +1,98 @@
+diff --git a/packages/runtime-core/__tests__/components/Suspense.spec.ts b/packages/runtime-core/__tests__/components/Suspense.spec.ts
+index d40f85b86eb..6b6373fab6b 100644
+--- a/packages/runtime-core/__tests__/components/Suspense.spec.ts
++++ b/packages/runtime-core/__tests__/components/Suspense.spec.ts
+@@ -2111,6 +2111,77 @@ describe('Suspense', () => {
+     expect(serializeInner(root)).toBe(`<div>async2</div>`)
+   })
+ 
++  // #15288
++  test('KeepAlive + Suspense switch while ancestor is pending', async () => {
++    let resolveRootDep!: (comp: ComponentOptions) => void
++    const rootDep = new Promise<ComponentOptions>(resolve => {
++      resolveRootDep = resolve
++    })
++    const RootDep = defineAsyncComp(() => rootDep)
++    const makePage = (name: string) =>
++      defineAsyncComponent({
++        render: () => h('div', `page ${name}`),
++      })
++    const PageA = makePage('A')
++    const PageB = makePage('B')
++    const page = shallowRef(PageA)
++    const key = ref('a')
++    const root = nodeOps.createElement('div')
++    const App = {
++      render() {
++        return h(Suspense, null, {
++          default: h('div', [
++            h(RootDep),
++            h(KeepAlive, null, {
++              default: () =>
++                h(Suspense, null, {
++                  default: h(page.value, { key: key.value }),
++                }),
++            }),
++          ]),
++          fallback: h('div', 'loading'),
++        })
++      },
++    }
++
++    render(h(App), root)
++    expect(serializeInner(root)).toBe('<div>loading</div>')
++
++    await Promise.all(deps)
++    await nextTick()
++
++    page.value = PageB
++    key.value = 'b'
++    await nextTick()
++    expect(serializeInner(root)).toBe('<div>loading</div>')
++
++    resolveRootDep({
++      render: () => h('div', 'root'),
++    })
++    await rootDep
++    await new Promise(r => setTimeout(r))
++    await nextTick()
++    expect(serializeInner(root)).toBe(
++      '<div><div>root</div><div>page A</div></div>',
++    )
++
++    page.value = PageA
++    key.value = 'a'
++    await nextTick()
++    expect(serializeInner(root)).toBe(
++      '<div><div>root</div><div>page A</div></div>',
++    )
++
++    page.value = PageB
++    key.value = 'b'
++    await nextTick()
++    await Promise.all(deps)
++    await nextTick()
++    expect(serializeInner(root)).toBe(
++      '<div><div>root</div><div>page B</div></div>',
++    )
++  })
++
+   test('KeepAlive + Suspense + comment slot', async () => {
+     const toggle = ref(false)
+     const Async = defineAsyncComponent({
+diff --git a/packages/runtime-core/src/components/KeepAlive.ts b/packages/runtime-core/src/components/KeepAlive.ts
+index 55eaf862443..b09152f72a0 100644
+--- a/packages/runtime-core/src/components/KeepAlive.ts
++++ b/packages/runtime-core/src/components/KeepAlive.ts
+@@ -248,7 +248,10 @@ const KeepAliveImpl: ComponentOptions = {
+         // avoid caching vnode that not been mounted
+         if (isSuspense(instance.subTree.type)) {
+           queuePostRenderEffect(() => {
+-            cache.set(pendingCacheKey!, getInnerChild(instance.subTree))
++            const vnode = getInnerChild(instance.subTree)
++            if (vnode.component) {
++              cache.set(pendingCacheKey!, vnode)
++            }
+           }, instance.subTree.suspense)
+         } else {
+           cache.set(pendingCacheKey, getInnerChild(instance.subTree))

@@ -165,6 +165,19 @@ test("the session-start line counts approved lessons, and says nothing from them
   assert.equal(memoryHint([], "now", "codex", null, 2), "", "no records, no line");
 });
 
+test("the session-start line says the imported history can be searched, and when it helps", () => {
+  // Replay pilot, 2026-11-10: a line that named earlier sessions only was never followed by a search,
+  // though the project's history was the memory that held the most.
+  const only = memoryHint([], "now", "claude", null, 0, [], { commit: 618, pr: 0, run: 0, session: 0 });
+  assert.match(only, /^Snout: this project's history is on record \(618 commits\)\. If this task may build on earlier work or a decision made then, or fixes something that used to work, search before you start: snout_memory_search with a few words or the files involved \(if it is listed as deferred, load it with ToolSearch first\)/);
+  const cards = [{ session: "s1", agent: "claude", updated: "2026-10-27T10:00:00Z" }];
+  assert.match(memoryHint(cards, "now", "codex", null, 0, [], { commit: 17, pr: 1, run: 2, session: 1 }), /^Snout: 1 earlier session is on record in this project \(latest 2026-10-27, claude\), and so is its history \(17 commits, 1 PR, 2 failed CI runs\)\./);
+  assert.equal(memoryHint(cards, "now", "codex", null, 0, [], { commit: 0, pr: 0, run: 0, session: 0 }), memoryHint(cards, "now", "codex"), "nothing imported, nothing said about history");
+  assert.equal(memoryHint(cards, "now", "codex", null, 0, [], { commit: 16, pr: 1, run: 2, session: 0 }), memoryHint(cards, "now", "codex"), "19 records are one git log screen: not mentioned");
+  assert.equal(memoryHint([], "now", "codex", null, 0, [], { commit: 19, pr: 0, run: 0, session: 0 }), "");
+  assert.equal(memoryHint([], "now", "codex", null, 0, [], null), "");
+});
+
 test("an approved lesson is never added to a prompt on its own, whatever it shares with the prompt", () => {
   const { s } = setup();
   const o = approvedLesson(s);

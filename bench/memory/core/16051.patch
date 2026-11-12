@@ -1,0 +1,351 @@
+diff --git a/packages/compiler-dom/__tests__/transforms/stringifyStatic.spec.ts b/packages/compiler-dom/__tests__/transforms/stringifyStatic.spec.ts
+index edd1c4a65c2..27ac761defc 100644
+--- a/packages/compiler-dom/__tests__/transforms/stringifyStatic.spec.ts
++++ b/packages/compiler-dom/__tests__/transforms/stringifyStatic.spec.ts
+@@ -1,5 +1,6 @@
+ import {
+   CREATE_STATIC,
++  type CompilerOptions,
+   ConstantTypes,
+   NodeTypes,
+   compile,
+@@ -11,11 +12,15 @@ import {
+ } from '../../src/transforms/stringifyStatic'
+ 
+ describe('stringify static html', () => {
+-  function compileWithStringify(template: string) {
++  function compileWithStringify(
++    template: string,
++    options: CompilerOptions = {},
++  ) {
+     return compile(template, {
+       hoistStatic: true,
+       prefixIdentifiers: true,
+       transformHoist: stringifyStatic,
++      ...options,
+     })
+   }
+ 
+@@ -565,4 +570,97 @@ describe('stringify static html', () => {
+     )
+     expect(code).toMatchSnapshot()
+   })
++
++  // #16051
++  test.each(['0', '-0', '!1', '1 > 2', '0 / 0', 'null', 'void 0'])(
++    'should omit boolean attributes with falsy constant `%s`',
++    value => {
++      const { ast } = compileWithStringify(
++        `<div>${repeat(
++          `<input :disabled="${value}" :checked="${value}" :readonly="${value}" :hidden="${value}">`,
++          StringifyThresholds.ELEMENT_WITH_BINDING_COUNT,
++        )}</div>`,
++      )
++      expect(ast.cached).toMatchObject([
++        cachedArrayStaticNodeMatcher(
++          repeat('<input>', StringifyThresholds.ELEMENT_WITH_BINDING_COUNT),
++          StringifyThresholds.ELEMENT_WITH_BINDING_COUNT,
++        ),
++      ])
++    },
++  )
++
++  test.each([
++    ['true', 'true'],
++    ['1', '1'],
++    ["''", ''],
++    ["'false'", 'false'],
++  ])(
++    'should retain boolean attributes with constant `%s`',
++    (value, expected) => {
++      const { ast } = compileWithStringify(
++        `<div>${repeat(
++          `<input :disabled="${value}" :checked="${value}" :readonly="${value}" :hidden="${value}">`,
++          StringifyThresholds.ELEMENT_WITH_BINDING_COUNT,
++        )}</div>`,
++      )
++      expect(ast.cached).toMatchObject([
++        cachedArrayStaticNodeMatcher(
++          repeat(
++            `<input disabled="${expected}" checked="${expected}" readonly="${expected}" hidden="${expected}">`,
++            StringifyThresholds.ELEMENT_WITH_BINDING_COUNT,
++          ),
++          StringifyThresholds.ELEMENT_WITH_BINDING_COUNT,
++        ),
++      ])
++    },
++  )
++
++  test.each(['disabled', 'default', 'readonly', 'hidden'])(
++    'should retain cached VNodes for custom elements with bound `%s`',
++    attr => {
++      const { ast } = compileWithStringify(
++        `<div>${repeat(
++          `<my-element :${attr}="false" />`,
++          StringifyThresholds.ELEMENT_WITH_BINDING_COUNT,
++        )}</div>`,
++        { isCustomElement: tag => tag === 'my-element' },
++      )
++      expect(ast.cached).toMatchObject([
++        cachedArrayBailedMatcher(
++          StringifyThresholds.ELEMENT_WITH_BINDING_COUNT,
++        ),
++      ])
++    },
++  )
++
++  test('should retain the cached subtree around a custom element boolean binding', () => {
++    const { ast } = compileWithStringify(
++      `<div><section>${repeat(
++        '<span class="foo" />',
++        StringifyThresholds.ELEMENT_WITH_BINDING_COUNT,
++      )}<my-element :disabled="0" /></section></div>`,
++      { isCustomElement: tag => tag === 'my-element' },
++    )
++    expect(ast.cached).toMatchObject([cachedArrayBailedMatcher()])
++  })
++
++  test('should still stringify custom elements with static attributes and other bindings', () => {
++    const { ast } = compileWithStringify(
++      `<div>${repeat(
++        `<my-element disabled :title="'hello'" />`,
++        StringifyThresholds.ELEMENT_WITH_BINDING_COUNT,
++      )}</div>`,
++      { isCustomElement: tag => tag === 'my-element' },
++    )
++    expect(ast.cached).toMatchObject([
++      cachedArrayStaticNodeMatcher(
++        repeat(
++          '<my-element disabled title="hello"></my-element>',
++          StringifyThresholds.ELEMENT_WITH_BINDING_COUNT,
++        ),
++        StringifyThresholds.ELEMENT_WITH_BINDING_COUNT,
++      ),
++    ])
++  })
+ })
+diff --git a/packages/compiler-dom/src/transforms/stringifyStatic.ts b/packages/compiler-dom/src/transforms/stringifyStatic.ts
+index f117b6eb5b4..6cf5ab8fca0 100644
+--- a/packages/compiler-dom/src/transforms/stringifyStatic.ts
++++ b/packages/compiler-dom/src/transforms/stringifyStatic.ts
+@@ -150,7 +150,7 @@ export const stringifyStatic: HoistTransform = (children, context, parent) => {
+     const isCached = isParentCached || getCachedNode(child)
+     if (isCached) {
+       // presence of cached means child must be a stringifiable node
+-      const result = analyzeNode(child as StringifiableNode)
++      const result = analyzeNode(child as StringifiableNode, context)
+       if (result) {
+         // node is stringifiable, record state
+         nc += result[0]
+@@ -210,7 +210,10 @@ const isNonStringifiable = /*@__PURE__*/ makeMap(
+  *   - nc is the number of nodes inside
+  *   - ec is the number of element with bindings inside
+  */
+-function analyzeNode(node: StringifiableNode): [number, number] | false {
++function analyzeNode(
++  node: StringifiableNode,
++  context: TransformContext,
++): [number, number] | false {
+   if (node.type === NodeTypes.ELEMENT && isNonStringifiable(node.tag)) {
+     return false
+   }
+@@ -263,6 +266,15 @@ function analyzeNode(node: StringifiableNode): [number, number] | false {
+         ) {
+           return bail()
+         }
++        // Custom elements may route these bindings to DOM properties at runtime.
++        if (
++          p.arg &&
++          p.arg.isStatic &&
++          (isBooleanAttr(p.arg.content) || p.arg.content === 'hidden') &&
++          context.isCustomElement(node.tag)
++        ) {
++          return bail()
++        }
+         // <option :value="1"> cannot be safely stringified
+         if (
+           isOptionTag &&
+@@ -346,21 +358,12 @@ function stringifyElement(
+           }="__VUE_EXP_START__${exp.content}__VUE_EXP_END__"`
+           continue
+         }
+-        // #6568
+-        if (
+-          (isBooleanAttr((p.arg as SimpleExpressionNode).content) ||
+-            (p.arg as SimpleExpressionNode).content === 'hidden') &&
+-          exp.content === 'false'
+-        ) {
+-          continue
+-        }
+         // constant v-bind, e.g. :foo="1"
+         let evaluated = evaluateConstant(exp)
+         if (evaluated != null) {
+-          const arg = p.arg && (p.arg as SimpleExpressionNode).content
++          const arg = (p.arg as SimpleExpressionNode).content
+           if (
+-            arg === 'hidden' &&
+-            typeof evaluated === 'number' &&
++            (isBooleanAttr(arg) || arg === 'hidden') &&
+             !includeBooleanAttr(evaluated)
+           ) {
+             continue
+diff --git a/packages/vue/__tests__/index.spec.ts b/packages/vue/__tests__/index.spec.ts
+index a4892b6d713..698ed336679 100644
+--- a/packages/vue/__tests__/index.spec.ts
++++ b/packages/vue/__tests__/index.spec.ts
+@@ -6,6 +6,7 @@ import {
+   type VNode,
+   createApp,
+   defineComponent,
++  defineCustomElement,
+   h,
+   nextTick,
+   reactive,
+@@ -816,4 +817,147 @@ describe('compiler + runtime integration', () => {
+       }
+     },
+   )
++
++  describe('static boolean bindings', () => {
++    test('keeps native controls enabled and unchecked in stringified content', () => {
++      const save = vi.fn()
++      const render = compileToFunction(
++        `<form @submit.prevent="save">
++          ${'<p>static</p>'.repeat(20)}
++          <button :disabled="0">Save</button>
++          <input type="checkbox" :checked="!1">
++        </form>`,
++        { prefixIdentifiers: true },
++      )
++      expect(render.toString()).toContain('_createStaticVNode')
++      const container = document.createElement('div')
++      document.body.appendChild(container)
++      const app = createApp({ setup: () => ({ save }), render })
++      try {
++        app.mount(container)
++        const button = container.querySelector('button')!
++        const input = container.querySelector('input')!
++        expect(button.disabled).toBe(false)
++        expect(button.hasAttribute('disabled')).toBe(false)
++        expect(input.checked).toBe(false)
++        expect(input.hasAttribute('checked')).toBe(false)
++        button.click()
++        expect(save).toHaveBeenCalledTimes(1)
++      } finally {
++        app.unmount()
++        container.remove()
++      }
++    })
++
++    test.each(['false', '0'])(
++      'preserves custom element attribute semantics for `%s`',
++      value => {
++        const container = document.createElement('div')
++        const app = createApp({
++          render: compileToFunction(
++            `<div>${`<static-plain-element :default="0" :readonly="${value}" :hidden="${value}" />`.repeat(5)}</div>`,
++            {
++              prefixIdentifiers: true,
++              isCustomElement: tag => tag === 'static-plain-element',
++            },
++          ),
++        })
++        app.mount(container)
++        const elements = container.querySelectorAll('static-plain-element')
++        expect(elements).toHaveLength(5)
++        for (const el of elements) {
++          expect(el.getAttribute('default')).toBe('0')
++          expect(el.hasAttribute('readonly')).toBe(false)
++          expect(el.hasAttribute('hidden')).toBe(false)
++        }
++        app.unmount()
++      },
++    )
++
++    test.each(['false', '0'])(
++      'assigns `%s` to registered custom element boolean properties',
++      value => {
++        class BooleanElement extends HTMLElement {
++          get disabled() {
++            return this.hasAttribute('disabled')
++          }
++          set disabled(value: boolean) {
++            this.toggleAttribute('disabled', value)
++          }
++        }
++        const tag = `static-boolean-${value}`
++        customElements.define(tag, BooleanElement)
++        const container = document.createElement('div')
++        document.body.appendChild(container)
++        const app = createApp({
++          render: compileToFunction(
++            `<div>${`<${tag} :disabled="${value}" />`.repeat(5)}</div>`,
++            { prefixIdentifiers: true, isCustomElement: name => name === tag },
++          ),
++        })
++        try {
++          app.mount(container)
++          const elements = container.querySelectorAll<BooleanElement>(tag)
++          expect(elements).toHaveLength(5)
++          for (const el of elements) {
++            expect(el.disabled).toBe(false)
++            expect(el.hasAttribute('disabled')).toBe(false)
++          }
++        } finally {
++          app.unmount()
++          container.remove()
++        }
++      },
++    )
++
++    test.each(['false', '0'])(
++      'keeps nested Vue custom elements enabled with disabled=`%s`',
++      async value => {
++        const tag = `static-vue-boolean-${value}`
++        const VueButton = defineCustomElement({
++          props: { disabled: Boolean },
++          render() {
++            return h('button', { disabled: this.disabled }, 'Save')
++          },
++        })
++        customElements.define(tag, VueButton)
++        const count = ref(0)
++        const container = document.createElement('div')
++        document.body.appendChild(container)
++        const app = createApp({
++          setup: () => ({ count }),
++          render: compileToFunction(
++            `<div>{{ count }}<section>${'<p>static</p>'.repeat(20)}<${tag} :disabled="${value}" /></section></div>`,
++            { prefixIdentifiers: true, isCustomElement: name => name === tag },
++          ),
++        })
++        try {
++          const vm = app.mount(container)
++          const subtree = vm.$.renderCache[0]
++          expect(subtree).toBeDefined()
++          const el = container.querySelector<
++            HTMLElement & { disabled: boolean | number }
++          >(tag)!
++          expect(el.disabled).toBe(value === 'false' ? false : 0)
++          expect(el.shadowRoot!.querySelector('button')!.disabled).toBe(false)
++          expect(el.getAttribute('disabled')).toBe(value === '0' ? '0' : null)
++          if (value === '0') {
++            expect(
++              'Invalid prop: type check failed for prop "disabled". Expected Boolean, got Number with value 0.',
++            ).toHaveBeenWarned()
++          }
++
++          count.value++
++          await nextTick()
++          expect(container.textContent).toBe(`1${'static'.repeat(20)}`)
++          expect(vm.$.renderCache[0]).toBe(subtree)
++          expect(container.querySelector(tag)).toBe(el)
++          expect(el.shadowRoot!.querySelector('button')!.disabled).toBe(false)
++        } finally {
++          app.unmount()
++          container.remove()
++        }
++      },
++    )
++  })
+ })

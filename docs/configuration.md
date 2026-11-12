@@ -16,7 +16,8 @@ stores only the keys you set, so upgrades can move the defaults under you.
   "output": "normal",             // "concise" adds one short output-style instruction (opt-in)
   "repoMap": false,               // true: suggest the files linked to names in each prompt (opt-in)
   "memory": true,                 // a record per session in .snout/memory; agents search it on demand
-  "memoryHint": true,             // one line at session start saying earlier sessions are on record
+  "memoryHint": true,             // one line at session start saying earlier sessions and history are on record
+  "memoryRecent": false,          // experiment: an index of the three newest sessions under that line
   "memoryNotes": false,           // true: add a saved note to the prompt it fits (opt-in)
   "memoryBudget": 600             // tokens of automatic notes per prompt, when memoryNotes is on
 }
@@ -84,15 +85,24 @@ saying `snout import` adds PRs and CI runs. The agent doesn't see it. Without `g
 reads git and past sessions only. `snout import status` shows when it last ran.
 
 `memoryHint` (default on; `SNOUT_MEMORY_HINT=0|1`): in enforce mode, when this project has records
-of other sessions, a new session (not a resumed or compacted one) starts with one line. It says how
-many records there are, the latest one's date and agent, and to search them with
-`snout_memory_search` if the task may build on earlier work. When the newest session with changes
+of other sessions or an imported history of 20 records or more, a new session (not a resumed or
+compacted one) starts with one line. It says how many session records there are, the latest one's
+date and agent, how many commits, PRs and failed CI runs the history holds, and to search them with
+`snout_memory_search` if the task may build on earlier work or fixes something that used to work.
+When the newest session with changes
 left them unfinished here (uncommitted changes, open to-dos, a failing test or an error on this
 branch), the line gives that session's id so the agent can fetch it. Nothing from the records is in
 it. It exists because the MCP
 server's own guidance doesn't reach every model: Codex leaves server instructions out, and Claude
 Code defers MCP tools behind ToolSearch, so in a live check neither agent searched a record it was
 never told about (docs/memory-gates.md, "Cross-agent handoff check").
+
+`memoryRecent` (default off; `SNOUT_MEMORY_RECENT=0|1`): an experiment. Under the session-start line,
+an index of the newest other sessions here: three at most, 150 tokens in all, each with a short id
+`snout_memory_fetch` opens, its date, agent and what it did, and "unfinished here" only when the
+project's state shows its work unfinished. Recency picks the entries, so they may be unrelated to the
+task; the header says they are records. It is off until it is measured against the line alone
+([memory](memory.md#how-agents-get-it)).
 
 `memoryNotes` (default off; `snout memory notes on|off`, or `SNOUT_MEMORY_NOTES=0|1`): in enforce mode,
 add the saved notes that fit a prompt to it, each with where it came from, once per session. It is off
@@ -122,10 +132,7 @@ config folder; nothing downloads unless you run it, and `snout memory model remo
 model stays loaded in `snout serve`, which starts with the session; each prompt asks it for a vector
 (about 125 ms in all on a laptop) and falls back to words when it doesn't answer. A card is then
 offered only when both the word ranking and the meaning ranking put it near the top, and the repo
-map agrees. On 485 SWE-bench Verified tasks with commit history as memory, briefs that met that bar
-named a file the fix needed 87% of the time, against 75% for words with the map's agreement
-(`bench/recalleval.mjs --embed`); with real agent sessions on earlier issues as memory, 61% against
-52% (`bench/sessioneval.mjs --embed`). Card vectors are kept in `.snout/memory-vectors.json`, not in the
+map agrees. Card vectors are kept in `.snout/memory-vectors.json`, not in the
 shared `memory/` folder, and are recomputed when a card changes.
 
 History search (the commits, PRs and CI runs `snout import` reads) ranks every record you may see at

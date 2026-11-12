@@ -32,6 +32,9 @@ test("a fetch of the giver's record counts; a fetch of another or a failed one d
   assert.equal(memoryUse([call(1, "snout_memory_fetch", { id: `session:${GIVER}` }), reply(1, fetched)], GIVER, "codex", PATTERN).found, true);
   assert.equal(memoryUse([call(1, "snout_memory_fetch", { id: "session:other" }), reply(1, fetched)], GIVER, "codex", PATTERN).found, false);
   assert.equal(memoryUse([call(1, "snout_memory_fetch", { id: `session:${GIVER}` }), reply(1, fetched, { isError: true })], GIVER, "codex", PATTERN).found, false);
+  // The startup index gives eight characters of the id: a fetch by them that opens the giver's record counts.
+  assert.equal(memoryUse([call(1, "snout_memory_fetch", { id: `session:${GIVER.slice(0, 8)}` }), reply(1, fetched)], GIVER, "codex", PATTERN).found, true);
+  assert.equal(memoryUse([call(1, "snout_memory_fetch", { id: `session:${GIVER.slice(0, 4)}` }), reply(1, fetched)], GIVER, "codex", PATTERN).found, false, "too short to name it");
 });
 
 test("a record shown as out of date is found but not current", () => {

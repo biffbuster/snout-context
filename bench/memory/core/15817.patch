@@ -1,0 +1,111 @@
+diff --git a/packages/runtime-core/__tests__/components/Teleport.spec.ts b/packages/runtime-core/__tests__/components/Teleport.spec.ts
+index fe1fb07d63a..65851d9c549 100644
+--- a/packages/runtime-core/__tests__/components/Teleport.spec.ts
++++ b/packages/runtime-core/__tests__/components/Teleport.spec.ts
+@@ -540,6 +540,83 @@ describe('renderer: teleport', () => {
+       expect(serializeInner(targetB)).toBe(`<div>teleported</div>`)
+     })
+ 
++    test('should move targetStart and keep appended children in order after target change', async () => {
++      const root = document.createElement('div')
++      const targetA = document.createElement('div')
++      const targetB = document.createElement('div')
++      document.body.append(root, targetA, targetB)
++
++      const target = ref<HTMLElement>(targetA)
++      const showB = ref(false)
++
++      domRender(
++        h(() =>
++          h(
++            Teleport,
++            { to: target.value },
++            showB.value ? [h('div', 'A'), h('div', 'B')] : [h('div', 'A')],
++          ),
++        ),
++        root,
++      )
++      await nextTick()
++
++      expect(targetA.innerHTML).toBe(`<div>A</div>`)
++
++      target.value = targetB
++      await nextTick()
++
++      // targetStart must not be left behind in the old target
++      expect(targetA.childNodes.length).toBe(0)
++      // targetStart, A, targetAnchor
++      expect(targetB.childNodes.length).toBe(3)
++
++      showB.value = true
++      await nextTick()
++
++      expect(targetB.innerHTML).toBe(`<div>A</div><div>B</div>`)
++
++      domRender(null, root)
++      root.remove()
++      targetA.remove()
++      targetB.remove()
++    })
++
++    test('should not crash when root is replaced after target changed from own container', async () => {
++      const root = document.createElement('div')
++      const targetB = document.createElement('div')
++      document.body.append(root, targetB)
++
++      const target = ref<HTMLElement>(root)
++      const swapped = ref(false)
++
++      const Comp = {
++        render: () =>
++          swapped.value
++            ? h('div', 'swapped')
++            : [
++                h(Teleport, { to: target.value }, [h('div', 'A')]),
++                h('div', 'x'),
++              ],
++      }
++
++      domRender(h(Comp), root)
++      await nextTick()
++
++      target.value = targetB
++      await nextTick()
++
++      swapped.value = true
++      await nextTick()
++
++      expect(root.innerHTML).toBe(`<div>swapped</div>`)
++      expect(targetB.childNodes.length).toBe(0)
++
++      domRender(null, root)
++      root.remove()
++      targetB.remove()
++    })
++
+     test('move cached text nodes', async () => {
+       document.body.innerHTML = ''
+       const root = document.createElement('div')
+diff --git a/packages/runtime-core/src/components/Teleport.ts b/packages/runtime-core/src/components/Teleport.ts
+index 9c1e97bc6d3..7f2f7053c07 100644
+--- a/packages/runtime-core/src/components/Teleport.ts
++++ b/packages/runtime-core/src/components/Teleport.ts
+@@ -382,9 +382,17 @@ function moveTeleport(
+   { o: { insert }, m: move }: RendererInternals,
+   moveType: TeleportMoveTypes = TeleportMoveTypes.REORDER,
+ ): void {
+-  // move target anchor if this is a target change.
++  // move target anchors if this is a target change.
+   if (moveType === TeleportMoveTypes.TARGET_CHANGE) {
++    // targetStart is only set by hydration when the start anchor is found
++    if (vnode.targetStart) {
++      insert(vnode.targetStart, container, parentAnchor)
++    }
+     insert(vnode.targetAnchor!, container, parentAnchor)
++    // children have to stay between the two anchors, otherwise subsequently
++    // appended children are mounted before targetAnchor while the moved ones
++    // sit after it
++    parentAnchor = vnode.targetAnchor!
+   }
+   const { el, anchor, shapeFlag, children, props } = vnode
+   const isReorder = moveType === TeleportMoveTypes.REORDER

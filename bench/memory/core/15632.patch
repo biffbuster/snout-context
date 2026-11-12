@@ -1,0 +1,88 @@
+diff --git a/packages/runtime-core/__tests__/rendererComponent.spec.ts b/packages/runtime-core/__tests__/rendererComponent.spec.ts
+index 75b0a5de457..4ff57c0b918 100644
+--- a/packages/runtime-core/__tests__/rendererComponent.spec.ts
++++ b/packages/runtime-core/__tests__/rendererComponent.spec.ts
+@@ -526,4 +526,59 @@ describe('renderer: component', () => {
+     // expect Comp to not be re-rendered
+     expect(spy).toHaveBeenCalledTimes(1)
+   })
++
++  test('should update child component when a prop is replaced by a new undefined prop', async () => {
++    const props = ref<Record<string, any>>({ foo: 'foo' })
++
++    const Comp = {
++      props: ['foo', 'bar'],
++      render(this: any) {
++        return h('div', `${this.foo}-${this.bar}`)
++      },
++    }
++
++    const App = {
++      render() {
++        return h(Comp, props.value)
++      },
++    }
++
++    const root = nodeOps.createElement('div')
++    render(h(App), root)
++    expect(serializeInner(root)).toBe(`<div>foo-undefined</div>`)
++
++    props.value = { bar: undefined }
++    await nextTick()
++    expect(serializeInner(root)).toBe(`<div>undefined-undefined</div>`)
++
++    props.value = { bar: 'bar' }
++    await nextTick()
++    expect(serializeInner(root)).toBe(`<div>undefined-bar</div>`)
++  })
++
++  test('should update child component when a prop is replaced by an emit listener', async () => {
++    const props = ref<Record<string, any>>({ foo: 'foo' })
++
++    const Comp = {
++      props: ['foo'],
++      emits: ['click'],
++      render(this: any) {
++        return h('div', `${this.foo}`)
++      },
++    }
++
++    const App = {
++      render() {
++        return h(Comp, props.value)
++      },
++    }
++
++    const root = nodeOps.createElement('div')
++    render(h(App), root)
++    expect(serializeInner(root)).toBe(`<div>foo</div>`)
++
++    props.value = { onClick: () => {} }
++    await nextTick()
++    expect(serializeInner(root)).toBe(`<div>undefined</div>`)
++  })
+ })
+diff --git a/packages/runtime-core/src/componentRenderUtils.ts b/packages/runtime-core/src/componentRenderUtils.ts
+index be58e5b0a70..1b4d3f4cddc 100644
+--- a/packages/runtime-core/src/componentRenderUtils.ts
++++ b/packages/runtime-core/src/componentRenderUtils.ts
+@@ -18,6 +18,7 @@ import { ErrorCodes, handleError } from './errorHandling'
+ import {
+   PatchFlags,
+   ShapeFlags,
++  hasOwn,
+   isModelListener,
+   isObject,
+   isOn,
+@@ -450,8 +451,9 @@ function hasPropsChanged(
+   for (let i = 0; i < nextKeys.length; i++) {
+     const key = nextKeys[i]
+     if (
+-      hasPropValueChanged(nextProps, prevProps, key) &&
+-      !isEmitListener(emitsOptions, key)
++      !hasOwn(prevProps, key) ||
++      (hasPropValueChanged(nextProps, prevProps, key) &&
++        !isEmitListener(emitsOptions, key))
+     ) {
+       return true
+     }

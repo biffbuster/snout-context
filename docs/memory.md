@@ -64,8 +64,9 @@ that a rebase or amend took off every branch leaves memory on the next import. D
 
 ## How agents get it
 
-1. **One line at session start.** When the project has other sessions on record, a new session
-   is told how many there are, the latest one's date and agent, and how to search them. If the
+1. **One line at session start.** When the project has other sessions on record, or an imported
+   history of 20 records or more, a new session is told how many there are (sessions with the
+   latest one's date and agent; commits, PRs and failed CI runs), and how to search them. If the
    newest work is still unfinished here, the line also gives that session's id. It includes nothing
    from the records. It is shown in enforce mode, and `memoryHint: false` turns it off. The line exists because neither agent
    passes Snout's own tool guidance on in a usable form: Codex leaves MCP server instructions out,
@@ -84,6 +85,16 @@ that a rebase or amend took off every branch leaves memory on the next import. D
    choosing a note for a prompt that didn't ask for one was not accurate enough; the 2026-10-30
    frozen lesson delivery preflight showed four wrong injections in 20 negative prompts per agent
    ([memory gates](memory-gates.md)).
+4. **An index of recent sessions (experiment, off by default).** With `memoryRecent: true`, the
+   session-start line is followed by the newest other sessions here, three at most and 150 tokens
+   in all: each one's short id (which `snout_memory_fetch` opens), date, agent and what it did (its
+   latest commit's subject, or what it was asked), and "unfinished here" only when the project's
+   state shows that session's work unfinished. It is shown once, at session start, in Claude Code
+   and Codex alike. Recency picks the entries, not a guess at what the task needs, so it avoids the
+   accuracy problem in item 3; an entry can still be unrelated, out of date or summarized loosely,
+   and the header says they are records. It was added on 2026-11-10 because agents seldom searched
+   for records they only knew existed, and it is being measured against the line alone before any
+   default changes. Automatic notes and lessons on prompts stay off.
 
 Claude Code gets the hooks, the tools and the skill from the plugin. Codex gets them from
 `snout init codex`, which writes the skill to `.agents/skills/snout-memory/`. Each agent can search

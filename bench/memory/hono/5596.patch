@@ -1,0 +1,35 @@
+diff --git a/src/utils/url.test.ts b/src/utils/url.test.ts
+index 73000d7b1e..62993df33f 100644
+--- a/src/utils/url.test.ts
++++ b/src/utils/url.test.ts
+@@ -315,6 +315,17 @@ describe('url', () => {
+       expect(getQueryParams(url, key)).toEqual([expected, 'second'])
+     })
+ 
++    it.each([
++      ['a&b=3', 'a&b', undefined],
++      ['a=b=3', 'a=b', undefined],
++      ['a%26b=3', 'a&b', '3'],
++      ['a%3Db=3', 'a=b', '3'],
++    ])('does not match a key across separators for %s', (query, key, expected) => {
++      const url = `http://example.com/?${query}`
++      expect(getQueryParam(url, key)).toBe(expected)
++      expect(getQueryParams(url, key)).toEqual(expected === undefined ? undefined : [expected])
++    })
++
+     it('Parse URL query strings', () => {
+       expect(getQueryParam('http://example.com/?name=hey', 'name')).toBe('hey')
+       expect(getQueryParam('http://example.com/?name=hey#fragment', 'name')).toBe('hey')
+diff --git a/src/utils/url.ts b/src/utils/url.ts
+index f442379a01..44ba547df6 100644
+--- a/src/utils/url.ts
++++ b/src/utils/url.ts
+@@ -265,7 +265,7 @@ const _getQueryParam = (
+ 
+   let encoded
+ 
+-  if (!multiple && key && key.indexOf('%') === -1 && key.indexOf('+') === -1) {
++  if (!multiple && key && !/[%+&=]/.test(key)) {
+     // optimized for unencoded key
+ 
+     const queryIndex = url.indexOf('?', 8)

@@ -1,0 +1,51 @@
+diff --git a/packages/runtime-core/__tests__/components/KeepAlive.spec.ts b/packages/runtime-core/__tests__/components/KeepAlive.spec.ts
+index 3309ca0b8b1..0dcd29aa79c 100644
+--- a/packages/runtime-core/__tests__/components/KeepAlive.spec.ts
++++ b/packages/runtime-core/__tests__/components/KeepAlive.spec.ts
+@@ -627,6 +627,34 @@ describe('KeepAlive', () => {
+       // C should be pruned because B was used last so C is the oldest cached
+       assertCount([2, 2, 1, 1, 1, 2, 2, 0, 1, 1, 1, 1])
+     })
++
++    // #15710
++    test('max should unmount pruned current component when reusing mounted vnode', async () => {
++      const viewRef = ref('one')
++      const reuse = ref(false)
++      let prev: any
++      const App = {
++        render() {
++          if (reuse.value && prev) return prev
++          return (prev = h(KeepAlive, { max: 1 }, () =>
++            h(views[viewRef.value]),
++          ))
++        },
++      }
++      render(h(App), root)
++      expect(serializeInner(root)).toBe(`<div>one</div>`)
++
++      reuse.value = true
++      await nextTick()
++      expect(serializeInner(root)).toBe(`<div>one</div>`)
++
++      reuse.value = false
++      viewRef.value = 'two'
++      await nextTick()
++      expect(serializeInner(root)).toBe(`<div>two</div>`)
++      expect(one.deactivated).not.toHaveBeenCalled()
++      expect(one.unmounted).toHaveBeenCalledTimes(1)
++    })
+   })
+ 
+   describe('cache invalidation', () => {
+diff --git a/packages/runtime-core/src/components/KeepAlive.ts b/packages/runtime-core/src/components/KeepAlive.ts
+index b09152f72a0..36e306c0df8 100644
+--- a/packages/runtime-core/src/components/KeepAlive.ts
++++ b/packages/runtime-core/src/components/KeepAlive.ts
+@@ -223,6 +223,7 @@ const KeepAliveImpl: ComponentOptions = {
+         // current active instance should no longer be kept-alive.
+         // we can't unmount it now but it might be later, so reset its flag now.
+         resetShapeFlag(current)
++        if (cached) resetShapeFlag(cached)
+       }
+       cache.delete(key)
+       keys.delete(key)

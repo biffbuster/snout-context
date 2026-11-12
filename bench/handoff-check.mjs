@@ -37,7 +37,7 @@ import { shippedClaudeHooks } from "./shipped-hooks.mjs";
 import { transcriptFacts } from "./swelong.mjs";
 import { stamp } from "./stamp.mjs";
 import { codexToolchainEnv, removeSandboxed } from "./codex-toolchain.mjs";
-import { networkCommands, modeProblems, armProblems, hookCoverage, codexHookCoverage } from "./study-checks.mjs";
+import { networkCommands, modeProblems, armProblems, hookCoverage, codexHookCoverage, straySkillDirs } from "./study-checks.mjs";
 
 const { gateEntries, squeezeEntries, MEMORY_SKILL, storesFor, lessons: lessonsIn, approved: approvedLesson } = await import(pathToFileURL(join(REPO, "dist/lib.mjs")).href);
 const { snoutSideCalls } = createRequire(import.meta.url)("./snout-guard.cjs");
@@ -98,6 +98,13 @@ const OWN_MEMORY = SPEC.ownMemory === "claude";
 // live paid runs until the delivery design passes a new frozen safety check.
 if (args["experimental-notes"] && !FAKE) throw new Error("Automatic lesson delivery is not cleared for a live run; --experimental-notes is stand-in only.");
 const NOTES_ARM = LESSONS && FAKE && args["experimental-notes"] === true;
+/**
+ * spec-index.json: a third receiver, "index", as "on" plus the startup index of recent sessions
+ * (memoryRecent, an opt-in experiment of 2026-11-10), from the same snapshot: does a short list of what
+ * earlier sessions did get an agent to open the giver's record more often than the line that only says
+ * records exist? Every receiver of a direction runs from the giver's state, never from another receiver's.
+ */
+const INDEX_ARM = SPEC.indexArm === true;
 /** The memory tools and skill as the product ships them: a lesson spec, or `"skill": true` without the review stop (spec-decision.json). */
 const SHIPPED = LESSONS || SPEC.skill === true;
 const MEMORY_TOOLS = SHIPPED ? [...SEARCH_TOOLS, "snout_memory_propose"] : SEARCH_TOOLS;
@@ -125,7 +132,7 @@ const ownProject = (w) => (w.agent === "codex" ? { CLAUDE_PROJECT_DIR: w.ws, GIT
 const toml = (v) => (Array.isArray(v) ? `[${v.map(toml).join(",")}]` : typeof v === "object" ? `{${Object.entries(v).map(([k, x]) => `${k}=${toml(x)}`).join(",")}}` : `'${String(v)}'`);
 
 /** A Snout store for one session or more: its records folder, config folder and the side-call log. */
-function newStore(dir, arm, from) {
+function newStore(dir, arm, from, extra = {}) {
   const snoutDir = join(dir, "snout"), configDir = join(dir, "config");
   if (from) { cpSync(from.snoutDir, snoutDir, { recursive: true }); cpSync(from.configDir, configDir, { recursive: true }); }
   mkdirSync(snoutDir, { recursive: true }); mkdirSync(configDir, { recursive: true });
@@ -136,11 +143,11 @@ function newStore(dir, arm, from) {
     ? (config.mode === "enforce" && config.memory === true && config.memoryNotes === true ? [] : ["notes arm lacks enforce, memory, or automatic notes"])
     : armProblems(arm, config);
   if (wrong.length) throw new Error(`arm config: ${wrong.join("; ")}`);
-  writeFileSync(join(snoutDir, "config.json"), JSON.stringify(config) + "\n");
+  writeFileSync(join(snoutDir, "config.json"), JSON.stringify({ ...config, ...extra }) + "\n");
   const sideLog = join(dir, "side-calls.jsonl");
   const env = { SNOUT_DIR: snoutDir, SNOUT_CONFIG_DIR: configDir, SNOUT_MEMORY: "", SNOUT_MEMORY_NOTES: "", TYPESAFE_API_KEY: "", SNOUT_CLOUD_URL: "", SNOUT_EMBED_FAKE: "",
     SNOUT_GUARD_LOG: sideLog, NODE_OPTIONS: [process.env.NODE_OPTIONS, `--require ${JSON.stringify(GUARD)}`].filter(Boolean).join(" ") };
-  return { dir, snoutDir, configDir, sideLog, env, arm };
+  return { dir, snoutDir, configDir, sideLog, env, arm, recent: extra.memoryRecent === true };
 }
 
 // ---------- Workspaces ----------
@@ -362,7 +369,9 @@ export function memoryUse(tapRows, giverSession, giverAgent, recordPattern, less
   for (const c of calls) {
     if (c.error) continue;
     if (c.tool === "snout_memory_search") for (const l of c.text.split("\n")) { if (l.includes(id)) shown.push({ via: "search", text: l }); }
-    if (c.tool === "snout_memory_fetch" && String(c.args.id ?? "") === id) shown.push({ via: "fetch", text: c.text });
+    // By its full id, or by the short one the startup index gives: the reply opens with the record's full id.
+    const asked = String(c.args.id ?? "");
+    if (c.tool === "snout_memory_fetch" && (asked === id || (asked.length >= "session:".length + 8 && id.startsWith(asked) && c.text.startsWith(`${id} `)))) shown.push({ via: "fetch", text: c.text });
   }
   // The giver's approved lessons: a search line that shows one, or a fetch that opens one. Each line cites the giver's session.
   const lessonShown = calls.some((c) => !c.error && c.tool === "snout_memory_search" && lessonIds.some((l) => c.text.includes(l)));
@@ -460,6 +469,9 @@ async function session(role, d, w, store, prompt, runDir, fake) {
   if (arm === "plain" && agent === "claude" && step.side.processes) bad.push("Snout ran in the off arm");
   if (arm !== "notes" && injected.length) bad.push("automatic notes were injected outside the notes arm");
   step.hint = hintOf(step, store);
+  step.index = indexOf(step, store);
+  if (!store.recent && step.index.logged) bad.push("the startup index reached an arm without it");
+  if (store.recent && step.session && !FAKE && !step.index.logged) bad.push("the startup index did not run in its arm");
   if (skillFile) step.skill = { installed: true, seen: inSessionFile(step, /snout-memory/) };
   if (arm === "plain" && (step.hint.logged || step.hint.delivered)) bad.push("the session-start hint reached the off arm");
   // With OWN_MEMORY its memory is part of the arm: reported (files at the start, files at the end), not a fault.
@@ -572,10 +584,10 @@ async function receivers(d, runDir, spend, out) {
   const lessonIds = LESSONS ? out.lessons.afterReview.filter((l) => l.approved).map((l) => l.id) : [];
   delete out.awaitingReview;
   out.receivers = {};
-  for (const arm of (NOTES_ARM ? ["on", "notes", "off"] : ["on", "off"])) {
+  for (const arm of ["on", ...(INDEX_ARM ? ["index"] : []), ...(NOTES_ARM ? ["notes"] : []), "off"]) {
     if (d.receiver === "claude" && !spend.allow()) { out.stopped = spend.why(); break; }
     const store = arm === "off" ? newStore(join(runDir, d.id, "off-store"), "plain")
-      : newStore(join(runDir, d.id, `${arm}-store`), arm === "notes" ? "notes" : "search", shared);
+      : newStore(join(runDir, d.id, `${arm}-store`), arm === "notes" ? "notes" : "search", shared, arm === "index" ? { memoryRecent: true } : {});
     const w = newWorkspace(d.receiver, d, snapshot, { fixed: OWN_MEMORY && d.receiver === "claude" });
     if (OWN_MEMORY && d.receiver === "claude") {
       const mem = claudeMemoryDir(w.ws), kept = join(runDir, d.id, "claude-memory");
@@ -585,10 +597,10 @@ async function receivers(d, runDir, spend, out) {
     const fake = FAKE ? { patch: fakePatch(snapshot, join(HERE, d.project, refReceiver(d)), runDir, `${d.id}-${arm}`), say: "Done; tests pass." } : undefined;
     const s = await session(`receiver-${arm}`, d, w, store, d.receiverPrompt, runDir, fake);
     spend.add(s);
-    if (FAKE && arm === "on") {
+    if (FAKE && (arm === "on" || arm === "index")) {
       // The stand-ins call no MCP tool: ask the receiver's own server, as an agent might, and mark it a probe.
-      const tapLog = join(runDir, `probe-${d.id}-mcp.jsonl`);
-      probe(searchServer(w, store.env, tapLog), tapLog, [{ name: "snout_memory_search", arguments: { query: d.dryRunQuery ?? d.receiverPrompt.split(/(?<=\.)\s/)[0] } }, { name: "snout_memory_fetch", arguments: { id: lessonIds[0] ?? `session:${g.session}` } }]);
+      const tapLog = join(runDir, `probe-${d.id}-${arm}-mcp.jsonl`);
+      probe(searchServer(w, store.env, tapLog), tapLog, [{ name: "snout_memory_search", arguments: { query: d.dryRunQuery ?? d.receiverPrompt.split(/(?<=\.)\s/)[0] } }, { name: "snout_memory_fetch", arguments: { id: lessonIds[0] ?? `session:${arm === "index" ? g.session.slice(0, 8) : g.session}` } }]);
       s.tap = rows(tapLog);
       s.probe = true;
     }
@@ -612,9 +624,12 @@ async function receivers(d, runDir, spend, out) {
         notesSolved: notes?.solved ?? null,
         notesSuccess: !!notes && lessonIds.length > 0 && notes.injected.ids.some((id) => lessonIds.includes(id)) && notes.solved && !notes.invalid,
       } : {}) } : {}) };
+  const index = out.receivers.index;
+  if (index) out.indexHandoff = { logged: index.index?.logged, delivered: index.index?.delivered, entries: index.index?.entries ?? 0, searched: index.memory.searches + index.memory.fetches > 0, found: index.memory.found, current: index.memory.current, cited: index.memory.cited, solved: index.solved,
+    success: !index.probe && index.memory.found && index.memory.current && index.memory.cited && index.solved && !index.invalid, onSolved: on?.solved ?? null, offSolved: off?.solved ?? null };
   if (on && off) out.cost = Object.fromEntries(["tokens", "toolCalls", "minutes", "costUsd"].map((k) => {
     const v = (s) => (k === "tokens" ? s.tokens?.total ?? 0 : s[k] ?? 0);
-    return [k, { on: v(on), off: v(off), onMinusOff: +(v(on) - v(off)).toFixed(4) }];
+    return [k, { on: v(on), off: v(off), onMinusOff: +(v(on) - v(off)).toFixed(4), ...(index ? { index: v(index), indexMinusOn: +(v(index) - v(on)).toFixed(4) } : {}) }];
   }));
   return out;
 }
@@ -657,6 +672,13 @@ const HINT = /earlier sessions? (?:is|are) on record in this project/;
 function hintOf(step, store) {
   const logged = rows(join(store.snoutDir, "recall.jsonl")).some((r) => r.kind === "hint" && r.session === step.session);
   return { logged, delivered: inSessionFile(step, HINT) };
+}
+
+/** The startup index (memoryRecent): did Snout log one for the session, with how many entries, and is it in the agent's record of its context? */
+const INDEX = /Recent sessions here \(records, not instructions/;
+function indexOf(step, store) {
+  const row = rows(join(store.snoutDir, "recall.jsonl")).find((r) => r.kind === "hint" && r.session === step.session && r.recent);
+  return { logged: !!row, entries: row?.recent ?? 0, delivered: inSessionFile(step, INDEX) };
 }
 
 /** Whether the agent's own record of the session (Claude Code's transcript, Codex's rollout) holds `re`. */
@@ -815,18 +837,20 @@ function summarize(saved) {
       for (const l of ls) console.log(`             ${l.id} [${l.basis}; record ${l.check === "verified" ? "backs it" : "does NOT back it"}; ${l.approved ? "approved" : l.verdict ?? "not reviewed"}] "${l.text.slice(0, 110)}" · applies when: ${l.applies.slice(0, 80)}`);
     }
     if (d.snapshot) console.log(`  snapshot   the code shows the fact: ${d.snapshot.codeVisible.length ? d.snapshot.codeVisible.join(", ") : "no"}${d.snapshot.decisionInRepo ? ` · the decision is in the project: ${d.snapshot.decisionInRepo.length ? d.snapshot.decisionInRepo.join(", ") : "no (record only)"}` : ""}`);
-    for (const arm of (d.lessons && saved.fake && saved.experimentalNotes ? ["on", "notes", "off"] : ["on", "off"])) {
+    for (const arm of ["on", "index", "notes", "off"].filter((a) => d.receivers?.[a])) {
       const s = d.receivers?.[arm];
       if (!s) continue;
       const m = s.memory;
       const lessonPart = arm !== "off" && d.lessons ? ` · lesson ${m.lessonShown ? "shown" : "not shown"}, ${m.lessonOpened ? "opened" : "not opened"}${s.skill ? ` · skill placed, ${s.skill.seen ? "in the session's record" : "not in the session's record (Claude Code's holds it only if the agent opened it)"}` : ""}` : "";
-      const mem = arm !== "off" ? `${s.hint ? ` · hint ${s.hint.logged ? "logged" : "NOT logged"}, ${s.hint.delivered ? "delivered" : "NOT seen in the agent's record"}` : ""} · ${m.searches} search, ${m.fetches} fetch${s.probe ? " (dry-run probe, not the agent)" : ""} · injected ${s.injected?.ids?.length ?? 0} item(s) / ${s.injected?.tokens ?? 0} tokens · record ${m.found ? `found${m.current ? ", current" : ", NOT current"}${m.cited ? ", cited" : ", NOT cited"}` : "not found"}${lessonPart}` : "";
+      const mem = arm !== "off" ? `${s.hint ? ` · hint ${s.hint.logged ? "logged" : "NOT logged"}, ${s.hint.delivered ? "delivered" : "NOT seen in the agent's record"}` : ""}${s.index?.logged ? ` · index of ${s.index.entries}, ${s.index.delivered ? "delivered" : "NOT seen in the agent's record"}` : ""} · ${m.searches} search, ${m.fetches} fetch${s.probe ? " (dry-run probe, not the agent)" : ""} · injected ${s.injected?.ids?.length ?? 0} item(s) / ${s.injected?.tokens ?? 0} tokens · record ${m.found ? `found${m.current ? ", current" : ", NOT current"}${m.cited ? ", cited" : ", NOT cited"}` : "not found"}${lessonPart}` : "";
       console.log(`  ${`receiver ${arm}`.padEnd(10)} ${s.solved ? "solved" : "NOT solved"}${mem} · ${fmt(s)}${s.invalid ? ` · INVALID ${s.invalid.join("; ")}` : ""}`);
       if (s.outside?.review.length) console.log(`             outside its workspace, for review: ${s.outside.review.slice(0, 3).join(" | ")}`);
     }
     if (d.handoff) console.log(`  handoff    ${d.handoff.success ? "SUCCEEDED" : "did not succeed"}${d.handoff.recordOnly === false ? " (decision also in the project)" : ""} (searched ${d.handoff.searched}, found ${d.handoff.found}, current ${d.handoff.current}, cited ${d.handoff.cited}, solved ${d.handoff.solved}); off arm solved: ${d.handoff.offSolved}`);
     if (d.handoff?.lessonApproved !== undefined) console.log(`  lesson     ${d.handoff.lessonSuccess ? "HANDED OFF" : "not handed off"} (approved ${d.handoff.lessonApproved}, shown ${d.handoff.lessonShown}, opened ${d.handoff.lessonOpened}, solved ${d.handoff.solved})`);
     if (d.handoff?.notesSuccess !== undefined) console.log(`  notes      ${d.handoff.notesSuccess ? "DELIVERED AND SOLVED" : "not shown or not solved"} (approved lesson injected ${d.handoff.notesInjected}, solved ${d.handoff.notesSolved})`);
+    if (d.indexHandoff) console.log(`  index      ${d.indexHandoff.success ? "SUCCEEDED" : "did not succeed"} (searched ${d.indexHandoff.searched}, found ${d.indexHandoff.found}, current ${d.indexHandoff.current}, cited ${d.indexHandoff.cited}, solved ${d.indexHandoff.solved}); on arm solved: ${d.indexHandoff.onSolved}`);
+    if (d.cost?.tokens.indexMinusOn !== undefined) console.log(`  cost       index − on: ${d.cost.tokens.indexMinusOn} tokens, ${d.cost.toolCalls.indexMinusOn} tool calls, ${d.cost.minutes.indexMinusOn} min, $${d.cost.costUsd.indexMinusOn} (one pair: an anecdote, not a result)`);
     if (d.cost) console.log(`  cost       on − off: ${d.cost.tokens.onMinusOff} tokens, ${d.cost.toolCalls.onMinusOff} tool calls, ${d.cost.minutes.onMinusOff} min, $${d.cost.costUsd.onMinusOff} (one pair: an anecdote, not a result)`);
     if (d.stopped) console.log(`  stopped    ${d.stopped}`);
     console.log("");
@@ -862,13 +886,20 @@ async function main() {
   const build = frozenBuild();
   const versions = { claude: build.claudeCode, codex: FAKE ? "stand-in" : sh(...codexCmd(["--version"])).stdout.trim(), node: process.version };
   const frozenAt = checkFreeze(versions);
+  // Snout's memory skill above the Codex workspaces would reach every Codex session, the off arm too.
+  const stray = SPEC.directions.some((d) => d.giver === "codex" || d.receiver === "codex") ? straySkillDirs(REPO, existsSync) : [];
+  if (stray.length) throw new Error(`Snout's memory skill above the Codex workspaces would reach every Codex session (the off arm too); move it out first: ${stray.join(", ")}`);
   const resumed = typeof args.resume === "string" ? JSON.parse(readFileSync(args.resume, "utf8")) : null;
   if (resumed && resumed.fake !== FAKE) throw new Error(`that run was ${resumed.fake ? "a dry run" : "live"}; resume it the same way`);
   if (resumed && !!resumed.experimentalNotes !== NOTES_ARM) throw new Error("resume with the same experimental-notes setting as the original run");
   const runId = resumed?.runId ?? `handoff-${FAKE ? "dryrun" : "live"}-${Date.now()}`;
   const runDir = join(HOME, ".snout-bench", "handoff-runs", runId);
   mkdirSync(runDir, { recursive: true });
-  const outFile = resumed ? args.resume : FAKE ? join(REPO, "bench/ab-results", `${runId}.json`) : join(HERE, `results-${new Date().toISOString().slice(0, 10)}${SPEC_TAG}.json`);
+  // A second live run on the same day gets its own file (-2, -3, ...): an earlier run's results are never overwritten.
+  const dated = (n) => join(HERE, `results-${new Date().toISOString().slice(0, 10)}${SPEC_TAG}${n > 1 ? `-${n}` : ""}.json`);
+  let n = 1;
+  while (!resumed && !FAKE && existsSync(dated(n))) n++;
+  const outFile = resumed ? args.resume : FAKE ? join(REPO, "bench/ab-results", `${runId}.json`) : dated(n);
   mkdirSync(join(outFile, ".."), { recursive: true });
   const spent = { claude: resumed?.spend.claudeUsd ?? 0, codex: resumed?.spend.codexUsd ?? 0 };
   // The cap: no Claude Code session starts unless its whole budget still fits under --max-spend.
@@ -882,7 +913,7 @@ async function main() {
   const saved = resumed ?? { runId, fake: FAKE, experimentalNotes: NOTES_ARM, measuredAt: new Date().toISOString(), frozenAt, stamp: stamp(), build, versions, spec: sha(SPEC_FILE), directions: [], spend: {} };
   if (resumed && resumed.spec !== sha(SPEC_FILE)) throw new Error("the spec changed since that run started");
   const save = () => { saved.spend = { claudeUsd: spent.claude, codexUsd: spent.codex, cap: MAX_SPEND || null }; writeFileSync(outFile, JSON.stringify(saved, null, 2)); };
-  console.error(`${only.length} direction(s), ${NOTES_ARM ? 4 : 3} sessions each → ${outFile}`);
+  console.error(`${only.length} direction(s), ${3 + (INDEX_ARM ? 1 : 0) + (NOTES_ARM ? 1 : 0)} sessions each → ${outFile}`);
   for (const d of SPEC.directions.filter((x) => only.includes(x.id))) {
     const i = saved.directions.findIndex((x) => x.id === d.id);
     const done = saved.directions[i];
