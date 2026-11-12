@@ -5262,7 +5262,9 @@ async function installModel(log, dir = modelDir(), model = MODEL, files = MODEL_
   if (!existsSync14(join15(dir, "package.json"))) writeFileSync4(join15(dir, "package.json"), '{ "name": "snout-model", "private": true }\n');
   if (!existsSync14(join15(dir, "node_modules", "@huggingface", "transformers", "package.json"))) {
     log(`Installing ${LIBRARY} into ${dir} ...`);
-    const npm = spawnSync4("npm", ["install", LIBRARY, "--no-audit", "--no-fund", "--loglevel=error"], { cwd: dir, stdio: "inherit", shell: process.platform === "win32", windowsHide: true });
+    const args = ["install", LIBRARY, "--no-audit", "--no-fund", "--loglevel=error"];
+    const opts = { cwd: dir, stdio: "inherit", windowsHide: true };
+    const npm = process.platform === "win32" ? spawnSync4(`npm ${args.join(" ")}`, { ...opts, shell: true }) : spawnSync4("npm", args, opts);
     if (npm.status !== 0) throw new Error("npm install failed (is npm on PATH?)");
   }
   for (const f of files) {
