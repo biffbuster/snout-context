@@ -185,10 +185,11 @@ test("P01, P02, P05, P08, P09 (round 2): a task request said in two sessions sta
   assert.equal(standing("Please run the linter and fix what it finds."), false);
   assert.equal(standing("Always write commit messages in the conventional style."), true);
   assert.equal(standing("Use tabs in this project."), true);
-  // Promoted before this rule: back to a proposal at session start, unless the user accepted it.
+  // Promoted before this rule: retired at session start, unless the user accepted it. A task request
+  // is archived since only lasting instructions are suggested (2026-11-12); it used to go back to a proposal.
   const old = addObservation(s, ANA, { kind: "preference", text: "Run the linter and fix what it finds.", tags: ["rule", "repeated"], via: "distill", status: "active" });
   const mine = addObservation(s, ANA, { kind: "preference", text: "Squash before merging.", tags: ["rule", "accepted"], via: "distill", status: "active" });
-  assert.deepEqual(retireOneOff(s).map((o) => [o.id, o.status]), [[old.id, "proposed"]]);
+  assert.deepEqual(retireOneOff(s).map((o) => [o.id, o.status]), [[old.id, "archived"]]);
   assert.ok(seen().includes("Squash before merging."), "what the user accepted stays");
   assert.match(cite(mine), /^accepted by you; /);
   assert.deepEqual(fittingNotes("Squash and merge the branch.", [mine]).map((o) => o.id), [mine.id], "an accepted instruction is verified");

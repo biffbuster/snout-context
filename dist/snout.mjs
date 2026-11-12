@@ -427,6 +427,13 @@ var VENDOR_DIRS = [
   "DerivedData",
   ".snout"
 ];
+var SNOUT_OWN_DIRS = ["memory", "squeeze", "calls", "sessions", "archive"];
+function snoutWrote(rel) {
+  const segments = rel.split("/");
+  const at = segments.indexOf(".snout");
+  const inside3 = segments.slice(at + 1);
+  return inside3.length > 1 ? SNOUT_OWN_DIRS.includes(inside3[0]) : /\.jsonl?$/i.test(inside3[0] ?? "");
+}
 var KNOWN_VENDORED_FILES = /* @__PURE__ */ new Set(["class-pclzip.php", "class-phpass.php", "class-IXR.php"]);
 var OUTPUT_DIRS = ["dist", "build", "out", "target", "coverage"];
 var GENERATED_PATH_SEGMENTS = ["openapi-spec"];
@@ -530,7 +537,7 @@ var RULES = [
     run: (s) => {
       const top = s.rel.split("/")[0];
       const vendorDir = firstSegmentMatch(s.rel, VENDOR_DIRS) ?? (s.rel.includes("/") && ROOT_VENDOR_DIRS.includes(top) ? top : null) ?? s.ignoredOutputDir(s.rel);
-      return vendorDir ? low("vendored", `${safePath(s.rel)} sits inside ${safeText(vendorDir, 40)}/, a directory of installed or generated output rather than source you maintain.`) : null;
+      return vendorDir && !(vendorDir === ".snout" && !snoutWrote(s.rel)) ? low("vendored", `${safePath(s.rel)} sits inside ${safeText(vendorDir, 40)}/, a directory of installed or generated output rather than source you maintain.`) : null;
     }
   },
   // 5b. Known third-party files with no vendor directory to catch them. See
@@ -5565,8 +5572,26 @@ function replaceOlder(s, o, now = /* @__PURE__ */ new Date()) {
 }
 var STANDING = /\b(?:always|never|whenever|every ?time|each time|from now on|going forward|by default|(?:do not|don'?t) ever|in (?:this|the|our) (?:project|repo|repository|codebase))\b/i;
 var standing = (text) => STANDING.test(text);
+var PERMISSION = /\b(?:without (?:(?:my|your|the user'?s?|explicit|separate|a|an)\s+)*(?:approval|permission|go-?ahead|ok(?:ay)?|say-?so|consent)|without (?:first )?(?:asking|checking with)|ask(?:ing)? (?:me |the user )?(?:first|before)|(?:only|just) (?:when|after|once) (?:i|the user) (?:say|says|said|ask|asks|approve|approves|confirm|confirms)|(?:get|wait for) my (?:approval|ok|okay|go)|ask me for (?:the |my )?(?:final )?(?:approval|ok|go)|for (?:my|the) (?:final )?approval)\b/i;
+var REPLIES = /\b(?:straight to the point|non-?technical|jargon|plain (?:english|language|words)|keep (?:it|them|things|answers|responses|replies|explanations) (?:(?:super|very|really|nice and)\s+)?(?:simple|short|brief|concise|plain|tight)|(?:short|brief|concise|simple|plain|summari[sz]ed)\b[\w\s,]{0,30}\b(?:responses|replies|answers|explanations|summaries))\b/i;
+var SCOPE = /\b(?:from now on|going forward|(?:for|in) (?:all )?(?:the )?future|every ?time|each time|whenever|by default|(?:before|after) (?:every|each|any) \w+)\b/i;
+var lasting = (text) => PERMISSION.test(text) || REPLIES.test(text) || SCOPE.test(text);
+var suggestions = (s) => listObservations(s).filter((o) => o.status === "proposed" && !o.lesson && o.project === s.project && (o.source.via !== "distill" || lasting(o.text))).sort((a, b) => a.created < b.created ? 1 : -1);
+var suggestion = (s, id) => suggestions(s).find((o) => o.id === id || id.length >= 6 && o.id.startsWith(id)) ?? null;
+function keepSuggestion(s, id, now = /* @__PURE__ */ new Date()) {
+  const o = suggestion(s, id);
+  return o ? acceptObservation(s, o.id, now, ["accepted"]) : null;
+}
+function rejectSuggestion(s, id, now = /* @__PURE__ */ new Date()) {
+  const o = suggestion(s, id);
+  if (!o) return null;
+  const next = { ...o, status: "archived", tags: [.../* @__PURE__ */ new Set([...o.tags, "rejected"])].slice(0, 8), updated: now.toISOString() };
+  write(s, next);
+  return next;
+}
 var ONE_OFF = /\b(?:yet|for now|right now|as part of|if needed|next|today|tomorrow|tonight|this (?:step|task|time|session|run|turn|pr|branch|checkout|commit|change|issue|folder|file|one))\b|^then\b/i;
 var oneOff = (text) => ONE_OFF.test(text);
+var keepable = (text) => !oneOff(text) && (lasting(text) || standing(text));
 var RUNNER = /^(?:py\.?test|jest|vitest|mocha|rspec|phpunit|tox|unittest|test(?::[\w:-]+)?|--test|runtests\.py|(?:run[-_])?tests?(?:[-_]\w+)?\.(?:m?[jt]s|sh|py))$/;
 var SELECT = /^(?:-run|-k|-t|-g|--grep|--testNamePattern|--test-name-pattern|--testPathPattern|--filter|--deselect|-bench)$/;
 var VALUE = /^(?:-tags|-p|-parallel|-timeout|-count|-n|-m|-c|-e|-r|-j|--config|--require|--reporter|--parallel|--settings|--maxfail|--features|--jobs|--project|--env|--pool|--workspace|--package)$/;
@@ -5607,15 +5632,21 @@ function distillCard(card) {
   if (card.test && PASSED(card.test.result) && !runsElsewhere(card.test.command)) out.push({ ...base, kind: "command", text: `Run the tests with: ${generalTestCommand(card.test.command)}`, tags: ["test"], files: [], evidence: `${card.test.command} \u2192 ${card.test.result}` });
   for (const tool of card.missing ?? []) out.push({ ...base, kind: "gotcha", text: `${tool} is not installed on this machine: don't call it, or install it first.`, tags: ["missing"], ...card.missingEvidence?.[tool] ? { evidence: card.missingEvidence[tool].trim() } : {} });
   for (const cmd of card.slow ?? []) if (!runsElsewhere(cmd)) out.push({ ...base, kind: "gotcha", text: `${cmd} runs past the agent's tool time limit: run a narrower selection of tests.`, tags: ["slow"] });
-  for (const rule of card.rules ?? []) if (rule.trim().length >= 8 && !oneOff(rule)) out.push({ ...base, kind: "preference", text: rule, tags: ["rule"], status: "proposed" });
+  for (const rule of card.rules ?? []) if (rule.trim().length >= 8 && keepable(rule)) out.push({ ...base, kind: "preference", text: rule, tags: ["rule"], status: "proposed" });
   return out;
 }
 function retireOneOff(s, now = /* @__PURE__ */ new Date()) {
   const out = [];
   for (const o of listObservations(s)) {
-    if (o.status !== "active" || o.scope !== "private" || o.kind !== "preference" || o.source.via !== "distill" || o.tags.includes("accepted")) continue;
+    if (o.scope !== "private" || o.kind !== "preference" || o.source.via !== "distill" || o.tags.includes("accepted")) continue;
+    if (o.status === "proposed") {
+      const a = keepable(o.text) ? null : archiveObservation(s, o.id, now);
+      if (a) out.push(a);
+      continue;
+    }
+    if (o.status !== "active") continue;
     if (o.tags.includes("repeated") && standing(o.text)) continue;
-    const next = oneOff(o.text) ? archiveObservation(s, o.id, now) : proposeObservation(s, o.id, now);
+    const next = keepable(o.text) ? proposeObservation(s, o.id, now) : archiveObservation(s, o.id, now);
     if (next) out.push(next);
   }
   return out;
@@ -12939,7 +12970,7 @@ It replaces ${r.id}, now superseded: "${safeText(r.text, 120)}"`).join("")}${war
       const seen = new Set(recallable(stores, [localViewer(paths.projectDir, stores.project, user)]).map((o2) => o2.id));
       const shown = args.includes("--all") ? all : all.filter((o2) => seen.has(o2.id));
       const head = `${seen.size} observation${seen.size === 1 ? "" : "s"} you may see here${all.length > seen.size ? ` \xB7 ${all.length - seen.size} more not admitted (other status, project or audience; --all lists them)` : ""}`;
-      return say([head, ...shown.slice(0, 40).map(line)].join("\n"));
+      return say([head, ...shown.slice(0, 40).map(line), ...shown.length > 40 ? [`  \u2026 and ${shown.length - 40} more, not listed`] : []].join("\n"));
     }
     if (v === "migrate") {
       const added = migratePrefs(paths.snoutDir, stores, user);
@@ -12995,11 +13026,19 @@ function cmdLessons(paths, v, args) {
     if (v === "review") {
       const waiting = proposals(stores);
       const ready = waiting.filter((o) => o.lesson.check === "verified");
+      const said2 = suggestions(stores);
       const others = args.includes("--all") ? lessons(stores).filter((o) => o.status !== "proposed") : [];
-      const head = waiting.length ? `${ready.length} lesson${ready.length === 1 ? "" : "s"} to review${waiting.length > ready.length ? ` \xB7 ${waiting.length - ready.length} more whose evidence isn't on record yet (they can't be approved)` : ""}` : "No lessons waiting for review.";
+      const lessonsHead = waiting.length ? [`${ready.length} lesson${ready.length === 1 ? "" : "s"} to review${waiting.length > ready.length ? ` \xB7 ${waiting.length - ready.length} more whose evidence isn't on record yet (they can't be approved)` : ""}`] : said2.length ? [] : ["Nothing waiting for review."];
+      const saidLines = said2.length ? [
+        ...waiting.length ? [""] : [],
+        `${said2.length} thing${said2.length === 1 ? "" : "s"} you said that may hold for later sessions. Approve to keep one as a note; reject and it isn't suggested again:`,
+        ...said2.map((o) => `  ${o.id}  ${o.created.slice(0, 10)}${o.source.agent ? ` \xB7 ${o.source.agent}` : ""}
+      ${safeText(o.text, 200)}`)
+      ] : [];
       return say([
-        head,
+        ...lessonsHead,
         ...waiting.map((o) => lessonDetail(o, stores.project)),
+        ...saidLines,
         ...others.length ? ["", "Reviewed:", ...others.map((o) => lessonDetail(o, stores.project))] : [],
         "",
         'snout memory approve <id> [--replaces <id>] \xB7 reject <id> ["why"] \xB7 edit <id> ["new text"] [--when "where it applies"] \xB7 replace <id> "your text" \xB7 promote <id>... --name <skill> \xB7 review --all'
@@ -13010,6 +13049,11 @@ function cmdLessons(paths, v, args) {
       const o = listObservations(stores).find((x) => x.id === id || id.length >= 6 && x.id.startsWith(id));
       return say(o?.lesson ? lessonDetail(o, stores.project) : o ? `${o.id}  ${o.kind}  ${o.status}
   ${safeText(o.text, 300)}` : `No observation ${safeText(id, 20)}.`);
+    }
+    if (v === "approve" || v === "reject") {
+      const kept = v === "approve" ? keepSuggestion(stores, id) : rejectSuggestion(stores, id);
+      if (kept) return say(v === "approve" ? `Kept ${kept.id} as a note: Claude Code and Codex searches here can show it from now on.
+  ${safeText(kept.text, 200)}` : `Rejected ${kept.id}: kept on disk as rejected, and not suggested again.`);
     }
     if (v === "approve") {
       const o = approveLesson(stores, id, { replaces: flag("--replaces"), note: flag("--note") });
@@ -13145,7 +13189,7 @@ function memoryUseLines(paths, cfg) {
   const opened = rows.filter((r) => r.kind === "fetch" && !r.missed).length;
   const stores = storesFor(paths.projectDir, paths.snoutDir, configDir());
   const notes = listObservations(stores).filter((o) => o.project === stores.project);
-  const proposed = notes.filter((o) => o.status === "proposed" && !o.lesson).length;
+  const proposed = suggestions(stores).length;
   const waiting = proposals(stores);
   const ready = waiting.filter((o) => o.lesson.check === "verified").length;
   const live = notes.filter((o) => o.lesson?.review?.verdict === "approved" && o.status === "active").length;
@@ -13153,7 +13197,7 @@ function memoryUseLines(paths, cfg) {
     `How agents get it: ${cfg.memoryHint === false ? "no session-start line (memoryHint off)" : "one line at session start saying earlier sessions exist"}; they search and open records with Snout's MCP tools. Automatic notes are ${cfg.memoryNotes ? "on" : "off"}${!cfg.memoryNotes ? `; the left-off note is ${cfg.memoryLeftOff !== false ? "on" : "off"}` : ""}.`,
     `Last 30 days: ${n("hint")} session-start line${n("hint") === 1 ? "" : "s"}, ${n("search")} search${n("search") === 1 ? "" : "es"} (${empty} found nothing), ${opened} record${opened === 1 ? "" : "s"} opened, ${n("propose")} lesson${n("propose") === 1 ? "" : "s"} proposed.`,
     `Lessons: ${live} approved${ready ? `, ${ready} waiting for your review (snout memory review)` : ""}${waiting.length > ready ? `, ${waiting.length - ready} whose evidence isn't on record yet` : ""}.`,
-    `Saved notes: ${notes.filter((o) => o.status === "active" && !o.lesson).length} in use${proposed ? `, ${proposed} written by an agent and waiting for you (snout memory list --all; snout memory accept <id>)` : ""}.`
+    `Saved notes: ${notes.filter((o) => o.status === "active" && !o.lesson).length} in use${proposed ? `, ${proposed} suggested from what you said, waiting for you (snout memory review)` : ""}.`
   ];
 }
 function recallStatsLines(paths, cards) {

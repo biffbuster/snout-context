@@ -43,7 +43,7 @@ export { replaySession, totals as replayTotals, renderReplay, compactionWhatIf, 
 export { captureSession, linkCommit, readCards, workCards, cardIndex, CARD_KIND, recall, hybridRecall, embedText, packVector, unpackVector, renderRecall, repoBrief, leftOff, workingState, shareMemory, sharedWords, statesClaim, staleClaimsIn, terms, asksToContinue, variants, withoutStaleClaims, wordForms, COMMITS, HYBRID_CUT, type Card } from "./memory/memory.js";
 export { forgetPref, judgeAndSave, prefCandidates, readPrefs, renderPrefs, SAVE_AT, type JevCall, type Preference } from "./memory/prefs.js";
 export { recallOutcomes, summarizeRecall, readRecallDecisions, type RecallDecision } from "./memory/receipts.js";
-export { applyDistilled, distillCard, generalTestCommand, installedFor, missingTool, oneOff, replaceOlder, retireElsewhere, retireInstalled, retireOneOff, runsElsewhere, sameTestPlace, standing, testPlace } from "./memory/distill.js";
+export { applyDistilled, distillCard, generalTestCommand, installedFor, keepSuggestion, lasting, missingTool, oneOff, rejectSuggestion, replaceOlder, retireElsewhere, retireInstalled, retireOneOff, runsElsewhere, sameTestPlace, standing, suggestions, testPlace } from "./memory/distill.js";
 export { lessonQuestion, parseLessons } from "./memory/lessons.js";
 export { cite, factKey, fileHashes, fittingLessons, fittingNotes, heldBack, MAX_PROMPT_NOTES, NOTE_MEANING, rankedFit, staleClaims, verified, type FitOptions } from "./memory/facts.js";
 export { meaning, prepareMeaning } from "./memory/semantic.js";

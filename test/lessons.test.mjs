@@ -9,8 +9,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  approveLesson, checkProposals, editLesson, fittingNotes, lessons, listObservations, localViewer, MEMORY_SKILL, memoryFetch, memoryHint, memorySearch,
-  promote, promotionPreview, proposals, proposeLesson, rejectLesson, replaceLesson, storesFor, userPrincipal, verified,
+  applyDistilled, approveLesson, checkProposals, editLesson, fittingNotes, lessons, listObservations, localViewer, MEMORY_SKILL, memoryFetch, memoryHint, memorySearch,
+  promote, promotionPreview, proposals, proposeLesson, rejectLesson, replaceLesson, storesFor, suggestions, userPrincipal, verified,
 } from "../dist/lib.mjs";
 
 const CLI = fileURLToPath(new URL("../dist/snout.mjs", import.meta.url));
@@ -221,9 +221,38 @@ test("the review commands: review lists every field, approve and reject say what
   assert.match(review, /1 lesson to review/);
   assert.match(review, /source: +session:s1 · claude · \d{4}-\d\d-\d\d · project /);
   assert.match(cli(["memory", "approve", o.id]), /^Approved o_/);
-  assert.match(cli(["memory", "review"]), /No lessons waiting for review/);
+  assert.match(cli(["memory", "review"]), /Nothing waiting for review/);
   assert.match(cli(["memory", "review", "--all"]), /approved \d{4}-\d\d-\d\d/);
   assert.match(cli(["memory"]), /Lessons: 1 approved\./);
+});
+
+test("review also lists what the user said that may hold for later sessions; approve keeps one, reject turns it down for good", () => {
+  const { root, cfg } = setup();
+  spawnSync("git", ["init", "-q"], { cwd: root });
+  spawnSync("git", ["config", "user.email", "ana@example.com"], { cwd: root });
+  const env = { ...process.env, SNOUT_CONFIG_DIR: cfg, CLAUDE_PROJECT_DIR: root };
+  delete env.CI; delete env.SNOUT_TOKEN;
+  const cli = (a) => spawnSync(process.execPath, [CLI, ...a], { cwd: root, encoding: "utf8", env }).stdout;
+  const s = storesFor(root, join(root, ".snout"), cfg);
+  const said = (text, session) => applyDistilled(s, userPrincipal(root), { v: 1, id: session, session, agent: "codex", started: "", updated: "", changed: [], commits: [], rules: [text] });
+  said("Keep answers short and in plain English.", "s1");
+  said("Ask me before any commit or push.", "s1");
+  said("Never edit generated files.", "s1");
+  said("Run the migration script and report what it prints.", "s1");
+  const review = cli(["memory", "review"]);
+  assert.match(review, /2 things you said that may hold for later sessions/);
+  assert.match(review, /codex\n +Ask me before any commit or push\./);
+  assert.doesNotMatch(review, /Never edit generated files/, "worded as lasting and nothing more: waits for a second session out of sight");
+  assert.doesNotMatch(review, /migration script/, "a step of one task is never suggested");
+  assert.match(cli(["memory"]), /2 suggested from what you said, waiting for you \(snout memory review\)/);
+  const keep = suggestions(s).find((o) => /plain English/.test(o.text));
+  const drop = suggestions(s).find((o) => /commit or push/.test(o.text));
+  assert.match(cli(["memory", "approve", keep.id]), /^Kept o_\w+ as a note/);
+  assert.match(cli(["memory", "reject", drop.id]), /^Rejected o_\w+: kept on disk as rejected, and not suggested again/);
+  assert.match(cli(["memory", "review"]), /Nothing waiting for review/);
+  said(drop.text, "s2");
+  assert.equal(listObservations(s).find((o) => o.id === drop.id).status, "archived", "said again in a later session: still turned down");
+  assert.match(cli(["memory", "search", "plain English"]), /accepted by you/);
 });
 
 test("promoting lessons into a skill shows a preview and writes only with that preview's code", () => {

@@ -191,7 +191,7 @@ test("observe mode shows what would be injected and injects nothing; CI gets sha
 
 // ---------- Step 3 of the roadmap: memory that writes itself ----------
 
-import { applyDistilled, cite, distillCard, fittingNotes, generalTestCommand, lessonQuestion, onPath, parseLessons, retireInstalled, retireOneOff, shareObservation } from "../dist/lib.mjs";
+import { applyDistilled, cite, distillCard, fittingNotes, generalTestCommand, keepSuggestion, lasting, lessonQuestion, onPath, parseLessons, rejectSuggestion, retireInstalled, retireOneOff, shareObservation, suggestions } from "../dist/lib.mjs";
 
 const card = (o = {}) => ({ v: 1, id: "c", session: "s1", agent: "claude", started: "", updated: "", changed: [], rules: [], commits: [], ...o });
 
@@ -253,6 +253,32 @@ test("instructions saved before they had to be repeated: one tied to the moment 
   assert.deepEqual(changed.map((o) => [o.id, o.status]).sort(), [[general.id, "proposed"], [oneOffNote.id, "archived"]].sort());
   assert.deepEqual(recallable(s, [viewer(ANA, repoPrincipal("proj1"))]).map((o) => o.id), [mine.id], "what the user saved by hand is untouched");
   assert.equal(retireOneOff(s).length, 0, "runs once: nothing left to change");
+});
+
+test("only an instruction that holds past the task is suggested: what to ask first, how to answer, a stated scope", () => {
+  for (const t of ["Do not run paid jobs without my approval.", "Don't push without asking me.", "Ask before any commit or push.", "Stop before every release and ask me for the final approval.",
+    "Keep it simple and straight to the point.", "Keep answers short so a non-technical reader can follow.", "Use the staging key for future deploy questions.", "Run the linter before every commit."]) {
+    assert.ok(lasting(t), t);
+  }
+  for (const t of ["Run exactly this with the Bash tool: git grep -n export", "Push for me, then continue.", "Stop after stage 1 and report what each run cost.", "Keep the commit local.",
+    "Use the four failures as a smoke test.", "Keep the same answer and budget thresholds.", "Do not switch branches, stash, reset, commit, or push."]) {
+    assert.ok(!lasting(t), t);
+  }
+  const lines = ["Ask before any commit or push.", "Never edit generated files.", "Run exactly this with the Bash tool: git grep -n export"];
+  assert.deepEqual(distillCard(card({ rules: lines })).map((n) => n.text), lines.slice(0, 2), "a step of one task is not saved at all");
+});
+
+test("proposals from when every instruction was proposed: steps of one task are archived at session start, lasting ones wait for review", () => {
+  const { s } = setup();
+  const proposed = (text) => addObservation(s, ANA, { kind: "preference", text, via: "distill", session: "s0", tags: ["rule"], status: "proposed" });
+  const step = proposed("Stop after stage 1 and report what each run cost.");
+  const ask = proposed("Ask before any commit or push.");
+  const never = proposed("Never edit generated files.");
+  assert.deepEqual(retireOneOff(s).map((o) => [o.id, o.status]), [[step.id, "archived"]]);
+  assert.deepEqual(suggestions(s).map((o) => o.id), [ask.id], "\"never\" alone waits for a second session out of sight");
+  assert.equal(listObservations(s).find((o) => o.id === never.id).status, "proposed");
+  assert.equal(keepSuggestion(s, ask.id).status, "active");
+  assert.equal(rejectSuggestion(s, never.id), null, "only what review lists can be turned down there");
 });
 
 test("the newest passing test command replaces the old one; the same card twice adds nothing; no user, no writes", () => {

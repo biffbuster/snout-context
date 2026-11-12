@@ -41,9 +41,9 @@ with it as hashes of your git email and of the repository, never the email or pa
   it loses nothing: it is rebuilt from the JSON files (`snout memory reindex`). `SNOUT_INDEX=off`
   turns it off.
 
-The MCP memory tools (`snout mcp`) read and write the same notes under the same rules. A note an
-agent saves without being asked stays a proposal, never recalled, until you run
-`snout memory accept <id>`.
+The MCP memory tools (`snout mcp`) read and write the same notes under the same rules. An agent's
+note is saved only when you asked it to remember something. An instruction of yours that Snout
+suggests as a note is never recalled until you approve it in `snout memory review`.
 
 ## Planned: semantic classification
 
