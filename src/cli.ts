@@ -25,7 +25,7 @@ import { dumpTargets, rangeRead, readTargets } from "./gate/bash.js";
 import { boundedPowerShellRead, powerShellDumpTargets, powerShellRangeRead, powerShellSearchHint } from "./gate/powershell.js";
 import { outline } from "./gate/outline.js";
 import { splitGrepOutput } from "./gate/grep.js";
-import { responseBytes, responseText } from "./gate/response.js";
+import { outputSavedAside, responseBytes, responseText } from "./gate/response.js";
 import { appendRow, loadState, readDecisions, readRows, readTurns, rotateIfLarge, saveState, type SessionState } from "./ledger/store.js";
 import { estimateTokens, fmtTokens, readTranscriptUsage } from "./ledger/tokens.js";
 import { percentile, renderReport, totalsOf, JEV_USD_PER_MTOK } from "./ledger/report.js";
@@ -58,6 +58,7 @@ import { auditCi, renderCi } from "./audit/ci.js";
 import { docWindow, type DocWindow } from "./gate/longdoc.js";
 import { asksToContinue, captureSession, COMMITS, embedKey, embedText, withoutStaleClaims, forgetCard, leftOff, linkCommit, listCards, packVector, readCard, readCards, readVectors, recall, renderRecall, repoBrief, shareMemory, unpackVector, workCards, workingState, writeVectors, CARD_KIND, cardsDir } from "./memory/memory.js";
 import { memoryFetch, memoryHint, memorySearch, prepareHistorySearch, recentIndex, type MemoryContext } from "./memory/tools.js";
+import { commandFiles, fileHistoryNotes, fileHistoryStateFile, type FileHistoryState } from "./memory/file-history.js";
 import { claimImport, githubNudge, HIST_KIND, importHistory, readImportState, type ImportResult } from "./memory/history.js";
 import { applyDistilled, installedFor, replaceOlder, retireElsewhere, retireInstalled, retireOneOff } from "./memory/distill.js";
 import { coveredBy, instructionText, lastUses, nearDuplicate, restoreObservation, retireUnused, verification } from "./memory/quality.js";
@@ -83,7 +84,7 @@ const BIN = resolve(process.argv[1] ?? "dist/snout.mjs");
 let requestStart = 0;
 const elapsedMs = () => Math.round(performance.now() - requestStart);
 
-const HOOK_EVENTS = new Set(["session-start", "prompt-submit", "pre-tool", "post-tool", "pre-compact", "stop", "squeeze"]);
+const HOOK_EVENTS = new Set(["session-start", "prompt-submit", "pre-tool", "post-tool", "pre-compact", "stop", "squeeze", "file-history"]);
 
 /** The hooks that ship non-blocking. `pre-tool` is opt-in, so its absence is not a fault. */
 const RECORDING_HOOKS = ["session-start", "prompt-submit", "post-tool", "pre-compact", "stop"];
@@ -316,7 +317,7 @@ function cmdInit(agent: string | undefined, cwd?: string): void {
       say("Codex loads project hooks only in a trusted folder: open Codex here, trust the folder, then approve Snout's hooks with /hooks.");
     }
     const mode = loadConfig(paths).mode;
-    say(mode === "observe" ? "Mode: observe (records only). `snout mode enforce` makes it act; `snout report` shows what it saw." : `Mode: ${mode}. \`snout report\` shows what it saw.`);
+    say(mode === "observe" ? "Mode: observe (records reads and trims nothing; memory still shows). `snout mode enforce` makes it trim; `snout report` shows what it saw." : `Mode: ${mode}. \`snout report\` shows what it saw.`);
   } catch (err) {
     recordError("init", err);
     say(`snout init ${agent} failed: ${safeText((err as Error).message, 200)}`);
@@ -386,6 +387,7 @@ function dispatch(command: string, input: HookInput): void {
     case "pre-tool": return onPreTool(input, paths, cfg);
     case "post-tool": return onPostTool(input, paths, cfg);
     case "squeeze": return onSqueeze(input, paths, cfg);
+    case "file-history": return onFileHistory(input, paths, cfg);
     case "pre-compact": return onPreCompact(input, paths);
     case "stop": return onStop(input, paths, cfg);
 
@@ -609,7 +611,8 @@ function onSessionStart(input: HookInput, paths: Paths, cfg: Config): void {
  * A new session starts with no memory text: notes are shown on the prompts they fit
  * (promptNotes), never as one block for every task. Session start keeps the store current and, when
  * other sessions of this project or its imported history are on record, says so in one line with how to search them
- * (memoryHint): nothing from the records themselves. Not in observe mode; `memoryHint: false` turns it off.
+ * (memoryHint): nothing from the records themselves. In observe mode too (observe only never trims or blocks);
+ * `memoryHint: false` turns it off.
  */
 function startBrief(input: HookInput, paths: Paths, cfg: Config, session: string): string {
   const source = input.source ?? input.session_start_reason;
@@ -623,7 +626,7 @@ function startBrief(input: HookInput, paths: Paths, cfg: Config, session: string
   } catch (err) {
     recordError("memoryRetire", err);
   }
-  if (cfg.mode === "observe" || cfg.memoryHint === false) return "";
+  if (cfg.memoryHint === false) return "";
   try {
     // The newest other session with work, when that work is still unfinished here: named by id, nothing from it.
     let unfinished: string | null = null;
@@ -636,8 +639,8 @@ function startBrief(input: HookInput, paths: Paths, cfg: Config, session: string
     // How many lessons a person approved here: a count, nothing from them (a search shows them).
     const stores = storesFor(paths.projectDir, paths.snoutDir, configDir());
     const approvedHere = recallable(stores, [sessionViewer(paths.projectDir, stores.project)]).filter((o) => approvedLesson(o) && !heldBack(o, paths.projectDir));
-    // With automatic notes on, the line also names each lesson by where it applies (never what it says).
-    const index = cfg.memoryNotes === true ? approvedHere.map((o) => ({ id: o.id, applies: o.lesson!.applies })) : [];
+    // With automatic notes on (enforce only), the line also names each lesson by where it applies (never what it says).
+    const index = cfg.memoryNotes === true && cfg.mode !== "observe" ? approvedHere.map((o) => ({ id: o.id, applies: o.lesson!.applies })) : [];
     // What the project's imported history holds, as counts: the line says it can be searched (nothing from it).
     const history = readImportState(configDir(), stores.project)?.counts ?? null;
     const cards = readCards(paths.snoutDir);
@@ -668,9 +671,10 @@ function scriptsText(projectDir: string): string {
 
 /**
  * What this prompt gets from memory (memory/facts.ts): on a new session's first prompt that
- * continues unfinished work, where the last session left off; and the verified notes that fit the
- * task, each with where it came from, each once per session. Nothing otherwise. Observe mode
- * records what would be shown (recall.jsonl "inject") and shows nothing.
+ * continues unfinished work, where the last session left off (on unless memoryLeftOff is false, in
+ * either mode); and, with memoryNotes in enforce, the verified notes that fit the task, each with where
+ * it came from, each once per session. Nothing otherwise. Notes that would be shown in observe are
+ * recorded (recall.jsonl "inject") and not shown.
  */
 function promptNotes(prompt: string, paths: Paths, cfg: Config, state: SessionState): string {
   if (cfg.memory === false || replayDir) return "";
@@ -690,7 +694,7 @@ function promptNotes(prompt: string, paths: Paths, cfg: Config, state: SessionSt
     const admitted = recallable(stores, [sessionViewer(paths.projectDir, stores.project)]).filter((o) => !shown.has(factKey(o)) && !heldBack(o, paths.projectDir));
     const budget = typeof cfg.memoryBudget === "number" && cfg.memoryBudget >= 0 ? Math.min(cfg.memoryBudget, 4000) : MEMORY_BUDGET;
     // One budget for everything this prompt gets: where the last session left off comes first, the notes get the rest.
-    const leftTokens = left ? estimateTokens(Buffer.byteLength(left), "x.txt") : 0;
+    const leftTokens = left ? estimateTokens(Buffer.byteLength(left), "x.md") : 0;
     if (leftTokens > budget) left = "";
     // Approved lessons and verified notes that fit, a few at most (facts.ts).
     const fit = [...fittingLessons(prompt, admitted), ...rankedFit(prompt, admitted, { scripts: scriptsText(paths.projectDir), left: !!left })]
@@ -700,14 +704,16 @@ function promptNotes(prompt: string, paths: Paths, cfg: Config, state: SessionSt
     const block = memoryBlock(fit.map((f) => f.note), budget - (left ? leftTokens : 0), { head: FACTS_HEAD, cite: noteCite, rank: (o) => strength.get(o) ?? 0 });
     // Shown only in enforce, and only with notes turned on (`snout memory notes on`): off by default.
     const injected = cfg.mode !== "observe" && cfg.memoryNotes === true;
+    // Where the last session left off has its own switch, on unless false (`snout memory leftoff off`), in either mode.
+    const leftShown = !!left && (injected || cfg.memoryLeftOff !== false);
     if (block.items.length || block.dropped.length || left) {
       appendRow(join(paths.snoutDir, "recall.jsonl"), {
         ts: new Date().toISOString(), session: state.session, turn: state.turn, kind: "inject", items: block.items, dropped: block.dropped,
-        tokensEst: block.tokensEst + (left ? estimateTokens(Buffer.byteLength(left), "x.txt") : 0), budget, injected,
-        ...(left ? { leftOff: estimateTokens(Buffer.byteLength(left), "x.txt") } : {}),
+        tokensEst: block.tokensEst + (left ? estimateTokens(Buffer.byteLength(left), "x.md") : 0), budget, injected,
+        ...(left ? { leftOff: estimateTokens(Buffer.byteLength(left), "x.md"), leftShown } : {}),
       });
     }
-    if (!injected) return "";
+    if (!injected) return leftShown ? left : "";
     const byId = new Map(admitted.map((o) => [o.id, o]));
     state.notesShown = [...shown, ...block.items.map((id) => factKey(byId.get(id)!))];
     // Asked to continue: where the last session left off comes first. Otherwise a note that fits the task
@@ -961,6 +967,34 @@ function firstForCall(paths: Paths, id: string | undefined): boolean {
 
 let duplicateCall = false;
 
+/**
+ * memoryFileHistory (opt-in experiment): after a read of a source file, the few commits that last
+ * changed it (memory/file-history.ts), once per file per session. A foreground PostToolUse hook, so the
+ * note is in context before the agent's next step; Claude Code's own async post-tool hook would be too late.
+ */
+function onFileHistory(input: HookInput, paths: Paths, cfg: Config): void {
+  if (cfg.mode === "observe" || cfg.memoryFileHistory !== true || !input.session_id) return emit({});
+  try {
+    const tool = input.tool_name ?? "";
+    const cwd = input.cwd ?? paths.projectDir;
+    const read = stringField(input.tool_input, "file_path");
+    const files = tool === "Read" && read ? [resolve(cwd, read)] : tool === "Bash" ? commandFiles(stringField(input.tool_input, "command") ?? "", cwd) : [];
+    if (!files.length) return emit({});
+    const stateFile = fileHistoryStateFile(paths.snoutDir, input.session_id);
+    let state: FileHistoryState = { files: [], tokens: 0 };
+    try { state = JSON.parse(readFileSync(stateFile, "utf8")) as FileHistoryState; } catch { /* the session's first read */ }
+    const r = fileHistoryNotes(paths.projectDir, files, state);
+    mkdirSync(dirname(stateFile), { recursive: true });
+    writeFileSync(stateFile, JSON.stringify(r.state));
+    if (!r.text) return emit({});
+    appendRow(join(paths.snoutDir, "recall.jsonl"), { ts: new Date().toISOString(), session: input.session_id, kind: "file-history", tool, files: r.files, tokensEst: estimateTokens(Buffer.byteLength(r.text), "x.md") });
+    emit({ hookSpecificOutput: { hookEventName: "PostToolUse", additionalContext: r.text } });
+  } catch (err) {
+    recordError("fileHistory", err);
+    emit({});
+  }
+}
+
 function onSqueeze(input: HookInput, paths: Paths, cfg: Config): void {
   const started = Date.now();
   duplicateCall = !firstForCall(paths, input.tool_use_id);
@@ -974,7 +1008,7 @@ function onSqueeze(input: HookInput, paths: Paths, cfg: Config): void {
   }
   // Past its own limit Claude Code saves the output to a file and gives this hook only the first
   // 30,000 characters, so a squeeze would describe part of the output as all of it.
-  if (typeof resp.persistedOutputPath === "string" || typeof resp.persistedOutputSize === "number") {
+  if (outputSavedAside(resp)) {
     emit({});
     return;
   }
@@ -1415,6 +1449,15 @@ Usage: snout memory notes on|off`);
       ? "Automatic notes on. In enforce mode, a prompt gets up to 3 verified notes and lessons you approved that fit it on strong evidence, each with where it came from, and nothing when none does. The session-start line names your approved lessons by where they apply. Words alone don't reach the accuracy bar on every fresh test set (docs/memory-gates.md), so this stays opt-in."
       : "Automatic notes off. Notes are still saved; snout_memory_search and snout recall find them when asked.");
   }
+  if (v === "leftoff") {
+    const w = args[1];
+    if (w !== "on" && w !== "off") return say(`The left-off note is ${cfg.memoryLeftOff !== false || cfg.memoryNotes ? "on" : "off"}${cfg.memoryNotes ? " (automatic notes show it too)" : ""}.
+Usage: snout memory leftoff on|off`);
+    setConfigKey(paths.config, "memoryLeftOff", w === "on" ? undefined : false);
+    return say(w === "on"
+      ? "Left-off note on. A new session's first prompt gets a short note on where the last session stopped (what it was asked, its uncommitted changes, open to-dos, a failing test), only when that work is still unfinished here and the prompt asks to continue it or names its files. Other prompts get nothing."
+      : `Left-off note off.${cfg.memoryNotes ? " Automatic notes are on and still show it; snout memory notes off turns them off." : " The session-start line still names an unfinished session's id."}`);
+  }
   if (v === "lessons") {
     const w = args[1];
     if (w !== "on" && w !== "off") return say(`Lessons are ${cfg.memoryLessons ? "on" : "off"}.\nUsage: snout memory lessons on|off`);
@@ -1459,7 +1502,7 @@ Usage: snout memory notes on|off`);
   const ranks = `words${modelReady() ? "; with memorySemantic on, notes may also match a prompt by meaning" : ""}`;
   const index = indexStatus(storesFor(paths.projectDir, paths.snoutDir, configDir()).indexFile!);
   const indexLine = index.available ? `Local index: ${index.records} record${index.records === 1 ? "" : "s"}, ${(index.bytes / 1024).toFixed(0)} KB (SQLite, this machine only; snout memory reindex rebuilds it from the files)` : "Local index: none on this Node; memory reads the files directly";
-  say([head, ...memoryUseLines(paths, cfg), `Search ranks by ${ranks}`, indexLine, ...recallStatsLines(paths, cards), ...rows, "", 'Usage: snout memory on|off · snout memory review · snout memory approve|reject|edit|replace <id> · snout memory promote <id> --name <skill> · snout memory notes on|off · snout memory brief · snout memory list [--all] · snout memory add "<note>" · snout memory archive|drop <id> · snout memory share · snout memory judge jev|off · snout memory prefs [forget <n>] · snout memory forget <session> · snout memory search "<q>" [--as-of <date>] · snout memory fetch <id> · snout memory reindex · snout memory model [install|remove] · snout recall "<request>"'].join("\n"));
+  say([head, ...memoryUseLines(paths, cfg), `Search ranks by ${ranks}`, indexLine, ...recallStatsLines(paths, cards), ...rows, "", 'Usage: snout memory on|off · snout memory review · snout memory approve|reject|edit|replace <id> · snout memory promote <id> --name <skill> · snout memory notes on|off · snout memory leftoff on|off · snout memory brief · snout memory list [--all] · snout memory add "<note>" · snout memory archive|drop <id> · snout memory share · snout memory judge jev|off · snout memory prefs [forget <n>] · snout memory forget <session> · snout memory search "<q>" [--as-of <date>] · snout memory fetch <id> · snout memory reindex · snout memory model [install|remove] · snout recall "<request>"'].join("\n"));
 }
 
 /**
@@ -1479,7 +1522,7 @@ function memoryUseLines(paths: Paths, cfg: Config): string[] {
   const ready = waiting.filter((o) => o.lesson!.check === "verified").length;
   const live = notes.filter((o) => o.lesson?.review?.verdict === "approved" && o.status === "active").length;
   return [
-    `How agents get it: ${cfg.memoryHint === false ? "no session-start line (memoryHint off)" : "one line at session start saying earlier sessions exist"}; they search and open records with Snout's MCP tools. Automatic notes are ${cfg.memoryNotes ? "on" : "off"}.`,
+    `How agents get it: ${cfg.memoryHint === false ? "no session-start line (memoryHint off)" : "one line at session start saying earlier sessions exist"}; they search and open records with Snout's MCP tools. Automatic notes are ${cfg.memoryNotes ? "on" : "off"}${!cfg.memoryNotes ? `; the left-off note is ${cfg.memoryLeftOff !== false ? "on" : "off"}` : ""}.`,
     `Last 30 days: ${n("hint")} session-start line${n("hint") === 1 ? "" : "s"}, ${n("search")} search${n("search") === 1 ? "" : "es"} (${empty} found nothing), ${opened} record${opened === 1 ? "" : "s"} opened, ${n("propose")} lesson${n("propose") === 1 ? "" : "s"} proposed.`,
     `Lessons: ${live} approved${ready ? `, ${ready} waiting for your review (snout memory review)` : ""}${waiting.length > ready ? `, ${waiting.length - ready} whose evidence isn't on record yet` : ""}.`,
     `Saved notes: ${notes.filter((o) => o.status === "active" && !o.lesson).length} in use${proposed ? `, ${proposed} written by an agent and waiting for you (snout memory list --all; snout memory accept <id>)` : ""}.`,
@@ -2467,7 +2510,8 @@ function onPostTool(input: HookInput, paths: Paths, cfg: Config): void {
     if (command && COMMITS.test(command) && cfg.memory !== false && !replayDir) {
       try { linkCommit(paths.snoutDir, paths.projectDir, state.session, agentName()); } catch (err) { recordError("memoryCommit", err); }
     }
-    if (command && resp && typeof resp.stdout === "string" && resp.interrupted !== true) {
+    // An output Claude Code saved to a file reached the agent as a 2 KB preview: nothing it printed counts as read.
+    if (command && resp && typeof resp.stdout === "string" && resp.interrupted !== true && !outputSavedAside(resp)) {
       for (const abs of shellDumpTargets(command, paths.projectDir)) {
         rememberRead(paths.snoutDir, state.session, agentOf(input).agentId, abs, toRel(abs, paths.projectDir), "full", state.turn, true);
       }
@@ -3340,7 +3384,7 @@ const HELP = `snout ${VERSION} · the context gate for coding agents
   snout report               what was read, kept out and saved, with spend (--all for every session)
   snout replay [files]       what Snout would have saved on past sessions, offline (--last N, --compact-at 300k, --json)
   snout dashboard            live savings in the browser
-  snout mode observe|enforce record only, or trim low-value reads
+  snout mode observe|enforce trim nothing, or trim low-value reads (memory works in both)
   snout explain <file>       why a file was trimmed        snout allow <file>   never trim it
   snout memory               what earlier sessions left     snout recall "<q>"   what a prompt would get
   snout import               read this project's history: git, PRs and CI runs (gh), past sessions

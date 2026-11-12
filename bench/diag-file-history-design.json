@@ -1,0 +1,71 @@
+{
+ "name": "Diagnostic: trimming alone against trimming plus file history notes, on the four history-dependent pilot tasks every arm failed",
+ "written": "2026-11-10",
+ "protocol": "docs/benchmark-protocol.md, the replay rules (amendments of 2026-11-09 and 2026-11-10), and the file history diagnostic amendment of 2026-11-10",
+ "question": "When Snout notes the commits that last changed each source file the agent reads, does the agent look at them and use them, and does that change the outcome on tasks where the likely cause is a recent commit?",
+ "notAClaim": "These four tasks were chosen after every arm failed them in the pilots. Any change justifies a test on fresh held-out tasks; nothing here is a performance claim.",
+ "arms": {
+  "trim": "plain plus Snout's read gate and output trimming; Snout memory off",
+  "history": "trim plus file history notes (memoryFileHistory): after the first read of a source file in a session, up to three commits that last changed it within 183 days before the checkout, one note per file, 600 tokens per session at most; memory, the session-start line and the skill off"
+ },
+ "replay": {
+  "workspace": "one folder per chain (arm and repeat), so Claude Code's own memory and Snout's records carry from task to task as in a developer's clone",
+  "history": "each task fetches only its base and the base's ancestors from the local clone, in merge order; before every session the fix's commit must be absent and every ref must reach only the base's ancestors, or the run stops",
+  "ownMemory": "Claude Code's memory folder for the chain's workspace is emptied when the chain opens and measured after every session; if Claude Code writes none in headless runs, plain is reported as Claude Code without memory in practice",
+  "grading": "the fix PR's own tests over the agent's work, against the base commit (a session that commits is graded on its work)"
+ },
+ "armOrder": [
+  "trim",
+  "history"
+ ],
+ "repeats": 1,
+ "agents": [
+  "claude"
+ ],
+ "model": "claude-sonnet-5-5",
+ "budgetUsdPerSession": "0.60",
+ "tasks": {
+  "bench/memory-tasks-core.json": [
+   "core-15496",
+   "core-15602",
+   "core-15551"
+  ],
+  "bench/memory-tasks-hugo.json": [
+   "hugo-15358"
+  ]
+ },
+ "valid": "as the replay, and: notes reach only the history arm; a history session with a logged note that is not in its transcript is invalid and stops the run",
+ "reported": "per session: solved, cost, tokens, turns; notes given (files, tokens), delivered, and whether the agent looked at a listed commit (git show or log naming it); for each failure, a reading of the transcript: notes ignored, unhelpful, misleading, or used but not enough",
+ "next": "fresh held-out tasks only if the notes were delivered, looked at, and useful (history solves a task trim fails, none the other way), with no misleading note and at most 600 note tokens per session",
+ "overshootUsdPerSession": 0.25,
+ "approvedTotalUsd": 3.5,
+ "spendGuard": "A pair (one trim session, one history session, the same $0.60 budget each) starts only if both could reach their budget plus $0.25 past it (Claude Code checks the budget between calls) and the total, earlier stages included, would stay within the stage ceiling and the approved total; each session is checked again before it starts. Spend counts each session at the higher of its transcript price and Claude Code's own. No budget is cut to make a pair fit.",
+ "stages": {
+  "1": {
+   "tasks": {
+    "bench/memory-tasks-core.json": [
+     "core-15496"
+    ]
+   },
+   "sessions": 2,
+   "ceilingUsd": 1.7,
+   "expectedUsd": "0.10-0.20 (its pilot sessions cost $0.052-0.071)",
+   "stopNow": "any invalid session (including a note Snout logged that is not in the session's transcript), an API refusal, or the ceiling",
+   "gateToStage2": "both sessions valid; the history session got a note, the note is in its transcript, and the agent looked at a listed commit with git or named one in its own words; then the owner's go after reading the stage 1 report (notes, transcript reading, cost)"
+  },
+  "2": {
+   "tasks": {
+    "bench/memory-tasks-core.json": [
+     "core-15602",
+     "core-15551"
+    ],
+    "bench/memory-tasks-hugo.json": [
+     "hugo-15358"
+    ]
+   },
+   "sessions": 6,
+   "expectedUsd": "0.70-1.40",
+   "note": "run per tasks file with --after the earlier results, so their spend counts; the approved total bounds the rest"
+  }
+ }
+}

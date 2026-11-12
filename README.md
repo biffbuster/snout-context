@@ -28,11 +28,12 @@ npm install -g usesnout
 snout init codex        # or cursor, gemini
 ```
 
-Snout starts in observe mode: it records what it would do and changes nothing, apart from a short
-tip when a prompt doesn't say which file or what should happen (`snout coach off` stops it). Turn it
-on with `snout mode enforce`, or `/snout:mode enforce` in Claude Code.
+Snout starts in observe mode: it records what it would trim and trims nothing. Memory works in both
+modes (below), and a short tip comes when a prompt doesn't say which file or what should happen
+(`snout coach off` stops it). Turn trimming on with `snout mode enforce`, or `/snout:mode enforce` in
+Claude Code.
 
-**Memory is something the agent asks for.** On this machine, Snout records each session: what was
+**Memory carries the work from one session to the next.** On this machine, Snout records each session: what was
 asked (decisions included), what changed, the test command and its result, a failure it got past,
 and what it left unfinished. It also keeps the notes you save. `snout import` adds the project's
 history from before Snout was installed: six months of commits and earlier Claude Code and Codex
@@ -41,17 +42,18 @@ date and a link to its source. An agent can propose a one-line lesson after a te
 a decision or correction you gave. It is shown to no session until you approve it with
 `snout memory review` ([lessons](docs/memory-lessons.md)).
 
-In enforce mode, a new session starts with one line saying that earlier sessions are on record and
-how to search them. The agent then has `snout_memory_search`, `snout_memory_fetch` and
+In either mode, a new session starts with one line saying that earlier sessions are on record and
+how to search them. When you ask a new session to pick up where the last one left off, or name a file
+it left unfinished, its first prompt also gets a short note: what that session was asked, its
+uncommitted changes and its last words (`snout memory leftoff off` turns it off). The agent then has `snout_memory_search`, `snout_memory_fetch` and
 `snout_memory_propose`, plus a short skill that says when to search and when to skip. The Claude
 Code plugin adds them, and `snout init codex` adds them for Codex. A search returns up to five
 current records, approved lessons first, each with where it came from, and the agent uses what
 helps.
 
-Nothing from memory is added to a prompt on its own. `snout memory notes on` does that, and it stays
-off by default because choosing a note for a prompt that didn't ask for one wasn't reliable enough.
-Whether memory lowers cost per task is not measured yet: in a 10-task pilot per agent, an earlier
-version did not ([memory](docs/memory.md)).
+Apart from that note, nothing from memory is added to a prompt on its own. `snout memory notes on`
+does that, and it stays off by default because choosing a note for a prompt that didn't ask for one
+wasn't reliable enough. What has been measured, and what hasn't, is in [memory](docs/memory.md#what-has-been-measured).
 
 Add `.snout/` to your `.gitignore`. It holds this project's session records, including the start of
 your requests ([what is stored](docs/privacy.md)).

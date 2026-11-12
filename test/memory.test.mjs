@@ -269,3 +269,17 @@ test("a missing program in cmd.exe or PowerShell is a missing tool; a failed Pyt
   const f = sessionFacts(file, dir);
   assert.deepEqual(f.missing.map((m) => [m.name, !!m.module]).sort(), [["make", false], ["resource", true], ["rg", false]]);
 });
+
+test("a request with a long run of one character keeps its task; a held-down key is still not a request", () => {
+  // Continuity check, 2026-11-10: "30.000000000000004 cents" dropped the whole request, and the decision with it.
+  const dir = mkdtempSync(join(tmpdir(), "snout-held-key-"));
+  const facts = (text) => {
+    const file = join(dir, `t${Math.random().toString(36).slice(2)}.jsonl`);
+    writeFileSync(file, JSON.stringify({ type: "user", message: { role: "user", content: text } }) + "\n");
+    return sessionFacts(file, dir);
+  };
+  const asked = "Invoices are off by a fraction of a cent: 3 × $0.10 comes out as 30.000000000000004 cents. Fix that today; sales signed off on 5% off at 50 units.";
+  assert.equal(facts(asked).goal, asked);
+  assert.equal(facts("kkkkkkkkkkkkkkkk").goal, undefined);
+  assert.equal(facts("jjjjjjjjjjjj ok").goal, undefined);
+});

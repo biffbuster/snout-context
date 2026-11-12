@@ -57,6 +57,9 @@ export function armProblems(arm, config) {
   // it; in another arm with memory on it would point at a search tool the agent was not given.
   if (arm === "search" && config?.memoryHint === false) return ["the search arm has the session-start hint off"];
   if (arm !== "search" && config?.memory === true && config?.memoryHint !== false) return [`the ${arm} arm has the session-start hint on`];
+  // File history notes reach only the history arm (trimming plus the notes, memory off).
+  if (arm === "history" && (config?.memoryFileHistory !== true || config?.memory !== false)) return ["the history arm needs file history notes on and memory off"];
+  if (arm !== "history" && config?.memoryFileHistory === true) return [`the ${arm} arm has file history notes on`];
   return [];
 }
 
@@ -85,7 +88,9 @@ const POST_TOOL = /^(?:Read|NotebookRead|Bash|Grep|Glob|WebFetch|WebSearch|mcp__
  * rows in Snout's hooks.jsonl, each written before its handler runs.
  */
 export function hookCoverage(toolUses, heartbeats, { event = "post-tool", tools = POST_TOOL } = {}) {
-  const ids = new Set(toolUses.filter((u) => tools.test(u.name)).map((u) => u.id));
+  // A call that failed (its result is an error) gets no PostToolUse hook from Claude Code: it is not
+  // expected. Found 2026-11-10: an empty memory search errored and its "missing" hook voided a session.
+  const ids = new Set(toolUses.filter((u) => tools.test(u.name) && !u.error).map((u) => u.id));
   const seen = heartbeats.filter((h) => h.event === event).length;
   return { expected: ids.size, seen, missing: Math.max(0, ids.size - seen), started: heartbeats.some((h) => h.event === "session-start"), prompted: heartbeats.some((h) => h.event === "prompt-submit") };
 }
@@ -195,8 +200,29 @@ export function labelTasks(tasks) {
   return out;
 }
 
-/** The pilot may start a task's group (one session per arm) only if it fits the cap at the costliest session so far, so groups finish whole. */
-export const groupFits = (spent, maxSession, arms, cap) => !cap || spent + arms * maxSession <= cap;
+/**
+ * Whether a task's group (one session per arm, all at the same budget) may start: only if every session in
+ * it could cost `worstSession` (its budget plus one call past it) and the total would stay within the cap.
+ * Until 2026-11-10 the bound was the costliest session so far, which a new session can pass.
+ */
+export const groupFits = (spent, sessions, worstSession, cap) => !cap || spent + sessions * worstSession <= cap + 1e-9;
+
+/**
+ * Whether a staged diagnostic's next stage may start, from the earlier stages' rows. Returns the reasons it
+ * may not: an invalid or capped chain; no history session with a note, or none whose note reached its
+ * context; no session that looked at a listed commit with git or named one.
+ */
+export function stageGate(rows) {
+  const why = [];
+  const bad = rows.find((r) => r.invalid);
+  if (bad) why.push(`an earlier session was invalid (${bad.invalid})`);
+  if (rows.some((r) => r.capped)) why.push("an earlier stage stopped at its cap");
+  const fh = rows.filter((r) => r.arm === "history").flatMap((r) => r.steps.map((s) => s.fileHistory).filter(Boolean));
+  if (!fh.some((f) => f.notes)) why.push("no history session got a note");
+  else if (!fh.some((f) => f.delivered)) why.push("no note reached its session's context");
+  if (!fh.some((f) => f.delivered && ((f.inspected?.length ?? 0) || (f.mentioned?.length ?? 0)))) why.push("no session looked at or named a listed commit");
+  return why;
+}
 
 /**
  * One search-arm session's path through memory: hint → search → a record from a labeled earlier task

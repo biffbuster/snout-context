@@ -12,7 +12,8 @@
  * For each agent: session 1 runs a passing `npm test`; session 2 asks "The add tests fail after my
  * change. Run the tests and fix it." in the default mode; then `snout mode enforce` and session 3
  * asks the same; then `snout memory notes on` and session 4. Checked: nothing is written to the home
- * or config folders at install, the default is observe and the agent gets no note in it, the note is
+ * or config folders at install, the default is observe, where the agent gets the session-start line
+ * (since 2026-11-11 memory reaches the agent in either mode) and no automatic note, the note is
  * recorded as fitting (recall.jsonl), enforce alone shows none (automatic notes are opt-in), it is
  * shown with its source once notes are on, and the local index (where node:sqlite exists) is in the
  * config folder, never the project. No model and no network: npm installs the packed file offline.
@@ -172,7 +173,7 @@ const check = (name, ok) => checks.push({ name, ok: !!ok });
 check("nothing written to the home or config folder at install", result.install.homeWrittenAtInstall.length === 0);
 for (const agent of ["claude", "codex"]) {
   const a = result.agents[agent];
-  check(`${agent}: no Snout memory text reaches the agent in observe`, !/Snout memory/.test(a.first.agent + a.observe.agent));
+  check(`${agent}: in observe the agent gets the session-start line and no automatic note`, /1 earlier session is on record/.test(a.observe.agent) && !/Snout memory/.test(a.first.agent + a.observe.agent));
   check(`${agent}: the fitting note is recorded in observe, not shown`, a.observe.recorded > 0);
   check(`${agent}: enforce alone shows no note (automatic notes are opt-in)`, !/Snout memory/.test(a.enforce.agent));
   check(`${agent}: with notes on, enforce shows the test command with where it came from`, /Run the tests with: npm test/.test(a.notesOn.agent) && /seen in a passing test run/.test(a.notesOn.agent));

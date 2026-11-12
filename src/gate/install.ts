@@ -54,6 +54,16 @@ export function squeezeEntries(bin: string, fast = false): Entry[] {
   ];
 }
 
+/**
+ * File history notes (memoryFileHistory, opt-in): a foreground PostToolUse hook after reads, so its note
+ * reaches the agent before its next step. Command hooks only; the handler does nothing when the option is off.
+ * Every Bash call, not an `if` filter per command: agents read code as `cd dir && sed -n ...`, which a
+ * filter on the first word misses; the handler finds the files itself (commandFiles).
+ */
+export function fileHistoryEntries(bin: string): Entry[] {
+  return [{ matcher: "Read|Bash", hooks: [hookFor(bin, "file-history", false)] }];
+}
+
 export function gateEntries(bin: string, fast = false): Entry[] {
   // The server skips any Bash command that prints no file (`readTargets`), as the `if` filters do.
   if (fast) return [{ matcher: "Read|NotebookRead|Bash", hooks: [hookFor(bin, "pre-tool", true)] }];

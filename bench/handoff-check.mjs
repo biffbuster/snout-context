@@ -19,6 +19,9 @@
  *   node bench/handoff-check.mjs --spec spec-lesson.json --review <results file> approve <id>     # or reject, edit, show
  *   node bench/handoff-check.mjs --spec spec-lesson.json --resume <results file> [--max-spend 3]  # the receivers, then the next direction
  *   SWE_FAKE_AGENT=1 node bench/handoff-check.mjs --spec spec-lesson.json --experimental-notes --allow-dirty  # optional stand-in diagnostic only
+ *   node bench/handoff-check.mjs --spec spec-continuity.json --recheck <results file> --api  # free: a live run's sessions under the current outside-access rule
+ *   node bench/handoff-check.mjs --spec spec-continuity.json --remeasure <results file> --api  # free: its receivers' reads before the first edit, counted again
+ *   SWE_FAKE_AGENT=1 node bench/handoff-check.mjs --spec spec-leftoff.json --stage 1 --allow-dirty  # free: the continuity givers reused, stand-in receivers
  *
  * The receiver's prompt never names the answer or asks for Snout. What is scored comes from the MCP
  * server's own traffic (bench/handoff-mcp-tap.mjs), so both agents are scored on what they were shown.
@@ -28,7 +31,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { appendFileSync, closeSync, cpSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, delimiter, join, relative } from "node:path";
+import { basename, delimiter, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
@@ -54,6 +57,20 @@ const S = SPEC.settings;
 const BUDGET = S.budgetUsd;
 const LIMIT_MS = S.limitMinutes * 60_000;
 const MAX_SPEND = args["max-spend"] ? Number(args["max-spend"]) : 0;
+/**
+ * What one Claude Code session may cost at most: its budget (the spec's, the same for every session, so
+ * a direction's receivers are comparable) plus one call past it, since Claude Code checks the budget
+ * between calls. A direction starts only if all its Claude Code sessions could cost this much within the
+ * cap, and each session is checked again before it starts (spend.allow). Fixed 2026-11-10: the check used
+ * to reserve the budget alone.
+ */
+const OVERSHOOT = Number(S.overshootUsdPerSession ?? 0.25);
+const WORST_SESSION = Number(BUDGET) + OVERSHOOT;
+// --stage N: a staged spec's directions for that stage. --after: earlier stages' result files, whose spend counts.
+const STAGE = typeof args.stage === "string" ? args.stage : null;
+const AFTER = typeof args.after === "string" ? args.after.split(",") : [];
+/** A continuity spec: each receiver's workspace holds the giver's git history and uncommitted changes, as a developer's clone does. */
+const KEEP_HISTORY = SPEC.keepGiverHistory === true;
 const HOME = homedir();
 const BIN_DIR = join(HOME, ".snout-bench", "bin");
 const TAP = join(REPO, "bench", "handoff-mcp-tap.mjs");
@@ -79,7 +96,8 @@ const pathWith = (dir) => `${dir}${delimiter}${process.env.PATH ?? process.env.P
 
 // ---------- Arms (as bench/memory-study.mjs) ----------
 
-const OFF = { coach: "off", memoryJudge: "off", memoryLessons: false, repoMap: false, fastHooks: false };
+// memoryLeftOff: on by default since 2026-11-11; the arms name it, so a spec written before keeps its arms (spec-leftoff.json turns it on).
+const OFF = { coach: "off", memoryJudge: "off", memoryLessons: false, memoryLeftOff: false, repoMap: false, fastHooks: false };
 const armConfig = (arm) => (arm === "plain" ? { mode: "observe", memory: false, memoryNotes: false, ...OFF } : { mode: "enforce", memory: true, memoryNotes: arm === "notes", ...OFF });
 const SEARCH_TOOLS = ["snout_memory_search", "snout_memory_fetch"];
 /** A lesson spec's on arm can also propose; anything else is the pilot's search arm. */
@@ -105,6 +123,29 @@ const NOTES_ARM = LESSONS && FAKE && args["experimental-notes"] === true;
  * records exist? Every receiver of a direction runs from the giver's state, never from another receiver's.
  */
 const INDEX_ARM = SPEC.indexArm === true;
+/**
+ * spec-leftoff.json: a third receiver, "leftoff", as "on" plus where the last session left off on the
+ * first prompt (memoryLeftOff, an opt-in experiment of 2026-11-11), from the same snapshot: with the
+ * unfinished work and its decision in front of it, does a receiver do the next step as well as with the
+ * session-start line alone, for less?
+ */
+const LEFTOFF_ARM = SPEC.leftOffArm === true;
+/** The receivers of a direction, in the order they run. */
+const receiverArms = () => ["on", ...(INDEX_ARM ? ["index"] : []), ...(LEFTOFF_ARM ? ["leftoff"] : []), ...(NOTES_ARM ? ["notes"] : []), "off"];
+/**
+ * `"giversFrom"` (spec-leftoff.json): the givers are not run again. Each direction starts from a giver
+ * of those live results (its own id, or `giverFrom`) as that run left it: its store, snapshot, git
+ * history and Claude Code's memory, copied from that run's folder; only the receivers run. The receivers
+ * then work on the same snapshots as that run's and as the free check (bench/leftoff-check.mjs).
+ */
+const GIVERS = (SPEC.giversFrom ?? []).map((f) => ({ file: f, saved: JSON.parse(readFileSync(resolve(REPO, f), "utf8")) }));
+/**
+ * `"receiverImport": "off"`: no history import at a receiver's session start (SNOUT_IMPORT=off). A
+ * receiver on the giver's day never imported (the giver's import that day covered it); on a later day it
+ * would import the sessions Claude Code keeps for the workspace folder in the bench's own config, earlier
+ * receivers' among them.
+ */
+const RECEIVER_IMPORT_OFF = SPEC.receiverImport === "off";
 /** The memory tools and skill as the product ships them: a lesson spec, or `"skill": true` without the review stop (spec-decision.json). */
 const SHIPPED = LESSONS || SPEC.skill === true;
 const MEMORY_TOOLS = SHIPPED ? [...SEARCH_TOOLS, "snout_memory_propose"] : SEARCH_TOOLS;
@@ -147,7 +188,7 @@ function newStore(dir, arm, from, extra = {}) {
   const sideLog = join(dir, "side-calls.jsonl");
   const env = { SNOUT_DIR: snoutDir, SNOUT_CONFIG_DIR: configDir, SNOUT_MEMORY: "", SNOUT_MEMORY_NOTES: "", TYPESAFE_API_KEY: "", SNOUT_CLOUD_URL: "", SNOUT_EMBED_FAKE: "",
     SNOUT_GUARD_LOG: sideLog, NODE_OPTIONS: [process.env.NODE_OPTIONS, `--require ${JSON.stringify(GUARD)}`].filter(Boolean).join(" ") };
-  return { dir, snoutDir, configDir, sideLog, env, arm, recent: extra.memoryRecent === true };
+  return { dir, snoutDir, configDir, sideLog, env, arm, recent: extra.memoryRecent === true, leftOff: extra.memoryLeftOff === true };
 }
 
 // ---------- Workspaces ----------
@@ -172,7 +213,19 @@ function copyProject(from, to) {
  * none of its instruction files load; Codex runs project hooks only in a folder its user trusts, so
  * its workspaces live in this checkout under .snout/handoff-ws, with the repository kept outside.
  */
-function newWorkspace(agent, d, from, { fixed = false } = {}) {
+/**
+ * The giver's git history as a bundle, with the branch it was on, so each receiver's workspace holds the
+ * same commits and, with the snapshot's files over them, the same uncommitted changes. Null without commits.
+ */
+function giverHistory(w, dir) {
+  const bundle = join(dir, "history.bundle");
+  mkdirSync(dir, { recursive: true });
+  const r = w.git("bundle", "create", bundle, "--all");
+  if (r.status !== 0) return null;
+  return { bundle, branch: w.git("symbolic-ref", "--short", "HEAD").stdout.trim() || "master", head: w.git("rev-parse", "HEAD").stdout.trim() };
+}
+
+function newWorkspace(agent, d, from, { fixed = false, history = null } = {}) {
   // fixed: the direction's one Claude Code folder (OWN_MEMORY), made again from `from` each time.
   const name = `${d.project}-${fixed ? createHash("sha256").update(d.id).digest("hex").slice(0, 6) : randomBytes(3).toString("hex")}`;
   const ws = agent === "codex" ? join(REPO, ".snout", "handoff-ws", name) : join(HOME, ".snout-bench", "handoff-ws", name);
@@ -187,10 +240,18 @@ function newWorkspace(agent, d, from, { fixed = false } = {}) {
   git("config", "core.autocrlf", "false");
   git("config", "core.filemode", "false");
   appendFileSync(join(gitDir, "info", "exclude"), "\n/.claude/\n/.codex/\n/.snout/\n/.mcp.json\n__pycache__/\n.pytest_cache/\n");
-  must(git("add", "-A"), "git add");
-  // A stand-in dry run needs file state, not Git history. Keep it commit-free;
-  // live agents get the normal baseline commit when that action is authorized.
-  if (!FAKE) must(git("commit", "-q", "--no-verify", "-m", "baseline"), "baseline commit");
+  if (history) {
+    // The giver's commits, its branch checked out, and the snapshot's files left as they are: what the
+    // giver didn't commit shows as uncommitted changes, as in the giver's own folder.
+    must(git("fetch", "-q", "--update-head-ok", history.bundle, "+refs/heads/*:refs/heads/*"), "fetch the giver's history");
+    must(git("symbolic-ref", "HEAD", `refs/heads/${history.branch}`), "the giver's branch");
+    must(git("reset", "-q"), "index at the giver's commit");
+  } else {
+    must(git("add", "-A"), "git add");
+    // A stand-in dry run needs file state, not Git history. Keep it commit-free;
+    // live agents get the normal baseline commit when that action is authorized.
+    if (!FAKE) must(git("commit", "-q", "--no-verify", "-m", "baseline"), "baseline commit");
+  }
   // A remote, as any clone has: Snout keys a project's private notes by it.
   git("remote", "add", "origin", d.remote);
   return { agent, name, ws, gitDir, git };
@@ -203,12 +264,13 @@ function newWorkspace(agent, d, from, { fixed = false } = {}) {
  * the giver's for a giver; the giver's and the receiver's for a receiver. Run in the copy, so the
  * workspace (and so the snapshot) never holds a hidden test.
  */
-function grade(d, from, role, runDir) {
+function grade(d, from, role, runDir, receiverTests = d.grade.receiverTests) {
   const dir = join(runDir, "grade", `${basename(from)}-${role}`);
   rmSync(dir, { recursive: true, force: true });
   const unreadable = copyProject(from, dir);
   for (const f of d.grade.baseTests) { mkdirSync(join(dir, f, ".."), { recursive: true }); cpSync(join(HERE, d.project, "base", f), join(dir, f)); }
-  const hidden = [...d.grade.giverTests, ...(role === "receiver" ? d.grade.receiverTests : [])];
+  // A receiver's grade: the giver's check and the receiver's (all of them, or one part: its task or its decision checks).
+  const hidden = [...d.grade.giverTests, ...(role === "receiver" ? receiverTests : [])];
   for (const h of hidden) cpSync(join(HERE, d.project, h), join(dir, d.grade.testDir, basename(h)));
   const files = [...d.grade.baseTests.filter((f) => !f.endsWith("conftest.py")), ...hidden.map((h) => `${d.grade.testDir}/${basename(h)}`)];
   const env = { ...process.env, ...OFFLINE, PYTHONDONTWRITEBYTECODE: "1" };
@@ -297,14 +359,120 @@ function claudeToolUses(session) {
   let file;
   try { file = readdirSync(claudeRoot(), { recursive: true }).map(String).find((p) => p.endsWith(`${session}.jsonl`)); } catch { /* none */ }
   if (!file) return [];
-  const out = new Map();
+  const out = new Map(), failed = new Set();
   for (const l of readFileSync(join(claudeRoot(), file), "utf8").split("\n")) {
-    try { const o = JSON.parse(l); for (const b of o.message?.content ?? []) if (b.type === "tool_use") out.set(b.id, { id: b.id, name: b.name, input: b.input }); } catch { /* not a row */ }
+    try {
+      const o = JSON.parse(l);
+      for (const b of o.message?.content ?? []) {
+        if (b.type === "tool_use") out.set(b.id, { id: b.id, name: b.name, input: b.input });
+        // A call that failed gets no PostToolUse hook from Claude Code (hookCoverage leaves it out).
+        if (b.type === "tool_result" && b.is_error) failed.add(b.tool_use_id);
+      }
+    } catch { /* not a row */ }
   }
-  return [...out.values()];
+  return [...out.values()].map((u) => (failed.has(u.id) ? { ...u, error: true } : u));
 }
 
 // ---------- Other memory paths ----------
+
+const norm = (s) => s.replace(/\\/g, "/").toLowerCase();
+// A path as Windows spells it (c:/users/...), as Git Bash does (/c/users/...) and from the home folder (~/...).
+const spellings = (p) => [norm(p), norm(p).replace(/^([a-z]):\//, "/$1/"), ...(norm(p).startsWith(norm(HOME) + "/") ? [`~${norm(p).slice(norm(HOME).length)}`] : [])];
+
+/**
+ * What a Claude Code session read before its first useful edit: an Edit, Write or MultiEdit of a file,
+ * or a shell command that writes one (shellWrites), that is not a note (*.md, *.txt), in an agent's own
+ * folder or outside the workspace `ws`. Null when its transcript is missing.
+ */
+function beforeFirstEdit(session, ws) {
+  const root = claudeRoot();
+  let file;
+  try { file = readdirSync(root, { recursive: true }).map(String).find((p) => p.endsWith(`${session}.jsonl`)); } catch { /* none */ }
+  return file ? firstEditStats(readFileSync(join(root, file), "utf8").split(/\r?\n/), ws) : null;
+}
+
+/**
+ * The files a shell command writes: redirections (> and >>, not 2> or >&2), tee, sed -i and perl -i,
+ * and PowerShell's Set-Content, Add-Content and Out-File. Heredoc bodies and quoted text are not read
+ * as commands, so `cat > src/a.js <<'EOF'` names src/a.js and nothing in its body. Other writers
+ * (a script that calls writeFileSync, cp, mv) are not seen.
+ */
+export function shellWrites(command) {
+  const quoted = [];
+  const s = String(command ?? "")
+    .replace(/<<-?[ \t]*(['"]?)(\w+)\1([^\n]*)\n(?:[\s\S]*?\n)??[ \t]*\2[ \t]*(?=\n|$)/g, (_, q, w, rest) => `<<${w}${rest}`)
+    .replace(/'[^']*'|"(?:\\.|[^"\\])*"/g, (m) => `\0${quoted.push(m.slice(1, -1)) - 1}\0`);
+  const word = (t) => t.replace(/\0(\d+)\0/g, (_, i) => quoted[i]);
+  const out = [];
+  for (const m of s.matchAll(/(?<![\d&>=-])>>?(?![>&=])[ \t]*([^\s|;&<>()]+)/g)) out.push(word(m[1]));
+  for (const part of s.split(/&&|\|\||[;|\n]/)) {
+    const [cmd = "", ...rest] = part.trim().split(/\s+/);
+    const name = cmd.toLowerCase();
+    if (name === "tee") out.push(...rest.filter((t) => !t.startsWith("-")).map(word));
+    else if ((name === "sed" || name === "perl") && rest.some((t) => /^(-\w*i|--in-place)/.test(t))) {
+      // The script is the first word that is not an option, or the word after -e / -f; the files follow it.
+      let script = false;
+      for (let i = 0; i < rest.length; i++) {
+        if (/^-\w*[ef]$/.test(rest[i])) { script = true; i++; }
+        else if (rest[i].startsWith("-")) continue;
+        else if (!script) script = true;
+        else out.push(word(rest[i]));
+      }
+    } else if (/^(set-content|add-content|out-file)$/.test(name)) {
+      const i = rest.findIndex((t) => /^-(path|filepath|literalpath)$/i.test(t));
+      const p = i >= 0 ? rest[i + 1] : rest.find((t) => !t.startsWith("-"));
+      if (p) out.push(word(p));
+    }
+  }
+  return out;
+}
+
+/**
+ * Over a transcript's lines: tool calls before the first useful edit, the characters of their results,
+ * and the tokens of every model call up to and including the one that made the edit (input, cache read,
+ * cache write and output; a call's rows share one message id and are counted once). `edited` false: no
+ * useful edit at all, and the counts cover the whole session. With `ws`, a file outside it is not an edit.
+ */
+export function firstEditStats(lines, ws) {
+  const note = /\.(md|txt)$/i;
+  const own = /[\\/]\.(claude|codex|agents|snout)[\\/]/;
+  const inside = (p) => !ws || !/^([a-z]:|[\\/]|~)/i.test(p) || spellings(ws).some((w) => norm(p) === w || norm(p).startsWith(w + "/"));
+  const project = (p) => typeof p === "string" && !note.test(p) && !own.test(p) && !/^(\/dev\/|nul$|\$null$)/i.test(p) && inside(p);
+  const useful = (b) => (["Edit", "Write", "MultiEdit"].includes(b.name) && project(b.input?.file_path))
+    || (["Bash", "PowerShell"].includes(b.name) && shellWrites(b.input?.command).some(project));
+  let calls = 0, chars = 0, tokens = 0, edited = false;
+  const counted = new Set(), before = new Set();
+  for (const l of lines) {
+    let o;
+    try { o = JSON.parse(l); } catch { continue; }
+    const content = Array.isArray(o.message?.content) ? o.message.content : [];
+    if (o.type === "assistant") {
+      const u = o.message?.usage, id = o.message?.id ?? o.uuid;
+      if (u && !counted.has(id)) { counted.add(id); tokens += (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.output_tokens ?? 0); }
+      for (const b of content) {
+        if (b.type !== "tool_use") continue;
+        if (useful(b)) { edited = true; break; }
+        calls++;
+        before.add(b.id);
+      }
+      if (edited) break;
+    } else {
+      for (const b of content) if (b.type === "tool_result" && before.has(b.tool_use_id)) chars += (typeof b.content === "string" ? b.content : JSON.stringify(b.content ?? "")).length;
+    }
+  }
+  return { calls, chars, tokens, edited };
+}
+
+/** Whether a staged continuity run's next stage may start, from the earlier stages' directions: the reasons it may not. */
+export function continuityGate(directions) {
+  const why = [];
+  for (const d of directions) {
+    if (d.stopped) why.push(`${d.id}: ${d.stopped}`);
+    for (const s of [d.giver, ...Object.values(d.receivers ?? {})].filter(Boolean)) if (s.invalid?.length) why.push(`${d.id}: a ${s.role ?? "session"} was invalid (${s.invalid[0]})`);
+    if (!d.stopped && !(d.receivers?.on && d.receivers?.off)) why.push(`${d.id}: the receivers did not both run`);
+  }
+  return why;
+}
 
 /** Files in Claude Code's own memory for this workspace (its project folder in the isolated config). */
 const claudeMemoryDir = (ws) => join(claudeRoot(), ws.replace(/[^A-Za-z0-9]/g, "-"), "memory");
@@ -329,19 +497,20 @@ function codexMemories() {
 /**
  * Paths a session touched outside its workspace. Forbidden: this repository's handoff files (the
  * spec, hidden tests, references), the bench stores and other workspaces. Anything else outside
- * (a Python install, a temp folder) is listed for review.
+ * (a Python install, a temp folder) is listed for review. `ownFolders`: folders outside the workspace
+ * that are the session's own, as Claude Code's memory folder for it (its transcripts stay forbidden).
  */
-export function outsideAccess(texts, w, runDir) {
-  const norm = (s) => s.replace(/\\/g, "/").toLowerCase();
-  // A path as Windows spells it (c:/users/...) and as Git Bash does (/c/users/...).
-  const spellings = (p) => [norm(p), norm(p).replace(/^([a-z]):\//, "/$1/")];
+export function outsideAccess(texts, w, runDir, ownFolders = []) {
   const owns = spellings(w.ws);
+  // An own folder counts only as a whole path segment and never with a step back out of it (memory/../<transcript>).
+  const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const ownRes = ownFolders.flatMap(spellings).map((o) => new RegExp(`${escape(o)}(?=$|[/\\s"'*])(?![^\\s"']*/\\.\\.(?:/|$|[\\s"']))`, "g"));
   const forbidden = [], review = [];
   const BAD = [...[join(REPO, "bench"), join(REPO, "src"), join(REPO, "docs"), join(REPO, "dist"), join(REPO, ".snout", "notes"), join(HOME, ".snout-bench", "handoff"), runDir].flatMap(spellings), "bench/handoff", "handoff-runs", "handoff-git", "claude-home"];
   for (const t of texts) {
     const n = norm(String(t ?? ""));
     if (!n) continue;
-    const rest = owns.reduce((x, o) => x.replaceAll(o, ""), n);
+    const rest = ownRes.reduce((x, re) => x.replace(re, ""), owns.reduce((x, o) => x.replaceAll(o, ""), n));
     const other = /handoff-ws\/([\w-]+)/.exec(rest);
     if (BAD.some((b) => rest.includes(b)) || other) forbidden.push(String(t).slice(0, 160));
     else if (/(?:^|[\s"'=])(?:[a-z]:\/|\/c\/|~\/|\$home|%userprofile%)/.test(rest) || /(?:^|[\s"'/])\.\.(?:\/|$)/.test(n)) review.push(String(t).slice(0, 160));
@@ -458,7 +627,8 @@ async function session(role, d, w, store, prompt, runDir, fake) {
   const injected = rows(join(store.snoutDir, "recall.jsonl")).slice(recallBefore).filter((x) => x.kind === "inject" && x.injected);
   step.injected = { count: injected.length, ids: [...new Set(injected.flatMap((x) => x.items ?? []))], tokens: injected.reduce((n, x) => n + (x.tokensEst ?? 0), 0) };
   const texts = agent === "claude" ? uses.flatMap((x) => [x.input?.file_path, x.input?.path, x.input?.command, x.input?.notebook_path]) : step.commands;
-  step.outside = outsideAccess(texts, w, runDir);
+  // Claude Code's memory folder for the workspace is the session's own (it may read and write its memory); its transcripts are not.
+  step.outside = outsideAccess(texts, w, runDir, agent === "claude" ? [claudeMemoryDir(w.ws)] : []);
   const memAfter = agent === "claude" ? claudeMemoryFiles(w.ws) : [];
   const codexAfter = codexMemories();
   // Validity, as the spec lists it.
@@ -472,6 +642,8 @@ async function session(role, d, w, store, prompt, runDir, fake) {
   step.index = indexOf(step, store);
   if (!store.recent && step.index.logged) bad.push("the startup index reached an arm without it");
   if (store.recent && step.session && !FAKE && !step.index.logged) bad.push("the startup index did not run in its arm");
+  step.leftOff = leftOffOf(step, store);
+  if (!store.leftOff && store.arm !== "notes" && step.leftOff.shown) bad.push("the left-off note reached an arm without it");
   if (skillFile) step.skill = { installed: true, seen: inSessionFile(step, /snout-memory/) };
   if (arm === "plain" && (step.hint.logged || step.hint.delivered)) bad.push("the session-start hint reached the off arm");
   // With OWN_MEMORY its memory is part of the arm: reported (files at the start, files at the end), not a fault.
@@ -517,6 +689,7 @@ const FAKE_SAY = {
 };
 
 async function direction(d, runDir, spend) {
+  if (GIVERS.length) return receivers(d, runDir, spend, reusedGiver(d, runDir));
   const out = { id: d.id, project: d.project, giverAgent: d.giver, receiverAgent: d.receiver };
   const base = join(HERE, d.project, "base");
   const shared = newStore(join(runDir, d.id, "store"), "search");
@@ -524,7 +697,9 @@ async function direction(d, runDir, spend) {
     ...(LESSONS && d.dryRunLesson ? { mcpCalls: [{ name: "snout_memory_propose", arguments: d.dryRunLesson }], testCommand: d.dryRunLesson.evidence } : {}) } : undefined;
   // 1. The giver: the task, verified, in a store of its own that starts empty.
   const gw = newWorkspace(d.giver, d, base, { fixed: OWN_MEMORY && d.giver === "claude" });
-  if (d.giver === "claude" && !spend.allow()) return { ...out, stopped: spend.why() };
+  // The whole direction must fit: the giver and every Claude Code receiver at their worst case.
+  const claudeSessions = (d.giver === "claude" ? 1 : 0) + (d.receiver === "claude" ? receiverArms().length : 0);
+  if (claudeSessions && !spend.allow(claudeSessions)) return { ...out, stopped: spend.why(claudeSessions) };
   const g = await session("giver", d, gw, shared, d.giverPrompt, runDir, giverFake);
   spend.add(g);
   g.graded = grade(d, gw.ws, "giver", runDir);
@@ -534,9 +709,8 @@ async function direction(d, runDir, spend) {
   g.solved = g.graded.solved && !g.timedOut && !g.cut;
   out.giver = g;
   // 2. The gate: solved, and the giver's record is in the store, from the giver's agent, with the fact.
-  const cardFile = g.session ? join(shared.snoutDir, "memory", `${g.session.replace(/[^\w.-]/g, "_").slice(0, 80)}.json`) : "";
-  const card = existsSync(cardFile) ? JSON.parse(readFileSync(cardFile, "utf8")) : null;
-  const recordText = card ? [card.task, card.request, card.outcome].filter(Boolean).join("\n") : "";
+  const card = cardOf(shared, g.session);
+  const recordText = recordTextOf(card);
   // A lesson spec: what the giver proposed, and what its record backed (checked at its Stop).
   if (LESSONS) out.lessons = { proposedInSession: (g.memoryCalls ?? []).filter((n) => n === "snout_memory_propose").length || rows(join(runDir, `giver-${d.id}-mcp.jsonl`)).filter((r) => r.dir === "in" && r.msg?.params?.name === "snout_memory_propose").length, atGiver: giverLessons(d, shared, g.session) };
   const lessonFact = LESSONS && out.lessons.atGiver.some((l) => new RegExp(d.recordPattern, "i").test(`${l.text} ${l.applies}`));
@@ -548,7 +722,15 @@ async function direction(d, runDir, spend) {
   // 3. The snapshot: the giver's project as it left it, without agents' or tools' folders.
   const snapshot = join(runDir, d.id, "snapshot");
   const unreadable = copyProject(gw.ws, snapshot);
-  out.snapshot = { dir: snapshot, codeVisible: codeShows(snapshot, d.codePattern), ...(d.repoPattern ? { decisionInRepo: repoShows(snapshot, d.repoPattern) } : {}), ...(unreadable.length ? { unreadable } : {}) };
+  // Claude Code's own memory as the giver left it: what it captured, and whether it holds the decision.
+  if (OWN_MEMORY && d.giver === "claude") {
+    const files = claudeMemoryFiles(gw.ws);
+    const text = files.map((x) => { try { return readFileSync(join(claudeMemoryDir(gw.ws), x), "utf8"); } catch { return ""; } }).join(" ");
+    out.giverMemory = { files, decision: new RegExp(d.recordPattern, "i").test(text) };
+  }
+  // A continuity spec: the giver's git history goes with its files.
+  const history = KEEP_HISTORY ? giverHistory(gw, join(runDir, d.id)) : null;
+  out.snapshot = { dir: snapshot, codeVisible: codeShows(snapshot, d.codePattern), ...(d.repoPattern ? { decisionInRepo: repoShows(snapshot, d.repoPattern) } : {}), ...(unreadable.length ? { unreadable } : {}), ...(history ? { history } : {}) };
   // A snapshot missing part of the giver's project is not the giver's work: no receiver runs on it.
   if (unreadable.length) out.gate.pass = false;
   if (!out.gate.pass) return { ...out, stopped: `no record to hand off: ${Object.entries({ solved: out.gate.solved, record: out.gate.record, agent: out.gate.agent === d.giver, fact: out.gate.fact, valid: !g.invalid, snapshot: !unreadable.length }).filter(([, v]) => !v).map(([k]) => k).join(", ")}` };
@@ -560,6 +742,41 @@ async function direction(d, runDir, spend) {
     return out;
   }
   return receivers(d, runDir, spend, out);
+}
+
+/** A session's record in a store, or null. */
+function cardOf(store, session) {
+  const file = session ? join(store.snoutDir, "memory", `${session.replace(/[^\w.-]/g, "_").slice(0, 80)}.json`) : "";
+  return existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : null;
+}
+const recordTextOf = (card) => (card ? [card.task, card.request, card.outcome].filter(Boolean).join("\n") : "");
+
+/**
+ * A giver of earlier live results (GIVERS), copied with what it left into this run's folder for `d`'s
+ * receivers: the direction as that run reported it, its folders here. Throws when the giver cannot be
+ * reused as it was: a dry run's, past its gate, its files gone, or its record no longer holding the decision.
+ */
+function reusedGiver(d, runDir) {
+  const from = d.giverFrom ?? d.id;
+  const hit = GIVERS.map((x) => ({ ...x, d: x.saved.directions.find((y) => y.id === from) })).find((x) => x.d);
+  if (!hit) throw new Error(`${d.id}: no giver ${from} in ${SPEC.giversFrom.join(", ")}`);
+  const e = hit.d;
+  if (hit.saved.fake) throw new Error(`${d.id}: ${hit.file} is a dry run; givers are reused from live runs only`);
+  if (!e.gate?.pass || e.giver?.invalid || !e.snapshot?.history) throw new Error(`${d.id}: the giver ${from} did not pass its gate or kept no git history`);
+  const src = join(HOME, ".snout-bench", "handoff-runs", hit.saved.runId, from), dst = join(runDir, d.id);
+  for (const f of ["store", "snapshot", "history.bundle"]) if (!existsSync(join(src, f))) throw new Error(`${d.id}: ${join(src, f)} is gone; the giver cannot be reused`);
+  rmSync(dst, { recursive: true, force: true });
+  mkdirSync(dst, { recursive: true });
+  for (const f of ["store", "snapshot", "history.bundle", "claude-memory"]) if (existsSync(join(src, f))) cpSync(join(src, f), join(dst, f), { recursive: true });
+  if (!sh("git", ["bundle", "list-heads", join(dst, "history.bundle")]).stdout.includes(e.snapshot.history.head)) throw new Error(`${d.id}: the giver's bundle no longer holds its last commit ${e.snapshot.history.head}`);
+  const card = cardOf({ snoutDir: join(dst, "store", "snout") }, e.giver.session);
+  if (card?.agent !== d.giver || !new RegExp(d.recordPattern, "i").test(recordTextOf(card))) throw new Error(`${d.id}: the giver's record in the copy is missing, not ${d.giver}'s, or lacks the decision`);
+  return {
+    id: d.id, project: d.project, giverAgent: d.giver, receiverAgent: d.receiver,
+    giver: { ...e.giver, reused: { from: hit.file, runId: hit.saved.runId, direction: from, frozenAt: hit.saved.frozenAt } },
+    gate: e.gate, ...(e.giverMemory ? { giverMemory: e.giverMemory } : {}),
+    snapshot: { ...e.snapshot, dir: join(dst, "snapshot"), history: { ...e.snapshot.history, bundle: join(dst, "history.bundle") } },
+  };
 }
 
 /** The giver's lessons in the shared store, as review sees them: proposed, checked, approved or rejected. */
@@ -584,11 +801,14 @@ async function receivers(d, runDir, spend, out) {
   const lessonIds = LESSONS ? out.lessons.afterReview.filter((l) => l.approved).map((l) => l.id) : [];
   delete out.awaitingReview;
   out.receivers = {};
-  for (const arm of ["on", ...(INDEX_ARM ? ["index"] : []), ...(NOTES_ARM ? ["notes"] : []), "off"]) {
+  // The receivers run as a set or not at all, at the same budget, so they stay comparable.
+  if (d.receiver === "claude" && !spend.allow(receiverArms().length)) { out.stopped = spend.why(receiverArms().length); return out; }
+  for (const arm of receiverArms()) {
     if (d.receiver === "claude" && !spend.allow()) { out.stopped = spend.why(); break; }
     const store = arm === "off" ? newStore(join(runDir, d.id, "off-store"), "plain")
-      : newStore(join(runDir, d.id, `${arm}-store`), arm === "notes" ? "notes" : "search", shared, arm === "index" ? { memoryRecent: true } : {});
-    const w = newWorkspace(d.receiver, d, snapshot, { fixed: OWN_MEMORY && d.receiver === "claude" });
+      : newStore(join(runDir, d.id, `${arm}-store`), arm === "notes" ? "notes" : "search", shared, arm === "index" ? { memoryRecent: true } : arm === "leftoff" ? { memoryLeftOff: true } : {});
+    if (RECEIVER_IMPORT_OFF) store.env.SNOUT_IMPORT = "off";
+    const w = newWorkspace(d.receiver, d, snapshot, { fixed: OWN_MEMORY && d.receiver === "claude", history: out.snapshot.history ?? null });
     if (OWN_MEMORY && d.receiver === "claude") {
       const mem = claudeMemoryDir(w.ws), kept = join(runDir, d.id, "claude-memory");
       rmSync(mem, { recursive: true, force: true });
@@ -609,12 +829,24 @@ async function receivers(d, runDir, spend, out) {
     s.graded = grade(d, w.ws, "receiver", runDir);
     if (s.graded.unreadable?.length) s.invalid = [...(s.invalid ?? []), `grading copy omitted ${s.graded.unreadable.length} unreadable project path(s)`];
     s.solved = s.graded.solved && !s.timedOut && !s.cut;
+    // A continuity spec grades the next step and the decision apart: did it do the work, and did it honor the decision.
+    if (d.grade.receiverTaskTests && d.grade.receiverDecisionTests) {
+      s.taskPassed = grade(d, w.ws, "receiver", runDir, d.grade.receiverTaskTests).solved;
+      s.decisionHonored = grade(d, w.ws, "receiver", runDir, d.grade.receiverDecisionTests).solved;
+    }
+    // A control grades the task it asked for, and whether the step the giver left for later stayed untouched.
+    if (d.grade.receiverTaskTests && d.grade.receiverScopeTests) {
+      s.askedDone = grade(d, w.ws, "receiver", runDir, d.grade.receiverTaskTests).solved;
+      s.inScope = grade(d, w.ws, "receiver", runDir, d.grade.receiverScopeTests).solved;
+    }
+    // What it read before its first useful edit (Claude Code: from its transcript).
+    if (d.receiver === "claude" && s.session) s.beforeFirstEdit = beforeFirstEdit(s.session, w.ws);
     out.receivers[arm] = s;
   }
   const on = out.receivers.on, notes = out.receivers.notes, off = out.receivers.off;
   // Record only: no file states the decision and no code applies it (spec-record.json; spec.json has no repoPattern).
   const recordOnly = d.repoPattern ? !(out.snapshot.decisionInRepo.length || out.snapshot.codeVisible.length) : undefined;
-  if (on) out.handoff = { hintLogged: on.hint?.logged, hintDelivered: on.hint?.delivered, recordOnly, searched: on.memory.searches + on.memory.fetches > 0, found: on.memory.found, current: on.memory.current, cited: on.memory.cited, solved: on.solved,
+  if (on && !d.control) out.handoff = { hintLogged: on.hint?.logged, hintDelivered: on.hint?.delivered, recordOnly, searched: on.memory.searches + on.memory.fetches > 0, found: on.memory.found, current: on.memory.current, cited: on.memory.cited, solved: on.solved,
     success: !on.probe && on.memory.found && on.memory.current && on.memory.cited && on.solved && !on.invalid, offSolved: off?.solved ?? null,
     // A lesson spec: the lesson path, apart from the record path. Approved by the person, shown or opened, and the task solved.
     ...(LESSONS ? { lessonApproved: lessonIds.length > 0, lessonShown: on.memory.lessonShown, lessonOpened: on.memory.lessonOpened, skillSeen: on.skill?.seen ?? false,
@@ -627,9 +859,10 @@ async function receivers(d, runDir, spend, out) {
   const index = out.receivers.index;
   if (index) out.indexHandoff = { logged: index.index?.logged, delivered: index.index?.delivered, entries: index.index?.entries ?? 0, searched: index.memory.searches + index.memory.fetches > 0, found: index.memory.found, current: index.memory.current, cited: index.memory.cited, solved: index.solved,
     success: !index.probe && index.memory.found && index.memory.current && index.memory.cited && index.solved && !index.invalid, onSolved: on?.solved ?? null, offSolved: off?.solved ?? null };
+  const leftoff = out.receivers.leftoff;
   if (on && off) out.cost = Object.fromEntries(["tokens", "toolCalls", "minutes", "costUsd"].map((k) => {
     const v = (s) => (k === "tokens" ? s.tokens?.total ?? 0 : s[k] ?? 0);
-    return [k, { on: v(on), off: v(off), onMinusOff: +(v(on) - v(off)).toFixed(4), ...(index ? { index: v(index), indexMinusOn: +(v(index) - v(on)).toFixed(4) } : {}) }];
+    return [k, { on: v(on), off: v(off), onMinusOff: +(v(on) - v(off)).toFixed(4), ...(index ? { index: v(index), indexMinusOn: +(v(index) - v(on)).toFixed(4) } : {}), ...(leftoff ? { leftoff: v(leftoff), leftoffMinusOn: +(v(leftoff) - v(on)).toFixed(4) } : {}) }];
   }));
   return out;
 }
@@ -681,6 +914,16 @@ function indexOf(step, store) {
   return { logged: !!row, entries: row?.recent ?? 0, delivered: inSessionFile(step, INDEX) };
 }
 
+/**
+ * Where the last session left off (memoryLeftOff): did Snout show it on the session's first prompt, at
+ * what size, and is it in the agent's record of its context (live only: the stand-ins keep no hook output).
+ */
+const LEFT_OFF = /where the last session in this repo left off/;
+function leftOffOf(step, store) {
+  const row = rows(join(store.snoutDir, "recall.jsonl")).find((r) => r.kind === "inject" && r.session === step.session && r.leftOff);
+  return { shown: row?.leftShown === true, tokens: row?.leftShown ? row.leftOff : 0, delivered: !FAKE && inSessionFile(step, LEFT_OFF) };
+}
+
 /** Whether the agent's own record of the session (Claude Code's transcript, Codex's rollout) holds `re`. */
 function inSessionFile(step, re) {
   if (!step.session) return false;
@@ -701,7 +944,7 @@ function codeShows(dir, pattern) {
 
 function freezeFiles() {
   const files = [SPEC_FILE, join(REPO, "bench/handoff-check.mjs"), TAP, GUARD, ...["swe.mjs", "swelong.mjs", "study-checks.mjs", "shipped-hooks.mjs", "stamp.mjs", "fake-claude.mjs", "fake-codex.mjs", "fake-mcp.mjs", "codex-toolchain.mjs"].map((f) => join(REPO, "bench", f)),
-    join(REPO, "dist/snout.mjs"), join(REPO, "dist/lib.mjs"), join(REPO, "hooks/hooks.json"), join(REPO, ".codex/hooks.json")];
+    join(REPO, "dist/snout.mjs"), join(REPO, "dist/lib.mjs"), join(REPO, "hooks/hooks.json"), join(REPO, ".codex/hooks.json"), ...GIVERS.map((g) => resolve(REPO, g.file))];
   const addFiles = (dir) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       if (ARTIFACTS.has(entry.name)) continue;
@@ -727,7 +970,7 @@ function checkFreeze(versions) {
     if (!String(versions.claude ?? "").includes(S.claudeCode)) bad.push(`Claude Code ${versions.claude}`);
     if (!String(versions.codex ?? "").includes(S.codex)) bad.push(`Codex ${versions.codex}`);
   }
-  if (bad.length) throw new Error(`differs from the frozen inputs (bench/handoff/freeze.json): ${bad.join(", ")}`);
+  if (bad.length) throw new Error(`differs from the frozen inputs (${relative(REPO, FREEZE_FILE).replace(/\\/g, "/")}): ${bad.join(", ")}`);
   return want.frozenAt;
 }
 
@@ -797,11 +1040,20 @@ function gradeCheck() {
     copyProject(base, giverDone); cpSync(join(HERE, d.project, refGiver(d)), giverDone, { recursive: true });
     const both = join(runDir, d.id, "receiver-ref");
     copyProject(giverDone, both); cpSync(join(HERE, d.project, refReceiver(d)), both, { recursive: true });
+    // A control: its scope checks must catch the step left for later done anyway (the continuity receiver's reference).
+    const drift = join(runDir, d.id, "drift-ref");
+    if (d.control) { copyProject(giverDone, drift); cpSync(join(HERE, d.project, d.grade.refDrift), drift, { recursive: true }); }
     const checks = [
       ["unchanged project, giver's tests", grade(d, base, "giver", runDir), false],
       ["giver's reference, giver's tests", grade(d, giverDone, "giver", runDir), true],
-      ["giver's reference, receiver's tests", grade(d, giverDone, "receiver", runDir), false],
-      ["both references, receiver's tests", grade(d, both, "receiver", runDir), true],
+      ...(d.control ? [
+        ["giver's reference, the control's task tests", grade(d, giverDone, "receiver", runDir, d.grade.receiverTaskTests), false],
+        ["both references, the control's tests", grade(d, both, "receiver", runDir), true],
+        ["the step left for later done instead, the control's scope tests", grade(d, drift, "receiver", runDir, d.grade.receiverScopeTests), false],
+      ] : [
+        ["giver's reference, receiver's tests", grade(d, giverDone, "receiver", runDir), false],
+        ["both references, receiver's tests", grade(d, both, "receiver", runDir), true],
+      ]),
     ];
     const visible = codeShows(giverDone, d.codePattern);
     for (const [what, g, want] of checks) {
@@ -830,32 +1082,83 @@ function summarize(saved) {
   for (const d of saved.directions) {
     console.log(`${d.id} (${d.project}): ${d.giverAgent} → ${d.receiverAgent}`);
     const g = d.giver;
-    if (g) console.log(`  giver      ${g.solved ? "solved" : "NOT solved"}${g.invalid ? ` · INVALID ${g.invalid.join("; ")}` : ""} · record ${d.gate.record ? `${d.gate.agent}, fact ${d.gate.fact ? "present" : "MISSING"}` : "MISSING"} · ${fmt(g)}`);
+    if (g) console.log(`  giver      ${g.solved ? "solved" : "NOT solved"}${g.invalid ? ` · INVALID ${g.invalid.join("; ")}` : ""} · record ${d.gate.record ? `${d.gate.agent}, fact ${d.gate.fact ? "present" : "MISSING"}` : "MISSING"}${d.giverMemory ? ` · Claude Code's own memory: ${d.giverMemory.files.length} file(s)${d.giverMemory.files.length ? `, decision ${d.giverMemory.decision ? "in it" : "not in it"}` : ""}` : ""}${d.snapshot?.history ? " · git history kept" : ""}${g.reused ? ` · reused from ${g.reused.runId} (${g.reused.direction}), not run again` : ""} · ${fmt(g)}`);
     if (d.lessons) {
       const ls = d.lessons.afterReview ?? d.lessons.atGiver;
       console.log(`  lessons    proposed ${d.lessons.proposedInSession} in the giver's session${ls.length ? "" : " · none on record"}${d.awaitingReview ? " · WAITING FOR REVIEW" : ""}`);
       for (const l of ls) console.log(`             ${l.id} [${l.basis}; record ${l.check === "verified" ? "backs it" : "does NOT back it"}; ${l.approved ? "approved" : l.verdict ?? "not reviewed"}] "${l.text.slice(0, 110)}" · applies when: ${l.applies.slice(0, 80)}`);
     }
     if (d.snapshot) console.log(`  snapshot   the code shows the fact: ${d.snapshot.codeVisible.length ? d.snapshot.codeVisible.join(", ") : "no"}${d.snapshot.decisionInRepo ? ` · the decision is in the project: ${d.snapshot.decisionInRepo.length ? d.snapshot.decisionInRepo.join(", ") : "no (record only)"}` : ""}`);
-    for (const arm of ["on", "index", "notes", "off"].filter((a) => d.receivers?.[a])) {
+    for (const arm of ["on", "index", "leftoff", "notes", "off"].filter((a) => d.receivers?.[a])) {
       const s = d.receivers?.[arm];
       if (!s) continue;
       const m = s.memory;
       const lessonPart = arm !== "off" && d.lessons ? ` · lesson ${m.lessonShown ? "shown" : "not shown"}, ${m.lessonOpened ? "opened" : "not opened"}${s.skill ? ` · skill placed, ${s.skill.seen ? "in the session's record" : "not in the session's record (Claude Code's holds it only if the agent opened it)"}` : ""}` : "";
-      const mem = arm !== "off" ? `${s.hint ? ` · hint ${s.hint.logged ? "logged" : "NOT logged"}, ${s.hint.delivered ? "delivered" : "NOT seen in the agent's record"}` : ""}${s.index?.logged ? ` · index of ${s.index.entries}, ${s.index.delivered ? "delivered" : "NOT seen in the agent's record"}` : ""} · ${m.searches} search, ${m.fetches} fetch${s.probe ? " (dry-run probe, not the agent)" : ""} · injected ${s.injected?.ids?.length ?? 0} item(s) / ${s.injected?.tokens ?? 0} tokens · record ${m.found ? `found${m.current ? ", current" : ", NOT current"}${m.cited ? ", cited" : ", NOT cited"}` : "not found"}${lessonPart}` : "";
-      console.log(`  ${`receiver ${arm}`.padEnd(10)} ${s.solved ? "solved" : "NOT solved"}${mem} · ${fmt(s)}${s.invalid ? ` · INVALID ${s.invalid.join("; ")}` : ""}`);
+      const mem = arm !== "off" ? `${s.hint ? ` · hint ${s.hint.logged ? "logged" : "NOT logged"}, ${s.hint.delivered ? "delivered" : "NOT seen in the agent's record"}` : ""}${s.index?.logged ? ` · index of ${s.index.entries}, ${s.index.delivered ? "delivered" : "NOT seen in the agent's record"}` : ""}${s.leftOff?.shown ? ` · left-off note shown, ~${s.leftOff.tokens} tokens${s.leftOff.delivered ? ", delivered" : ""}` : ""} · ${m.searches} search, ${m.fetches} fetch${s.probe ? " (dry-run probe, not the agent)" : ""} · injected ${s.injected?.ids?.length ?? 0} item(s) / ${s.injected?.tokens ?? 0} tokens · record ${m.found ? `found${m.current ? ", current" : ", NOT current"}${m.cited ? ", cited" : ", NOT cited"}` : "not found"}${lessonPart}` : "";
+      const ask = s.taskPassed !== undefined ? `next step ${s.taskPassed ? "done" : "NOT done"}, decision ${s.decisionHonored ? "honored" : "NOT honored"}`
+        : s.inScope !== undefined ? `asked task ${s.askedDone ? "done" : "NOT done"}, ${s.inScope ? "left the later step alone" : "STARTED the later step"}` : null;
+      const cont = ask === null ? "" : ` · ${ask}${s.beforeFirstEdit ? ` · before its first edit: ${s.beforeFirstEdit.calls} calls, ${s.beforeFirstEdit.chars} chars, ${s.beforeFirstEdit.tokens} tokens${s.beforeFirstEdit.edited ? "" : " (no edit)"}` : ""}`;
+      console.log(`  ${`receiver ${arm}`.padEnd(10)} ${s.solved ? "solved" : "NOT solved"}${cont}${mem} · ${fmt(s)}${s.invalid ? ` · INVALID ${s.invalid.join("; ")}` : ""}`);
       if (s.outside?.review.length) console.log(`             outside its workspace, for review: ${s.outside.review.slice(0, 3).join(" | ")}`);
     }
     if (d.handoff) console.log(`  handoff    ${d.handoff.success ? "SUCCEEDED" : "did not succeed"}${d.handoff.recordOnly === false ? " (decision also in the project)" : ""} (searched ${d.handoff.searched}, found ${d.handoff.found}, current ${d.handoff.current}, cited ${d.handoff.cited}, solved ${d.handoff.solved}); off arm solved: ${d.handoff.offSolved}`);
     if (d.handoff?.lessonApproved !== undefined) console.log(`  lesson     ${d.handoff.lessonSuccess ? "HANDED OFF" : "not handed off"} (approved ${d.handoff.lessonApproved}, shown ${d.handoff.lessonShown}, opened ${d.handoff.lessonOpened}, solved ${d.handoff.solved})`);
     if (d.handoff?.notesSuccess !== undefined) console.log(`  notes      ${d.handoff.notesSuccess ? "DELIVERED AND SOLVED" : "not shown or not solved"} (approved lesson injected ${d.handoff.notesInjected}, solved ${d.handoff.notesSolved})`);
     if (d.indexHandoff) console.log(`  index      ${d.indexHandoff.success ? "SUCCEEDED" : "did not succeed"} (searched ${d.indexHandoff.searched}, found ${d.indexHandoff.found}, current ${d.indexHandoff.current}, cited ${d.indexHandoff.cited}, solved ${d.indexHandoff.solved}); on arm solved: ${d.indexHandoff.onSolved}`);
+    if (d.cost?.tokens.leftoffMinusOn !== undefined) console.log(`  cost       leftoff − on: ${d.cost.tokens.leftoffMinusOn} tokens, ${d.cost.toolCalls.leftoffMinusOn} tool calls, ${d.cost.minutes.leftoffMinusOn} min, $${d.cost.costUsd.leftoffMinusOn} (one pair: an anecdote, not a result)`);
     if (d.cost?.tokens.indexMinusOn !== undefined) console.log(`  cost       index − on: ${d.cost.tokens.indexMinusOn} tokens, ${d.cost.toolCalls.indexMinusOn} tool calls, ${d.cost.minutes.indexMinusOn} min, $${d.cost.costUsd.indexMinusOn} (one pair: an anecdote, not a result)`);
     if (d.cost) console.log(`  cost       on − off: ${d.cost.tokens.onMinusOff} tokens, ${d.cost.toolCalls.onMinusOff} tool calls, ${d.cost.minutes.onMinusOff} min, $${d.cost.costUsd.onMinusOff} (one pair: an anecdote, not a result)`);
     if (d.stopped) console.log(`  stopped    ${d.stopped}`);
     console.log("");
   }
   console.log(`Claude Code spend (API): ${saved.spend.claudeUsd.toFixed(3)}${saved.spend.cap ? ` of a ${saved.spend.cap} cap` : " (stand-ins: nominal)"} · Codex list-price equivalent (plan): $${saved.spend.codexUsd.toFixed(3)}`);
+  const c = continuityTable(saved.directions);
+  if (c) console.log(`\n${c}`);
+  const k = controlTable(saved.directions);
+  if (k) console.log(`\n${k}`);
+}
+
+const price = (s) => Math.max(s?.costUsd ?? 0, s?.cliCostUsd ?? 0);
+const median = (xs) => { const s = xs.filter((x) => x !== undefined).sort((a, b) => a - b); return s.length ? s[Math.floor((s.length - 1) / 2)] : "-"; };
+
+/**
+ * A continuity run, per arm: handoffs that did the next step and honored the decision, the reading before
+ * the first useful edit (medians), and the total cost per successful handoff, the shared givers included.
+ */
+export function continuityTable(directions) {
+  const run = directions.filter((d) => d.receivers?.on?.taskPassed !== undefined);
+  if (!run.length) return "";
+  const givers = run.reduce((a, d) => a + price(d.giver), 0);
+  const reused = run.some((d) => d.giver?.reused) ? ", from the continuity run" : "";
+  const lines = [`Continuity (${run.length} directions; givers $${givers.toFixed(3)}${reused}, shared by every arm):`, "  arm      success  task  decision  calls/chars/tokens before first edit (median)   receivers $   $ per successful handoff"];
+  for (const arm of ["on", "leftoff", "off"].filter((a) => run.some((d) => d.receivers[a]))) {
+    const ss = run.map((d) => d.receivers[arm]).filter(Boolean);
+    const ok = ss.filter((s) => s.solved && s.taskPassed && s.decisionHonored && !s.invalid?.length).length;
+    const spent = ss.reduce((a, s) => a + price(s), 0);
+    const b = ss.map((s) => s.beforeFirstEdit).filter(Boolean);
+    lines.push(`  ${arm.padEnd(8)} ${`${ok}/${ss.length}`.padEnd(8)} ${String(ss.filter((s) => s.taskPassed).length).padEnd(5)} ${String(ss.filter((s) => s.decisionHonored).length).padEnd(9)} ${`${median(b.map((x) => x.calls))} / ${median(b.map((x) => x.chars))} / ${median(b.map((x) => x.tokens))}`.padEnd(46)} ${`$${spent.toFixed(3)}`.padEnd(13)} ${ok ? `$${((givers + spent) / ok).toFixed(3)}` : "n/a (no success)"}`);
+  }
+  lines.push("  The arms differ in trimming as well as memory: a difference is the whole Snout setup's.");
+  return lines.join("\n");
+}
+
+/**
+ * The controls of a left-off run, per arm: the prompt names a file the last session left unfinished but
+ * asks for something else, the one case where the left-off note reaches unrelated work. Did the receiver
+ * do what was asked and leave the step for later alone, was the note shown, and what did it cost?
+ */
+export function controlTable(directions) {
+  const run = directions.filter((d) => d.receivers?.on?.inScope !== undefined);
+  if (!run.length) return "";
+  const lines = [`Same file, different task (${run.length} controls; the prompt names a file the last session left unfinished):`,
+    "  arm      asked task  later step left alone  note shown  tokens (median)  receivers $"];
+  for (const arm of ["on", "leftoff", "off"].filter((a) => run.some((d) => d.receivers[a]))) {
+    const ss = run.map((d) => d.receivers[arm]).filter(Boolean);
+    const valid = ss.filter((s) => !s.invalid?.length);
+    const n = (f) => `${valid.filter(f).length}/${ss.length}`;
+    lines.push(`  ${arm.padEnd(8)} ${n((s) => s.solved && s.askedDone).padEnd(11)} ${n((s) => s.inScope).padEnd(22)} ${n((s) => s.leftOff?.shown).padEnd(11)} ${String(median(ss.map((s) => s.tokens?.total))).padEnd(16)} $${ss.reduce((a, s) => a + price(s), 0).toFixed(3)}`);
+  }
+  return lines.join("\n");
 }
 const fmt = (s) => `${(s.tokens?.total ?? 0).toLocaleString("en-US")} tokens, ${s.toolCalls ?? 0} tool calls, ${s.minutes ?? 0} min, $${(s.costUsd ?? 0).toFixed(3)}${s.agent === "codex" ? " (plan)" : ""}`;
 
@@ -872,9 +1175,75 @@ function review(file) {
   if (!after.length) console.log(`\nWhen you're done: node bench/handoff-check.mjs --spec ${basename(SPEC_FILE)} --resume ${file}${FAKE ? "" : " --max-spend <cap>"}`);
 }
 
+/**
+ * `--recheck <results file>`: the outside-access rule applied again to each Claude Code session of a
+ * live run, from its transcript, after the rule changed. The session's other checks stand as recorded;
+ * what the recheck changed is kept on the session (`rechecked`) and the run (`rechecks`).
+ */
+function recheck(file) {
+  const saved = JSON.parse(readFileSync(file, "utf8"));
+  if (saved.fake) throw new Error("a dry run is run again, not rechecked");
+  if (saved.spec !== sha(SPEC_FILE)) throw new Error("--recheck takes result files of this same spec");
+  if (/^isolated/.test(saved.build?.claudeConfig ?? "") && !CLEAN_HOME) throw new Error("that run used an isolated Claude Code config: recheck with --api (or --plan) so its transcripts are found; nothing is sent");
+  const runDir = join(HOME, ".snout-bench", "handoff-runs", saved.runId);
+  const { frozenAt } = JSON.parse(readFileSync(FREEZE_FILE, "utf8"));
+  const RULE = "read outside its workspace: ";
+  const at = new Date().toISOString();
+  let sessions = 0, changed = 0;
+  for (const d of saved.directions) for (const s of [d.giver, ...Object.values(d.receivers ?? {})].filter((x) => x?.agent === "claude" && x.session)) {
+    let transcript;
+    try { transcript = readdirSync(claudeRoot(), { recursive: true }).map(String).some((p) => p.endsWith(`${s.session}.jsonl`)); } catch { /* none */ }
+    if (!transcript) throw new Error(`${d.id}: the ${s.role} session's transcript (${s.session}) is gone; it cannot be rechecked`);
+    const w = { ws: join(HOME, ".snout-bench", "handoff-ws", s.workspace) };
+    const texts = claudeToolUses(s.session).flatMap((x) => [x.input?.file_path, x.input?.path, x.input?.command, x.input?.notebook_path]);
+    const outside = outsideAccess(texts, w, runDir, [claudeMemoryDir(w.ws)]);
+    const invalid = [...(s.invalid ?? []).filter((b) => !b.startsWith(RULE)), ...(outside.forbidden.length ? [`${RULE}${outside.forbidden.slice(0, 3).join("; ")}`] : [])];
+    sessions++;
+    if (JSON.stringify(invalid) === JSON.stringify(s.invalid ?? [])) continue;
+    // A giver's validity gates its receivers: one that changes needs the direction run again.
+    if (s === d.giver) throw new Error(`${d.id}: the giver's validity changes under the current rule; run the direction again`);
+    s.rechecked = { at, frozenAt, rule: "outside access", invalidBefore: s.invalid ?? [], outsideBefore: s.outside };
+    s.outside = outside;
+    if (invalid.length) s.invalid = invalid; else delete s.invalid;
+    changed++;
+  }
+  saved.rechecks = [...(saved.rechecks ?? []), { at, frozenAt, rule: "outside access", sessions, changed }];
+  writeFileSync(file, JSON.stringify(saved, null, 2));
+  console.log(`rechecked ${sessions} Claude Code session(s), ${changed} changed → ${file}`);
+  const why = continuityGate(saved.directions);
+  if (saved.stage) console.log(why.length ? `the next stage would be refused: ${why.join("; ")}` : "the next stage's gate passes on this file");
+}
+
+/**
+ * `--remeasure <results file>`: what each Claude Code receiver of a live run read before its first
+ * useful edit, counted again from its transcript after the rule changed (a shell command that writes a
+ * project file is an edit). Earlier counts are kept on the session (`remeasured`) and the run (`rechecks`).
+ */
+function remeasure(file) {
+  const saved = JSON.parse(readFileSync(file, "utf8"));
+  if (saved.fake) throw new Error("a dry run is run again, not remeasured");
+  if (/^isolated/.test(saved.build?.claudeConfig ?? "") && !CLEAN_HOME) throw new Error("that run used an isolated Claude Code config: remeasure with --api (or --plan) so its transcripts are found; nothing is sent");
+  const at = new Date().toISOString();
+  let sessions = 0, changed = 0;
+  for (const d of saved.directions) for (const s of Object.values(d.receivers ?? {}).filter((x) => x?.agent === "claude" && x.session)) {
+    const now = beforeFirstEdit(s.session, join(HOME, ".snout-bench", "handoff-ws", s.workspace));
+    if (!now) throw new Error(`${d.id}: the ${s.role} session's transcript (${s.session}) is gone; it cannot be remeasured`);
+    sessions++;
+    if (JSON.stringify(now) === JSON.stringify(s.beforeFirstEdit)) continue;
+    s.remeasured = { at, rule: "first edit", before: s.beforeFirstEdit };
+    s.beforeFirstEdit = now;
+    changed++;
+  }
+  saved.rechecks = [...(saved.rechecks ?? []), { at, rule: "first edit", sessions, changed }];
+  writeFileSync(file, JSON.stringify(saved, null, 2));
+  console.log(`remeasured ${sessions} Claude Code receiver(s), ${changed} changed → ${file}`);
+}
+
 async function main() {
   if (typeof args.summarize === "string") return summarize(JSON.parse(readFileSync(args.summarize, "utf8")));
   if (typeof args.review === "string") return review(args.review);
+  if (typeof args.recheck === "string") return recheck(args.recheck);
+  if (typeof args.remeasure === "string") return remeasure(args.remeasure);
   if (args["grade-check"]) return gradeCheck();
   if (args["codex-hook-check"]) return codexHookCheck();
   if (args.freeze) {
@@ -902,18 +1271,38 @@ async function main() {
   const outFile = resumed ? args.resume : FAKE ? join(REPO, "bench/ab-results", `${runId}.json`) : dated(n);
   mkdirSync(join(outFile, ".."), { recursive: true });
   const spent = { claude: resumed?.spend.claudeUsd ?? 0, codex: resumed?.spend.codexUsd ?? 0 };
-  // The cap: no Claude Code session starts unless its whole budget still fits under --max-spend.
+  // A staged spec: earlier stages' spend counts toward the approved total, and a later stage starts only past its gate.
+  const prior = AFTER.map((f) => JSON.parse(readFileSync(resolve(REPO, f), "utf8")));
+  if (prior.some((p) => p.spec !== sha(SPEC_FILE))) throw new Error("--after takes result files of this same spec");
+  // A live stage goes on only from live earlier stages: a dry run's stand-ins prove nothing about the gate.
+  if (!FAKE && prior.some((p) => p.fake)) throw new Error("a live stage needs the earlier stages' live results, not a dry run's");
+  const priorSpend = prior.reduce((a, p) => a + (p.spend?.claudeUsd ?? 0), 0);
+  if (SPEC.stages && !STAGE) throw new Error(`a staged spec runs one stage at a time: --stage ${Object.keys(SPEC.stages).join("|")}`);
+  if (STAGE && !SPEC.stages?.[STAGE]) throw new Error(`the spec has no stage ${STAGE}`);
+  if (STAGE && STAGE !== Object.keys(SPEC.stages)[0]) {
+    if (!prior.length) throw new Error(`stage ${STAGE} needs the earlier stages' results (--after), so their spend counts and their gate is checked`);
+    const why = continuityGate(prior.flatMap((p) => p.directions));
+    if (why.length && !FAKE) throw new Error(`stage ${STAGE} may not start: ${why.join("; ")}`);
+    if (why.length) console.error(`dry run: stage ${STAGE} would be refused live: ${why.join("; ")}`);
+  }
+  // The cap on all spend so far, earlier stages included: --max-spend for this run, the stage's ceiling, the approved total.
+  const CAP = Math.min(...[MAX_SPEND && priorSpend + MAX_SPEND, STAGE && SPEC.stages[STAGE].ceilingUsd && priorSpend + SPEC.stages[STAGE].ceilingUsd, SPEC.approvedTotalUsd].filter((x) => x > 0), Infinity);
+  const cost = (s) => Math.max(s.costUsd ?? 0, s.cliCostUsd ?? 0);
   const spend = {
-    add: (s) => { spent[s.agent] += s.costUsd ?? 0; if (s.refused) spent.refused = s.error; },
+    add: (s) => { spent[s.agent] += s.agent === "claude" ? cost(s) : s.costUsd ?? 0; if (s.refused) spent.refused = s.error; },
     // An API that refuses a session (no credit, a bad key, a rate limit) stops the whole run: no session starts after it.
-    allow: () => !spent.refused && (FAKE || spent.claude + Number(BUDGET) <= MAX_SPEND),
-    why: () => (spent.refused ? `the API refused a Claude Code session (${spent.refused})` : `--max-spend $${MAX_SPEND}: $${spent.claude.toFixed(2)} spent, a session may take $${BUDGET}`),
+    // `n` Claude Code sessions start only if each could reach its budget plus the overshoot and the cap still holds.
+    allow: (n = 1) => !spent.refused && (FAKE || priorSpend + spent.claude + n * WORST_SESSION <= CAP + 1e-9),
+    why: (n = 1) => (spent.refused ? `the API refused a Claude Code session (${spent.refused})` : `cap $${CAP.toFixed(2)}: $${(priorSpend + spent.claude).toFixed(2)} spent, ${n} session(s) may take up to $${WORST_SESSION.toFixed(2)} each`),
   };
-  const only = typeof args.direction === "string" ? args.direction.split(",") : SPEC.directions.map((d) => d.id);
+  const staged = STAGE ? SPEC.stages[STAGE].directions : null;
+  const only = typeof args.direction === "string" ? args.direction.split(",") : staged ?? SPEC.directions.map((d) => d.id);
+  if (staged && typeof args.direction === "string" && only.some((id) => !staged.includes(id))) throw new Error(`--direction names a direction outside stage ${STAGE}`);
   const saved = resumed ?? { runId, fake: FAKE, experimentalNotes: NOTES_ARM, measuredAt: new Date().toISOString(), frozenAt, stamp: stamp(), build, versions, spec: sha(SPEC_FILE), directions: [], spend: {} };
   if (resumed && resumed.spec !== sha(SPEC_FILE)) throw new Error("the spec changed since that run started");
-  const save = () => { saved.spend = { claudeUsd: spent.claude, codexUsd: spent.codex, cap: MAX_SPEND || null }; writeFileSync(outFile, JSON.stringify(saved, null, 2)); };
-  console.error(`${only.length} direction(s), ${3 + (INDEX_ARM ? 1 : 0) + (NOTES_ARM ? 1 : 0)} sessions each → ${outFile}`);
+  if (STAGE) Object.assign(saved, { stage: STAGE, after: AFTER, priorSpendUsd: priorSpend });
+  const save = () => { saved.spend = { claudeUsd: spent.claude, codexUsd: spent.codex, cap: Number.isFinite(CAP) ? CAP : null, budgetUsd: BUDGET, overshootUsd: OVERSHOOT }; writeFileSync(outFile, JSON.stringify(saved, null, 2)); };
+  console.error(`${only.length} direction(s), ${(GIVERS.length ? 0 : 1) + receiverArms().length} sessions each${GIVERS.length ? " (givers reused)" : ""} → ${outFile}`);
   for (const d of SPEC.directions.filter((x) => only.includes(x.id))) {
     const i = saved.directions.findIndex((x) => x.id === d.id);
     const done = saved.directions[i];

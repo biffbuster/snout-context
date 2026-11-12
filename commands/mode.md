@@ -1,5 +1,5 @@
 ---
-description: Show or change the Snout mode (observe records only; enforce trims low-value reads)
+description: Show or change the Snout mode (observe trims nothing; enforce trims low-value reads; memory works in both)
 argument-hint: "[observe|enforce]"
 ---
 

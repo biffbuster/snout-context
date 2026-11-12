@@ -52,9 +52,9 @@ import { shippedClaudeHooks } from "./shipped-hooks.mjs";
 import { transcriptFacts } from "./swelong.mjs";
 import { stamp } from "./stamp.mjs";
 import { codexToolchainEnv, removeSandboxed } from "./codex-toolchain.mjs";
-import { networkCommands, modeProblems, armProblems, scoreStep, costMismatch, spentUsd, hookCoverage, codexHookCoverage, pilotVerdict, armOrder, memoryUse, groupFits, recordName } from "./study-checks.mjs";
+import { networkCommands, modeProblems, armProblems, scoreStep, costMismatch, spentUsd, hookCoverage, codexHookCoverage, pilotVerdict, armOrder, memoryUse, groupFits, recordName, stageGate } from "./study-checks.mjs";
 
-const { gateEntries, squeezeEntries, MEMORY_SKILL, MEMORY_SKILL_NAME } = await import(pathToFileURL(join(REPO, "dist/lib.mjs")).href);
+const { gateEntries, squeezeEntries, fileHistoryEntries, MEMORY_SKILL, MEMORY_SKILL_NAME } = await import(pathToFileURL(join(REPO, "dist/lib.mjs")).href);
 
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, a, i, all) => (a.startsWith("--") ? [...acc, [a.slice(2), all[i + 1] && !all[i + 1].startsWith("--") ? all[i + 1] : true]] : acc), []),
@@ -77,8 +77,25 @@ if (REPLAY && ((typeof args.arms === "string" && args.arms !== REPLAY.armOrder.j
 const DESIGN = PILOT ?? REPLAY;
 const ARMS = DESIGN ? DESIGN.armOrder : (typeof args.arms === "string" ? args.arms : "plain,trim,memory").split(",");
 const REPEATS = DESIGN ? DESIGN.repeats : Number(args.repeats ?? 2);
-const BUDGET = String(args.budget ?? "2.00");
+// A design sets the per-session budget (Claude Code's --max-budget-usd), the same for every arm, so the
+// sessions of a matched pair are comparable; a run can't change it.
+if (DESIGN?.budgetUsdPerSession && args.budget !== undefined && String(args.budget) !== DESIGN.budgetUsdPerSession) throw new Error("the design sets the per-session budget");
+const BUDGET = String(DESIGN?.budgetUsdPerSession ?? args.budget ?? "2.00");
+/**
+ * What one session may cost at most: its budget plus one call past it, since Claude Code checks the
+ * budget between calls. A group starts only if every session in it could cost this much and the
+ * approved total would still hold (groupFits); the costliest session so far is no bound on the next.
+ */
+const OVERSHOOT = Number(DESIGN?.overshootUsdPerSession ?? 0.25);
+const WORST_SESSION = Number(BUDGET) + OVERSHOOT;
+// --stage N: a staged design's tasks for that stage only. --after: the earlier stages' result files,
+// whose spend counts toward the design's approved total.
+const STAGE = typeof args.stage === "string" ? args.stage : null;
+const AFTER = typeof args.after === "string" ? args.after.split(",") : [];
 const MAX_SPEND = args["max-spend"] ? Number(args["max-spend"]) : 0;
+/** Earlier stages' spend (from --after) and the cap this run's spend must stay under, earlier stages included; set in main. */
+let PRIOR_SPEND = 0;
+let CAP = 0;
 const MAX_SESSIONS = args["max-sessions"] ? Number(args["max-sessions"]) : 0;
 const LIMIT_MS = 30 * 60_000;
 const HOME = homedir();
@@ -107,7 +124,10 @@ const EFFORT = typeof args.effort === "string" ? args.effort : "low";
 /** The tasks a run uses: validated, not used in an earlier run of ours, and in a check file only its check set. */
 // In the pilot, its tasks only; --only narrows them for a dry run, never for a run with a real agent.
 const studyTasks = () => {
-  const pilot = DESIGN ? DESIGN.tasks[relative(REPO, TASKS_FILE).replace(/\\/g, "/")] : null;
+  if (DESIGN?.stages && !STAGE) throw new Error(`a staged design runs one stage at a time: --stage ${Object.keys(DESIGN.stages).join("|")}`);
+  if (STAGE && !DESIGN?.stages?.[STAGE]) throw new Error(`the design has no stage ${STAGE}`);
+  const listed = STAGE ? DESIGN.stages[STAGE].tasks : DESIGN?.tasks;
+  const pilot = DESIGN ? listed?.[relative(REPO, TASKS_FILE).replace(/\\/g, "/")] : null;
   if (DESIGN && !pilot) throw new Error(`${TASKS_FILE} is not in the ${REPLAY ? "replay design" : "pilot"}`);
   if (DESIGN && !FAKE && args.only) throw new Error("--only is for a dry run: a frozen design runs all its tasks");
   const tasks = spec.tasks
@@ -121,7 +141,7 @@ const studyTasks = () => {
 
 /** What a paid run must match (docs/benchmark-protocol.md, "Frozen inputs"): `--freeze` writes it, every paid run checks it. */
 const FREEZE_FILE = join(REPO, "bench", REPLAY ? (typeof args.design === "string" ? args.design.replace(/-design\.json$/, "-freeze.json") : "replay-freeze.json") : "memory-freeze.json");
-const FROZEN_SETTINGS = { claudeCode: "2.1.306", codex: "0.163.0", claudeModel: "claude-sonnet-5-5", codexModel: "gpt-6.1-sol", codexEffort: "low", budgetUsd: "2.00", limitMinutes: 30 };
+const FROZEN_SETTINGS = { claudeCode: "2.1.306", codex: "0.163.0", claudeModel: "claude-sonnet-5-5", codexModel: "gpt-6.1-sol", codexEffort: "low", budgetUsd: BUDGET, limitMinutes: 30 };
 // A design's own task files are frozen with it; the first study's files always are.
 const TASK_FILES = [...new Set(["bench/memory-tasks-hugo.json", "bench/memory-tasks-vite.json", "bench/memory-check-hugo.json", "bench/memory-check-vite.json", ...Object.keys(REPLAY?.tasks ?? {})])];
 function freezeFiles() {
@@ -283,7 +303,8 @@ function reset(t) {
 // Every model-backed or networked option is set off by name, so the arms differ only in what they test:
 // the prompt coach (its Jev mode sends the prompt), the preference judge (Jev), lessons, the repo map.
 // Cloud sync needs a login, and each chain's config folder is new and empty; the side-call watch below checks all of it.
-const OFF = { coach: "off", memoryJudge: "off", memoryLessons: false, repoMap: false, fastHooks: false };
+// memoryLeftOff: on by default since 2026-11-11; the arms name it, so a study written before keeps its arms.
+const OFF = { coach: "off", memoryJudge: "off", memoryLessons: false, memoryLeftOff: false, repoMap: false, fastHooks: false };
 // Automatic notes are opt-in (memoryNotes, off by default since 2026-10-27): the memory arm turns them on by
 // name, or it would run trimming only and still be labeled "memory".
 // The search arm keeps memory and turns automatic notes off: the agent gets Snout's memory search as an
@@ -291,7 +312,7 @@ const OFF = { coach: "off", memoryJudge: "off", memoryLessons: false, repoMap: f
 // hint (memoryHint): one line saying earlier sessions are on record and how to search them.
 const armConfig = (arm) => (arm === "plain"
   ? { mode: "observe", memory: false, memoryNotes: false, memoryHint: false, ...OFF }
-  : { mode: "enforce", memory: arm === "memory" || arm === "search", memoryNotes: arm === "memory", memoryHint: arm === "search", ...OFF });
+  : { mode: "enforce", memory: arm === "memory" || arm === "search", memoryNotes: arm === "memory", memoryHint: arm === "search", memoryFileHistory: arm === "history", ...OFF });
 
 /** The search arm's MCP server: Snout's memory search and fetch, nothing else, on the chain's own store. */
 const SEARCH_TOOLS = ["snout_memory_search", "snout_memory_fetch"];
@@ -344,7 +365,7 @@ function setArm(t, arm, snoutEnv) {
     else {
       const hooks = shippedClaudeHooks(REPO, SNOUT_BIN);
       hooks.PreToolUse = gateEntries(SNOUT_BIN);
-      hooks.PostToolUse = [...(hooks.PostToolUse ?? []), ...squeezeEntries(SNOUT_BIN)];
+      hooks.PostToolUse = [...(hooks.PostToolUse ?? []), ...squeezeEntries(SNOUT_BIN), ...(arm === "history" ? fileHistoryEntries(SNOUT_BIN) : [])];
       mkdirSync(join(ws, ".claude"), { recursive: true });
       writeFileSync(join(ws, ".claude/settings.json"), JSON.stringify({ hooks }, null, 2));
     }
@@ -424,11 +445,18 @@ function claudeTranscript(session) {
 function claudeToolUses(session) {
   const file = claudeTranscript(session);
   if (!file) return [];
-  const out = new Map();
+  const out = new Map(), failed = new Set();
   for (const l of readFileSync(file, "utf8").split("\n")) {
-    try { const o = JSON.parse(l); for (const b of o.message?.content ?? []) if (b.type === "tool_use") out.set(b.id, { id: b.id, name: b.name, input: b.input }); } catch { /* not a row */ }
+    try {
+      const o = JSON.parse(l);
+      for (const b of o.message?.content ?? []) {
+        if (b.type === "tool_use") out.set(b.id, { id: b.id, name: b.name, input: b.input });
+        // A call that failed gets no PostToolUse hook from Claude Code (hookCoverage leaves it out).
+        if (b.type === "tool_result" && b.is_error) failed.add(b.tool_use_id);
+      }
+    } catch { /* not a row */ }
   }
-  return [...out.values()];
+  return [...out.values()].map((u) => (failed.has(u.id) ? { ...u, error: true } : u));
 }
 
 /** Claude Code: every Bash command the session ran. */
@@ -592,6 +620,21 @@ async function runStep(chain, t, onStep) {
   step.notes = rows.filter((x) => x.kind === "inject" && x.injected).map((x) => ({ turn: x.turn, items: x.items, tokens: x.tokensEst, leftOff: x.leftOff }));
   // The session-start hint, as Snout logged it (its text names no record; the handoff check saw it reach both agents).
   step.hint = rows.some((x) => x.kind === "hint") || undefined;
+  // File history notes (the history arm): what Snout logged, and whether the notes are in the session's context.
+  const fh = rows.filter((x) => x.kind === "file-history");
+  if (fh.length || arm === "history") {
+    const text = AGENT === "claude" && step.session ? (() => { const f = claudeTranscript(step.session); return f ? readFileSync(f, "utf8") : ""; })() : "";
+    const shas = fh.flatMap((x) => x.files.flatMap((f) => f.commits));
+    const subjects = fh.flatMap((x) => x.files.flatMap((f) => f.subjects ?? []));
+    // What the agent itself wrote (its text blocks), to see whether it named a listed commit.
+    const said = text.split(/\r?\n/).flatMap((l) => { try { const o = JSON.parse(l); return o.type === "assistant" ? (o.message?.content ?? []).filter((b) => b.type === "text").map((b) => b.text) : []; } catch { return []; } }).join(" ").toLowerCase();
+    step.fileHistory = { notes: fh.reduce((n, x) => n + x.files.length, 0), tokens: fh.reduce((n, x) => n + (x.tokensEst ?? 0), 0), files: fh.flatMap((x) => x.files.map((f) => f.file)),
+      delivered: fh.length > 0 && text.includes("Snout: recent commits to"), commits: shas,
+      // Named in its own words: a listed sha, or the first 40 characters of a listed subject.
+      mentioned: [...shas.filter((sha) => said.includes(sha.slice(0, 7).toLowerCase())), ...subjects.filter((s) => said.includes(s.slice(0, 40).toLowerCase()))],
+      // Whether the agent looked at a commit a note listed (git show or log naming its sha).
+      inspected: shas.filter((sha) => (step.commands ?? []).some((c) => /\bgit\b/.test(c) && c.includes(sha))) };
+  }
   // The search arm's memory skill: listed in the session's context (Claude Code's transcript holds the listing), and opened or not.
   if (arm === "search" && AGENT === "claude" && step.session) {
     const file = claudeTranscript(step.session);
@@ -616,6 +659,9 @@ async function runStep(chain, t, onStep) {
   // Memory search reaches only `search`: no other arm has the server.
   if (arm !== "search" && step.memoryCalls?.length) row.invalid = `memory search reached the ${arm} arm (${t.id})`;
   if (arm !== "search" && step.hint) row.invalid = `the session-start hint reached the ${arm} arm (${t.id})`;
+  if (arm !== "history" && step.fileHistory?.notes) row.invalid = `file history notes reached the ${arm} arm (${t.id})`;
+  // A note Snout logged that is not in the session's context was not delivered: the arm would measure trimming only.
+  if (!FAKE && arm === "history" && step.fileHistory?.notes && !step.fileHistory.delivered) { row.invalid = `a file history note was logged but is not in the session's context (${t.id})`; return; }
   // Without the skill in its context the search arm isn't memory as it ships (a stand-in writes no skill listing).
   if (!FAKE && step.skill && !step.skill.seen) { row.invalid = `the memory skill was not in the session's context (${t.id})`; return; }
   if (arm !== "search" && step.memory) row.invalid = `Snout's memory tools answered in the ${arm} arm (${t.id})`;
@@ -639,21 +685,23 @@ async function runStep(chain, t, onStep) {
 async function runRepeat(tasks, rep, rows, save) {
   const chains = ARMS.map((arm) => openChain(arm, rep));
   rows.push(...chains.map((c) => c.row));
-  const spent = () => rows.reduce((a, r) => a + r.steps.reduce((x, s) => x + s.costUsd, 0), 0);
+  // Spend so far: each session at the higher of its two prices (transcript and Claude Code's own), plus earlier stages'.
+  const spent = () => PRIOR_SPEND + rows.reduce((a, r) => a + r.steps.reduce((x, s) => x + Math.max(s.costUsd ?? 0, s.cliCostUsd ?? 0), 0), 0);
   const sessions = () => rows.reduce((a, r) => a + r.steps.length, 0);
   let stop = null;
   try {
     for (const [i, t] of tasks.entries()) {
-      // A task's group starts only if all its arms fit the cap at the costliest session so far (bench/memory-pilot.json "spend").
-      const costliest = Math.max(0, ...rows.flatMap((r) => r.steps.map((s) => s.costUsd ?? 0)));
-      if (DESIGN && MAX_SPEND && !groupFits(spent(), costliest, ARMS.length, MAX_SPEND)) {
-        stop = `the next group (${t.id}) would pass --max-spend $${MAX_SPEND} at $${costliest.toFixed(3)} a session`;
+      // A task's group (one session per arm, all at the same budget) starts only if every session in it could reach
+      // its budget plus one call past it and the cap would still hold. No session's budget is cut to make a group fit.
+      if (DESIGN && CAP && !groupFits(spent(), ARMS.length, WORST_SESSION, CAP)) {
+        stop = `the next group (${t.id}) could pass the $${CAP.toFixed(2)} cap: $${spent().toFixed(3)} spent, ${ARMS.length} sessions at up to $${WORST_SESSION.toFixed(2)} each`;
         for (const c of chains) c.row.capped = stop;
         break;
       }
       for (const arm of armOrder(ARMS, rep, i)) {
         const chain = chains.find((c) => c.arm === arm);
-        if (MAX_SPEND && spent() >= MAX_SPEND) { chain.row.capped = stop = `--max-spend $${MAX_SPEND} reached`; break; }
+        // And again before each session: one that cost more than its share leaves the group unfinished rather than over the cap.
+        if (CAP && spent() + WORST_SESSION > CAP + 1e-9) { chain.row.capped = stop = `the next session could pass the $${CAP.toFixed(2)} cap ($${spent().toFixed(3)} spent)`; break; }
         if (MAX_SESSIONS && sessions() >= MAX_SESSIONS) { chain.row.capped = stop = `--max-sessions ${MAX_SESSIONS} reached`; break; }
         await runStep(chain, t, save);
         save();
@@ -755,6 +803,11 @@ function summarize(saved) {
     const skill = r.steps.some((s) => s.skill) ? `; skill listed in ${r.steps.filter((s) => s.skill?.seen).length}, opened in ${r.steps.filter((s) => s.skill?.opened).length}` : "";
     console.log(`\n  search, rep ${r.rep}: hint in ${r.steps.filter((s) => s.hint).length} of ${r.steps.length} sessions${skill}; searched in ${searched.length} (${searched.map((s) => `${s.task}: ${s.memoryCalls.join(", ")}`).join("; ") || "none"})`);
   }
+  for (const r of rows.filter((x) => x.arm === "history")) {
+    const fh = r.steps.map((s) => s.fileHistory).filter(Boolean);
+    console.log(`
+  history, rep ${r.rep}: notes in ${fh.filter((f) => f.notes).length} of ${r.steps.length} sessions (${fh.reduce((n, f) => n + f.notes, 0)} files, ${fh.reduce((n, f) => n + f.tokens, 0)} tokens); delivered in ${fh.filter((f) => f.delivered).length}; a listed commit inspected in ${fh.filter((f) => f.inspected.length).length}, named in ${fh.filter((f) => f.mentioned?.length).length}`);
+  }
   // Below this many tasks a bootstrap over tasks has too few to draw from; no interval is shown.
   const MIN_TASKS_FOR_INTERVAL = 10;
   for (const [base, arm] of [["plain", "trim"], ["plain", "memory"], ["trim", "memory"], ["plain", "search"], ["trim", "search"]]) {
@@ -853,6 +906,20 @@ async function main() {
   if (!FAKE && AGENT === "claude" && !MAX_SPEND) throw new Error("--max-spend is required for a paid Claude Code run");
   const cap = DESIGN?.maxSpendUsdPerTasksFile?.[AGENT];
   if (!FAKE && cap && MAX_SPEND > cap) throw new Error(`the ${REPLAY ? "replay design" : "pilot"} caps a Claude Code run at ${cap} per tasks file`);
+  // A staged design: earlier stages' results count toward the approved total, and a later stage starts only past the gate.
+  const prior = AFTER.map((f) => JSON.parse(readFileSync(resolve(REPO, f), "utf8")));
+  if (prior.some((p) => !REPLAY || p.replay !== createHash("sha256").update(readFileSync(REPLAY_FILE)).digest("hex"))) throw new Error("--after takes result files of this same design");
+  PRIOR_SPEND = prior.reduce((a, p) => a + p.rows.reduce((x, r) => x + r.steps.reduce((y, s) => y + Math.max(s.costUsd ?? 0, s.cliCostUsd ?? 0), 0), 0), 0);
+  if (STAGE && STAGE !== Object.keys(DESIGN.stages)[0]) {
+    if (!prior.length) throw new Error(`stage ${STAGE} needs the earlier stages' results (--after), so their spend counts and their gate is checked`);
+    const why = stageGate(prior.flatMap((p) => p.rows));
+    if (why.length && !FAKE) throw new Error(`stage ${STAGE} may not start: ${why.join("; ")}`);
+    if (why.length) console.error(`dry run: stage ${STAGE} would be refused live: ${why.join("; ")}`);
+  }
+  // This run's own spend stays under --max-spend and the stage's ceiling; with earlier stages, the whole under the approved total.
+  const limits = [MAX_SPEND && PRIOR_SPEND + MAX_SPEND, STAGE && DESIGN.stages[STAGE].ceilingUsd && PRIOR_SPEND + DESIGN.stages[STAGE].ceilingUsd, DESIGN?.approvedTotalUsd].filter((x) => x > 0);
+  CAP = limits.length ? Math.min(...limits) : 0;
+  if (!FAKE && CAP && PRIOR_SPEND + Number(ARMS.length) * WORST_SESSION > CAP + 1e-9) throw new Error(`not even one group fits: $${PRIOR_SPEND.toFixed(3)} spent, cap $${CAP.toFixed(2)}, a group may cost $${(ARMS.length * WORST_SESSION).toFixed(2)}`);
   const frozen = frozenBuild();
   const runId = `${REPLAY ? "replay" : "memory-study"}-${AGENT}-${NAME}-${Date.now()}`;
   const outFile = join(REPO, "bench/ab-results", `${runId}.json`);
@@ -862,7 +929,7 @@ async function main() {
   const rows = [];
   const versions = { claude: FAKE ? "stand-in" : AGENT === "claude" ? frozen.claudeCode : undefined, codex: AGENT === "codex" ? (FAKE ? "stand-in" : sh("codex", ["--version"], { shell: process.platform === "win32" }).stdout.trim()) : undefined, node: process.version, ...(AGENT === "codex" ? { codexEffort: EFFORT, codexUserConfig: FAKE ? undefined : codexUserConfig() } : {}) };
   if (!FAKE) checkFreeze(AGENT === "codex" ? versions.codex : versions.claude);
-  const save = () => writeFileSync(outFile, JSON.stringify({ runId, agent: AGENT, model: MODEL, repo: spec.repo, tasksFile: TASKS_FILE.replace(REPO, "").replace(/^[\\/]/, ""), tasks: tasks.map((t) => t.id), arms: ARMS, repeats: REPEATS, ...(PILOT ? { pilot: createHash("sha256").update(readFileSync(PILOT_FILE)).digest("hex") } : {}), ...(REPLAY ? { replay: createHash("sha256").update(readFileSync(REPLAY_FILE)).digest("hex") } : {}), interleaved: true, budget: BUDGET, limitMinutes: LIMIT_MS / 60000, measuredAt: new Date().toISOString(), ...stamp(), frozen, versions, rows, inFlight }, null, 2));
+  const save = () => writeFileSync(outFile, JSON.stringify({ runId, agent: AGENT, model: MODEL, repo: spec.repo, tasksFile: TASKS_FILE.replace(REPO, "").replace(/^[\\/]/, ""), tasks: tasks.map((t) => t.id), arms: ARMS, repeats: REPEATS, ...(PILOT ? { pilot: createHash("sha256").update(readFileSync(PILOT_FILE)).digest("hex") } : {}), ...(REPLAY ? { replay: createHash("sha256").update(readFileSync(REPLAY_FILE)).digest("hex") } : {}), interleaved: true, budget: BUDGET, overshoot: OVERSHOOT, ...(STAGE ? { stage: STAGE, after: AFTER, priorSpendUsd: PRIOR_SPEND } : {}), cap: CAP, limitMinutes: LIMIT_MS / 60000, measuredAt: new Date().toISOString(), ...stamp(), frozen, versions, rows, inFlight }, null, 2));
   console.error(`${ARMS.length} arms × ${REPEATS} repeat(s) × ${tasks.length} tasks = ${ARMS.length * REPEATS * tasks.length} sessions, ${AGENT} ${MODEL} → ${outFile}`);
   for (let rep = 0; rep < REPEATS; rep++) {
     const stop = await runRepeat(tasks, rep, rows, save);

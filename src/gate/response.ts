@@ -23,6 +23,16 @@ export function responseText(response: unknown, depth = 0): string {
   return JSON.stringify(o);
 }
 
+/**
+ * Whether Claude Code put only a preview of a command's output into context. Past its own limit it
+ * saves the output to a file and shows the agent the first 2 KB and the file's path, while the hook
+ * still gets `stdout` (up to 30,000 characters): what the hook sees is not what the agent has.
+ */
+export function outputSavedAside(response: unknown): boolean {
+  const o = response as Record<string, unknown> | null | undefined;
+  return !!o && typeof o === "object" && (typeof o.persistedOutputPath === "string" || typeof o.persistedOutputSize === "number");
+}
+
 /** Byte length of what the tool returned, or 0 when the payload carried nothing. */
 export function responseBytes(response: unknown): number {
   const text = responseText(response);

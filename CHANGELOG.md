@@ -4,6 +4,9 @@
 
 Not measured on agents. Nothing below is covered by [docs/claims.md](docs/claims.md).
 
+- Fixed: a command whose output Claude Code saved to a file (it shows the agent a 2 KB preview past
+  its own limit) no longer counts as reading the files it printed. Before, `cat` of a large file
+  inside such a command blocked the next read of that file as a repeat the agent already had.
 - History search ranks and answers in two separate steps. Every commit, PR and CI run visible at the
   search's date is ranked, by words weighted by rarity, by meaning when the optional local model is on,
   and by files the agent names. Then each of the first few needs evidence to be shown: a sha, PR,
@@ -27,6 +30,21 @@ Not measured on agents. Nothing below is covered by [docs/claims.md](docs/claims
   other sessions here, three at most and 150 tokens in all, each with a short id that
   `snout_memory_fetch` opens, its date, agent and what it did, and "unfinished here" only when the
   project's state says so. Same in Claude Code and Codex. Automatic notes on prompts stay off.
+- Where the last session left off, on by default (`memoryLeftOff`; `snout memory leftoff off` turns it
+  off): a new session's first prompt gets it, without the rest of the automatic notes, only when that
+  work is still unfinished here and the prompt asks to continue it or names its files. Measured with
+  Claude Code on 8 handoffs and 4 controls (docs/memory.md, "What has been measured").
+- Memory reaches the agent in observe mode too: the session-start line and the left-off note. The mode
+  decides trimming only. Automatic notes (`memoryNotes`) still show in enforce only.
+- The left-off note keeps the whole ask up to 1,000 characters. It was cut at 200, and in the
+  continuity check the user's decision sat 400 to 800 characters in, so 4 of 8 notes left it out. A
+  request that repeats the ask is no longer shown a second time, notes or docs the session changed are
+  named, and a note that had to cut something says where the rest is. It stays within the prompt's
+  memory budget. A `continue` inside quoted code no longer reads as asking to continue.
+- A session's record keeps a request that contains a long run of one character, such as
+  "30.000000000000004" or a "------" divider. Any run of six used to mark the whole message as
+  keys held down, so the record lost the task and any decision in it. Runs now count only when they
+  make up a third of the message or more.
 - A search that names a commit by seven all-digit characters finds that commit. One sha prefix in
   about 27 is all digits, and such a question used to answer nothing.
 

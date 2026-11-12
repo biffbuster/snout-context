@@ -27,7 +27,7 @@ Tier 0 runs today; tiers 1 and 2 are planned. First answer wins.
 
 A raw classification becomes a verdict through the mode:
 
-- `observe` (default) — record only, block nothing.
+- `observe` (default) — record only, block nothing. Memory (the session-start line, where the last session left off) still reaches the agent: the mode decides trimming, not memory.
 - `advise` — `ask` before a low-value read.
 - `enforce` — `deny` a low-value read at high confidence, `ask` otherwise.
 

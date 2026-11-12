@@ -42,7 +42,7 @@ export interface Config {
    */
   memoryNotes?: boolean;
   /**
-   * One line at session start, in enforce mode, when this project has records of other sessions:
+   * One line at session start, in either mode, when this project has records of other sessions:
    * how many, the latest's date and agent, and how to search them; nothing from the records
    * (cli.ts startBrief, memory/tools.ts memoryHint). On unless false.
    */
@@ -53,6 +53,18 @@ export interface Config {
    * "unfinished here" only when the project's state says so (memory/tools.ts recentIndex). Off unless true.
    */
   memoryRecent?: boolean;
+  /**
+   * On a new session's first prompt, in either mode, where the last session left off (memory/memory.ts
+   * leftOff), without the rest of the automatic notes. Only when that work is still unfinished here and
+   * the prompt asks to continue it or names its files. memoryNotes shows it too. On unless false, since
+   * 2026-11-11 (bench/handoff/spec-leftoff.json: 8 of 8 handoffs, 4 of 4 controls kept to the task).
+   */
+  memoryLeftOff?: boolean;
+  /**
+   * Opt-in experiment (2026-11-10): after the agent first reads a source file in a session, the few
+   * commits that last changed it, from this checkout's history (memory/file-history.ts). Off unless true.
+   */
+  memoryFileHistory?: boolean;
   /**
    * The session start's daily background import also reads PRs and failed CI runs with the user's
    * `gh` login (cli.ts startImport, memory/history.ts). Opt-in, default off: git and past sessions only.
@@ -231,6 +243,8 @@ export function loadConfig(paths: Paths): Config {
   if (process.env.SNOUT_MEMORY_NOTES === "1" || process.env.SNOUT_MEMORY_NOTES === "0") cfg.memoryNotes = process.env.SNOUT_MEMORY_NOTES === "1";
   if (process.env.SNOUT_MEMORY_HINT === "1" || process.env.SNOUT_MEMORY_HINT === "0") cfg.memoryHint = process.env.SNOUT_MEMORY_HINT === "1";
   if (process.env.SNOUT_MEMORY_RECENT === "1" || process.env.SNOUT_MEMORY_RECENT === "0") cfg.memoryRecent = process.env.SNOUT_MEMORY_RECENT === "1";
+  if (process.env.SNOUT_MEMORY_LEFTOFF === "1" || process.env.SNOUT_MEMORY_LEFTOFF === "0") cfg.memoryLeftOff = process.env.SNOUT_MEMORY_LEFTOFF === "1";
+  if (process.env.SNOUT_MEMORY_FILE_HISTORY === "1" || process.env.SNOUT_MEMORY_FILE_HISTORY === "0") cfg.memoryFileHistory = process.env.SNOUT_MEMORY_FILE_HISTORY === "1";
 
   return cfg;
 }
