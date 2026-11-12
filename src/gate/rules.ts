@@ -122,6 +122,21 @@ const VENDOR_DIRS = [
 ];
 
 /**
+ * Inside `.snout/`, only what Snout writes counts as generated: its JSON and JSONL files and the
+ * folders it fills (session records, saved command and MCP output, archived files). Notes kept
+ * there by hand (`.snout/notes/`, a progress file) were trimmed to 60 lines as vendored; they are
+ * read like any other file now.
+ */
+const SNOUT_OWN_DIRS = ["memory", "squeeze", "calls", "sessions", "archive"];
+
+function snoutWrote(rel: string): boolean {
+  const segments = rel.split("/");
+  const at = segments.indexOf(".snout");
+  const inside = segments.slice(at + 1);
+  return inside.length > 1 ? SNOUT_OWN_DIRS.includes(inside[0]!) : /\.jsonl?$/i.test(inside[0] ?? "");
+}
+
+/**
  * Third-party files dropped straight into a tree, with no vendor directory and no
  * generator banner to signal it — the directory check above and the banner check below
  * both miss these by construction. This is an exact-filename list, not a heuristic:
@@ -297,7 +312,7 @@ const RULES: readonly Rule[] = [
     run: (s) => {
       const top = s.rel.split("/")[0]!;
       const vendorDir = firstSegmentMatch(s.rel, VENDOR_DIRS) ?? (s.rel.includes("/") && ROOT_VENDOR_DIRS.includes(top) ? top : null) ?? s.ignoredOutputDir(s.rel);
-      return vendorDir
+      return vendorDir && !(vendorDir === ".snout" && !snoutWrote(s.rel))
         ? low("vendored", `${safePath(s.rel)} sits inside ${safeText(vendorDir, 40)}/, a directory of installed or generated output rather than source you maintain.`)
         : null;
     },

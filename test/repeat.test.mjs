@@ -116,6 +116,24 @@ test("a cat whose output Claude Code saved to a file reached the agent as a prev
   assert.ok(!isSkip(hook(root, "pre-tool", readCall(root, { offset: 5, limit: 5 }))), "and any window of it");
 });
 
+test("Codex gives the hook a command's output as a string, cut the way the model saw it: a cat there is not remembered as a read", () => {
+  const root = project();
+  const codex = (event, payload) => {
+    const r = spawnSync(process.execPath, [CLI, "hook", "codex", event], {
+      input: JSON.stringify({ session_id: "rtest", cwd: root, hook_event_name: event, model: "stand-in", permission_mode: "default", transcript_path: null, turn_id: "t1", ...payload }),
+      encoding: "utf8",
+      env: { ...process.env, ...ENFORCE },
+    });
+    assert.equal(r.status, 0, `hook exited ${r.status}: ${r.stderr}`);
+    return r.stdout.trim() ? JSON.parse(r.stdout) : null;
+  };
+  // Codex 0.163 (unified_exec.rs): tool_name "Bash", tool_response the model's truncated text, as a JSON string.
+  const cat = { tool_name: "Bash", tool_use_id: "c1", tool_input: { command: "cat src/big.ts" } };
+  codex("PreToolUse", cat);
+  codex("PostToolUse", { ...cat, tool_response: "export const v0 = 0;\n…12000 tokens truncated…\nexport const v399 = 399;" });
+  assert.equal(codex("PreToolUse", { ...cat, tool_use_id: "c2" })?.hookSpecificOutput?.permissionDecision, undefined, "the cat runs again");
+});
+
 test("an identical MCP or command result is replaced with a pointer to the earlier copy", () => {
   const root = project();
   const rows = Array.from({ length: 40 }, (_, i) => ({ id: i, title: `Issue ${i}`, body: "x".repeat(30) }));

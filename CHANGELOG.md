@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+Not measured on agents. Nothing below is covered by [docs/claims.md](docs/claims.md).
+
+- Fixed: files you keep in `.snout/` by hand, such as `.snout/notes/` or a progress file, are read
+  like any other file. Enforce used to trim them to 60 lines, because everything in `.snout/` counted
+  as generated. Snout's own files there (its JSON and JSONL records, session records, saved output
+  and archived files) are still kept out.
+- Snout suggests an instruction you gave as a note only when it holds past the task at hand: what an
+  agent should ask you before doing, how you want answers, or a scope you gave ("before every
+  commit"). It used to propose nearly every instruction, so steps of one task ("run this and report
+  back") piled up for review. On 285 instructions from one person's real sessions, labeled by hand:
+  258 steps of one task were proposed before, none now, with 11 of 12 lasting ones still suggested.
+  The rule was written with those 285 in view. Proposals made by the old rule that are steps of one
+  task are archived at the next session start.
+- `snout memory review` lists these suggestions after any lessons. `approve <id>` keeps one as a
+  note, and `reject <id>` turns it down so it isn't suggested again. `snout memory` counts them as
+  suggested from what you said; it used to call them written by an agent.
+- `snout memory list --all` says how many it didn't list past the first 40.
+
 ## 0.3.4 (2026-11-12)
 
 Only the left-off note was measured on agents, with Claude Code, before this release

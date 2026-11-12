@@ -39,8 +39,17 @@ and quotes your words. Snout checks the session's record for that evidence befor
 - You write others (`snout memory add "<note>"`), or accept one.
 - An agent's `snout_memory_save` is kept only when you asked it, in your own words, to remember
   something. Anything else it wants to keep goes through a lesson, with its evidence, for you to
-  review. A standing instruction seen in only one session waits as a proposal until a second session
-  repeats it.
+  review.
+- Something you told an agent that holds past the task at hand is suggested to you as a note: what
+  it should ask you before doing ("don't push without asking me"), how you want answers ("keep it
+  short and plain"), or a scope you gave ("before every commit", "from now on").
+  `snout memory review` lists these suggestions with any lessons. `snout memory approve <id>` keeps
+  one, and `snout memory reject <id>` turns it down so it isn't suggested again. A step of one task
+  ("run this and report back") stays in that session's record and is never suggested. An
+  instruction worded only with "always" or "never" isn't listed; a second session repeating it
+  keeps it. On 285 instructions from one person's real sessions, labeled by hand, the old rule put
+  258 steps of one task up for review; this one suggests 14, none of them steps. The rule was
+  written with those 285 in view, so this isn't a held-out result.
 - Nothing is saved that `CLAUDE.md` or `AGENTS.md` already says (agents load those files themselves),
   and nothing that nearly repeats a note or lesson on record. A lesson you rejected isn't proposed
   again in other words. A correction ("now", "instead of") replaces the note it corrects.
@@ -117,7 +126,7 @@ the other's records and lessons.
 - how many searches ran, and how many found nothing;
 - how many records were opened, and how many lessons were proposed;
 - how many lessons are approved, and how many wait for your review;
-- how many agent-written notes are waiting for you.
+- how many suggestions from what you said are waiting for your review.
 
 The dashboard's Analytics page shows the same counts. A session's workflow shows the session-start
 line, each search with what it found, and each record opened. Snout's MCP server logs each search

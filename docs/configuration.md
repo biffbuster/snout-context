@@ -125,10 +125,12 @@ test command, that agents find with `snout_memory_search`, in Claude Code and Co
 see, and `snout memory share <id>`, `archive`, `drop`, `supersede` and `accept` manage them. A note is
 private (your user config folder, only your sessions) unless you share it into `.snout/memory/obs/`.
 At the end of a session Snout also writes private notes by fixed rules: the test command that passed,
-missing tools (archived once the tool is on PATH), commands too slow for the tool limit, and standing
-instructions. An instruction tied to the task at hand ("don't push yet", "as part of this step") is
-never saved; any other is kept once a second session repeats it. A note an agent saves on its own
-(`snout_memory_save`) is a proposal, shown to no agent until you accept it. A failed Python import is
+missing tools (archived once the tool is on PATH), and commands too slow for the tool limit. An
+instruction you gave that holds past the task (what to ask you first, how you want answers, a scope
+such as "before every commit") is a suggestion until you approve it in `snout memory review`; a step
+of one task is never saved. One worded only with "always" or "never" is kept once a second session
+repeats it. An agent's `snout_memory_save` is kept only when you asked it to remember something; it
+saves nothing on its own. A failed Python import is
 not recorded as a missing tool unless the command runs that module. `memoryBudget` (default 600, at
 most 4000) caps the tokens of automatic notes per prompt when `memoryNotes` is on; observe mode
 records what it would add and adds nothing. See [privacy](privacy.md#notes-since-032).

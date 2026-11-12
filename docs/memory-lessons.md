@@ -28,7 +28,7 @@ A lesson is a short line you approve. A short skill tells each agent when to sea
 
    | Command | What it does |
    | --- | --- |
-   | `snout memory review` | Lists each proposal with every field and what the record showed. |
+   | `snout memory review` | Lists each proposal with every field and what the record showed, then any instructions of yours suggested as notes ([memory](memory.md)). |
    | `snout memory approve <id> [--replaces <id>]` | Approves a proposal. With `--replaces`, it takes the place of an older lesson, which is kept as replaced. |
    | `snout memory reject <id> ["why"]` | Rejects a proposal. |
    | `snout memory edit <id> ["new text"] [--when "..."]` | Rewords a proposal or its conditions. It stays a proposal. |

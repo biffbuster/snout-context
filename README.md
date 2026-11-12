@@ -41,7 +41,8 @@ history from before Snout was installed: six months of commits and earlier Claud
 sessions, plus PRs and failed CI runs once you run `snout import github on`. Each record keeps its
 date and a link to its source. An agent can propose a one-line lesson after a test passed, or from
 a decision or correction you gave. It is shown to no session until you approve it with
-`snout memory review` ([lessons](docs/memory-lessons.md)).
+`snout memory review` ([lessons](docs/memory-lessons.md)). Review also lists things you told an
+agent that hold past the task, such as "ask before any push", for you to keep as notes or turn down.
 
 In either mode, a new session starts with one line saying that earlier sessions are on record and
 how to search them. When you ask a new session to pick up where the last one left off, or name a file

@@ -225,6 +225,13 @@ var VENDOR_DIRS = [
   "DerivedData",
   ".snout"
 ];
+var SNOUT_OWN_DIRS = ["memory", "squeeze", "calls", "sessions", "archive"];
+function snoutWrote(rel) {
+  const segments = rel.split("/");
+  const at = segments.indexOf(".snout");
+  const inside2 = segments.slice(at + 1);
+  return inside2.length > 1 ? SNOUT_OWN_DIRS.includes(inside2[0]) : /\.jsonl?$/i.test(inside2[0] ?? "");
+}
 var KNOWN_VENDORED_FILES = /* @__PURE__ */ new Set(["class-pclzip.php", "class-phpass.php", "class-IXR.php"]);
 var OUTPUT_DIRS = ["dist", "build", "out", "target", "coverage"];
 var GENERATED_PATH_SEGMENTS = ["openapi-spec"];
@@ -328,7 +335,7 @@ var RULES = [
     run: (s) => {
       const top = s.rel.split("/")[0];
       const vendorDir = firstSegmentMatch(s.rel, VENDOR_DIRS) ?? (s.rel.includes("/") && ROOT_VENDOR_DIRS.includes(top) ? top : null) ?? s.ignoredOutputDir(s.rel);
-      return vendorDir ? low("vendored", `${safePath(s.rel)} sits inside ${safeText(vendorDir, 40)}/, a directory of installed or generated output rather than source you maintain.`) : null;
+      return vendorDir && !(vendorDir === ".snout" && !snoutWrote(s.rel)) ? low("vendored", `${safePath(s.rel)} sits inside ${safeText(vendorDir, 40)}/, a directory of installed or generated output rather than source you maintain.`) : null;
     }
   },
   // 5b. Known third-party files with no vendor directory to catch them. See
@@ -6910,8 +6917,26 @@ function replaceOlder(s, o, now = /* @__PURE__ */ new Date()) {
 }
 var STANDING = /\b(?:always|never|whenever|every ?time|each time|from now on|going forward|by default|(?:do not|don'?t) ever|in (?:this|the|our) (?:project|repo|repository|codebase))\b/i;
 var standing = (text) => STANDING.test(text);
+var PERMISSION = /\b(?:without (?:(?:my|your|the user'?s?|explicit|separate|a|an)\s+)*(?:approval|permission|go-?ahead|ok(?:ay)?|say-?so|consent)|without (?:first )?(?:asking|checking with)|ask(?:ing)? (?:me |the user )?(?:first|before)|(?:only|just) (?:when|after|once) (?:i|the user) (?:say|says|said|ask|asks|approve|approves|confirm|confirms)|(?:get|wait for) my (?:approval|ok|okay|go)|ask me for (?:the |my )?(?:final )?(?:approval|ok|go)|for (?:my|the) (?:final )?approval)\b/i;
+var REPLIES = /\b(?:straight to the point|non-?technical|jargon|plain (?:english|language|words)|keep (?:it|them|things|answers|responses|replies|explanations) (?:(?:super|very|really|nice and)\s+)?(?:simple|short|brief|concise|plain|tight)|(?:short|brief|concise|simple|plain|summari[sz]ed)\b[\w\s,]{0,30}\b(?:responses|replies|answers|explanations|summaries))\b/i;
+var SCOPE = /\b(?:from now on|going forward|(?:for|in) (?:all )?(?:the )?future|every ?time|each time|whenever|by default|(?:before|after) (?:every|each|any) \w+)\b/i;
+var lasting = (text) => PERMISSION.test(text) || REPLIES.test(text) || SCOPE.test(text);
+var suggestions = (s) => listObservations(s).filter((o) => o.status === "proposed" && !o.lesson && o.project === s.project && (o.source.via !== "distill" || lasting(o.text))).sort((a, b) => a.created < b.created ? 1 : -1);
+var suggestion = (s, id) => suggestions(s).find((o) => o.id === id || id.length >= 6 && o.id.startsWith(id)) ?? null;
+function keepSuggestion(s, id, now = /* @__PURE__ */ new Date()) {
+  const o = suggestion(s, id);
+  return o ? acceptObservation(s, o.id, now, ["accepted"]) : null;
+}
+function rejectSuggestion(s, id, now = /* @__PURE__ */ new Date()) {
+  const o = suggestion(s, id);
+  if (!o) return null;
+  const next = { ...o, status: "archived", tags: [.../* @__PURE__ */ new Set([...o.tags, "rejected"])].slice(0, 8), updated: now.toISOString() };
+  write2(s, next);
+  return next;
+}
 var ONE_OFF = /\b(?:yet|for now|right now|as part of|if needed|next|today|tomorrow|tonight|this (?:step|task|time|session|run|turn|pr|branch|checkout|commit|change|issue|folder|file|one))\b|^then\b/i;
 var oneOff = (text) => ONE_OFF.test(text);
+var keepable = (text) => !oneOff(text) && (lasting(text) || standing(text));
 var RUNNER = /^(?:py\.?test|jest|vitest|mocha|rspec|phpunit|tox|unittest|test(?::[\w:-]+)?|--test|runtests\.py|(?:run[-_])?tests?(?:[-_]\w+)?\.(?:m?[jt]s|sh|py))$/;
 var SELECT = /^(?:-run|-k|-t|-g|--grep|--testNamePattern|--test-name-pattern|--testPathPattern|--filter|--deselect|-bench)$/;
 var VALUE = /^(?:-tags|-p|-parallel|-timeout|-count|-n|-m|-c|-e|-r|-j|--config|--require|--reporter|--parallel|--settings|--maxfail|--features|--jobs|--project|--env|--pool|--workspace|--package)$/;
@@ -6952,15 +6977,21 @@ function distillCard(card) {
   if (card.test && PASSED(card.test.result) && !runsElsewhere(card.test.command)) out.push({ ...base, kind: "command", text: `Run the tests with: ${generalTestCommand(card.test.command)}`, tags: ["test"], files: [], evidence: `${card.test.command} \u2192 ${card.test.result}` });
   for (const tool of card.missing ?? []) out.push({ ...base, kind: "gotcha", text: `${tool} is not installed on this machine: don't call it, or install it first.`, tags: ["missing"], ...card.missingEvidence?.[tool] ? { evidence: card.missingEvidence[tool].trim() } : {} });
   for (const cmd of card.slow ?? []) if (!runsElsewhere(cmd)) out.push({ ...base, kind: "gotcha", text: `${cmd} runs past the agent's tool time limit: run a narrower selection of tests.`, tags: ["slow"] });
-  for (const rule of card.rules ?? []) if (rule.trim().length >= 8 && !oneOff(rule)) out.push({ ...base, kind: "preference", text: rule, tags: ["rule"], status: "proposed" });
+  for (const rule of card.rules ?? []) if (rule.trim().length >= 8 && keepable(rule)) out.push({ ...base, kind: "preference", text: rule, tags: ["rule"], status: "proposed" });
   return out;
 }
 function retireOneOff(s, now = /* @__PURE__ */ new Date()) {
   const out = [];
   for (const o of listObservations(s)) {
-    if (o.status !== "active" || o.scope !== "private" || o.kind !== "preference" || o.source.via !== "distill" || o.tags.includes("accepted")) continue;
+    if (o.scope !== "private" || o.kind !== "preference" || o.source.via !== "distill" || o.tags.includes("accepted")) continue;
+    if (o.status === "proposed") {
+      const a = keepable(o.text) ? null : archiveObservation(s, o.id, now);
+      if (a) out.push(a);
+      continue;
+    }
+    if (o.status !== "active") continue;
     if (o.tags.includes("repeated") && standing(o.text)) continue;
-    const next = oneOff(o.text) ? archiveObservation(s, o.id, now) : proposeObservation(s, o.id, now);
+    const next = keepable(o.text) ? proposeObservation(s, o.id, now) : archiveObservation(s, o.id, now);
     if (next) out.push(next);
   }
   return out;
@@ -8672,9 +8703,11 @@ export {
   isSourceFile,
   isValidMode,
   judgeAndSave,
+  keepSuggestion,
   kindOf,
   labelOf,
   lastUses,
+  lasting,
   leftOff,
   lessonCite,
   lessonDetail,
@@ -8760,6 +8793,7 @@ export {
   redundancyOf,
   refreshGate,
   rejectLesson,
+  rejectSuggestion,
   removeMemorySkill,
   renderAudit,
   renderCandidates,
@@ -8817,6 +8851,7 @@ export {
   starterEntries,
   statesClaim,
   storesFor,
+  suggestions,
   summarize,
   summarizeLedger,
   summarizeRecall,

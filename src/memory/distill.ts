@@ -20,7 +20,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { sharedWords, terms, wordForms, type Card } from "./memory.js";
-import { acceptObservation, addObservation, archiveObservation, listObservations, markSuperseded, proposeObservation, reactivateObservation, supersedeObservation, type NewObservation, type Observation, type Stores } from "./store.js";
+import { acceptObservation, addObservation, archiveObservation, listObservations, markSuperseded, proposeObservation, reactivateObservation, supersedeObservation, write, type NewObservation, type Observation, type Stores } from "./store.js";
 import { PASSED } from "../compact/memory.js";
 import { coveredBy, restoreObservation, UNUSED } from "./quality.js";
 import { onPath } from "../util/path.js";
@@ -167,9 +167,57 @@ export function replaceOlder(s: Stores, o: Observation, now = new Date()): Obser
 const STANDING = /\b(?:always|never|whenever|every ?time|each time|from now on|going forward|by default|(?:do not|don'?t) ever|in (?:this|the|our) (?:project|repo|repository|codebase))\b/i;
 export const standing = (text: string): boolean => STANDING.test(text);
 
+/**
+ * An instruction that holds past the task at hand, so it is worth putting to the user: what to ask
+ * them before doing ("don't push without asking me", "ask before any commit"), how they want
+ * answers ("keep it simple and straight to the point"), or a scope it states ("for future location
+ * questions", "before every commit"). Any other instruction stays in its session's record. On 285
+ * real instructions from one machine's Claude Code and Codex sessions, labeled by hand before this
+ * rule was written and scored in sample (2026-11-12): proposing every instruction, as before, put
+ * 258 steps of one task in front of the user for 12 lasting ones; this proposes 14: 11 of the 12,
+ * none of the steps, and 3 that could be read either way.
+ */
+const PERMISSION = /\b(?:without (?:(?:my|your|the user'?s?|explicit|separate|a|an)\s+)*(?:approval|permission|go-?ahead|ok(?:ay)?|say-?so|consent)|without (?:first )?(?:asking|checking with)|ask(?:ing)? (?:me |the user )?(?:first|before)|(?:only|just) (?:when|after|once) (?:i|the user) (?:say|says|said|ask|asks|approve|approves|confirm|confirms)|(?:get|wait for) my (?:approval|ok|okay|go)|ask me for (?:the |my )?(?:final )?(?:approval|ok|go)|for (?:my|the) (?:final )?approval)\b/i;
+const REPLIES = /\b(?:straight to the point|non-?technical|jargon|plain (?:english|language|words)|keep (?:it|them|things|answers|responses|replies|explanations) (?:(?:super|very|really|nice and)\s+)?(?:simple|short|brief|concise|plain|tight)|(?:short|brief|concise|simple|plain|summari[sz]ed)\b[\w\s,]{0,30}\b(?:responses|replies|answers|explanations|summaries))\b/i;
+const SCOPE = /\b(?:from now on|going forward|(?:for|in) (?:all )?(?:the )?future|every ?time|each time|whenever|by default|(?:before|after) (?:every|each|any) \w+)\b/i;
+export const lasting = (text: string): boolean => PERMISSION.test(text) || REPLIES.test(text) || SCOPE.test(text);
+
+/**
+ * The user's instructions waiting for them in `snout memory review`: lasting ones only. An
+ * instruction worded with "always" or "never" and nothing more is kept out of sight until a second
+ * session repeats it, which keeps it (applyDistilled); on the same 285, "never" alone came mostly
+ * from pasted plans.
+ */
+export const suggestions = (s: Stores): Observation[] =>
+  listObservations(s).filter((o) => o.status === "proposed" && !o.lesson && o.project === s.project && (o.source.via !== "distill" || lasting(o.text)))
+    .sort((a, b) => (a.created < b.created ? 1 : -1));
+
+const suggestion = (s: Stores, id: string): Observation | null => suggestions(s).find((o) => o.id === id || (id.length >= 6 && o.id.startsWith(id))) ?? null;
+
+/** The user keeps a suggestion: a note from then on, as if they had saved it themselves. */
+export function keepSuggestion(s: Stores, id: string, now = new Date()): Observation | null {
+  const o = suggestion(s, id);
+  return o ? acceptObservation(s, o.id, now, ["accepted"]) : null;
+}
+
+/**
+ * The user turns a suggestion down: archived and tagged, so saying it again in a later session
+ * doesn't bring it back (only a note archived as unused comes back that way).
+ */
+export function rejectSuggestion(s: Stores, id: string, now = new Date()): Observation | null {
+  const o = suggestion(s, id);
+  if (!o) return null;
+  const next: Observation = { ...o, status: "archived", tags: [...new Set([...o.tags, "rejected"])].slice(0, 8), updated: now.toISOString() };
+  write(s, next);
+  return next;
+}
+
 /** Words that tie an instruction to the task at hand rather than to how the user always works. */
 const ONE_OFF = /\b(?:yet|for now|right now|as part of|if needed|next|today|tomorrow|tonight|this (?:step|task|time|session|run|turn|pr|branch|checkout|commit|change|issue|folder|file|one))\b|^then\b/i;
 export const oneOff = (text: string): boolean => ONE_OFF.test(text);
+
+/** An instruction a note may come from: lasting, or worded as lasting, and not tied to the moment. */
+const keepable = (text: string): boolean => !oneOff(text) && (lasting(text) || standing(text));
 
 /** The word that starts the test run itself: `go test`, `npm test`, `pytest`, `node --test`, `runtests.py`. */
 const RUNNER = /^(?:py\.?test|jest|vitest|mocha|rspec|phpunit|tox|unittest|test(?::[\w:-]+)?|--test|runtests\.py|(?:run[-_])?tests?(?:[-_]\w+)?\.(?:m?[jt]s|sh|py))$/;
@@ -217,21 +265,28 @@ export function distillCard(card: Card): NewObservation[] {
   if (card.test && PASSED(card.test.result) && !runsElsewhere(card.test.command)) out.push({ ...base, kind: "command", text: `Run the tests with: ${generalTestCommand(card.test.command)}`, tags: ["test"], files: [], evidence: `${card.test.command} → ${card.test.result}` });
   for (const tool of card.missing ?? []) out.push({ ...base, kind: "gotcha", text: `${tool} is not installed on this machine: don't call it, or install it first.`, tags: ["missing"], ...(card.missingEvidence?.[tool] ? { evidence: card.missingEvidence[tool]!.trim() } : {}) });
   for (const cmd of card.slow ?? []) if (!runsElsewhere(cmd)) out.push({ ...base, kind: "gotcha", text: `${cmd} runs past the agent's tool time limit: run a narrower selection of tests.`, tags: ["slow"] });
-  for (const rule of card.rules ?? []) if (rule.trim().length >= 8 && !oneOff(rule)) out.push({ ...base, kind: "preference", text: rule, tags: ["rule"], status: "proposed" });
+  for (const rule of card.rules ?? []) if (rule.trim().length >= 8 && keepable(rule)) out.push({ ...base, kind: "preference", text: rule, tags: ["rule"], status: "proposed" });
   return out;
 }
 
 /**
- * Once per session start: instructions saved before they had to be repeated. One tied to the moment
- * is archived; any other goes back to a proposal, and comes back when a later session repeats it.
+ * Once per session start: instructions saved by earlier rules. An instruction saved before it had to
+ * be repeated goes back to a proposal, or is archived when it is a step of one task; so is a proposal
+ * made when every instruction was proposed ("Run exactly this ...", "Stop after Stage 1 ...").
  */
 export function retireOneOff(s: Stores, now = new Date()): Observation[] {
   const out: Observation[] = [];
   for (const o of listObservations(s)) {
-    if (o.status !== "active" || o.scope !== "private" || o.kind !== "preference" || o.source.via !== "distill" || o.tags.includes("accepted")) continue;
+    if (o.scope !== "private" || o.kind !== "preference" || o.source.via !== "distill" || o.tags.includes("accepted")) continue;
+    if (o.status === "proposed") {
+      const a = keepable(o.text) ? null : archiveObservation(s, o.id, now);
+      if (a) out.push(a);
+      continue;
+    }
+    if (o.status !== "active") continue;
     // Repeated and worded as lasting stays; a task request promoted only because it was said twice goes back.
     if (o.tags.includes("repeated") && standing(o.text)) continue;
-    const next = oneOff(o.text) ? archiveObservation(s, o.id, now) : proposeObservation(s, o.id, now);
+    const next = keepable(o.text) ? proposeObservation(s, o.id, now) : archiveObservation(s, o.id, now);
     if (next) out.push(next);
   }
   return out;

@@ -60,7 +60,7 @@ import { asksToContinue, captureSession, COMMITS, embedKey, embedText, withoutSt
 import { memoryFetch, memoryHint, memorySearch, prepareHistorySearch, recentIndex, type MemoryContext } from "./memory/tools.js";
 import { commandFiles, fileHistoryNotes, fileHistoryStateFile, type FileHistoryState } from "./memory/file-history.js";
 import { claimImport, githubNudge, HIST_KIND, importHistory, readImportState, type ImportResult } from "./memory/history.js";
-import { applyDistilled, installedFor, replaceOlder, retireElsewhere, retireInstalled, retireOneOff } from "./memory/distill.js";
+import { applyDistilled, installedFor, keepSuggestion, rejectSuggestion, replaceOlder, retireElsewhere, retireInstalled, retireOneOff, suggestions } from "./memory/distill.js";
 import { coveredBy, instructionText, lastUses, nearDuplicate, restoreObservation, retireUnused, verification } from "./memory/quality.js";
 import { lessonQuestion, parseLessons } from "./memory/lessons.js";
 import { approved as approvedLesson, approveLesson, checkProposals, editLesson, lessonCite, lessonDetail, lessons as allLessons, proposals, proposeLesson, rejectLesson, replaceLesson } from "./memory/review.js";
@@ -1307,7 +1307,7 @@ function cmdObservations(paths: Paths, v: string, args: string[]): void {
       const seen = new Set(recallable(stores, [localViewer(paths.projectDir, stores.project, user)]).map((o) => o.id));
       const shown = args.includes("--all") ? all : all.filter((o) => seen.has(o.id));
       const head = `${seen.size} observation${seen.size === 1 ? "" : "s"} you may see here${all.length > seen.size ? ` · ${all.length - seen.size} more not admitted (other status, project or audience; --all lists them)` : ""}`;
-      return say([head, ...shown.slice(0, 40).map(line)].join("\n"));
+      return say([head, ...shown.slice(0, 40).map(line), ...(shown.length > 40 ? [`  … and ${shown.length - 40} more, not listed`] : [])].join("\n"));
     }
     if (v === "migrate") {
       const added = migratePrefs(paths.snoutDir, stores, user);
@@ -1362,17 +1362,28 @@ function cmdLessons(paths: Paths, v: string, args: string[]): void {
     if (v === "review") {
       const waiting = proposals(stores);
       const ready = waiting.filter((o) => o.lesson!.check === "verified");
+      const said = suggestions(stores);
       const others = args.includes("--all") ? allLessons(stores).filter((o) => o.status !== "proposed") : [];
-      const head = waiting.length
-        ? `${ready.length} lesson${ready.length === 1 ? "" : "s"} to review${waiting.length > ready.length ? ` · ${waiting.length - ready.length} more whose evidence isn't on record yet (they can't be approved)` : ""}`
-        : "No lessons waiting for review.";
-      return say([head, ...waiting.map((o) => lessonDetail(o, stores.project)), ...(others.length ? ["", "Reviewed:", ...others.map((o) => lessonDetail(o, stores.project))] : []), "",
+      const lessonsHead = waiting.length
+        ? [`${ready.length} lesson${ready.length === 1 ? "" : "s"} to review${waiting.length > ready.length ? ` · ${waiting.length - ready.length} more whose evidence isn't on record yet (they can't be approved)` : ""}`]
+        : said.length ? [] : ["Nothing waiting for review."];
+      // What the user said that may hold for later sessions (distill.ts suggestions): theirs to keep or turn down.
+      const saidLines = said.length ? [...(waiting.length ? [""] : []),
+        `${said.length} thing${said.length === 1 ? "" : "s"} you said that may hold for later sessions. Approve to keep one as a note; reject and it isn't suggested again:`,
+        ...said.map((o) => `  ${o.id}  ${o.created.slice(0, 10)}${o.source.agent ? ` · ${o.source.agent}` : ""}\n      ${safeText(o.text, 200)}`)] : [];
+      return say([...lessonsHead, ...waiting.map((o) => lessonDetail(o, stores.project)), ...saidLines, ...(others.length ? ["", "Reviewed:", ...others.map((o) => lessonDetail(o, stores.project))] : []), "",
         'snout memory approve <id> [--replaces <id>] · reject <id> ["why"] · edit <id> ["new text"] [--when "where it applies"] · replace <id> "your text" · promote <id>... --name <skill> · review --all'].join("\n"));
     }
     if (!id) return say(`Usage: snout memory ${v} <id>${v === "edit" ? ' ["new text"] [--when "where it applies"]' : v === "replace" ? ' "your text" [--when "where it applies"]' : v === "promote" ? " [<id>...] --name <skill>" : ""}`);
     if (v === "show") {
       const o = listObservations(stores).find((x) => x.id === id || (id.length >= 6 && x.id.startsWith(id)));
       return say(o?.lesson ? lessonDetail(o, stores.project) : o ? `${o.id}  ${o.kind}  ${o.status}\n  ${safeText(o.text, 300)}` : `No observation ${safeText(id, 20)}.`);
+    }
+    if (v === "approve" || v === "reject") {
+      const kept = v === "approve" ? keepSuggestion(stores, id) : rejectSuggestion(stores, id);
+      if (kept) return say(v === "approve"
+        ? `Kept ${kept.id} as a note: Claude Code and Codex searches here can show it from now on.\n  ${safeText(kept.text, 200)}`
+        : `Rejected ${kept.id}: kept on disk as rejected, and not suggested again.`);
     }
     if (v === "approve") {
       const o = approveLesson(stores, id, { replaces: flag("--replaces"), note: flag("--note") });
@@ -1517,7 +1528,7 @@ function memoryUseLines(paths: Paths, cfg: Config): string[] {
   const opened = rows.filter((r) => r.kind === "fetch" && !r.missed).length;
   const stores = storesFor(paths.projectDir, paths.snoutDir, configDir());
   const notes = listObservations(stores).filter((o) => o.project === stores.project);
-  const proposed = notes.filter((o) => o.status === "proposed" && !o.lesson).length;
+  const proposed = suggestions(stores).length;
   const waiting = proposals(stores);
   const ready = waiting.filter((o) => o.lesson!.check === "verified").length;
   const live = notes.filter((o) => o.lesson?.review?.verdict === "approved" && o.status === "active").length;
@@ -1525,7 +1536,7 @@ function memoryUseLines(paths: Paths, cfg: Config): string[] {
     `How agents get it: ${cfg.memoryHint === false ? "no session-start line (memoryHint off)" : "one line at session start saying earlier sessions exist"}; they search and open records with Snout's MCP tools. Automatic notes are ${cfg.memoryNotes ? "on" : "off"}${!cfg.memoryNotes ? `; the left-off note is ${cfg.memoryLeftOff !== false ? "on" : "off"}` : ""}.`,
     `Last 30 days: ${n("hint")} session-start line${n("hint") === 1 ? "" : "s"}, ${n("search")} search${n("search") === 1 ? "" : "es"} (${empty} found nothing), ${opened} record${opened === 1 ? "" : "s"} opened, ${n("propose")} lesson${n("propose") === 1 ? "" : "s"} proposed.`,
     `Lessons: ${live} approved${ready ? `, ${ready} waiting for your review (snout memory review)` : ""}${waiting.length > ready ? `, ${waiting.length - ready} whose evidence isn't on record yet` : ""}.`,
-    `Saved notes: ${notes.filter((o) => o.status === "active" && !o.lesson).length} in use${proposed ? `, ${proposed} written by an agent and waiting for you (snout memory list --all; snout memory accept <id>)` : ""}.`,
+    `Saved notes: ${notes.filter((o) => o.status === "active" && !o.lesson).length} in use${proposed ? `, ${proposed} suggested from what you said, waiting for you (snout memory review)` : ""}.`,
   ];
 }
 
