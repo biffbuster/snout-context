@@ -1,6 +1,6 @@
 {
   "name": "usesnout",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Better context for coding agents, carried across sessions: keeps bulky reads and output out of Claude Code's and Codex's context, keeps a local, searchable record of past work, and shows what each session spent.",
   "license": "MIT",
   "type": "module",

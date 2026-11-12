@@ -1,6 +1,6 @@
 {
   "name": "snout",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Better context for coding agents, carried across sessions: keeps bulky reads and output out of context, keeps a local, searchable record of past work, and shows what each session spent.",
   "author": {
     "name": "Snout contributors"
