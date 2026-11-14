@@ -24,7 +24,7 @@ const BILLING = [
 ];
 
 test("where a session was told to stop is that session's limit, not a standing instruction", () => {
-  for (const s of ["Stop after the first callback.", "Stop here for now.", "Please stop once the tests pass.", "Leave the rest for tomorrow.", "Only do the parser today.", "Don't start the export yet."]) {
+  for (const s of ["Stop after the first callback.", "Stop here for now.", "Please stop once the tests pass.", "Leave the rest for tomorrow.", "Only do the parser today.", "Let's just do step 1 today and run the tests.", "Don't start the export yet."]) {
     assert.equal(stopsSession(s), true, s);
   }
   for (const s of ["Stop using var in new code.", "Don't push yet.", "Never commit without asking me.", "The second callback, onSubscriptionUpdate, is tomorrow's follow-up.", "Leave the tests alone."]) {
@@ -72,4 +72,21 @@ test("the record keeps the stop as history, named as that session's, and a searc
   assert.match(f, /^Where that session was told to stop \(for that session only; .*\): "Stop after the first callback\." "Leave the project as you normally would for tomorrow\."$/m);
   assert.doesNotMatch(f, /Standing instructions/, "an older record's stops are not standing instructions");
   assert.match(memorySearch(ctx, "what was the stop instruction for the first callback"), /session:ed75a583/);
+});
+
+// Handoff benchmark (2026-11-13): a long ask or last words were cut mid-word ("as …ed"), garbling the note.
+test("a long ask and long last words are shortened between words, never inside one", () => {
+  const words = (prefix, n) => Array.from({ length: n }, (_, i) => `${prefix}${String(i).padStart(3, "0")}word`).join(" ");
+  const task = `Kitchen hours count half. ${words("ask", 120)}`;
+  const long = { ...giver, task, request: undefined, rules: [], outcome: words("said", 60) };
+  const text = leftOff([long], { now: Date.parse(giver.updated) + 600_000, dirty: new Set([FILE]), prompt: "Pick up where we left off." });
+  assert.ok(text.length <= 1550, `${text.length} characters`);
+  assert.match(text, /It was asked: "Kitchen hours count half\. ask000word /, "a decision at the start stays");
+  assert.match(text, /- Its last words: said000word /);
+  const whole = new Set(`${task} ${long.outcome}`.split(" "));
+  for (const line of text.split("\n").filter((l) => /^- (It was asked|Its last words):/.test(l))) {
+    assert.match(line, / … /, "shortened, with the cut marked between words");
+    const body = line.replace(/^- (It was asked|Its last words): "?/, "").replace(/"$/, "");
+    for (const w of body.split(" ").filter((w) => w !== "…")) assert.ok(whole.has(w), `"${w}" is not a whole word of the record`);
+  }
 });

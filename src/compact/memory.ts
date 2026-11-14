@@ -177,7 +177,7 @@ function requestText(text: string): string | undefined {
  * commit message is short"): it starts with the constraint, and it isn't a question.
  */
 const INSTRUCTION = /^(?:(?:please|also|and|but|so|ok(?:ay)?|now|then|again|remember|note)[,:]?\s+)*(always|never|don'?t|do not|must|only|make sure|ensure|avoid|keep|no new|ask (?:me )?(?:first|before)|use|run|stop|leave|strip|remove|commit|push)\b/i;
-const LEAD = String.raw`^(?:(?:please|also|and|but|so|ok(?:ay)?|now|then)[,:]?\s+)*`;
+const LEAD = String.raw`^(?:(?:please|also|and|but|so|ok(?:ay)?|now|then|let'?s)[,:]?\s+)*`;
 const STOPS = [
   new RegExp(`${LEAD}(?:stop|pause|halt)\\s+(?:after|at|once|when|before|there|here|as soon as|for (?:now|today|the day))\\b`, "i"),
   new RegExp(`${LEAD}(?:leave|save|keep)\\b.*\\bfor (?:tomorrow|later|next time|the next session|a (?:later|follow-up|future) session)\\b`, "i"),

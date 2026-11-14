@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.3.5 (2026-11-14)
 
-Not measured on agents. Nothing below is covered by [docs/claims.md](docs/claims.md).
+Nothing below is covered by [docs/claims.md](docs/claims.md).
 
 - Fixed: files you keep in `.snout/` by hand, such as `.snout/notes/` or a progress file, are read
   like any other file. Enforce used to trim them to 60 lines, because everything in `.snout/` counted
@@ -25,6 +25,8 @@ Not measured on agents. Nothing below is covered by [docs/claims.md](docs/claims
   "leave the rest for tomorrow", "and stop there") and says it did. The session's record keeps the
   request whole, labels the limit as that session's, and no longer lists it as a standing
   instruction. Limits on an action, such as "don't push yet", stay in the note.
+- Fixed: the left-off note shortened a long request, to-do or last message at a fixed character, so
+  a word could be cut in half ("as …ed"). It now cuts between words.
 
 ## 0.3.4 (2026-11-12)
 
