@@ -87,4 +87,12 @@ test("readSpend finds a project's Claude and Codex sessions; snout spend reports
   assert.equal(out.byModel.length, 3);
   const all = JSON.parse(spawnSync(process.execPath, [CLI, "spend", "--all", "--json"], { cwd: project, encoding: "utf8", env: { ...process.env, ...env, CLAUDE_PROJECT_DIR: project, SNOUT_CONFIG_DIR: join(home, "cfg") } }).stdout);
   assert.deepEqual(all.projects.map((p) => p.dir).sort(), ["/elsewhere", project].sort(), "--all groups every project on the machine");
+
+  // With reads on record: what they added once, against everything the agents sent, and why the two differ.
+  const row = (o) => ({ ts: `${today}T01:00:00Z`, session: "s1", turn: 1, tool: "Read", path: "a.js", tier: 0, rule: "unclassified", value: 2, confidence: 0, decision: "allow", mode: "enforce", reason: "", bytes: 0, tokensAvoidedEst: 0, tokensReadEst: 300, jevInputTokens: 0, latencyMs: 5, model: null, reversedByUser: false, ...o });
+  writeFileSync(join(project, ".snout", "ledger.jsonl"), [row({}), row({ path: "package-lock.json", rule: "lockfile", value: 0, confidence: 1, decision: "deny", tokensAvoidedEst: 900, tokensReadEst: 0 })].map((r) => JSON.stringify(r)).join("\n") + "\n");
+  const text = spawnSync(process.execPath, [CLI, "spend"], { cwd: project, encoding: "utf8", env: { ...process.env, ...env, CLAUDE_PROJECT_DIR: project, SNOUT_CONFIG_DIR: join(home, "cfg") } }).stdout;
+  assert.match(text, /held back ~900 tokens/);
+  assert.match(text, /reads Snout saw added ~1\.2k tokens when they were read; agents sent .+ input tokens in all, because every request sends the conversation so far again/);
+  assert.match(text, /not sent again on the session's later requests, so the saving is larger than counted once/);
 });
