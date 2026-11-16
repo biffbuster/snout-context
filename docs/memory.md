@@ -162,6 +162,11 @@ and fetch in `.snout/recall.jsonl`, with the query (up to 120 characters) and th
   to need the earlier decision, so this says nothing about everyday work.
   Spec: `bench/handoff/spec-leftoff.json`; results: `bench/handoff/results-2026-11-11-leftoff.json`
   and `-leftoff-2.json`.
+- **The handoff benchmark on 0.3.5** (2026-11-16; 20 handoffs and 4 controls, every receiver twice,
+  Claude Code and Codex picking up a Claude Code session). With the left-off note, 38 of 40 new Claude
+  Code sessions and 36 of 40 new Codex sessions did the next step with both decisions; with trimming only, or
+  without Snout, none did. Every miss came from two tasks with ambiguous wording. Setup, limits and
+  rows: [claims](claims.md#measured-on-035-picking-up-where-the-last-session-left-off).
 - **What Snout doesn't claim yet:** that memory saves tokens or money on everyday work, or that it
   gets better on its own. It won't claim either until results support it. The 0.3.3 cost result in
   [its archive](archive/0.3.3/claims.md) measures trimming, not memory.
