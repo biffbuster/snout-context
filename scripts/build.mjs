@@ -6,7 +6,7 @@
  * an install failure. CI verifies the committed bundle matches src/.
  */
 import { build } from "esbuild";
-import { copyFileSync, readFileSync, statSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
 // The dashboard's page script is TypeScript in src/dashboard/app, bundled for the browser and
@@ -46,7 +46,6 @@ const common = {
 
 await build({ ...common, entryPoints: ["src/cli.ts"], outfile: "dist/snout.mjs", banner: { js: "#!/usr/bin/env node" } });
 // Snout's corner animation for the dashboard, served by `snout dashboard` from next to the bundle.
-copyFileSync("src/dashboard/assets/snout-mascot.webp", "dist/snout-mascot.webp");
 await build({ ...common, entryPoints: ["src/index.ts"], outfile: "dist/lib.mjs" });
 
 const cli = readFileSync("dist/snout.mjs", "utf8");

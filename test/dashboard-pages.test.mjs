@@ -132,15 +132,15 @@ test("dashboard pages read the agent's log and Snout's ledger, and count savings
   assert.deepEqual(memory, [["Memory pointer", "One line: earlier sessions are on record and how to search them; one left work unfinished"], ["Memory search", '"build error": 1 record shown'], ["Memory fetch", "Opened session:s0"]]);
 });
 
-test("Snout's corner animation is served from the dashboard itself, and the page allows only that", async (t) => {
+test("the dashboard serves no image files, and the page allows only inline images", async (t) => {
   const { port } = await serve(t);
   const img = await call(port, "GET", "/snout-mascot.webp");
-  assert.equal(img.status, 200);
+  assert.equal(img.status, 404);
   const page = await new Promise((done, fail) => {
     request({ host: "127.0.0.1", port, path: "/", headers: { host: `127.0.0.1:${port}` } }, (res) => { res.resume(); done(res); }).on("error", fail).end();
   });
   const csp = page.headers["content-security-policy"];
-  assert.match(csp, /img-src 'self' data:/, "images: this server and inline only");
+  assert.match(csp, /img-src data:(;|$)/, "images: inline only");
   assert.match(csp, /default-src 'none'/);
 });
 
