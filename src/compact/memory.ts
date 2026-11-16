@@ -177,6 +177,23 @@ function requestText(text: string): string | undefined {
  * commit message is short"): it starts with the constraint, and it isn't a question.
  */
 const INSTRUCTION = /^(?:(?:please|also|and|but|so|ok(?:ay)?|now|then|again|remember|note)[,:]?\s+)*(always|never|don'?t|do not|must|only|make sure|ensure|avoid|keep|no new|ask (?:me )?(?:first|before)|use|run|stop|leave|strip|remove|commit|push)\b/i;
+const LEAD = String.raw`^(?:(?:please|also|and|but|so|ok(?:ay)?|now|then|let'?s)[,:]?\s+)*`;
+const STOPS = [
+  new RegExp(`${LEAD}(?:stop|pause|halt)\\s+(?:after|at|once|when|before|there|here|as soon as|for (?:now|today|the day))\\b`, "i"),
+  new RegExp(`${LEAD}(?:leave|save|keep)\\b.*\\bfor (?:tomorrow|later|next time|the next session|a (?:later|follow-up|future) session)\\b`, "i"),
+  new RegExp(`${LEAD}(?:only|just) (?:do|implement|write|build|add|fix|handle|finish|change|touch|work on)\\b.*\\b(?:today|for now|this session)\\b`, "i"),
+  new RegExp(`${LEAD}(?:don'?t|do not) (?:start|begin|do|implement|write|build|touch|work on)\\b.*\\b(?:yet|today|for now|this session|until tomorrow)\\b`, "i"),
+];
+/**
+ * A sentence that says where one session's work ends: "Stop after the first callback", "Leave the rest
+ * for tomorrow", "Don't start the export yet". It bounds that session only, so it is not a standing
+ * instruction, and a later session asked to continue must not take it as its own stopping point. In the
+ * Better Auth handoff pilot (2026-11-12) the left-off note quoted one, and the receiver stopped "as
+ * instructed" with the follow-up undone. "Don't push yet" is not one: it limits an action, not the work.
+ */
+export const stopsSession = (sentence: string): boolean => STOPS.some((re) => re.test(sentence.trim()));
+/** The same limit inside a longer sentence: "Implement the parser and stop there", "fix it, then stop once tests pass". */
+export const STOP_CLAUSE = /,?\s+(?:and |then |and then )(?:stop|pause|halt)\s+(?:after|at|once|when|before|there|here|as soon as|for (?:now|today|the day))\b[^.!?;]*/i;
 const MAX_RULES = 12;
 /**
  * The line that names an error: a Python exception (the traceback's last line), a failing test as
@@ -205,7 +222,7 @@ const OUTCOME_CHARS = 600;
 export const GOAL_CHARS = 2000;
 
 function instructions(request: string): string[] {
-  return request.split(/(?<=[.!?])\s+|\n+/).map((x) => x.trim()).filter((x) => x.length >= 15 && x.length <= 300 && !x.endsWith("?") && INSTRUCTION.test(x));
+  return request.split(/(?<=[.!?])\s+|\n+/).map((x) => x.trim()).filter((x) => x.length >= 15 && x.length <= 300 && !x.endsWith("?") && INSTRUCTION.test(x) && !stopsSession(x));
 }
 
 /** What the user typed in this entry, or undefined when it isn't the user's message. */

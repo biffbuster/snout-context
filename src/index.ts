@@ -35,7 +35,7 @@ export { auditContext, classifyContextPath, claudeImports, staleRefs, normalize,
 export { auditCi, renderCi, cronPerMonth } from "./audit/ci.js";
 export { parseYaml } from "./audit/yaml.js";
 export { codexRows } from "./compact/codex.js";
-export { sessionFacts, codexSessionFacts, testCommand, PASSED } from "./compact/memory.js";
+export { sessionFacts, codexSessionFacts, testCommand, PASSED, stopsSession } from "./compact/memory.js";
 export { fromInternal } from "./agents/adapt.js";
 export { initAgent } from "./agents/init.js";
 export { buildMap, candidates, renderCandidates, requestNames, codeNames, namedExactly, namedPaths, withoutOutput, shouldSuggest, listFiles, entryFor, type RepoMap, type Candidate } from "./map/map.js";
