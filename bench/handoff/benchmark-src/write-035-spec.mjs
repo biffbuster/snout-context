@@ -20,5 +20,29 @@ const spec = {
     trim: "Snout 0.3.5's trimming (enforce), memory off: no record, no session-start line, no left-off note, no memory tools. Claude Code's own memory on, from what the giver left.",
   },
 };
+// --codex <giver results...>: spec-benchmark-codex.json the same way, its givers the Claude Code givers of this rerun.
+const codexAt = process.argv.indexOf("--codex");
+if (codexAt > 0) {
+  const codex = JSON.parse(readFileSync(src.replace(/spec-benchmark\.json$/, "spec-benchmark-codex.json"), "utf8"));
+  const givers = process.argv.slice(codexAt + 1);
+  if (!givers.length) throw new Error("--codex needs the 0.3.5 Claude Code results files its givers come from");
+  Object.assign(spec, {
+    ...codex,
+    name: `${codex.name}, rerun on Snout 0.3.5`,
+    written: spec.written,
+    status: "Frozen before any run on 0.3.5; no Codex receiver has been run on this bundle when frozen.",
+    heldOut: spec.heldOut.replace("(2026-11-13: left-off note 39/40, trimming only 0/40, plain 0/40)", "(2026-11-14, Codex receivers: left-off note 35/40, plain 0/40; the trim arm was invalid, given Snout's MCP server by the harness)"),
+    developedFrom: "spec-benchmark-codex.json, unchanged but for the bundle it runs on, its givers, its date and the harness fix that gives the off and trim arms no MCP server",
+    giversFrom: givers,
+    approval: "Approved by the owner on 2026-11-16: staged, 144 Codex sessions at most (the givers are reused), API spend $0; Codex sessions are billed to the ChatGPT plan.",
+    arms: {
+      ...codex.arms,
+      giver: "Reused: the Claude Code giver of the 0.3.5 rerun, with its Snout store, snapshot and git history.",
+      leftoff: "Snout 0.3.5 for Codex (`snout init codex` hooks) with its defaults in enforce mode: trimming, the session-start line, the left-off note, search and fetch, on a copy of the giver's store.",
+      trim: "Snout 0.3.5's trimming for Codex (enforce), memory off: no record, no session-start line, no left-off note, no MCP server.",
+    },
+  });
+  delete spec.ownMemory;
+}
 writeFileSync(out, JSON.stringify(spec, null, 1) + "\n");
-console.log(`${spec.directions.length} directions, Snout 0.3.5, cap $${spec.approvedTotalUsd}`);
+console.log(`${spec.directions.length} directions, Snout 0.3.5, ${codexAt > 0 ? `Codex receivers, givers from ${spec.giversFrom.length} files` : `cap $${spec.approvedTotalUsd}`}`);
