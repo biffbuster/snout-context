@@ -1,0 +1,8 @@
+{
+  "name": "shiftswap",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}
