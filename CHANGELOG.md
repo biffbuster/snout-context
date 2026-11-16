@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.6 (2026-11-16)
 
 Not measured on agents. Nothing below is covered by [docs/claims.md](docs/claims.md).
 
@@ -13,6 +13,8 @@ Not measured on agents. Nothing below is covered by [docs/claims.md](docs/claims
   memory is off. In the 0.3.5 handoff benchmark, Codex with memory off read the skill in every
   session, where it was told to search records it had no tool for. Those sessions used more tokens
   than plain Codex (median 167,000 against 111,000); the skill may not be the only cause.
+- The dashboard tour shows the Snout mark instead of a 1.4 MB animation, so the npm package is
+  about 1.4 MB smaller. The dashboard page now allows only inline images.
 
 ## 0.3.5 (2026-11-14)
 

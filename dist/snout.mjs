@@ -11892,7 +11892,7 @@ function forgetReads(snoutDir, session) {
 }
 
 // src/cli.ts
-var VERSION2 = "0.3.5";
+var VERSION2 = "0.3.6";
 var BIN = resolve18(process.argv[1] ?? "dist/snout.mjs");
 var requestStart = 0;
 var elapsedMs = () => Math.round(performance.now() - requestStart);
