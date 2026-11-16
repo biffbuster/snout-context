@@ -7,9 +7,7 @@
  * seen; the ? button in the top bar starts it again. With reduced motion there is no rise,
  * hop or typing: the bubble and its text simply appear.
  *
- * The animation is a separate file the dashboard server sends from the same origin
- * (/snout-mascot.webp), so the page still loads nothing from the network and the hook bundle
- * does not carry 1 MB of image. If it is missing, the Snout mark stands in.
+ * The picture is the Snout mark, inline, so the page loads nothing beyond itself.
  */
 import { h, icon, SNOUT_MARK } from "./dom.js";
 import { save, store } from "./ctx.js";
@@ -26,7 +24,6 @@ interface Stop {
   text: string;
 }
 
-const MASCOT = "/snout-mascot.webp";
 const TYPE_MS = 16;
 
 function script(env: TourEnv): { hello: string; stops: Stop[]; bye: string } {
@@ -78,8 +75,7 @@ export function createTour(onTarget: () => void): Tour {
   const dots = h("span.tour-dots");
   const actions = h("div.tour-actions");
   const bubble = h("div.tour-bubble", { onclick: () => finishTyping() }, title, text, live, h("div.tour-foot", null, dots, actions));
-  const img = h("img.tour-img", { src: MASCOT, width: 120, height: 134, alt: "Snout, a pink anteater in a cowboy hat", draggable: "false" });
-  img.addEventListener("error", () => { img.src = SNOUT_MARK; img.classList.add("fallback"); }, { once: true });
+  const img = h("img.tour-img.fallback", { src: SNOUT_MARK, width: 120, height: 134, alt: "Snout", draggable: "false" });
   const closeBtn = h("button.tour-x", { type: "button", "aria-label": "Hide Snout", title: "Hide Snout", onclick: () => close() }, icon("x", 12));
   const pal = h("div.tour-pal", null, img, closeBtn);
   const el = h("div.tour", { hidden: true }, bubble, pal);

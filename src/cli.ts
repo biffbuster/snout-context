@@ -76,7 +76,7 @@ import { prepareMeaning, semanticOn } from "./memory/semantic.js";
 import { buildMap, candidates, renderCandidates, shouldSuggest, type RepoMap } from "./map/map.js";
 import { forgetReads, rememberRead, repeatOf, repeatOutput, requestedWindow, returnedWindow } from "./gate/repeat.js";
 
-const VERSION = "0.3.5";
+const VERSION = "0.3.6";
 /** This bundle, by absolute path: what the gate hook runs. */
 const BIN = resolve(process.argv[1] ?? "dist/snout.mjs");
 
@@ -226,7 +226,10 @@ function cmdSpend(paths: Paths, args: string[]): void {
   const since = new Date(Date.now() - (days - 1) * 86_400_000).toISOString().slice(0, 10);
   const spend = readSpend(all ? null : paths.projectDir, all ? join(configDir(), "spend-cache.json") : join(paths.snoutDir, "spend-cache.json"), configDir());
   const s = summarizeSpend([...spend.values()].flat(), since);
-  const held = all ? 0 : dailyAggregates(readDecisions(paths.ledger, 20_000), since).reduce((a, d) => a + d.heldBack, 0);
+  const daily = all ? [] : dailyAggregates(readDecisions(paths.ledger, 20_000), since);
+  const held = daily.reduce((a, d) => a + d.heldBack, 0);
+  // What the reads Snout saw would have put into context, each once (kept out or let in).
+  const read = daily.reduce((a, d) => a + d.heldBack + d.inContext, 0);
   const projects = [...spend.entries()].map(([dir, r]) => ({ dir, s: summarizeSpend(r, since) })).filter((p) => p.s.requests > 0).sort((a, b) => b.s.costUsd - a.s.costUsd);
   if (args.includes("--json")) {
     return say(JSON.stringify({ days, pricesAsOf: PRICES_AS_OF, ...s, heldBack: held, projects: all ? projects.map((p) => ({ dir: p.dir, costUsd: p.s.costUsd, requests: p.s.requests, tokens: p.s.tokens })) : undefined }, null, 2));
@@ -241,6 +244,12 @@ function cmdSpend(paths: Paths, args: string[]): void {
   const cachedShare = s.tokens ? Math.round((s.cacheRead / s.tokens) * 100) : 0;
   lines.push(`  ${usd(s.costUsd)} across ${s.requests.toLocaleString()} requests · ${fmtTokens(s.tokens)} tokens (${cachedShare}% cache reads)`);
   if (held > 0) lines.push(`  Snout held back ~${fmtTokens(held)} tokens, about ${usd((held * s.inputRate) / 1e6)} at your blended input rate ($${s.inputRate.toFixed(2)}/M), counted once`);
+  // Why that share is often small: input counts the conversation again on every request; a read counts once.
+  const sent = s.input + s.cacheWrite + s.cacheRead;
+  if (read > 0 && sent > 0) {
+    lines.push(`  The reads Snout saw added ~${fmtTokens(read)} tokens when they were read; agents sent ${fmtTokens(sent)} input tokens in all, because every request sends the conversation so far again. Trimming acts only on reads, so its share of spend is small when sessions are long and read little.`);
+    if (held > 0) lines.push("  A token kept out is also not sent again on the session's later requests, so the saving is larger than counted once. Snout doesn't estimate by how much.");
+  }
   lines.push("", `  ${pad("BY MODEL", 26, true)}${pad("requests", 10)}${pad("tokens", 10)}${pad("cost", 11)}`);
   for (const m of s.byModel) lines.push(`    ${pad(safeText(m.key, 22), 22, true)}${pad(m.requests.toLocaleString(), 10)}${pad(fmtTokens(m.tokens), 10)}${pad(usd(m.costUsd), 11)}`);
   if (all) {

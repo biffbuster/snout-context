@@ -33,20 +33,6 @@ import * as views from "./views.js";
 import { HOOK_PORT } from "../gate/install.js";
 import type { Boot, ProjectCard } from "./api.js";
 
-/** Snout's corner animation (app/tour.ts). Shipped next to the bundle, not inlined: the hooks load
- * the same bundle on every tool call and should not parse 1 MB of image to do it. */
-const MASCOT_PATH = "/snout-mascot.webp";
-let mascotBytes: Buffer | null | undefined;
-function mascot(): Buffer | null {
-  if (mascotBytes === undefined) {
-    try {
-      mascotBytes = readFileSync(new URL("./snout-mascot.webp", import.meta.url));
-    } catch {
-      mascotBytes = null;
-    }
-  }
-  return mascotBytes;
-}
 
 /** What the page's buttons do. Each runs the same code as the matching CLI command. */
 export interface DashboardActions {
@@ -320,12 +306,8 @@ export function startDashboard(paths: Paths, opts: DashboardOptions): { close: (
       res.writeHead(200, {
         ...common,
         "content-type": "text/html; charset=utf-8",
-        "content-security-policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:",
+        "content-security-policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src data:",
       }).end(page);
-    } else if (url.pathname === MASCOT_PATH) {
-      const img = mascot();
-      if (img) res.writeHead(200, { "content-type": "image/webp", "cache-control": "max-age=86400", "x-content-type-options": "nosniff" }).end(img);
-      else res.writeHead(404, { ...common, "content-type": "text/plain" }).end("not found");
     } else if (url.pathname === "/api/summary") {
       res.writeHead(200, { ...common, "content-type": "application/json" }).end(JSON.stringify(summary(session)));
     } else if (url.pathname.startsWith("/api/") && API.has(url.pathname.slice(5))) {
