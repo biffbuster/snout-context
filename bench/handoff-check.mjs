@@ -98,7 +98,10 @@ const pathWith = (dir) => `${dir}${delimiter}${process.env.PATH ?? process.env.P
 
 // memoryLeftOff: on by default since 2026-11-11; the arms name it, so a spec written before keeps its arms (spec-leftoff.json turns it on).
 const OFF = { coach: "off", memoryJudge: "off", memoryLessons: false, memoryLeftOff: false, repoMap: false, fastHooks: false };
-const armConfig = (arm) => (arm === "plain" ? { mode: "observe", memory: false, memoryNotes: false, ...OFF } : { mode: "enforce", memory: true, memoryNotes: arm === "notes", ...OFF });
+const armConfig = (arm) => (arm === "plain" ? { mode: "observe", memory: false, memoryNotes: false, ...OFF }
+  // spec-benchmark.json: trimming as shipped with memory off, so the memory's own effect can be told from trimming's.
+  : arm === "trim" ? { mode: "enforce", memory: false, memoryNotes: false, ...OFF }
+  : { mode: "enforce", memory: true, memoryNotes: arm === "notes", ...OFF });
 const SEARCH_TOOLS = ["snout_memory_search", "snout_memory_fetch"];
 /** A lesson spec's on arm can also propose; anything else is the pilot's search arm. */
 const LESSONS = SPEC.lessons === true;
@@ -130,8 +133,28 @@ const INDEX_ARM = SPEC.indexArm === true;
  * session-start line alone, for less?
  */
 const LEFTOFF_ARM = SPEC.leftOffArm === true;
+/**
+ * spec-benchmark.json: the receivers are Snout as shipped (leftoff: trimming, memory, the session-start
+ * line and the left-off note), trimming alone (trim) and plain Claude Code (off), each run `repeats`
+ * times from the same snapshot. A repeat's key ends in -2, -3; armOf gives its arm.
+ */
+const BENCHMARK_ARMS = SPEC.benchmarkArms === true;
+const REPEATS = Number(SPEC.repeats ?? 1);
+const armOf = (key) => key.replace(/-\d+$/, "");
 /** The receivers of a direction, in the order they run. */
-const receiverArms = () => ["on", ...(INDEX_ARM ? ["index"] : []), ...(LEFTOFF_ARM ? ["leftoff"] : []), ...(NOTES_ARM ? ["notes"] : []), "off"];
+const allReceiverArms = () => {
+  const arms = BENCHMARK_ARMS ? ["leftoff", "trim", "off"] : ["on", ...(INDEX_ARM ? ["index"] : []), ...(LEFTOFF_ARM ? ["leftoff"] : []), ...(NOTES_ARM ? ["notes"] : []), "off"];
+  return Array.from({ length: REPEATS }, (_, i) => arms.map((a) => (i ? `${a}-${i + 1}` : a))).flat();
+};
+/**
+ * The receivers `d` runs in this run: a stage may name its own (spec-benchmark.json stage 1: leftoff and
+ * off), and a direction an earlier stage ran runs only the ones it has not run yet, from that giver.
+ */
+const receiverArms = (d) => {
+  const stage = STAGE && SPEC.stages[STAGE].receivers;
+  const ran = d && PRIOR_RUNS.flatMap((p) => Object.keys(p.saved.directions.find((x) => x.id === d.id)?.receivers ?? {}));
+  return allReceiverArms().filter((k) => (!stage || stage.includes(k)) && !ran?.includes(k));
+};
 /**
  * `"giversFrom"` (spec-leftoff.json): the givers are not run again. Each direction starts from a giver
  * of those live results (its own id, or `giverFrom`) as that run left it: its store, snapshot, git
@@ -139,6 +162,9 @@ const receiverArms = () => ["on", ...(INDEX_ARM ? ["index"] : []), ...(LEFTOFF_A
  * then work on the same snapshots as that run's and as the free check (bench/leftoff-check.mjs).
  */
 const GIVERS = (SPEC.giversFrom ?? []).map((f) => ({ file: f, saved: JSON.parse(readFileSync(resolve(REPO, f), "utf8")) }));
+/** A staged spec's earlier stages (--after): a direction one of them ran goes on from its giver. */
+const PRIOR_RUNS = AFTER.map((f) => ({ file: f, saved: JSON.parse(readFileSync(resolve(REPO, f), "utf8")) }));
+const priorRun = (d) => PRIOR_RUNS.find((p) => p.saved.directions.some((x) => x.id === d.id && x.giver));
 /**
  * `"receiverImport": "off"`: no history import at a receiver's session start (SNOUT_IMPORT=off). A
  * receiver on the giver's day never imported (the giver's import that day covered it); on a later day it
@@ -291,12 +317,14 @@ function grade(d, from, role, runDir, receiverTests = d.grade.receiverTests) {
 
 function setClaudeArm(ws, arm, store, tapLog) {
   if (arm === "plain") return armSettings(ws, "plain");
+  // Trimming only: the shipped hooks and the gate, no memory server.
+  const servers = arm === "trim" ? {} : { snout: searchServer({ agent: "claude", ws }, store.env, tapLog) };
   const hooks = shippedClaudeHooks(REPO, SNOUT_BIN);
   hooks.PreToolUse = gateEntries(SNOUT_BIN);
   hooks.PostToolUse = [...(hooks.PostToolUse ?? []), ...squeezeEntries(SNOUT_BIN)];
   mkdirSync(join(ws, ".claude"), { recursive: true });
   writeFileSync(join(ws, ".claude/settings.json"), JSON.stringify({ hooks }, null, 2));
-  writeFileSync(join(ws, ".mcp.json"), JSON.stringify({ mcpServers: { snout: searchServer({ agent: "claude", ws }, store.env, tapLog) } }));
+  writeFileSync(join(ws, ".mcp.json"), JSON.stringify({ mcpServers: servers }));
 }
 
 function runClaude(w, text, store, arm, session, tapLog, fake) {
@@ -314,10 +342,44 @@ function runClaude(w, text, store, arm, session, tapLog, fake) {
   return launchClaude(w.ws, argv, { env, limitMs: LIMIT_MS, goldPatch: fake?.patch });
 }
 
+/**
+ * MCP servers this checkout's own .codex/config.toml defines (gitignored; a developer's Snout, say). Codex
+ * workspaces live in this checkout, so every session loads them, and `-c mcp_servers={}` does not remove
+ * them: on 2026-11-14 four off sessions searched this repository's memory through one. Each is disabled by name.
+ */
+const REPO_CODEX_SERVERS = (() => {
+  try { return [...readFileSync(join(REPO, ".codex", "config.toml"), "utf8").matchAll(/^\[mcp_servers\.("?)([\w-]+)\1\]/gm)].map((m) => m[2]); } catch { return []; }
+})();
+
+/** The -c arguments for an arm's MCP servers: Snout's search server in a memory arm, none in trim or off. */
+function codexServerArgs(w, store, arm, tapLog) {
+  const memory = arm !== "plain" && arm !== "trim";
+  const own = memory ? ["-c", `mcp_servers={snout=${toml(searchServer(w, store.env, tapLog))}}`] : ["-c", "mcp_servers={}"];
+  return [...own, ...REPO_CODEX_SERVERS.filter((n) => !(memory && n === "snout")).flatMap((n) => ["-c", `mcp_servers.${n}.enabled=false`])];
+}
+
+/**
+ * Before a live run: from inside the workspaces' folder, Codex must report this checkout's servers disabled
+ * under the off arm's arguments (`codex doctor` resolves the same config layers a session does; no model call).
+ */
+function codexServersOff() {
+  const probe = join(REPO, ".snout", "handoff-ws", "server-probe");
+  mkdirSync(probe, { recursive: true });
+  const disabled = (extra) => {
+    const r = sh(...codexCmd(["doctor", "--json", ...extra]), { cwd: probe });
+    const n = Number(/"disabled servers":\s*"(\d+)"/.exec(r.stdout ?? "")?.[1]);
+    if (!Number.isFinite(n)) throw new Error(`codex doctor did not report disabled MCP servers: ${(r.stderr || r.stdout || "").slice(0, 200)}`);
+    return n;
+  };
+  const off = REPO_CODEX_SERVERS.flatMap((n) => ["-c", `mcp_servers.${n}.enabled=false`]);
+  const gained = disabled(off) - disabled([]);
+  rmSync(probe, { recursive: true, force: true });
+  if (gained < REPO_CODEX_SERVERS.length) throw new Error(`Codex did not disable this checkout's MCP server(s) ${REPO_CODEX_SERVERS.join(", ")} (.codex/config.toml): the off and trim arms would reach them. Move that file aside for the run.`);
+}
+
 function runCodex(w, text, store, arm, tapLog, fake) {
-  const servers = arm !== "plain" ? `mcp_servers={snout=${toml(searchServer(w, store.env, tapLog))}}` : "mcp_servers={}";
   const argv = ["exec", "--json", "-s", "workspace-write", "-C", w.ws, "-m", S.codexModel, "-c", `model_reasoning_effort=${S.codexEffort}`,
-    "-c", "project_doc_max_bytes=0", "-c", servers, text];
+    "-c", "project_doc_max_bytes=0", ...codexServerArgs(w, store, arm, tapLog), text];
   const [bin, a] = FAKE ? [process.execPath, [join(REPO, "bench/fake-codex.mjs"), ...argv]] : codexCmd(argv);
   if (!FAKE && process.platform === "win32" && !CODEX_JS) throw new Error("set CODEX_CLI_JS to the Codex CLI's JavaScript entry point");
   const env = { ...process.env, ...OFFLINE, ...store.env, ...ownProject(w), CI: "", SNOUT_TOKEN: "", SNOUT_MODE: "", ...(!FAKE ? codexToolchainEnv(REPO, pathWith(BIN_DIR), w.ws) : { PATH: pathWith(BIN_DIR) }),
@@ -471,6 +533,30 @@ export function continuityGate(directions) {
     for (const s of [d.giver, ...Object.values(d.receivers ?? {})].filter(Boolean)) if (s.invalid?.length) why.push(`${d.id}: a ${s.role ?? "session"} was invalid (${s.invalid[0]})`);
     if (!d.stopped && !(d.receivers?.on && d.receivers?.off)) why.push(`${d.id}: the receivers did not both run`);
   }
+  return why;
+}
+
+/**
+ * Whether the benchmark's next stage may start (spec-benchmark.json, rule written before stage 1 ran): every
+ * session valid, no direction stopped by the spend cap or the API, every receiver the stage named ran, and
+ * Snout ahead: more handoffs where the left-off arm succeeded and plain Claude Code did not than the reverse.
+ * A giver that missed its own gate stops its direction without blocking the next stage; it is reported.
+ */
+export function benchmarkGate(directions, keys = ["leftoff", "off"]) {
+  const why = [];
+  let ahead = 0, behind = 0;
+  for (const d of directions) {
+    for (const s of [d.giver, ...Object.values(d.receivers ?? {})].filter(Boolean)) if (s.invalid?.length) why.push(`${d.id}: a ${s.role ?? "session"} was invalid (${s.invalid[0]})`);
+    if (d.stopped && !d.stopped.startsWith("no record to hand off")) why.push(`${d.id}: ${d.stopped}`);
+    if (d.stopped) continue;
+    if (!keys.every((k) => d.receivers?.[k])) why.push(`${d.id}: the receivers ${keys.join(" and ")} did not all run`);
+    else if (!d.control) {
+      const won = (k) => !!d.receivers[k].solved;
+      if (won("leftoff") && !won("off")) ahead++;
+      if (won("off") && !won("leftoff")) behind++;
+    }
+  }
+  if (ahead <= behind) why.push(`Snout is not ahead: the left-off arm alone succeeded in ${ahead} handoff(s), plain Claude Code alone in ${behind}`);
   return why;
 }
 
@@ -644,8 +730,12 @@ async function session(role, d, w, store, prompt, runDir, fake) {
   if (store.recent && step.session && !FAKE && !step.index.logged) bad.push("the startup index did not run in its arm");
   step.leftOff = leftOffOf(step, store);
   if (!store.leftOff && store.arm !== "notes" && step.leftOff.shown) bad.push("the left-off note reached an arm without it");
+  // spec-benchmark.json: the note is what its arm measures, so a receiver that never got it is not that arm.
+  if (BENCHMARK_ARMS && store.leftOff && step.session && !step.leftOff.shown) bad.push("the left-off note did not show in its arm");
   if (skillFile) step.skill = { installed: true, seen: inSessionFile(step, /snout-memory/) };
   if (arm === "plain" && (step.hint.logged || step.hint.delivered)) bad.push("the session-start hint reached the off arm");
+  if (arm === "trim" && (step.tap.length || step.memoryCalls?.length)) bad.push("memory search reached the trim arm");
+  if (arm === "trim" && (step.hint.logged || step.hint.delivered)) bad.push("the session-start hint reached the trim arm");
   // With OWN_MEMORY its memory is part of the arm: reported (files at the start, files at the end), not a fault.
   if (OWN_MEMORY && agent === "claude") step.ownMemory = { before: memBefore.length, after: memAfter.length };
   else if (memBefore.length || memAfter.length) bad.push(`Claude Code's own memory holds ${memAfter.length || memBefore.length} file(s) for this workspace`);
@@ -676,6 +766,9 @@ function fakePatch(from, overlay, runDir, name) {
   g("init", "-q"); g("add", "-A");
   const baseTree = must(g("write-tree"), "stand-in base tree").stdout.trim();
   cpSync(overlay, dir, { recursive: true });
+  // Hash every file again: an overlay of the same size within the same second (Math.round to Math.floor)
+  // looks unchanged to git's stat check, and the patch came out empty (loyaltypoints, 2026-11-13).
+  g("rm", "-r", "-q", "--cached", ".");
   g("add", "-A");
   const file = join(runDir, "fake", `${name}.patch`);
   writeFileSync(file, must(g("diff", "--cached", "--binary", baseTree), "stand-in patch").stdout);
@@ -690,6 +783,7 @@ const FAKE_SAY = {
 
 async function direction(d, runDir, spend) {
   if (GIVERS.length) return receivers(d, runDir, spend, reusedGiver(d, runDir));
+  if (priorRun(d)) return receivers(d, runDir, spend, reusedGiver(d, runDir, [priorRun(d)]));
   const out = { id: d.id, project: d.project, giverAgent: d.giver, receiverAgent: d.receiver };
   const base = join(HERE, d.project, "base");
   const shared = newStore(join(runDir, d.id, "store"), "search");
@@ -698,7 +792,7 @@ async function direction(d, runDir, spend) {
   // 1. The giver: the task, verified, in a store of its own that starts empty.
   const gw = newWorkspace(d.giver, d, base, { fixed: OWN_MEMORY && d.giver === "claude" });
   // The whole direction must fit: the giver and every Claude Code receiver at their worst case.
-  const claudeSessions = (d.giver === "claude" ? 1 : 0) + (d.receiver === "claude" ? receiverArms().length : 0);
+  const claudeSessions = (d.giver === "claude" ? 1 : 0) + (d.receiver === "claude" ? receiverArms(d).length : 0);
   if (claudeSessions && !spend.allow(claudeSessions)) return { ...out, stopped: spend.why(claudeSessions) };
   const g = await session("giver", d, gw, shared, d.giverPrompt, runDir, giverFake);
   spend.add(g);
@@ -756,26 +850,29 @@ const recordTextOf = (card) => (card ? [card.task, card.request, card.outcome].f
  * receivers: the direction as that run reported it, its folders here. Throws when the giver cannot be
  * reused as it was: a dry run's, past its gate, its files gone, or its record no longer holding the decision.
  */
-function reusedGiver(d, runDir) {
-  const from = d.giverFrom ?? d.id;
-  const hit = GIVERS.map((x) => ({ ...x, d: x.saved.directions.find((y) => y.id === from) })).find((x) => x.d);
-  if (!hit) throw new Error(`${d.id}: no giver ${from} in ${SPEC.giversFrom.join(", ")}`);
+function reusedGiver(d, runDir, sources = GIVERS) {
+  const from = sources === GIVERS ? d.giverFrom ?? d.id : d.id;
+  const hit = sources.map((x) => ({ ...x, d: x.saved.directions.find((y) => y.id === from) })).find((x) => x.d);
+  if (!hit) throw new Error(`${d.id}: no giver ${from} in ${sources.map((x) => x.file).join(", ")}`);
   const e = hit.d;
-  if (hit.saved.fake) throw new Error(`${d.id}: ${hit.file} is a dry run; givers are reused from live runs only`);
-  if (!e.gate?.pass || e.giver?.invalid || !e.snapshot?.history) throw new Error(`${d.id}: the giver ${from} did not pass its gate or kept no git history`);
+  // An earlier stage's dry run may hand its givers to this stage's dry run, never to a live one.
+  if (hit.saved.fake && !(FAKE && sources !== GIVERS)) throw new Error(`${d.id}: ${hit.file} is a dry run; givers are reused from live runs only`);
+  // A stand-in giver has no commits (newWorkspace), so no history to keep; a live one always has.
+  const history = !hit.saved.fake;
+  if (!e.gate?.pass || e.giver?.invalid || (history && !e.snapshot?.history)) throw new Error(`${d.id}: the giver ${from} did not pass its gate or kept no git history`);
   const src = join(HOME, ".snout-bench", "handoff-runs", hit.saved.runId, from), dst = join(runDir, d.id);
-  for (const f of ["store", "snapshot", "history.bundle"]) if (!existsSync(join(src, f))) throw new Error(`${d.id}: ${join(src, f)} is gone; the giver cannot be reused`);
+  for (const f of ["store", "snapshot", ...(history ? ["history.bundle"] : [])]) if (!existsSync(join(src, f))) throw new Error(`${d.id}: ${join(src, f)} is gone; the giver cannot be reused`);
   rmSync(dst, { recursive: true, force: true });
   mkdirSync(dst, { recursive: true });
   for (const f of ["store", "snapshot", "history.bundle", "claude-memory"]) if (existsSync(join(src, f))) cpSync(join(src, f), join(dst, f), { recursive: true });
-  if (!sh("git", ["bundle", "list-heads", join(dst, "history.bundle")]).stdout.includes(e.snapshot.history.head)) throw new Error(`${d.id}: the giver's bundle no longer holds its last commit ${e.snapshot.history.head}`);
+  if (history && !sh("git", ["bundle", "list-heads", join(dst, "history.bundle")]).stdout.includes(e.snapshot.history.head)) throw new Error(`${d.id}: the giver's bundle no longer holds its last commit ${e.snapshot.history.head}`);
   const card = cardOf({ snoutDir: join(dst, "store", "snout") }, e.giver.session);
   if (card?.agent !== d.giver || !new RegExp(d.recordPattern, "i").test(recordTextOf(card))) throw new Error(`${d.id}: the giver's record in the copy is missing, not ${d.giver}'s, or lacks the decision`);
   return {
     id: d.id, project: d.project, giverAgent: d.giver, receiverAgent: d.receiver,
     giver: { ...e.giver, reused: { from: hit.file, runId: hit.saved.runId, direction: from, frozenAt: hit.saved.frozenAt } },
     gate: e.gate, ...(e.giverMemory ? { giverMemory: e.giverMemory } : {}),
-    snapshot: { ...e.snapshot, dir: join(dst, "snapshot"), history: { ...e.snapshot.history, bundle: join(dst, "history.bundle") } },
+    snapshot: { ...e.snapshot, dir: join(dst, "snapshot"), ...(history ? { history: { ...e.snapshot.history, bundle: join(dst, "history.bundle") } } : {}) },
   };
 }
 
@@ -802,20 +899,24 @@ async function receivers(d, runDir, spend, out) {
   delete out.awaitingReview;
   out.receivers = {};
   // The receivers run as a set or not at all, at the same budget, so they stay comparable.
-  if (d.receiver === "claude" && !spend.allow(receiverArms().length)) { out.stopped = spend.why(receiverArms().length); return out; }
-  for (const arm of receiverArms()) {
+  if (d.receiver === "claude" && !spend.allow(receiverArms(d).length)) { out.stopped = spend.why(receiverArms(d).length); return out; }
+  for (const key of receiverArms(d)) {
+    const arm = armOf(key);
     if (d.receiver === "claude" && !spend.allow()) { out.stopped = spend.why(); break; }
-    const store = arm === "off" ? newStore(join(runDir, d.id, "off-store"), "plain")
-      : newStore(join(runDir, d.id, `${arm}-store`), arm === "notes" ? "notes" : "search", shared, arm === "index" ? { memoryRecent: true } : arm === "leftoff" ? { memoryLeftOff: true } : {});
+    const store = arm === "off" ? newStore(join(runDir, d.id, `${key}-store`), "plain")
+      : arm === "trim" ? newStore(join(runDir, d.id, `${key}-store`), "trim")
+      : newStore(join(runDir, d.id, `${key}-store`), arm === "notes" ? "notes" : "search", shared, arm === "index" ? { memoryRecent: true } : arm === "leftoff" ? { memoryLeftOff: true } : {});
     if (RECEIVER_IMPORT_OFF) store.env.SNOUT_IMPORT = "off";
+    // A repeat's key must name a known arm, or its store falls through to the search arm's (a stand-in run of 2026-11-12 caught that).
+    if (!["on", "index", "leftoff", "notes", "trim", "off"].includes(arm)) throw new Error(`${d.id}: receiver ${key} names no known arm`);
     const w = newWorkspace(d.receiver, d, snapshot, { fixed: OWN_MEMORY && d.receiver === "claude", history: out.snapshot.history ?? null });
     if (OWN_MEMORY && d.receiver === "claude") {
       const mem = claudeMemoryDir(w.ws), kept = join(runDir, d.id, "claude-memory");
       rmSync(mem, { recursive: true, force: true });
       if (existsSync(kept)) cpSync(kept, mem, { recursive: true });
     }
-    const fake = FAKE ? { patch: fakePatch(snapshot, join(HERE, d.project, refReceiver(d)), runDir, `${d.id}-${arm}`), say: "Done; tests pass." } : undefined;
-    const s = await session(`receiver-${arm}`, d, w, store, d.receiverPrompt, runDir, fake);
+    const fake = FAKE ? { patch: fakePatch(snapshot, join(HERE, d.project, refReceiver(d)), runDir, `${d.id}-${key}`), say: "Done; tests pass." } : undefined;
+    const s = await session(`receiver-${key}`, d, w, store, d.receiverPrompt, runDir, fake);
     spend.add(s);
     if (FAKE && (arm === "on" || arm === "index")) {
       // The stand-ins call no MCP tool: ask the receiver's own server, as an agent might, and mark it a probe.
@@ -841,7 +942,7 @@ async function receivers(d, runDir, spend, out) {
     }
     // What it read before its first useful edit (Claude Code: from its transcript).
     if (d.receiver === "claude" && s.session) s.beforeFirstEdit = beforeFirstEdit(s.session, w.ws);
-    out.receivers[arm] = s;
+    out.receivers[key] = s;
   }
   const on = out.receivers.on, notes = out.receivers.notes, off = out.receivers.off;
   // Record only: no file states the decision and no code applies it (spec-record.json; spec.json has no repoPattern).
@@ -968,7 +1069,9 @@ function checkFreeze(versions) {
   if (JSON.stringify(want.settings) !== JSON.stringify(S)) bad.push("settings");
   if (!FAKE) {
     if (!String(versions.claude ?? "").includes(S.claudeCode)) bad.push(`Claude Code ${versions.claude}`);
-    if (!String(versions.codex ?? "").includes(S.codex)) bad.push(`Codex ${versions.codex}`);
+    // A spec with no Codex session (spec-benchmark.json) freezes no Codex version.
+    const codex = SPEC.directions.some((d) => d.giver === "codex" || d.receiver === "codex");
+    if (codex && !String(versions.codex ?? "").includes(S.codex)) bad.push(`Codex ${versions.codex}`);
   }
   if (bad.length) throw new Error(`differs from the frozen inputs (${relative(REPO, FREEZE_FILE).replace(/\\/g, "/")}): ${bad.join(", ")}`);
   return want.frozenAt;
@@ -1053,6 +1156,16 @@ function gradeCheck() {
       ] : [
         ["giver's reference, receiver's tests", grade(d, giverDone, "receiver", runDir), false],
         ["both references, receiver's tests", grade(d, both, "receiver", runDir), true],
+        // A guess: the next step done well without the decision (spec-benchmark.json). It must do the task and
+        // miss the decision, or the decision checks can't tell a receiver that knew it from one that guessed.
+        ...(d.grade.refGuess ? (() => {
+          const guess = join(runDir, d.id, "guess-ref");
+          copyProject(giverDone, guess); cpSync(join(HERE, d.project, d.grade.refGuess), guess, { recursive: true });
+          return [
+            ["a guess without the decision, the receiver's task tests", grade(d, guess, "receiver", runDir, d.grade.receiverTaskTests), true],
+            ["a guess without the decision, the receiver's decision tests", grade(d, guess, "receiver", runDir, d.grade.receiverDecisionTests), false],
+          ];
+        })() : []),
       ]),
     ];
     const visible = codeShows(giverDone, d.codePattern);
@@ -1089,7 +1202,7 @@ function summarize(saved) {
       for (const l of ls) console.log(`             ${l.id} [${l.basis}; record ${l.check === "verified" ? "backs it" : "does NOT back it"}; ${l.approved ? "approved" : l.verdict ?? "not reviewed"}] "${l.text.slice(0, 110)}" · applies when: ${l.applies.slice(0, 80)}`);
     }
     if (d.snapshot) console.log(`  snapshot   the code shows the fact: ${d.snapshot.codeVisible.length ? d.snapshot.codeVisible.join(", ") : "no"}${d.snapshot.decisionInRepo ? ` · the decision is in the project: ${d.snapshot.decisionInRepo.length ? d.snapshot.decisionInRepo.join(", ") : "no (record only)"}` : ""}`);
-    for (const arm of ["on", "index", "leftoff", "notes", "off"].filter((a) => d.receivers?.[a])) {
+    for (const arm of Object.keys(d.receivers ?? {})) {
       const s = d.receivers?.[arm];
       if (!s) continue;
       const m = s.memory;
@@ -1258,6 +1371,7 @@ async function main() {
   // Snout's memory skill above the Codex workspaces would reach every Codex session, the off arm too.
   const stray = SPEC.directions.some((d) => d.giver === "codex" || d.receiver === "codex") ? straySkillDirs(REPO, existsSync) : [];
   if (stray.length) throw new Error(`Snout's memory skill above the Codex workspaces would reach every Codex session (the off arm too); move it out first: ${stray.join(", ")}`);
+  if (!FAKE && REPO_CODEX_SERVERS.length && SPEC.directions.some((d) => d.giver === "codex" || d.receiver === "codex")) codexServersOff();
   const resumed = typeof args.resume === "string" ? JSON.parse(readFileSync(args.resume, "utf8")) : null;
   if (resumed && resumed.fake !== FAKE) throw new Error(`that run was ${resumed.fake ? "a dry run" : "live"}; resume it the same way`);
   if (resumed && !!resumed.experimentalNotes !== NOTES_ARM) throw new Error("resume with the same experimental-notes setting as the original run");
@@ -1281,7 +1395,7 @@ async function main() {
   if (STAGE && !SPEC.stages?.[STAGE]) throw new Error(`the spec has no stage ${STAGE}`);
   if (STAGE && STAGE !== Object.keys(SPEC.stages)[0]) {
     if (!prior.length) throw new Error(`stage ${STAGE} needs the earlier stages' results (--after), so their spend counts and their gate is checked`);
-    const why = continuityGate(prior.flatMap((p) => p.directions));
+    const why = BENCHMARK_ARMS ? benchmarkGate(prior.flatMap((p) => p.directions), SPEC.stages[Object.keys(SPEC.stages)[0]].receivers) : continuityGate(prior.flatMap((p) => p.directions));
     if (why.length && !FAKE) throw new Error(`stage ${STAGE} may not start: ${why.join("; ")}`);
     if (why.length) console.error(`dry run: stage ${STAGE} would be refused live: ${why.join("; ")}`);
   }
@@ -1302,8 +1416,9 @@ async function main() {
   if (resumed && resumed.spec !== sha(SPEC_FILE)) throw new Error("the spec changed since that run started");
   if (STAGE) Object.assign(saved, { stage: STAGE, after: AFTER, priorSpendUsd: priorSpend });
   const save = () => { saved.spend = { claudeUsd: spent.claude, codexUsd: spent.codex, cap: Number.isFinite(CAP) ? CAP : null, budgetUsd: BUDGET, overshootUsd: OVERSHOOT }; writeFileSync(outFile, JSON.stringify(saved, null, 2)); };
-  console.error(`${only.length} direction(s), ${(GIVERS.length ? 0 : 1) + receiverArms().length} sessions each${GIVERS.length ? " (givers reused)" : ""} → ${outFile}`);
-  for (const d of SPEC.directions.filter((x) => only.includes(x.id))) {
+  console.error(`${only.length} direction(s), ${(GIVERS.length ? 0 : 1) + allReceiverArms().length} sessions each at most${GIVERS.length ? " (givers reused)" : ""} → ${outFile}`);
+  // In the stage's own order (spec-benchmark.json stage 2 runs the new handoffs first, then stage 1's remaining receivers).
+  for (const d of only.map((id) => SPEC.directions.find((x) => x.id === id)).filter(Boolean)) {
     const i = saved.directions.findIndex((x) => x.id === d.id);
     const done = saved.directions[i];
     if (done && !done.awaitingReview) continue;

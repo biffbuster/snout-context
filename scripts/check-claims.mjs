@@ -21,9 +21,12 @@ for (const name of cited) {
   const file = join("bench/ab-results", name);
   if (!existsSync(file)) { missing++; console.log(`missing  ${name}`); continue; }
   const result = JSON.parse(readFileSync(file, "utf8"));
-  const { snoutVersion, commit, measuredAt } = result;
-  const measuredBundle = result.bundleSha256 ?? result.frozen?.snoutDistSha256;
-  const dirty = result.dirty ?? result.frozen?.snoutDirty;
+  // A handoff run (bench/handoff-check.mjs, copied by bench/publish-results.mjs) keeps its stamp apart.
+  const stamp = result.stamp ?? {};
+  const { measuredAt } = result;
+  const snoutVersion = result.snoutVersion ?? stamp.snoutVersion, commit = result.commit ?? stamp.commit;
+  const measuredBundle = result.bundleSha256 ?? result.frozen?.snoutDistSha256 ?? stamp.bundleSha256;
+  const dirty = result.dirty ?? result.frozen?.snoutDirty ?? stamp.dirty;
   const fresh = snoutVersion === version && dirty === false && !!bundle && measuredBundle === bundle;
   if (!fresh) stale++;
   console.log(`${fresh ? "current" : "stale  "}  ${name}  ${snoutVersion ?? "unstamped"}${commit ? ` @${commit}` : ""}  ${measuredAt?.slice(0, 10) ?? ""}`);
