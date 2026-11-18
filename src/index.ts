@@ -35,7 +35,8 @@ export { auditContext, classifyContextPath, claudeImports, staleRefs, normalize,
 export { auditCi, renderCi, cronPerMonth } from "./audit/ci.js";
 export { parseYaml } from "./audit/yaml.js";
 export { codexRows } from "./compact/codex.js";
-export { sessionFacts, codexSessionFacts, testCommand, PASSED, stopsSession } from "./compact/memory.js";
+export { minisweRows, minisweTask, diffFiles } from "./compact/miniswe.js";
+export { sessionFacts, codexSessionFacts, minisweSessionFacts, testCommand, PASSED, stopsSession } from "./compact/memory.js";
 export { fromInternal } from "./agents/adapt.js";
 export { initAgent } from "./agents/init.js";
 export { buildMap, candidates, renderCandidates, requestNames, codeNames, namedExactly, namedPaths, withoutOutput, shouldSuggest, listFiles, entryFor, type RepoMap, type Candidate } from "./map/map.js";
@@ -52,7 +53,7 @@ export { adjacent, closestInMeaning, confidence, evidence, identsIn, indexForms,
 export { candidates as indexCandidates, closeIndex, dropIndex, folderChanged, indexedRecords, indexEnabled, indexFileFor, indexStatus, openIndex, plain, rebuildIndex, SCHEMA } from "./memory/sqlite.js";
 export { onPath } from "./util/path.js";
 export { acceptObservation, proposeObservation, OBS_KIND, addObservation, admit, archiveObservation, deleteObservation, listObservations, localViewer, memoryBlock, shareObservation, migratePrefs, recallable, repoPrincipal, sessionViewer, storesFor, supersedeObservation, userPrincipal, KINDS, MAX_TEXT, MEMORY_BUDGET, type MemoryBlock, type Observation, type Stores, type Viewer } from "./memory/store.js";
-export { beforeAsOf, claimImport, githubNudge, gitCommits, HIST_KIND, histText, historyDir, importHistory, MAX_RECORDS, readHistory, readImportState, REDACTED, REFRESH_MS, scrub, SINCE_DAYS, type HistRecord, type ImportResult } from "./memory/history.js";
+export { beforeAsOf, catchUpSession, claimImport, githubNudge, gitCommits, HIST_KIND, histText, historyDir, importHistory, MAX_RECORDS, readHistory, readImportState, REDACTED, REFRESH_MS, scrub, SINCE_DAYS, type HistRecord, type ImportResult } from "./memory/history.js";
 export { exactIn, memoryFetch, memoryHint, memoryIndex, recentIndex, RECENT_MAX, RECENT_TOKENS, HINT_HISTORY_MIN, memoryPropose, memorySave, memorySearch, prepareHistorySearch, rankSearch, visibleHistory, cardsFor, LESSON_INDEX, MAX_LESSONS, type Judged, type MemoryContext } from "./memory/tools.js";
 export { approved, approveLesson, checkProposals, editLesson, lessonCite, lessonDetail, lessons, proposals, proposeLesson, rejectLesson, replaceLesson, saidByUser, BASES, LESSON_CHARS, type LessonProposal } from "./memory/review.js";
 export { coveredBy, instructionText, INSTRUCTION_FILES, lastUses, likeness, nearDuplicate, PROPOSAL_DAYS, restoreObservation, retireUnused, UNUSED, UNUSED_DAYS, verification } from "./memory/quality.js";

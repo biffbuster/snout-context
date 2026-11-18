@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.7 (2026-11-18)
+
+Not measured on agents. Nothing below is covered by [docs/claims.md](docs/claims.md).
+
+- Fixed: the left-off note after a session that was cut off. Snout writes a session's record when
+  the session stops, and a session cut off before that (Esc, a crash, a closed terminal, a hook that
+  ended it) had no record, so the next session got no note, or one about older work. A new session's
+  first prompt now records the session before it from its transcript, for Claude Code and Codex.
+  On a machine with about 900 Codex sessions this took about 0.2 s, once per session.
+- Fixed: files a session changed through the shell (a script, `sed`, a patch) count as its changes.
+  Snout counted only files changed with the agent's edit tools, so the note could say there was
+  nothing to pick up. A file counts when it has uncommitted changes and was last written while the
+  session ran; Snout's own files don't. A file you edit yourself in that time counts too.
+- A file printed or searched after `cd dir &&` is no longer taken for a command that failed.
+- The library reads mini-swe-agent trajectories into the same session facts
+  (`minisweSessionFacts`).
+
 ## 0.3.6 (2026-11-16)
 
 Not measured on agents. Nothing below is covered by [docs/claims.md](docs/claims.md).

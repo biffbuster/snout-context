@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // src/cli.ts
-import { copyFileSync, existsSync as existsSync29, mkdirSync as mkdirSync17, mkdtempSync as mkdtempSync2, readdirSync as readdirSync12, readFileSync as readFileSync32, readSync as readSync6, rmSync as rmSync7, statSync as statSync25, writeFileSync as writeFileSync8, writeSync } from "node:fs";
+import { copyFileSync, existsSync as existsSync29, mkdirSync as mkdirSync17, mkdtempSync as mkdtempSync2, readdirSync as readdirSync12, readFileSync as readFileSync32, readSync as readSync6, rmSync as rmSync7, statSync as statSync26, writeFileSync as writeFileSync8, writeSync } from "node:fs";
 import { createHash as createHash12 } from "node:crypto";
 import { spawn as spawn2, spawnSync as spawnSync9 } from "node:child_process";
 import { basename as basename9, dirname as dirname13, isAbsolute as isAbsolute15, join as join39, resolve as resolve18 } from "node:path";
@@ -2426,7 +2426,7 @@ function writeText(file4, text) {
 }
 
 // src/mcp.ts
-import { existsSync as existsSync19, readFileSync as readFileSync20, statSync as statSync16 } from "node:fs";
+import { existsSync as existsSync19, readFileSync as readFileSync20, statSync as statSync17 } from "node:fs";
 import { isAbsolute as isAbsolute10, join as join25, relative as relative6, resolve as resolve10 } from "node:path";
 
 // src/audit/context.ts
@@ -3929,7 +3929,7 @@ function proposeObservation(s, id, now = /* @__PURE__ */ new Date()) {
 import { dirname as dirname9 } from "node:path";
 
 // src/memory/memory.ts
-import { existsSync as existsSync12, mkdirSync as mkdirSync9, readdirSync as readdirSync4, readFileSync as readFileSync10, unlinkSync as unlinkSync2 } from "node:fs";
+import { existsSync as existsSync12, mkdirSync as mkdirSync9, readdirSync as readdirSync4, readFileSync as readFileSync10, statSync as statSync11, unlinkSync as unlinkSync2 } from "node:fs";
 import { isAbsolute as isAbsolute9, join as join13, relative as relative5, sep as sep3 } from "node:path";
 import { spawnSync as spawnSync3 } from "node:child_process";
 import { createHash as createHash5 } from "node:crypto";
@@ -4325,7 +4325,7 @@ function factsFromClaudeRows(lines, projectDir, first2) {
         if (verdict && !/FAIL/.test(verdict) && GO_FAIL.test(out)) verdict = `${verdict} \xB7 FAIL`;
         facts.test = { command: oneLine(runner, 200), result: oneLine(verdict, 120) };
       }
-      const prints = NOT_RUNNER.has(command.trim().split(/\s+/)[0] ?? "");
+      const prints = NOT_RUNNER.has(command.trim().replace(/^(?:cd\s+\S+\s*&&\s*)+/, "").split(/\s+/)[0] ?? "");
       const err = missing || prints ? void 0 : errorLine(out);
       const cmd = oneLine(command, 160);
       if (err && !(runner && PASSED(verdict))) facts.error = { line: oneLine(err, 200), command: cmd };
@@ -4741,6 +4741,22 @@ function continuesWork(prompt, files) {
   const paths = pathsIn(prompt);
   return files.some((f) => namesFile(paths, f));
 }
+function withShellEdits(facts, projectDir, snoutDir, from, to) {
+  if (from === void 0) return facts;
+  const own = relative5(projectDir, snoutDir).split(sep3).join("/");
+  const snouts = (p) => !!own && !own.startsWith("..") && p.startsWith(`${own}/`) && !p.endsWith(".md");
+  const extra = [];
+  for (const p of [...workingState(projectDir).dirty].slice(0, 500)) {
+    if (facts.changed.includes(p) || snouts(p)) continue;
+    try {
+      const m = statSync11(join13(projectDir, p)).mtimeMs;
+      if (m >= from - SHELL_EDIT_SLACK_MS && m <= to + SHELL_EDIT_SLACK_MS) extra.push(p);
+    } catch {
+    }
+  }
+  return extra.length ? { ...facts, changed: [...facts.changed, ...extra].slice(0, 20) } : facts;
+}
+var SHELL_EDIT_SLACK_MS = 2e3;
 function workingState(projectDir) {
   let out = "";
   try {
@@ -4797,7 +4813,7 @@ function shareMemory(projectDir, snoutDir) {
 
 // src/memory/facts.ts
 import { createHash as createHash7 } from "node:crypto";
-import { existsSync as existsSync16, readFileSync as readFileSync15, statSync as statSync12 } from "node:fs";
+import { existsSync as existsSync16, readFileSync as readFileSync15, statSync as statSync13 } from "node:fs";
 import { join as join20 } from "node:path";
 
 // src/memory/semantic.ts
@@ -5503,7 +5519,7 @@ function restoreObservation(s, id, now = /* @__PURE__ */ new Date(), status = "a
 }
 
 // src/util/path.ts
-import { statSync as statSync11 } from "node:fs";
+import { statSync as statSync12 } from "node:fs";
 import { delimiter, join as join18 } from "node:path";
 function onPath(name, env = process.env, platform2 = process.platform) {
   if (!/^[\w.+-]+$/.test(name)) return false;
@@ -5512,7 +5528,7 @@ function onPath(name, env = process.env, platform2 = process.platform) {
     if (!dir) continue;
     for (const ext of exts) {
       try {
-        if (statSync11(join18(dir, name + ext)).isFile()) return true;
+        if (statSync12(join18(dir, name + ext)).isFile()) return true;
       } catch {
       }
     }
@@ -5958,7 +5974,7 @@ function heldBack(o, projectDir) {
     if (!existsSync16(abs)) return true;
     const h = o.source.hashes?.[f];
     try {
-      if (h ? fileHash(abs) !== h : statSync12(abs).mtimeMs > Date.parse(o.updated) + 1e3) return true;
+      if (h ? fileHash(abs) !== h : statSync13(abs).mtimeMs > Date.parse(o.updated) + 1e3) return true;
     } catch {
       return true;
     }
@@ -5976,12 +5992,12 @@ function staleClaims(stores, projectDir) {
 }
 
 // src/memory/history.ts
-import { closeSync as closeSync4, existsSync as existsSync18, mkdirSync as mkdirSync13, openSync as openSync4, readdirSync as readdirSync6, readFileSync as readFileSync18, readSync as readSync4, realpathSync as realpathSync4, rmSync as rmSync4, statSync as statSync14, writeFileSync as writeFileSync6 } from "node:fs";
+import { closeSync as closeSync4, existsSync as existsSync18, mkdirSync as mkdirSync13, openSync as openSync4, readdirSync as readdirSync6, readFileSync as readFileSync18, readSync as readSync4, realpathSync as realpathSync4, rmSync as rmSync4, statSync as statSync15, writeFileSync as writeFileSync6 } from "node:fs";
 import { spawnSync as spawnSync5 } from "node:child_process";
 import { basename as basename3, join as join23, resolve as resolve9 } from "node:path";
 
 // src/spend/usage.ts
-import { existsSync as existsSync17, readdirSync as readdirSync5, readFileSync as readFileSync17, statSync as statSync13, writeFileSync as writeFileSync5, mkdirSync as mkdirSync12 } from "node:fs";
+import { existsSync as existsSync17, readdirSync as readdirSync5, readFileSync as readFileSync17, statSync as statSync14, writeFileSync as writeFileSync5, mkdirSync as mkdirSync12 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
 import { dirname as dirname8, join as join22, resolve as resolve8, sep as sep4 } from "node:path";
 
@@ -6172,7 +6188,7 @@ function loadCache(path) {
 function fileRows(file4, client2, cache2, configDir2) {
   let st;
   try {
-    st = statSync13(file4);
+    st = statSync14(file4);
   } catch {
     return null;
   }
@@ -6515,7 +6531,7 @@ function transcripts(projectDir, env) {
   }
   for (const t of out) {
     try {
-      const st = statSync14(t.file);
+      const st = statSync15(t.file);
       t.key = `${st.size}:${Math.round(st.mtimeMs)}`;
     } catch {
     }
@@ -6541,6 +6557,19 @@ function headCwd(file4, agent) {
   } catch {
   }
   return null;
+}
+function sessionStartedAt(file4) {
+  try {
+    const fd = openSync4(file4, "r");
+    const buf = Buffer.alloc(65536);
+    const n = readSync4(fd, buf, 0, buf.length, 0);
+    closeSync4(fd);
+    const ts = /"timestamp":"([^"]+)"/.exec(buf.subarray(0, n).toString("utf8"))?.[1];
+    const ms = ts ? Date.parse(ts) : NaN;
+    return Number.isNaN(ms) ? void 0 : ms;
+  } catch {
+    return void 0;
+  }
 }
 var UUID = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/;
 var COMMITTED = /\[[\w./-]+(?: \([\w-]+\))? ([0-9a-f]{7,40})\] /g;
@@ -6734,13 +6763,23 @@ function importHistory(o) {
 `);
   return result;
 }
+var CAUGHT_UP_MS = 5e3;
+function catchUpSession(projectDir, snoutDir, current, env = process.env) {
+  const t = transcripts(projectDir, env).filter((x) => !basename3(x.file).includes(current)).map((x) => ({ ...x, mtime: statSync15(x.file).mtimeMs })).sort((a, b) => b.mtime - a.mtime)[0];
+  if (!t) return null;
+  const session = t.agent === "claude" ? basename3(t.file, ".jsonl") : UUID.exec(basename3(t.file))?.[1] ?? basename3(t.file, ".jsonl");
+  const card = readCard(snoutDir, session);
+  if (card && Date.parse(card.updated) >= t.mtime - CAUGHT_UP_MS) return null;
+  const facts = withShellEdits(t.agent === "claude" ? sessionFacts(t.file, projectDir) : codexSessionFacts(t.file, projectDir), projectDir, snoutDir, sessionStartedAt(t.file), t.mtime);
+  return captureSession(snoutDir, projectDir, session, t.agent, facts, new Date(t.mtime).toISOString()) ? session : null;
+}
 function claimImport(configDir2, project, now = Date.now()) {
   const last = readImportState(configDir2, project)?.last;
   if (last && now - Date.parse(last) < REFRESH_MS) return false;
   const marker = join23(configDir2, "history", project, "running");
   try {
     mkdirSync13(join23(configDir2, "history", project), { recursive: true });
-    if (existsSync18(marker) && Date.now() - statSync14(marker).mtimeMs < 36e5) return false;
+    if (existsSync18(marker) && Date.now() - statSync15(marker).mtimeMs < 36e5) return false;
     writeFileSync6(marker, (/* @__PURE__ */ new Date()).toISOString(), { flag: existsSync18(marker) ? "w" : "wx" });
     return true;
   } catch {
@@ -6764,7 +6803,7 @@ var beforeAsOf = (at, asOf) => asOf === void 0 || Date.parse(at) < Date.parse(as
 
 // src/memory/history-search.ts
 import { createHash as createHash8 } from "node:crypto";
-import { readFileSync as readFileSync19, statSync as statSync15 } from "node:fs";
+import { readFileSync as readFileSync19, statSync as statSync16 } from "node:fs";
 import { join as join24 } from "node:path";
 var RRF_K = 60;
 var MEANING_ALONE2 = 0.74;
@@ -6848,7 +6887,7 @@ var loaded = null;
 function vectorCache(file4) {
   let mtime = -1;
   try {
-    mtime = statSync15(file4).mtimeMs;
+    mtime = statSync16(file4).mtimeMs;
   } catch {
   }
   if (loaded?.file === file4 && loaded.mtime === mtime) return loaded;
@@ -6880,7 +6919,7 @@ async function prepareHistoryVectors(historyRoot, records, query, embed, max = M
     if (batch.length) {
       writeAtomic(file4, JSON.stringify(c.cache));
       try {
-        c.mtime = statSync15(file4).mtimeMs;
+        c.mtime = statSync16(file4).mtimeMs;
       } catch {
       }
     }
@@ -7451,8 +7490,8 @@ function callTool(name, args, projectDir, cfg) {
   }
   const abs = inProject(String(args.path ?? ""), projectDir);
   const rel = toRel(abs, projectDir);
-  if (!existsSync19(abs) || !statSync16(abs).isFile()) throw new Error(`No such file: ${rel}`);
-  const bytes = statSync16(abs).size;
+  if (!existsSync19(abs) || !statSync17(abs).isFile()) throw new Error(`No such file: ${rel}`);
+  const bytes = statSync17(abs).size;
   const d = tier0({ absPath: abs, projectDir, cfg });
   const band = bandOf(d);
   const tokens2 = estimateTokens(bytes, rel);
@@ -7509,7 +7548,7 @@ function cap2(s) {
 // src/dashboard/server.ts
 import { createRequire as createRequire3 } from "node:module";
 import { randomBytes as randomBytes2, timingSafeEqual } from "node:crypto";
-import { readFileSync as readFileSync26, statSync as statSync22, unwatchFile, watchFile } from "node:fs";
+import { readFileSync as readFileSync26, statSync as statSync23, unwatchFile, watchFile } from "node:fs";
 import { basename as basename7, isAbsolute as isAbsolute12, join as join31 } from "node:path";
 
 // src/dashboard/summary.ts
@@ -7783,7 +7822,7 @@ function summarizeSpend(rows, sinceDay = "", now = /* @__PURE__ */ new Date()) {
 
 // src/map/map.ts
 import { spawnSync as spawnSync6 } from "node:child_process";
-import { readdirSync as readdirSync7, readFileSync as readFileSync21, statSync as statSync17 } from "node:fs";
+import { readdirSync as readdirSync7, readFileSync as readFileSync21, statSync as statSync18 } from "node:fs";
 import { basename as basename4, extname as extname2, join as join26, relative as relative7, sep as sep5 } from "node:path";
 var TEXT_EXT = /\.(m?js|cjs|jsx|ts|tsx|mts|cts|py|pyi|go|rs|java|kt|kts|cs|rb|php|swift|scala|c|cc|cpp|h|hpp|m|mm|ex|exs|erl|clj|lua|sh|bash|zsh|sql|graphql|proto|vue|svelte|astro|md|mdx|rst|txt|toml|ya?ml|json|ini|cfg|conf|env\.example|html|css|scss)$/i;
 var SKIP_DIR = /* @__PURE__ */ new Set(["node_modules", ".git", "dist", "build", "out", "target", "vendor", "third_party", "coverage", ".next", ".venv", "venv", "__pycache__", ".snout", ".claude", ".tox", ".mypy_cache", ".pytest_cache"]);
@@ -7854,7 +7893,7 @@ function buildMap(projectDir, prev, skip) {
     if (skip?.(rel)) continue;
     let st;
     try {
-      st = statSync17(join26(projectDir, rel));
+      st = statSync18(join26(projectDir, rel));
     } catch {
       continue;
     }
@@ -8052,7 +8091,7 @@ function renderCandidates(cs) {
 }
 
 // src/audit/mcp-servers.ts
-import { existsSync as existsSync20, readdirSync as readdirSync8, readFileSync as readFileSync22, statSync as statSync18 } from "node:fs";
+import { existsSync as existsSync20, readdirSync as readdirSync8, readFileSync as readFileSync22, statSync as statSync19 } from "node:fs";
 import { homedir as homedir4 } from "node:os";
 import { join as join27, resolve as resolve11 } from "node:path";
 import { spawn } from "node:child_process";
@@ -8121,7 +8160,7 @@ function mcpUsage(projectDir, days = 30, home = homedir4()) {
     if (!f.endsWith(".jsonl")) continue;
     const path = join27(root, f);
     try {
-      if (statSync18(path).mtimeMs < since) continue;
+      if (statSync19(path).mtimeMs < since) continue;
       const text = readFileSync22(path, "utf8");
       const re = /"name":"mcp__([A-Za-z0-9_.-]+?)__[A-Za-z0-9_.-]+"/g;
       let m;
@@ -8311,7 +8350,7 @@ function linksOf(map, groupOf, keep) {
 }
 
 // src/dashboard/file.ts
-import { readFileSync as readFileSync23, statSync as statSync19 } from "node:fs";
+import { readFileSync as readFileSync23, statSync as statSync20 } from "node:fs";
 import { isAbsolute as isAbsolute11, join as join28, relative as relative8, resolve as resolve12 } from "node:path";
 var HEAD_LINES2 = 60;
 var HEAD_BYTES4 = 6 * 1024;
@@ -8320,7 +8359,7 @@ function fileReport(projectDir, path, cfg) {
   const abs = resolve12(isAbsolute11(path) ? path : join28(projectDir, path));
   const rel = relative8(projectDir, abs).split("\\").join("/");
   if (!rel || rel.startsWith("..") || isAbsolute11(rel)) throw new Error("outside the project");
-  const st = statSync19(abs);
+  const st = statSync20(abs);
   if (!st.isFile()) throw new Error("not a file");
   const d = tier0({ absPath: abs, projectDir, cfg });
   const label = d && d.value <= 1 ? d.rule : "source";
@@ -8366,12 +8405,12 @@ function parseOutline(sentence, text, lines) {
 
 // src/dashboard/pages.ts
 import { createHash as createHash9 } from "node:crypto";
-import { existsSync as existsSync22, readdirSync as readdirSync10, readFileSync as readFileSync25, statSync as statSync21 } from "node:fs";
+import { existsSync as existsSync22, readdirSync as readdirSync10, readFileSync as readFileSync25, statSync as statSync22 } from "node:fs";
 import { homedir as homedir5, hostname, platform, release, tmpdir } from "node:os";
 import { basename as basename6, join as join30, resolve as resolve14 } from "node:path";
 
 // src/dashboard/sessions.ts
-import { closeSync as closeSync5, existsSync as existsSync21, openSync as openSync5, readdirSync as readdirSync9, readFileSync as readFileSync24, readSync as readSync5, statSync as statSync20 } from "node:fs";
+import { closeSync as closeSync5, existsSync as existsSync21, openSync as openSync5, readdirSync as readdirSync9, readFileSync as readFileSync24, readSync as readSync5, statSync as statSync21 } from "node:fs";
 import { basename as basename5, join as join29, resolve as resolve13, sep as sep6 } from "node:path";
 var PROMPT_CHARS = 400;
 var TARGET_CHARS = 240;
@@ -8610,7 +8649,7 @@ var SessionStore = class {
   feed(file4, id, client2, agent) {
     let st;
     try {
-      st = statSync20(file4);
+      st = statSync21(file4);
     } catch {
       this.files.delete(file4);
       return null;
@@ -8652,7 +8691,7 @@ var SessionStore = class {
     for (const f of jsonlFiles(codexRoot())) {
       let stamp = "";
       try {
-        stamp = String(statSync20(f).size);
+        stamp = String(statSync21(f).size);
       } catch {
         continue;
       }
@@ -8753,7 +8792,7 @@ function knownProjects() {
       try {
         for (const f of readdirSync9(dir)) {
           if (!f.endsWith(".jsonl")) continue;
-          const m = statSync20(join29(dir, f)).mtimeMs;
+          const m = statSync21(join29(dir, f)).mtimeMs;
           if (!newest || m > newest.m) newest = { f: join29(dir, f), m };
         }
       } catch {
@@ -8764,7 +8803,7 @@ function knownProjects() {
   }
   for (const f of jsonlFiles(codexRoot())) {
     try {
-      note(firstCwd(f), "codex", statSync20(f).mtimeMs);
+      note(firstCwd(f), "codex", statSync21(f).mtimeMs);
     } catch {
     }
   }
@@ -9647,7 +9686,7 @@ var HEARTBEAT_DAYS = 7;
 var DAY4 = 864e5;
 var stampOf = (file4) => {
   try {
-    const s = statSync21(file4);
+    const s = statSync22(file4);
     return `${s.size}:${s.mtimeMs}`;
   } catch {
     return "none";
@@ -9765,7 +9804,7 @@ var Projects = class {
 };
 function statMs(file4) {
   try {
-    return statSync21(file4).mtimeMs;
+    return statSync22(file4).mtimeMs;
   } catch {
     return 0;
   }
@@ -10026,7 +10065,7 @@ var RECORDS = [
 ];
 function lineCount(file4) {
   try {
-    const st = statSync21(file4);
+    const st = statSync22(file4);
     if (st.size > 64 << 20) return null;
     const b = readFileSync25(file4);
     let n = 0;
@@ -10040,7 +10079,7 @@ function dirBytes(dir) {
   let n = 0;
   try {
     for (const f of readdirSync10(dir, { withFileTypes: true })) {
-      if (f.isFile()) n += statSync21(join30(dir, f.name)).size;
+      if (f.isFile()) n += statSync22(join30(dir, f.name)).size;
     }
   } catch {
   }
@@ -10048,7 +10087,7 @@ function dirBytes(dir) {
 }
 function environment(d, opts) {
   const sd = d.paths.snoutDir;
-  const records = RECORDS.filter(([f]) => existsSync22(join30(sd, f))).map(([f]) => ({ name: f, bytes: statSync21(join30(sd, f)).size, rows: f.endsWith(".jsonl") ? lineCount(join30(sd, f)) : null }));
+  const records = RECORDS.filter(([f]) => existsSync22(join30(sd, f))).map(([f]) => ({ name: f, bytes: statSync22(join30(sd, f)).size, rows: f.endsWith(".jsonl") ? lineCount(join30(sd, f)) : null }));
   if (existsSync22(join30(sd, "memory"))) records.push({ name: "memory/", bytes: dirBytes(join30(sd, "memory")), rows: readdirSync10(join30(sd, "memory")).filter((f) => f.endsWith(".json")).length });
   if (existsSync22(join30(sd, "squeeze"))) records.push({ name: "squeeze/", bytes: dirBytes(join30(sd, "squeeze")), rows: readdirSync10(join30(sd, "squeeze")).length });
   const agents2 = /* @__PURE__ */ new Map();
@@ -10136,7 +10175,7 @@ function settings(d) {
 function privacy(d) {
   const cfg = loadConfig(d.paths);
   const sd = d.paths.snoutDir;
-  const stored = RECORDS.filter(([f]) => existsSync22(join30(sd, f))).map(([f, holds]) => ({ file: `.snout/${f}`, holds, bytes: statSync21(join30(sd, f)).size }));
+  const stored = RECORDS.filter(([f]) => existsSync22(join30(sd, f))).map(([f, holds]) => ({ file: `.snout/${f}`, holds, bytes: statSync22(join30(sd, f)).size }));
   if (existsSync22(join30(sd, "memory"))) stored.push({ file: ".snout/memory/", holds: "One card per session: start of first and last request, files changed, commits, test command, last error", bytes: dirBytes(join30(sd, "memory")) });
   if (existsSync22(join30(sd, "squeeze"))) stored.push({ file: ".snout/squeeze/", holds: "Full command outputs Snout shortened, newest 30 kept", bytes: dirBytes(join30(sd, "squeeze")) });
   return {
@@ -10179,7 +10218,7 @@ function startDashboard(paths, opts) {
   let cache2 = /* @__PURE__ */ new Map();
   const stamp = () => {
     try {
-      const s = statSync22(paths.ledger);
+      const s = statSync23(paths.ledger);
       return `${s.size}:${s.mtimeMs}`;
     } catch {
       return "none";
@@ -10231,14 +10270,14 @@ function startDashboard(paths, opts) {
           if (seen.has(p) || isAbsolute12(p) || p.startsWith("..")) continue;
           seen.add(p);
           try {
-            const st = statSync22(join31(paths.projectDir, p));
+            const st = statSync23(join31(paths.projectDir, p));
             if (st.isFile()) next.push({ path: p, size: st.size });
           } catch {
           }
         }
         listing = next;
         try {
-          const st = statSync22(paths.map);
+          const st = statSync23(paths.map);
           const v = `${st.size}:${st.mtimeMs}`;
           if (v !== mapStamp) {
             mapStamp = v;
@@ -11546,7 +11585,7 @@ function logTail(all) {
 
 // src/memory/file-history.ts
 import { spawnSync as spawnSync8 } from "node:child_process";
-import { existsSync as existsSync26, statSync as statSync23 } from "node:fs";
+import { existsSync as existsSync26, statSync as statSync24 } from "node:fs";
 import { isAbsolute as isAbsolute14, join as join35, relative as relative10, resolve as resolve17, sep as sep8 } from "node:path";
 var FILE_HISTORY_COMMITS = 3;
 var FILE_HISTORY_DAYS = 183;
@@ -11567,7 +11606,7 @@ function commandFiles(command, cwd) {
     for (const d of dirs) {
       const abs = isAbsolute14(word) ? word : resolve17(d, word);
       try {
-        if (existsSync26(abs) && statSync23(abs).isFile() && !out.includes(abs)) {
+        if (existsSync26(abs) && statSync24(abs).isFile() && !out.includes(abs)) {
           out.push(abs);
           break;
         }
@@ -11788,7 +11827,7 @@ function summarizeRecall(outcomes) {
 }
 
 // src/gate/repeat.ts
-import { existsSync as existsSync28, readFileSync as readFileSync31, statSync as statSync24 } from "node:fs";
+import { existsSync as existsSync28, readFileSync as readFileSync31, statSync as statSync25 } from "node:fs";
 import { join as join38 } from "node:path";
 import { createHash as createHash11 } from "node:crypto";
 var MAX_ENTRIES = 2e3;
@@ -11843,7 +11882,7 @@ function coveringWindow(have, want) {
 var keyOf = (agentId, rel) => `${agentId || "main"}\0${rel}`;
 function statOf(absPath) {
   try {
-    const s = statSync24(absPath);
+    const s = statSync25(absPath);
     return s.isFile() ? { size: s.size, mtimeMs: Math.round(s.mtimeMs) } : null;
   } catch {
     return null;
@@ -11892,7 +11931,7 @@ function forgetReads(snoutDir, session) {
 }
 
 // src/cli.ts
-var VERSION2 = "0.3.6";
+var VERSION2 = "0.3.7";
 var BIN = resolve18(process.argv[1] ?? "dist/snout.mjs");
 var requestStart = 0;
 var elapsedMs = () => Math.round(performance.now() - requestStart);
@@ -12285,7 +12324,7 @@ function markPluginStarted(paths, session) {
   try {
     mkdirSync17(sessionsDir(paths), { recursive: true });
     writeFileSync8(markerOf(paths, session), "");
-    const all = readdirSync12(sessionsDir(paths)).map((f) => ({ f, t: statSync25(join39(sessionsDir(paths), f)).mtimeMs })).sort((a, b) => b.t - a.t);
+    const all = readdirSync12(sessionsDir(paths)).map((f) => ({ f, t: statSync26(join39(sessionsDir(paths), f)).mtimeMs })).sort((a, b) => b.t - a.t);
     for (const { f } of all.slice(50)) rmSync7(join39(sessionsDir(paths), f), { force: true });
   } catch (err) {
     recordError("markPluginStarted", err);
@@ -12410,6 +12449,13 @@ function promptNotes(prompt, paths, cfg, state) {
     let left = "";
     if (state.turn === 1) {
       try {
+        if (cfg.memoryLeftOff !== false || cfg.memoryNotes === true) {
+          try {
+            catchUpSession(paths.projectDir, paths.snoutDir, state.session);
+          } catch (err) {
+            recordError("catchUp", err);
+          }
+        }
         const claims = staleClaims(storesFor(paths.projectDir, paths.snoutDir, configDir()), paths.projectDir);
         left = leftOff(workCards(paths.snoutDir, 2).filter((c) => c.session !== state.session).slice(0, 1).map((c) => withoutStaleClaims(c, claims)), { ...workingState(paths.projectDir), prompt });
       } catch (err) {
@@ -12640,7 +12686,7 @@ function firstForCall(paths, id) {
   }
   try {
     const all = readdirSync12(dir);
-    if (all.length > 400) for (const f of all.map((f2) => ({ f: f2, t: statSync25(join39(dir, f2)).mtimeMs })).sort((a, b) => a.t - b.t).slice(0, all.length - 200)) rmSync7(join39(dir, f.f), { force: true });
+    if (all.length > 400) for (const f of all.map((f2) => ({ f: f2, t: statSync26(join39(dir, f2)).mtimeMs })).sort((a, b) => a.t - b.t).slice(0, all.length - 200)) rmSync7(join39(dir, f.f), { force: true });
   } catch {
   }
   return true;
@@ -12872,7 +12918,7 @@ function warmMap(paths, cfg) {
   if (!cfg.repoMap || client || capturing) return false;
   const marker = `${paths.map}.building`;
   try {
-    if (existsSync29(marker) && Date.now() - statSync25(marker).mtimeMs < 12e4) return false;
+    if (existsSync29(marker) && Date.now() - statSync26(marker).mtimeMs < 12e4) return false;
     mkdirSync17(dirname13(marker), { recursive: true });
     writeFileSync8(marker, String(process.pid));
     spawn2(process.execPath, [BIN, "map"], { cwd: paths.projectDir, stdio: "ignore", detached: true, windowsHide: true }).on("error", () => {
@@ -12921,7 +12967,7 @@ var agentName = () => client === "codex" ? "codex" : "claude";
 function captureCard(input, paths, cfg, session) {
   if (cfg.memory === false || !input.transcript_path || replayDir) return;
   try {
-    const facts = client === "codex" ? codexSessionFacts(input.transcript_path, paths.projectDir) : sessionFacts(input.transcript_path, paths.projectDir);
+    const facts = withShellEdits(client === "codex" ? codexSessionFacts(input.transcript_path, paths.projectDir) : sessionFacts(input.transcript_path, paths.projectDir), paths.projectDir, paths.snoutDir, sessionStartedAt(input.transcript_path), Date.now());
     const card = captureSession(paths.snoutDir, paths.projectDir, session, agentName(), facts);
     if (card && !(process.env.CI || process.env.SNOUT_TOKEN)) {
       try {
@@ -13423,7 +13469,7 @@ function reviveServer(paths, cfg) {
 }
 function buildId() {
   try {
-    return `${VERSION2}+${Math.floor(statSync25(BIN).mtimeMs)}`;
+    return `${VERSION2}+${Math.floor(statSync26(BIN).mtimeMs)}`;
   } catch {
     return VERSION2;
   }
@@ -13708,7 +13754,7 @@ var NATIVE_READ_MAX_BYTES = 256 * 1024;
 var overNativeReadLimit = (absPath) => sizeOf(absPath) > NATIVE_READ_MAX_BYTES;
 function isRegularFile(absPath) {
   try {
-    return statSync25(absPath).isFile();
+    return statSync26(absPath).isFile();
   } catch {
     return false;
   }
@@ -14853,7 +14899,7 @@ function cmdReplay(paths, args) {
   let files = args.filter((a, i) => a.endsWith(".jsonl") && args[i - 1] !== "--last");
   if (!files.length) {
     const dir = join39(process.env.CLAUDE_CONFIG_DIR || join39(homedir6(), ".claude"), "projects", resolve18(paths.projectDir).replace(/[^A-Za-z0-9]/g, "-"));
-    files = existsSync29(dir) ? readdirSync12(dir).filter((f) => f.endsWith(".jsonl")).map((f) => join39(dir, f)).sort((a, b) => statSync25(b).mtimeMs - statSync25(a).mtimeMs).slice(0, last) : [];
+    files = existsSync29(dir) ? readdirSync12(dir).filter((f) => f.endsWith(".jsonl")).map((f) => join39(dir, f)).sort((a, b) => statSync26(b).mtimeMs - statSync26(a).mtimeMs).slice(0, last) : [];
   }
   if (!files.length) return say("snout replay: no Claude Code sessions found for this project. Pass transcript files (.jsonl) to replay others.");
   const rows = [];

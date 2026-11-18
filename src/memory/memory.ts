@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync } from "node:fs";
 import { isAbsolute, join, relative, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -646,6 +646,28 @@ export function continuesWork(prompt: string, files: string[]): boolean {
   const paths = pathsIn(prompt);
   return files.some((f) => namesFile(paths, f));
 }
+
+/**
+ * A session's facts with the files it changed through the shell (a script, sed, a patch), which its
+ * tool calls don't name: uncommitted files last written while it ran, from its first prompt to its last
+ * write. Another writer in that window counts too; the left-off note says to check it against the code.
+ */
+export function withShellEdits(facts: SessionFacts, projectDir: string, snoutDir: string, from: number | undefined, to: number): SessionFacts {
+  if (from === undefined) return facts;
+  // Snout's own files (its logs, state and records) are not the session's work; notes there are.
+  const own = relative(projectDir, snoutDir).split(sep).join("/");
+  const snouts = (p: string) => !!own && !own.startsWith("..") && p.startsWith(`${own}/`) && !p.endsWith(".md");
+  const extra: string[] = [];
+  for (const p of [...workingState(projectDir).dirty].slice(0, 500)) {
+    if (facts.changed.includes(p) || snouts(p)) continue;
+    try {
+      const m = statSync(join(projectDir, p)).mtimeMs;
+      if (m >= from - SHELL_EDIT_SLACK_MS && m <= to + SHELL_EDIT_SLACK_MS) extra.push(p);
+    } catch { /* deleted */ }
+  }
+  return extra.length ? { ...facts, changed: [...facts.changed, ...extra].slice(0, 20) } : facts;
+}
+const SHELL_EDIT_SLACK_MS = 2000;
 
 /**
  * The checkout now, from one `git status`: the branch, and the files with uncommitted changes

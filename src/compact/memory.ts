@@ -12,6 +12,7 @@
 import { closeSync, existsSync, openSync, readSync, statSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { codexRows } from "./codex.js";
+import { minisweRows } from "./miniswe.js";
 
 const TAIL_BYTES = 16 * 1024 * 1024;
 const HEAD_BYTES = 2 * 1024 * 1024;
@@ -321,7 +322,8 @@ function factsFromClaudeRows(lines: Iterable<string>, projectDir: string, first?
         facts.test = { command: oneLine(runner, 200), result: oneLine(verdict, 120) };
       }
       // A file printed or searched may contain error text; only a command that ran can fail.
-      const prints = NOT_RUNNER.has(command.trim().split(/\s+/)[0] ?? "");
+      // `cd dir && grep ...` prints as plainly as `grep ...`.
+      const prints = NOT_RUNNER.has(command.trim().replace(/^(?:cd\s+\S+\s*&&\s*)+/, "").split(/\s+/)[0] ?? "");
       const err = missing || prints ? undefined : errorLine(out);
       const cmd = oneLine(command, 160);
       if (err && !(runner && PASSED(verdict))) facts.error = { line: oneLine(err, 200), command: cmd };
@@ -352,4 +354,9 @@ function factsFromClaudeRows(lines: Iterable<string>, projectDir: string, first?
 /** Codex facts, by the same rules: its session file read as Claude rows (compact/codex.ts). */
 export function codexSessionFacts(transcriptPath: string, projectDir: string): SessionFacts {
   return factsFromClaudeRows(codexRows(tail(transcriptPath).split(/\n/)), projectDir);
+}
+
+/** mini-swe-agent facts, by the same rules: its trajectory's messages read as Claude rows (compact/miniswe.ts). */
+export function minisweSessionFacts(messages: unknown[], projectDir: string): SessionFacts {
+  return factsFromClaudeRows(minisweRows(messages), projectDir);
 }
