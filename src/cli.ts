@@ -56,10 +56,10 @@ import { auditServers, disableHint } from "./audit/mcp-servers.js";
 import { archiveFiles, auditContext, listArchives, renderAudit, renderMap, restoreArchive, toJson } from "./audit/context.js";
 import { auditCi, renderCi } from "./audit/ci.js";
 import { docWindow, type DocWindow } from "./gate/longdoc.js";
-import { asksToContinue, captureSession, COMMITS, embedKey, embedText, withoutStaleClaims, forgetCard, leftOff, linkCommit, listCards, packVector, readCard, readCards, readVectors, recall, renderRecall, repoBrief, shareMemory, unpackVector, workCards, workingState, writeVectors, CARD_KIND, cardsDir } from "./memory/memory.js";
+import { asksToContinue, captureSession, COMMITS, embedKey, embedText, withoutStaleClaims, forgetCard, leftOff, linkCommit, listCards, packVector, readCard, readCards, readVectors, recall, renderRecall, repoBrief, shareMemory, unpackVector, withShellEdits, workCards, workingState, writeVectors, CARD_KIND, cardsDir } from "./memory/memory.js";
 import { memoryFetch, memoryHint, memorySearch, prepareHistorySearch, recentIndex, type MemoryContext } from "./memory/tools.js";
 import { commandFiles, fileHistoryNotes, fileHistoryStateFile, type FileHistoryState } from "./memory/file-history.js";
-import { claimImport, githubNudge, HIST_KIND, importHistory, readImportState, type ImportResult } from "./memory/history.js";
+import { catchUpSession, claimImport, githubNudge, sessionStartedAt, HIST_KIND, importHistory, readImportState, type ImportResult } from "./memory/history.js";
 import { applyDistilled, installedFor, keepSuggestion, rejectSuggestion, replaceOlder, retireElsewhere, retireInstalled, retireOneOff, suggestions } from "./memory/distill.js";
 import { coveredBy, instructionText, lastUses, nearDuplicate, restoreObservation, retireUnused, verification } from "./memory/quality.js";
 import { lessonQuestion, parseLessons } from "./memory/lessons.js";
@@ -76,7 +76,7 @@ import { prepareMeaning, semanticOn } from "./memory/semantic.js";
 import { buildMap, candidates, renderCandidates, shouldSuggest, type RepoMap } from "./map/map.js";
 import { forgetReads, rememberRead, repeatOf, repeatOutput, requestedWindow, returnedWindow } from "./gate/repeat.js";
 
-const VERSION = "0.3.6";
+const VERSION = "0.3.7";
 /** This bundle, by absolute path: what the gate hook runs. */
 const BIN = resolve(process.argv[1] ?? "dist/snout.mjs");
 
@@ -691,6 +691,10 @@ function promptNotes(prompt: string, paths: Paths, cfg: Config, state: SessionSt
     let left = "";
     if (state.turn === 1) {
       try {
+        // A session cut off before its last Stop has no card yet, or an old one (catchUpSession).
+        if (cfg.memoryLeftOff !== false || cfg.memoryNotes === true) {
+          try { catchUpSession(paths.projectDir, paths.snoutDir, state.session); } catch (err) { recordError("catchUp", err); }
+        }
         const claims = staleClaims(storesFor(paths.projectDir, paths.snoutDir, configDir()), paths.projectDir);
         // leftOff picks the newest card with work; the index hands over just those (this session's own aside).
         left = leftOff(workCards(paths.snoutDir, 2).filter((c) => c.session !== state.session).slice(0, 1).map((c) => withoutStaleClaims(c, claims)), { ...workingState(paths.projectDir), prompt });
@@ -1233,7 +1237,8 @@ const agentName = (): "claude" | "codex" => (client === "codex" ? "codex" : "cla
 function captureCard(input: HookInput, paths: Paths, cfg: Config, session: string): void {
   if (cfg.memory === false || !input.transcript_path || replayDir) return;
   try {
-    const facts = client === "codex" ? codexSessionFacts(input.transcript_path, paths.projectDir) : sessionFacts(input.transcript_path, paths.projectDir);
+    // With the files it changed through the shell, which its tool calls don't name (withShellEdits).
+    const facts = withShellEdits(client === "codex" ? codexSessionFacts(input.transcript_path, paths.projectDir) : sessionFacts(input.transcript_path, paths.projectDir), paths.projectDir, paths.snoutDir, sessionStartedAt(input.transcript_path), Date.now());
     const card = captureSession(paths.snoutDir, paths.projectDir, session, agentName(), facts);
     // The card's lasting facts become private observations (memory/distill.ts), for both agents.
     if (card && !(process.env.CI || process.env.SNOUT_TOKEN)) {

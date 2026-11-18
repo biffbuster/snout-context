@@ -4527,6 +4527,65 @@ function parts(content) {
   return content.map((x) => typeof x === "string" ? x : typeof x?.text === "string" ? x.text : "").join("");
 }
 
+// src/compact/miniswe.ts
+var SUBMITTING = /COMPLETE_TASK_AND_SUBMIT|\bpatch\.(?:txt|diff)\b|^\s*(?:cd \S+ && )?git (?:diff|status)\b/;
+function minisweTask(text) {
+  const m = /<(pr_description|issue)>\s*(?:Consider the following PR description:\s*)?([\s\S]*?)<\/\1>/.exec(text);
+  return (m ? m[2] : text).trim();
+}
+function diffFiles(diff) {
+  const files = [];
+  for (const m of diff.matchAll(/^\+\+\+ b\/(.+?)\s*$/gm)) if (!files.includes(m[1])) files.push(m[1]);
+  return files;
+}
+function commandsOf(msg) {
+  const actions = msg?.extra?.actions;
+  if (Array.isArray(actions) && actions.length) return actions.filter((a) => typeof a?.command === "string").map((a, i) => ({ id: String(a.tool_call_id ?? `${i}`), command: a.command }));
+  const calls = Array.isArray(msg?.tool_calls) ? msg.tool_calls : [];
+  return calls.flatMap((c) => {
+    try {
+      const command = JSON.parse(c?.function?.arguments ?? "{}").command;
+      return typeof command === "string" ? [{ id: String(c.id), command }] : [];
+    } catch {
+      return [];
+    }
+  });
+}
+function outputOf(msg) {
+  const raw = msg?.extra?.raw_output;
+  if (typeof raw === "string") return raw;
+  const text = typeof msg?.content === "string" ? msg.content : "";
+  return text.replace(/<\/?(returncode|output)>/g, "").trim();
+}
+function minisweRows(messages) {
+  const rows = [];
+  const push = (e) => rows.push(JSON.stringify(e));
+  let asked = false;
+  let n = 0;
+  for (const msg of messages) {
+    const role = msg?.role;
+    if (role === "user" && !asked && typeof msg.content === "string") {
+      asked = true;
+      push({ type: "user", message: { content: minisweTask(msg.content) } });
+    } else if (role === "assistant") {
+      const commands = commandsOf(msg);
+      const housekeeping = commands.length > 0 && commands.every((c) => SUBMITTING.test(c.command));
+      const said2 = housekeeping ? void 0 : [msg.content, msg.reasoning_content].find((t) => typeof t === "string" && t.trim().length >= 20);
+      const content = said2 ? [{ type: "text", text: said2 }] : [];
+      for (const c of commands) content.push({ type: "tool_use", id: `miniswe-${c.id}`, name: "Bash", input: { command: c.command } });
+      if (content.length) push({ type: "assistant", message: { content } });
+    } else if (role === "tool") {
+      const id = msg.tool_call_id ?? msg.extra?.actions?.[0]?.tool_call_id;
+      if (id !== void 0) push({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: `miniswe-${id}`, content: outputOf(msg), is_error: Number(msg.extra?.returncode ?? 0) !== 0 }] } });
+    } else if (role === "exit") {
+      const diff = typeof msg.extra?.submission === "string" ? msg.extra.submission : typeof msg.content === "string" ? msg.content : "";
+      const edits = diffFiles(diff).map((f) => ({ type: "tool_use", id: `miniswe-edit-${n++}`, name: "Edit", input: { file_path: f } }));
+      if (edits.length) push({ type: "assistant", message: { content: edits } });
+    }
+  }
+  return rows;
+}
+
 // src/compact/memory.ts
 import { closeSync as closeSync3, existsSync as existsSync11, openSync as openSync3, readSync as readSync3, statSync as statSync11 } from "node:fs";
 import { isAbsolute as isAbsolute9, join as join12, relative as relative5, resolve as resolve9, sep as sep4 } from "node:path";
@@ -4778,7 +4837,7 @@ function factsFromClaudeRows(lines, projectDir, first) {
         if (verdict && !/FAIL/.test(verdict) && GO_FAIL.test(out)) verdict = `${verdict} \xB7 FAIL`;
         facts.test = { command: oneLine(runner, 200), result: oneLine(verdict, 120) };
       }
-      const prints = NOT_RUNNER.has(command.trim().split(/\s+/)[0] ?? "");
+      const prints = NOT_RUNNER.has(command.trim().replace(/^(?:cd\s+\S+\s*&&\s*)+/, "").split(/\s+/)[0] ?? "");
       const err = missing || prints ? void 0 : errorLine(out);
       const cmd = oneLine(command, 160);
       if (err && !(runner && PASSED(verdict))) facts.error = { line: oneLine(err, 200), command: cmd };
@@ -4804,6 +4863,9 @@ function factsFromClaudeRows(lines, projectDir, first) {
 }
 function codexSessionFacts(transcriptPath, projectDir) {
   return factsFromClaudeRows(codexRows(tail(transcriptPath).split(/\n/)), projectDir);
+}
+function minisweSessionFacts(messages, projectDir) {
+  return factsFromClaudeRows(minisweRows(messages), projectDir);
 }
 
 // src/agents/adapt.ts
@@ -5503,7 +5565,7 @@ function renderReplay(rows) {
 }
 
 // src/memory/memory.ts
-import { existsSync as existsSync14, mkdirSync as mkdirSync9, readdirSync as readdirSync6, readFileSync as readFileSync13, unlinkSync as unlinkSync2 } from "node:fs";
+import { existsSync as existsSync14, mkdirSync as mkdirSync9, readdirSync as readdirSync6, readFileSync as readFileSync13, statSync as statSync14, unlinkSync as unlinkSync2 } from "node:fs";
 import { isAbsolute as isAbsolute11, join as join17, relative as relative8, sep as sep7 } from "node:path";
 import { spawnSync as spawnSync3 } from "node:child_process";
 
@@ -6273,6 +6335,22 @@ function continuesWork(prompt, files) {
   const paths = pathsIn(prompt);
   return files.some((f) => namesFile(paths, f));
 }
+function withShellEdits(facts, projectDir, snoutDir, from, to) {
+  if (from === void 0) return facts;
+  const own = relative8(projectDir, snoutDir).split(sep7).join("/");
+  const snouts = (p) => !!own && !own.startsWith("..") && p.startsWith(`${own}/`) && !p.endsWith(".md");
+  const extra = [];
+  for (const p of [...workingState(projectDir).dirty].slice(0, 500)) {
+    if (facts.changed.includes(p) || snouts(p)) continue;
+    try {
+      const m = statSync14(join17(projectDir, p)).mtimeMs;
+      if (m >= from - SHELL_EDIT_SLACK_MS && m <= to + SHELL_EDIT_SLACK_MS) extra.push(p);
+    } catch {
+    }
+  }
+  return extra.length ? { ...facts, changed: [...facts.changed, ...extra].slice(0, 20) } : facts;
+}
+var SHELL_EDIT_SLACK_MS = 2e3;
 function workingState(projectDir) {
   let out = "";
   try {
@@ -6846,7 +6924,7 @@ function restoreObservation(s, id, now = /* @__PURE__ */ new Date(), status = "a
 }
 
 // src/util/path.ts
-import { statSync as statSync14 } from "node:fs";
+import { statSync as statSync15 } from "node:fs";
 import { delimiter, join as join22 } from "node:path";
 function onPath(name, env = process.env, platform = process.platform) {
   if (!/^[\w.+-]+$/.test(name)) return false;
@@ -6855,7 +6933,7 @@ function onPath(name, env = process.env, platform = process.platform) {
     if (!dir) continue;
     for (const ext of exts) {
       try {
-        if (statSync14(join22(dir, name + ext)).isFile()) return true;
+        if (statSync15(join22(dir, name + ext)).isFile()) return true;
       } catch {
       }
     }
@@ -7092,7 +7170,7 @@ function parseLessons(reply) {
 
 // src/memory/facts.ts
 import { createHash as createHash6 } from "node:crypto";
-import { existsSync as existsSync19, readFileSync as readFileSync19, statSync as statSync15 } from "node:fs";
+import { existsSync as existsSync19, readFileSync as readFileSync19, statSync as statSync16 } from "node:fs";
 import { join as join26 } from "node:path";
 
 // src/memory/semantic.ts
@@ -7456,7 +7534,7 @@ function heldBack(o, projectDir) {
     if (!existsSync19(abs)) return true;
     const h = o.source.hashes?.[f];
     try {
-      if (h ? fileHash(abs) !== h : statSync15(abs).mtimeMs > Date.parse(o.updated) + 1e3) return true;
+      if (h ? fileHash(abs) !== h : statSync16(abs).mtimeMs > Date.parse(o.updated) + 1e3) return true;
     } catch {
       return true;
     }
@@ -7474,7 +7552,7 @@ function staleClaims(stores, projectDir) {
 }
 
 // src/memory/history.ts
-import { closeSync as closeSync4, existsSync as existsSync20, mkdirSync as mkdirSync13, openSync as openSync4, readdirSync as readdirSync8, readFileSync as readFileSync20, readSync as readSync4, realpathSync as realpathSync3, rmSync as rmSync5, statSync as statSync16, writeFileSync as writeFileSync7 } from "node:fs";
+import { closeSync as closeSync4, existsSync as existsSync20, mkdirSync as mkdirSync13, openSync as openSync4, readdirSync as readdirSync8, readFileSync as readFileSync20, readSync as readSync4, realpathSync as realpathSync3, rmSync as rmSync5, statSync as statSync17, writeFileSync as writeFileSync7 } from "node:fs";
 import { spawnSync as spawnSync6 } from "node:child_process";
 import { basename as basename4, join as join27, resolve as resolve11 } from "node:path";
 var SINCE_DAYS = 183;
@@ -7752,7 +7830,7 @@ function transcripts(projectDir, env) {
   }
   for (const t of out) {
     try {
-      const st = statSync16(t.file);
+      const st = statSync17(t.file);
       t.key = `${st.size}:${Math.round(st.mtimeMs)}`;
     } catch {
     }
@@ -7778,6 +7856,19 @@ function headCwd(file3, agent) {
   } catch {
   }
   return null;
+}
+function sessionStartedAt(file3) {
+  try {
+    const fd = openSync4(file3, "r");
+    const buf = Buffer.alloc(65536);
+    const n = readSync4(fd, buf, 0, buf.length, 0);
+    closeSync4(fd);
+    const ts = /"timestamp":"([^"]+)"/.exec(buf.subarray(0, n).toString("utf8"))?.[1];
+    const ms = ts ? Date.parse(ts) : NaN;
+    return Number.isNaN(ms) ? void 0 : ms;
+  } catch {
+    return void 0;
+  }
 }
 var UUID = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/;
 var COMMITTED = /\[[\w./-]+(?: \([\w-]+\))? ([0-9a-f]{7,40})\] /g;
@@ -7971,13 +8062,23 @@ function importHistory(o) {
 `);
   return result;
 }
+var CAUGHT_UP_MS = 5e3;
+function catchUpSession(projectDir, snoutDir, current, env = process.env) {
+  const t = transcripts(projectDir, env).filter((x) => !basename4(x.file).includes(current)).map((x) => ({ ...x, mtime: statSync17(x.file).mtimeMs })).sort((a, b) => b.mtime - a.mtime)[0];
+  if (!t) return null;
+  const session = t.agent === "claude" ? basename4(t.file, ".jsonl") : UUID.exec(basename4(t.file))?.[1] ?? basename4(t.file, ".jsonl");
+  const card = readCard(snoutDir, session);
+  if (card && Date.parse(card.updated) >= t.mtime - CAUGHT_UP_MS) return null;
+  const facts = withShellEdits(t.agent === "claude" ? sessionFacts(t.file, projectDir) : codexSessionFacts(t.file, projectDir), projectDir, snoutDir, sessionStartedAt(t.file), t.mtime);
+  return captureSession(snoutDir, projectDir, session, t.agent, facts, new Date(t.mtime).toISOString()) ? session : null;
+}
 function claimImport(configDir2, project, now = Date.now()) {
   const last = readImportState(configDir2, project)?.last;
   if (last && now - Date.parse(last) < REFRESH_MS) return false;
   const marker = join27(configDir2, "history", project, "running");
   try {
     mkdirSync13(join27(configDir2, "history", project), { recursive: true });
-    if (existsSync20(marker) && Date.now() - statSync16(marker).mtimeMs < 36e5) return false;
+    if (existsSync20(marker) && Date.now() - statSync17(marker).mtimeMs < 36e5) return false;
     writeFileSync7(marker, (/* @__PURE__ */ new Date()).toISOString(), { flag: existsSync20(marker) ? "w" : "wx" });
     return true;
   } catch {
@@ -8004,7 +8105,7 @@ import { dirname as dirname9 } from "node:path";
 
 // src/memory/history-search.ts
 import { createHash as createHash7 } from "node:crypto";
-import { readFileSync as readFileSync21, statSync as statSync17 } from "node:fs";
+import { readFileSync as readFileSync21, statSync as statSync18 } from "node:fs";
 import { join as join28 } from "node:path";
 var RRF_K2 = 60;
 var MEANING_ALONE2 = 0.74;
@@ -8088,7 +8189,7 @@ var loaded = null;
 function vectorCache(file3) {
   let mtime = -1;
   try {
-    mtime = statSync17(file3).mtimeMs;
+    mtime = statSync18(file3).mtimeMs;
   } catch {
   }
   if (loaded?.file === file3 && loaded.mtime === mtime) return loaded;
@@ -8120,7 +8221,7 @@ async function prepareHistoryVectors(historyRoot, records, query, embed, max = M
     if (batch.length) {
       writeAtomic(file3, JSON.stringify(c.cache));
       try {
-        c.mtime = statSync17(file3).mtimeMs;
+        c.mtime = statSync18(file3).mtimeMs;
       } catch {
       }
     }
@@ -8663,6 +8764,7 @@ export {
   captureSession,
   cardIndex,
   cardsFor,
+  catchUpSession,
   checkProposals,
   cite,
   claimImport,
@@ -8687,6 +8789,7 @@ export {
   dailyAggregates,
   decide,
   deleteObservation,
+  diffFiles,
   distillCard,
   dropEchoes,
   dropIndex,
@@ -8770,6 +8873,9 @@ export {
   memorySave,
   memorySearch,
   migratePrefs,
+  minisweRows,
+  minisweSessionFacts,
+  minisweTask,
   missingTool,
   modelKey,
   modelReady,

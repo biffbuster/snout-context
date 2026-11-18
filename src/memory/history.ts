@@ -25,7 +25,7 @@ import { basename, join, resolve } from "node:path";
 import { codexSessionFacts, GOAL_CHARS, sessionFacts, type SessionFacts } from "../compact/memory.js";
 import { claudeRoot, claudeSlug, codexRoot, jsonlFiles } from "../spend/usage.js";
 import { writeAtomic } from "../util/atomic.js";
-import { cardsDir, readCard, type Card, type Commit } from "./memory.js";
+import { captureSession, cardsDir, readCard, withShellEdits, type Card, type Commit } from "./memory.js";
 import { folderChanged, indexedRecords, type RecordKind } from "./sqlite.js";
 import { indexForms } from "./retrieve.js";
 
@@ -358,6 +358,21 @@ function headCwd(file: string, agent: "claude" | "codex"): string | null {
   return null;
 }
 
+/** When a transcript's session started: the first timestamp in its first lines, as epoch ms. */
+export function sessionStartedAt(file: string): number | undefined {
+  try {
+    const fd = openSync(file, "r");
+    const buf = Buffer.alloc(65536);
+    const n = readSync(fd, buf, 0, buf.length, 0);
+    closeSync(fd);
+    const ts = /"timestamp":"([^"]+)"/.exec(buf.subarray(0, n).toString("utf8"))?.[1];
+    const ms = ts ? Date.parse(ts) : NaN;
+    return Number.isNaN(ms) ? undefined : ms;
+  } catch {
+    return undefined;
+  }
+}
+
 const UUID = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/;
 /** git commit's own line: "[main abc1234] Subject" (or "[main (root-commit) abc1234]"). */
 const COMMITTED = /\[[\w./-]+(?: \([\w-]+\))? ([0-9a-f]{7,40})\] /g;
@@ -592,6 +607,30 @@ export function importHistory(o: ImportOptions): ImportResult {
   mkdirSync(join(o.configDir, "history", o.project), { recursive: true });
   writeAtomic(stateFile(o.configDir, o.project), `${JSON.stringify(state, null, 1)}\n`);
   return result;
+}
+
+const CAUGHT_UP_MS = 5000;
+
+/**
+ * The project's newest earlier session, recorded now when Snout has no card for it or an older one
+ * than its transcript. A card is written at each Stop; a session cut off mid-work (Esc, a crash, a
+ * closed terminal, a hook that ended it) never reaches its last Stop, and the import that would read
+ * its transcript runs at most once a day. The left-off note reads cards, so a new session's first
+ * prompt catches up on the session before it. Returns that session's id when it wrote its card.
+ */
+export function catchUpSession(projectDir: string, snoutDir: string, current: string, env: NodeJS.ProcessEnv = process.env): string | null {
+  const t = transcripts(projectDir, env)
+    .filter((x) => !basename(x.file).includes(current))
+    .map((x) => ({ ...x, mtime: statSync(x.file).mtimeMs }))
+    .sort((a, b) => b.mtime - a.mtime)[0];
+  if (!t) return null;
+  const session = t.agent === "claude" ? basename(t.file, ".jsonl") : (UUID.exec(basename(t.file))?.[1] ?? basename(t.file, ".jsonl"));
+  const card = readCard(snoutDir, session);
+  // Claude Code still writes a line or two after a Stop; a card that recent is that session's last.
+  if (card && Date.parse(card.updated) >= t.mtime - CAUGHT_UP_MS) return null;
+  const facts = withShellEdits(t.agent === "claude" ? sessionFacts(t.file, projectDir) : codexSessionFacts(t.file, projectDir), projectDir, snoutDir, sessionStartedAt(t.file), t.mtime);
+  // The same card its Stop would have written, dated when the session last wrote.
+  return captureSession(snoutDir, projectDir, session, t.agent, facts, new Date(t.mtime).toISOString()) ? session : null;
 }
 
 /**
